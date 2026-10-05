@@ -24,6 +24,12 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   and needs no configuration. PostgreSQL is there if you want it.
 - **Made for e-readers.** Kobo sync, KOReader sync and OPDS are core features, not
   plugins, and your reading position follows you between them.
+- **Fediverse ready.** Connect your instance to the fediverse: shelves of free
+  books can be followed from other Legejo instances and from Mastodon, over
+  ActivityPub.
+- **MCP server built in.** Let the AI assistant you already use search your
+  library and read your books, through a read-only Model Context Protocol
+  server. No AI runs inside Legejo, and it is off until you turn it on.
 - **Free.** Open source under the AGPL, with no paid tier and no telemetry.
 - **Actively developed.** Legejo is under active development; issues and pull
   requests are welcome.
