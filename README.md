@@ -28,6 +28,13 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 - **Actively developed.** Legejo is under active development; issues and pull
   requests are welcome.
 
+## Why not?
+
+Legejo does one thing: EPUB. It does not handle PDF, comics, audiobooks or
+any other format. That is on purpose: the goal is a fast, smooth application
+for EPUB books that runs on its own, with no other services to set up. If
+your library is mostly PDFs or comics, another tool will serve you better.
+
 ## Features
 
 **Library**
