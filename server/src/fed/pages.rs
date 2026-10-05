@@ -7,20 +7,39 @@ use crate::AppState;
 use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Response};
 
+/// The logo, as in the app (a copy of the web's lib/assets/legejo.svg).
+const LOGO: &str = include_str!("legejo.svg");
+
+const REPOSITORY: &str = "https://github.com/jularboolean/legejo";
+
+/// The palette and fonts follow the app's stylesheet (web/src/app.css).
+const STYLE: &str = "\
+:root{--bg:#f3f5f5;--fg:#1d2224;--muted:#6c7a7e;--accent:#53676c;--card:#fdfefe;--border:#dbe1e2;\
+--shadow:0 1px 3px rgba(25,35,38,.1),0 4px 14px rgba(25,35,38,.06)}\
+@media (prefers-color-scheme:dark){:root{--bg:#15181a;--fg:#e4e8e9;--muted:#8d9a9e;--accent:#94b0b8;--card:#1d2124;--border:#333a3d;\
+--shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3)}}\
+*{box-sizing:border-box}\
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 'Inter Variable',system-ui,sans-serif}\
+main{max-width:44rem;margin:0 auto;padding:2rem 1rem}\
+h1{font-family:'Fraunces',Georgia,serif;margin:.2rem 0 .4rem}\
+a{color:var(--accent)}.muted{color:var(--muted);font-size:.9rem}\
+.brand{display:flex;flex-direction:column;align-items:center;gap:.25rem;margin-bottom:1.5rem;padding-bottom:1.25rem;\
+border-bottom:1px solid var(--border);color:var(--muted);font-size:.85rem;text-align:center}\
+.brand svg{width:auto;height:5.5rem}.brand strong{font-weight:500;letter-spacing:.04em}\
+ul{list-style:none;padding:0;display:grid;gap:.75rem}\
+li{display:flex;gap:.9rem;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem;box-shadow:var(--shadow)}\
+img{width:4.5rem;aspect-ratio:2/3;object-fit:cover;border-radius:3px;flex-shrink:0}.big img{width:10rem}\
+.btn{display:inline-block;margin-top:.6rem;padding:.45rem .9rem;border-radius:6px;background:var(--accent);color:var(--bg);text-decoration:none}";
+
 fn page(title: &str, body: &str) -> Response {
+    let logo = LOGO.trim_start_matches(|c| c != '\n').trim_start();
     Html(format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-         <title>{t}</title><style>\
-         :root{{--bg:#f7f5f0;--fg:#22201c;--muted:#6b665c;--accent:#4f5d75;--card:#fff;--border:#e2ddd2}}\
-         @media (prefers-color-scheme:dark){{:root{{--bg:#1b1a18;--fg:#ece8df;--muted:#a19b8f;--accent:#9fb0cf;--card:#252420;--border:#3a3832}}}}\
-         body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}}\
-         main{{max-width:44rem;margin:0 auto;padding:2rem 1rem}}h1{{font-family:Georgia,serif;margin:.2rem 0 .4rem}}\
-         a{{color:var(--accent)}}.muted{{color:var(--muted);font-size:.9rem}}\
-         ul{{list-style:none;padding:0;display:grid;gap:.75rem}}li{{display:flex;gap:.9rem;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem}}\
-         img{{width:4.5rem;aspect-ratio:2/3;object-fit:cover;border-radius:3px;flex-shrink:0}}.big img{{width:10rem}}\
-         .btn{{display:inline-block;margin-top:.6rem;padding:.45rem .9rem;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none}}\
-         </style></head><body><main>{body}</main></body></html>",
+         <title>{t}</title><style>{STYLE}</style></head><body><main>\
+         <header class=\"brand\">{logo}<strong>Legejo</strong>\
+         <span>Free software for your own library of EPUB books. <a href=\"{REPOSITORY}\">Get it on GitHub</a>.</span></header>\
+         {body}</main></body></html>",
         t = escape(title)
     ))
     .into_response()
@@ -48,12 +67,18 @@ pub async fn shelf(State(state): State<AppState>, Path(slug): Path<String>) -> R
         let b = &p.book;
         items.push_str(&format!(
             "<li><img src=\"/ap/books/{u}/cover\" alt=\"\"><div><a href=\"/f/{s}/{u}\"><strong>{t}</strong></a><br>{a}\
-             <div class=\"muted\">{l}</div></div></li>",
+             {d}</div></li>",
             u = b.uuid,
             s = shelf.ap_slug,
             t = escape(&b.title),
             a = escape(b.author.as_deref().unwrap_or("")),
-            l = escape(&licence_text(b.license.as_deref().unwrap_or(""), b.author_death_year)),
+            d = b
+                .description
+                .as_deref()
+                .map(|d| super::objects::shorten(d, 240))
+                .filter(|d| !d.is_empty())
+                .map(|d| format!("<div class=\"muted\">{}</div>", escape(&d)))
+                .unwrap_or_default(),
         ));
     }
     let handle = format!("@{}@{}", shelf.ap_slug, c.host);

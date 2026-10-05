@@ -186,7 +186,7 @@ async fn outbox(State(state): State<AppState>, Path(slug): Path<String>, Query(q
         .skip((page - 1) * PAGE_SIZE)
         .take(PAGE_SIZE)
         .map(|p| {
-            let mut object = objects::book_object(&c, &shelf.ap_slug, &OutBook { book: &p.book, sha256: &p.sha256 });
+            let mut object = objects::book_object(&c, &shelf.ap_slug, &OutBook { book: &p.book, sha256: &p.sha256, cover_mime: p.cover_mime.as_deref() });
             let when = published.iter().find(|(id, _)| *id == p.book.id).map(|(_, t)| t.clone()).unwrap_or(p.book.created_at.clone());
             object["published"] = json!(when);
             let mut a = objects::activity(&c, "Create", &actor, object);
@@ -291,7 +291,7 @@ async fn book(State(state): State<AppState>, headers: HeaderMap, Path(uuid): Pat
     if wants_html(&headers) {
         return Ok(Redirect::to(&format!("/f/{}/{}", b.slug, uuid)).into_response());
     }
-    let mut object = objects::book_object(&c, &b.slug, &OutBook { book: &b.book, sha256: &b.sha256 });
+    let mut object = objects::book_object(&c, &b.slug, &OutBook { book: &b.book, sha256: &b.sha256, cover_mime: b.cover_mime.as_deref() });
     object["published"] = json!(b.book.created_at);
     Ok(ap_json(object))
 }

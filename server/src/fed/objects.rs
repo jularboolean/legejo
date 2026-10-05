@@ -92,7 +92,11 @@ pub fn shelf_actor(c: &FedConfig, shelf: &FedShelf, pem: &str) -> Value {
 pub struct OutBook<'a> {
     pub book: &'a Book,
     pub sha256: &'a str,
+    pub cover_mime: Option<&'a str>,
 }
+
+/// Longest summary sent with a book, in characters.
+const SUMMARY_CHARS: usize = 500;
 
 /// The Page object for a book on a shelf. `published` is left out here and
 /// added by the caller, so the hash of this value only changes with content.
@@ -102,18 +106,34 @@ pub fn book_object(c: &FedConfig, slug: &str, b: &OutBook) -> Value {
     let shelf = c.shelf_actor(slug);
     let license = book.license.as_deref().unwrap_or("");
     let by = book.author.as_deref().map(|a| format!(" by {a}")).unwrap_or_default();
-    let mut summary = format!("{}{by}. License: {license}.", book.title);
-    if let Some(year) = book.author_death_year {
-        summary.push_str(&format!(" The author died in {year}."));
-    }
+    // Mastodon shows a Page as its name, its summary and a link, so the
+    // summary says who wrote the book and what it is about. The license is
+    // in the fields of its own.
+    let summary = [
+        book.author.as_deref().map(|a| format!("By {a}.")),
+        book.description.as_deref().map(|d| shorten(d, SUMMARY_CHARS)).filter(|d| !d.is_empty()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
     let page_url = format!("{}/f/{slug}/{}", c.base, book.uuid);
+    let cover_url = format!("{id}/cover");
+    // Mastodon takes pictures from `attachment` only. A cover that is not
+    // free is replaced by a generated SVG, which it cannot show.
+    let attachment: Vec<Value> = match b.cover_mime {
+        Some(mime) if book.cover_is_free.as_bool() && mime.starts_with("image/") && mime != "image/svg+xml" => {
+            vec![json!({ "type": "Image", "mediaType": mime, "url": cover_url, "name": format!("Cover of {}", book.title) })]
+        }
+        _ => Vec::new(),
+    };
     json!({
         "@context": context(),
         "type": "Page",
         "id": id,
         "attributedTo": shelf,
         "name": book.title,
-        "summary": summary,
+        "summary": escape(&summary),
         "content": format!(
             "<p><a href=\"{page_url}\">{}</a>{}</p>{}",
             escape(&book.title),
@@ -125,7 +145,8 @@ pub fn book_object(c: &FedConfig, slug: &str, b: &OutBook) -> Value {
             { "type": "Link", "mediaType": "application/epub+zip", "href": format!("{id}/epub"),
               "sha256": b.sha256, "size": book.file_size }
         ],
-        "icon": { "type": "Image", "url": format!("{id}/cover") },
+        "icon": { "type": "Image", "url": cover_url },
+        "attachment": attachment,
         "attributedToName": book.author,
         "author": book.author,
         "language": book.language,
@@ -189,6 +210,20 @@ pub fn nodeinfo(mode: &str, contact: Option<&str>, shelves: i64, books: i64) -> 
 
 pub fn escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+/// Text on one line, cut at a word boundary to at most `max` characters.
+pub fn shorten(s: &str, max: usize) -> String {
+    let text = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.chars().count() <= max {
+        return text;
+    }
+    let cut: String = text.chars().take(max.saturating_sub(1)).collect();
+    let cut = match cut.rfind(' ') {
+        Some(space) if space > max / 2 => &cut[..space],
+        _ => cut.as_str(),
+    };
+    format!("{}…", cut.trim_end_matches(|c: char| c.is_ascii_punctuation() || c == ' '))
 }
 
 /// Plain text (Markdown in the app) as safe HTML paragraphs.

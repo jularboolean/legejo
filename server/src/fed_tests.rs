@@ -91,6 +91,30 @@ async fn a_shelf_federates_only_with_free_books_and_keeps_its_handle() {
     let (status, v): (StatusCode, Value) = send(&app, Method::GET, "/ap/shelves/alice-klassiker/outbox?page=1", None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["orderedItems"][0]["object"]["license"], "pd");
+    // Neither author nor description: an empty summary. No cover: no attachment.
+    assert_eq!(v["orderedItems"][0]["object"]["summary"], "");
+    assert_eq!(v["orderedItems"][0]["object"]["attachment"].as_array().unwrap().len(), 0);
+
+    // What Mastodon shows: the author and the description as the summary, and
+    // a free cover as an attachment.
+    let long = format!("Ett <stort>  verk.\n\n{}", "ord ".repeat(200));
+    sqlx::query("UPDATE books SET author = 'August Strindberg', description = ?, cover_mime = 'image/jpeg', cover_is_free = 1 WHERE id = ?")
+        .bind(&long)
+        .bind(free_book)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (_, v): (StatusCode, Value) = send(&app, Method::GET, "/ap/shelves/alice-klassiker/outbox?page=1", None, None).await;
+    let object = &v["orderedItems"][0]["object"];
+    let summary = object["summary"].as_str().unwrap();
+    assert!(summary.starts_with("By August Strindberg. Ett &lt;stort&gt; verk. ord ord"), "{summary}");
+    assert!(summary.ends_with("ord…") && summary.chars().count() < 540, "{summary}");
+    assert_eq!(object["attachment"][0]["mediaType"], "image/jpeg");
+    assert_eq!(object["attachment"][0]["url"], object["icon"]["url"]);
+    // A cover that is not free goes out as a generated SVG: no attachment.
+    sqlx::query("UPDATE books SET cover_is_free = 0 WHERE id = ?").bind(free_book).execute(&db).await.unwrap();
+    let (_, v): (StatusCode, Value) = send(&app, Method::GET, "/ap/shelves/alice-klassiker/outbox?page=1", None, None).await;
+    assert_eq!(v["orderedItems"][0]["object"]["attachment"].as_array().unwrap().len(), 0);
 }
 
 mod requests {

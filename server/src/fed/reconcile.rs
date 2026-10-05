@@ -19,6 +19,7 @@ use serde_json::json;
 pub struct Published {
     pub book: Book,
     pub sha256: String,
+    pub cover_mime: Option<String>,
 }
 
 /// The federable books on a shelf, newest first. Books failing the gate are
@@ -43,11 +44,12 @@ pub async fn shelf_books(state: &AppState, shelf_id: i64) -> anyhow::Result<Vec<
             );
             continue;
         }
-        let sha256: String = sqlx::query_scalar("SELECT file_sha256 FROM books WHERE id = $1")
-            .bind(book.id)
-            .fetch_one(&state.db)
-            .await?;
-        out.push(Published { book, sha256 });
+        let (sha256, cover_mime): (String, Option<String>) =
+            sqlx::query_as("SELECT file_sha256, cover_mime FROM books WHERE id = $1")
+                .bind(book.id)
+                .fetch_one(&state.db)
+                .await?;
+        out.push(Published { book, sha256, cover_mime });
     }
     Ok(out)
 }
@@ -74,7 +76,7 @@ pub async fn run(state: &AppState) -> anyhow::Result<()> {
         let inboxes = super::deliver::follower_inboxes(state, shelf.id).await?;
 
         for p in &current {
-            let object = objects::book_object(&c, &shelf.ap_slug, &OutBook { book: &p.book, sha256: &p.sha256 });
+            let object = objects::book_object(&c, &shelf.ap_slug, &OutBook { book: &p.book, sha256: &p.sha256, cover_mime: p.cover_mime.as_deref() });
             let hash = crate::books::sha256_hex(object.to_string().as_bytes());
             let previous = published.iter().find(|(id, _, _)| *id == p.book.id);
             let kind = match previous {
