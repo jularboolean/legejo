@@ -168,6 +168,12 @@ pub struct ListParams {
     q: Option<String>,
 }
 
+impl ListParams {
+    pub(crate) fn new(q: Option<String>) -> Self {
+        ListParams { q }
+    }
+}
+
 /// Full-text search, the one place where the two backends truly differ.
 /// Returns (extra JOIN, WHERE condition on $2, ORDER BY expression).
 pub(crate) struct SearchParts {

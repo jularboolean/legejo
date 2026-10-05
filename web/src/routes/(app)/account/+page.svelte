@@ -6,6 +6,7 @@
 	import AppPasswords from '#lib/AppPasswords.svelte';
 	import OidcLink from '#lib/OidcLink.svelte';
 	import KosyncSetup from '#lib/KosyncSetup.svelte';
+	import McpSetup from '#lib/McpSetup.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { getLocale, LANGUAGES, setLocale, t } from '#lib/i18n';
 	import type { Account } from '#lib/types';
@@ -299,6 +300,7 @@
 </section>
 
 <KosyncSetup username={account.username} />
+{#if data.mcpEnabled}<McpSetup />{/if}
 
 <AccountLeave />
 

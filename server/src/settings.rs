@@ -92,6 +92,8 @@ pub struct Settings {
     pub import: Option<ImportDir>,
     /// Mark cookies Secure. On by default when LEGEJO_PUBLIC_URL is https.
     pub secure_cookies: bool,
+    /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
+    pub mcp: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,6 +112,7 @@ impl Default for Settings {
             metrics: Metrics::Off,
             import: None,
             secure_cookies: false,
+            mcp: false,
         }
     }
 }
@@ -142,7 +145,8 @@ impl Settings {
             Some(_) => flag("LEGEJO_SECURE_COOKIES")?,
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies })
+        let mcp = flag("LEGEJO_MCP")?;
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies, mcp })
     }
 }
 

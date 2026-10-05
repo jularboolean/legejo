@@ -39,6 +39,28 @@ fn generate() -> String {
 
 /// True when `secret` is one of the user's app passwords. Updates
 /// `last_used_at` at most once an hour to avoid a write per OPDS request.
+/// The user an app password belongs to, for clients that send only the
+/// secret (a bearer token). Notes the use like `matches`.
+pub async fn user_for(state: &AppState, secret: &str) -> Option<crate::auth::UserInfo> {
+    if secret.len() < 16 || secret.len() > 40 {
+        return None;
+    }
+    let (user_id, username, is_admin, locale, has_avatar): (i64, String, i64, Option<String>, i64) = sqlx::query_as(
+        "SELECT u.id, u.username, u.is_admin, u.locale,
+                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT)
+         FROM app_passwords a JOIN users u ON u.id = a.user_id
+         WHERE a.secret_hash = $1",
+    )
+    .bind(hash(secret))
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()?;
+    // Shares the hourly last-used bookkeeping.
+    matches(state, user_id, secret).await;
+    Some(crate::auth::UserInfo { id: user_id, username, is_admin: is_admin != 0, locale, has_avatar: has_avatar != 0 })
+}
+
 pub async fn matches(state: &AppState, user_id: i64, secret: &str) -> bool {
     if secret.len() < 16 || secret.len() > 40 {
         return false;

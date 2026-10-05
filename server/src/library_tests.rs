@@ -23,7 +23,7 @@ pub(crate) fn epub(title: &str, identifier: &str) -> Vec<u8> {
     z.finish().unwrap().into_inner()
 }
 
-async fn upload(app: &axum::Router, cookie: &str, files: &[(&str, Vec<u8>)], query: &str) -> Value {
+pub(crate) async fn upload(app: &axum::Router, cookie: &str, files: &[(&str, Vec<u8>)], query: &str) -> Value {
     let boundary = "legejo-test-boundary";
     let mut body = Vec::new();
     for (name, bytes) in files {

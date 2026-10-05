@@ -225,11 +225,14 @@ pub async fn set_admin(
 pub struct Config {
     libris_enabled: bool,
     openlibrary_enabled: bool,
+    /// Whether the MCP endpoint is served (LEGEJO_MCP).
+    mcp_enabled: bool,
 }
 
 pub async fn config(State(state): State<AppState>, _user: AuthUser) -> Result<Json<Config>, Response> {
     Ok(Json(Config {
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
+        mcp_enabled: state.settings.mcp,
     }))
 }

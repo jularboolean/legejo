@@ -6,12 +6,14 @@ mod admin;
 mod app_passwords;
 mod oidc;
 mod importdir;
+mod mcp;
 mod metrics;
 mod ratelimit;
 mod settings;
 mod audit;
 mod auth;
 mod books;
+mod booktext;
 mod db;
 mod export;
 mod fed;
@@ -41,6 +43,8 @@ mod library_tests;
 mod oidc_tests;
 #[cfg(test)]
 mod selfhost_tests;
+#[cfg(test)]
+mod mcp_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -124,6 +128,7 @@ fn router(state: AppState) -> Router {
         .route("/register/reset", post(register::reset))
         .route("/account", get(account::get).put(account::update).delete(account::delete_account))
         .route("/account/metadata", get(export::metadata))
+        .route("/mcp", post(mcp::post).layer(DefaultBodyLimit::max(1024 * 1024)))
         .route("/account/app-passwords", get(app_passwords::list).post(app_passwords::create))
         .route("/account/app-passwords/{id}", axum::routing::delete(app_passwords::delete))
         .route(

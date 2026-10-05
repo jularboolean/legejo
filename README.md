@@ -54,6 +54,7 @@ your library is mostly PDFs or comics, another tool will serve you better.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. Books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
+- **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
 
 ![The reading page](docs/screenshots/reading.jpg)
 
@@ -118,6 +119,25 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_ADMIN_PASSWORD` | generated | Its password; printed once in the log when generated |
 | `LEGEJO_MAX_UPLOAD_MB` | `200` | Largest accepted upload |
 | `LEGEJO_LOG_FORMAT` | `text` | `json` for one JSON object per line. The level is set with `RUST_LOG` |
+| `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |
+
+**AI assistants (MCP).** With `LEGEJO_MCP=true`, Legejo serves a read-only Model
+Context Protocol endpoint at `/api/mcp` (Streamable HTTP). It is off by default.
+It gives an assistant seven tools:
+search the library, book details, shelves, a reading overview, a book's table
+of contents, reading a section and searching inside a book. Each user creates
+an app password under Account and gives it to the assistant as a bearer token;
+the assistant then sees that user's library and nothing else. For example, in
+Claude Code:
+
+```sh
+claude mcp add --transport http legejo https://books.example.org/api/mcp \
+  --header "Authorization: Bearer <app password>"
+```
+
+Any client that can send an `Authorization` header to a remote MCP server
+works. OAuth sign-in, which some hosted assistants require, is not supported.
+The text of a book only leaves the server when the assistant asks for it.
 
 **Mail** (self-registration, invitations, password reset):
 
