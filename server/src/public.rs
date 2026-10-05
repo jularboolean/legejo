@@ -1,11 +1,13 @@
-//! Public shelves: any logged-in user can browse other users' non-private
-//! shelves and import books from them. There is no license gate inside the
+//! Shared shelves: a logged-in user can browse the shelves other users share
+//! with everyone on the instance or with them by name, and import books from
+//! them. There is no license gate inside the
 //! instance. An import copies the EPUB and cover on disk under a new uuid,
 //! so the copy survives if the owner later deletes or edits theirs.
 
 use crate::auth::AuthUser;
 use crate::books::{new_uuid, Book, BOOK_COLUMNS_B};
 use crate::db::DbFlag;
+use crate::shelves::visible_to;
 use crate::AppState;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
@@ -32,26 +34,32 @@ pub struct PublicShelf {
     pub owner: String,
     pub owner_id: i64,
     pub owner_has_avatar: DbFlag,
+    /// Shared with the caller by name rather than with everyone.
+    pub restricted: DbFlag,
 }
+
+pub(crate) const PUBLIC_SHELF_COLUMNS: &str = "s.id, s.name, s.description,
+                CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover,
+                COUNT(sb.book_id) AS book_count,
+                u.username AS owner, u.id AS owner_id,
+                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS owner_has_avatar,
+                CAST(CASE WHEN s.visibility = 'private' THEN 1 ELSE 0 END AS BIGINT) AS restricted";
 
 /// Public shelves belonging to OTHER users; your own live under My shelves.
 pub async fn shelves(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Json<Vec<PublicShelf>>, Response> {
-    let shelves: Vec<PublicShelf> = sqlx::query_as(
-        "SELECT s.id, s.name, s.description,
-                CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover,
-                COUNT(sb.book_id) AS book_count,
-                u.username AS owner, u.id AS owner_id,
-                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS owner_has_avatar
+    let shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
+        "SELECT {PUBLIC_SHELF_COLUMNS}
          FROM shelves s
          JOIN users u ON u.id = s.owner_id
          LEFT JOIN shelf_books sb ON sb.shelf_id = s.id
-         WHERE s.visibility <> 'private' AND s.owner_id != $1
+         WHERE {visible} AND s.owner_id != $1
          GROUP BY s.id, u.id
          ORDER BY LOWER(s.name)",
-    )
+        visible = visible_to("$1"),
+    ))
     .bind(user.0.id)
     .fetch_all(&state.db)
     .await
@@ -95,21 +103,19 @@ pub struct PublicShelfDetail {
 
 /// Owner username and shelf name identify a public shelf (both unique,
 /// case-insensitively); the shelf URLs are built on them.
-async fn fetch_public_shelf(state: &AppState, owner: &str, name: &str) -> Result<PublicShelf, Response> {
-    let shelf: Option<PublicShelf> = sqlx::query_as(
-        "SELECT s.id, s.name, s.description,
-                CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover,
-                COUNT(sb.book_id) AS book_count,
-                u.username AS owner, u.id AS owner_id,
-                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS owner_has_avatar
+async fn fetch_public_shelf(state: &AppState, user_id: i64, owner: &str, name: &str) -> Result<PublicShelf, Response> {
+    let shelf: Option<PublicShelf> = sqlx::query_as(&format!(
+        "SELECT {PUBLIC_SHELF_COLUMNS}
          FROM shelves s
          JOIN users u ON u.id = s.owner_id
          LEFT JOIN shelf_books sb ON sb.shelf_id = s.id
-         WHERE LOWER(u.username) = LOWER($1) AND LOWER(s.name) = LOWER($2) AND s.visibility <> 'private'
+         WHERE LOWER(u.username) = LOWER($1) AND LOWER(s.name) = LOWER($2) AND {visible}
          GROUP BY s.id, u.id",
-    )
+        visible = visible_to("$3"),
+    ))
     .bind(owner)
     .bind(name)
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -121,7 +127,7 @@ pub async fn shelf(
     user: AuthUser,
     Path((owner, name)): Path<(String, String)>,
 ) -> Result<Json<PublicShelfDetail>, Response> {
-    let shelf = fetch_public_shelf(&state, &owner, &name).await?;
+    let shelf = fetch_public_shelf(&state, user.0.id, &owner, &name).await?;
     let books: Vec<PublicBook> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B}, {owned} AS owned FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
@@ -139,13 +145,15 @@ pub async fn shelf(
 
 pub async fn shelf_cover(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Response, Response> {
-    let mime: Option<Option<String>> = sqlx::query_scalar(
-        "SELECT cover_mime FROM shelves WHERE id = $1 AND visibility <> 'private'",
-    )
+    let mime: Option<Option<String>> = sqlx::query_scalar(&format!(
+        "SELECT s.cover_mime FROM shelves s WHERE s.id = $1 AND {visible}",
+        visible = visible_to("$2"),
+    ))
     .bind(id)
+    .bind(user.0.id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -160,17 +168,20 @@ pub async fn shelf_cover(
         .into_response())
 }
 
-/// A book is publicly visible when it sits on at least one public shelf.
-async fn public_book(state: &AppState, book_id: i64) -> Result<Book, Response> {
+/// A book is visible to a user when it sits on at least one shelf shared
+/// with them.
+async fn public_book(state: &AppState, user_id: i64, book_id: i64) -> Result<Book, Response> {
     let book: Option<Book> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B} FROM books b
          WHERE b.id = $1 AND EXISTS (
              SELECT 1 FROM shelf_books sb
              JOIN shelves s ON s.id = sb.shelf_id
-             WHERE sb.book_id = b.id AND s.visibility <> 'private'
-         )"
+             WHERE sb.book_id = b.id AND {visible}
+         )",
+        visible = visible_to("$2"),
     ))
     .bind(book_id)
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -191,7 +202,7 @@ pub async fn shelf_book(
     user: AuthUser,
     Path((owner, name, uuid)): Path<(String, String, String)>,
 ) -> Result<Json<ShelfBookDetail>, Response> {
-    let shelf = fetch_public_shelf(&state, &owner, &name).await?;
+    let shelf = fetch_public_shelf(&state, user.0.id, &owner, &name).await?;
     let book: Option<PublicBook> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B}, {owned} AS owned FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
@@ -210,11 +221,11 @@ pub async fn shelf_book(
 
 pub async fn book_cover(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<i64>,
     axum::extract::Query(params): axum::extract::Query<crate::books::CoverParams>,
 ) -> Result<Response, Response> {
-    let book = public_book(&state, id).await?;
+    let book = public_book(&state, user.0.id, id).await?;
     let mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1")
         .bind(book.id)
         .fetch_one(&state.db)
@@ -232,7 +243,7 @@ pub async fn import_book(
     user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<(StatusCode, Json<Book>), Response> {
-    let source = public_book(&state, id).await?;
+    let source = public_book(&state, user.0.id, id).await?;
     if source_owner(&state, source.id).await? == user.0.id {
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,

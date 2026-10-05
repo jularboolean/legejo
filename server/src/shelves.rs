@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct Shelf {
     pub id: i64,
     pub name: String,
-    /// private | instance | federated.
+    /// private | restricted | instance | federated.
     pub visibility: String,
     /// visibility <> 'private'; kept for older clients.
     pub is_public: DbFlag,
@@ -30,6 +30,16 @@ pub struct Shelf {
     /// Proposal for ap_slug: "<user>-<shelf>".
     #[sqlx(skip)]
     pub suggested_slug: String,
+    /// The users a restricted shelf is shared with.
+    #[sqlx(skip)]
+    pub members: Vec<Member>,
+}
+
+#[derive(Serialize, sqlx::FromRow, Clone)]
+pub struct Member {
+    pub id: i64,
+    pub username: String,
+    pub has_avatar: DbFlag,
 }
 
 #[derive(Serialize)]
@@ -39,7 +49,23 @@ pub struct ShelfDetail {
     pub books: Vec<Book>,
 }
 
-const SHELF_COLUMNS: &str = "s.id, s.name, s.visibility, s.is_public, s.description, \
+/// A restricted shelf is stored as private with the `restricted` flag set, so
+/// that a server without the flag treats it as private.
+pub(crate) const VISIBILITY_EXPR: &str =
+    "CASE WHEN s.visibility = 'private' AND s.restricted <> 0 THEN 'restricted' ELSE s.visibility END";
+
+/// SQL condition: the shelf `s` is shared with the user bound to `user_param`,
+/// either with everyone on the instance or with them by name.
+pub(crate) fn visible_to(user_param: &str) -> String {
+    format!(
+        "(s.visibility <> 'private' OR (s.restricted <> 0 AND EXISTS (
+            SELECT 1 FROM shelf_members sm WHERE sm.shelf_id = s.id AND sm.user_id = {user_param})))"
+    )
+}
+
+const SHELF_COLUMNS: &str = "s.id, s.name, \
+     CASE WHEN s.visibility = 'private' AND s.restricted <> 0 THEN 'restricted' ELSE s.visibility END AS visibility, \
+     s.is_public, s.description, \
      CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      COUNT(sb.book_id) AS book_count, s.ap_slug, \
      (SELECT COUNT(*) FROM ap_followers f WHERE f.shelf_id = s.id) AS followers";
@@ -64,8 +90,21 @@ fn conflict() -> Response {
         .into_response()
 }
 
-/// Fill in the federation fields the query can't.
+/// Fill in the federation fields and the members the query can't.
 async fn decorate(state: &AppState, user_id: i64, shelves: &mut [Shelf]) {
+    let members: Vec<(i64, i64, String, DbFlag)> = sqlx::query_as(
+        "SELECT sm.shelf_id, u.id, u.username,
+                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT)
+         FROM shelf_members sm
+         JOIN shelves s ON s.id = sm.shelf_id
+         JOIN users u ON u.id = sm.user_id
+         WHERE s.owner_id = $1
+         ORDER BY LOWER(u.username)",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
     let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
@@ -78,6 +117,15 @@ async fn decorate(state: &AppState, user_id: i64, shelves: &mut [Shelf]) {
             (Some(host), Some(slug)) if shelf.visibility == "federated" => Some(format!("@{slug}@{host}")),
             _ => None,
         };
+        // The list is kept while the shelf is in another mode, but only a
+        // restricted shelf reports it.
+        if shelf.visibility == "restricted" {
+            shelf.members = members
+                .iter()
+                .filter(|m| m.0 == shelf.id)
+                .map(|m| Member { id: m.1, username: m.2.clone(), has_avatar: m.3 })
+                .collect();
+        }
     }
 }
 
@@ -196,11 +244,13 @@ pub async fn create(
     }
 }
 
-/// Who sees a shelf. `Instance` is what "public" has always meant.
+/// Who sees a shelf. `Instance` is every user of the instance; `Restricted`
+/// is the users the owner has picked.
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
     Private,
+    Restricted,
     Instance,
     Federated,
 }
@@ -209,6 +259,7 @@ impl Visibility {
     pub fn as_str(self) -> &'static str {
         match self {
             Visibility::Private => "private",
+            Visibility::Restricted => "restricted",
             Visibility::Instance => "instance",
             Visibility::Federated => "federated",
         }
@@ -225,6 +276,8 @@ pub struct UpdateShelf {
     is_public: bool,
     /// The handle, the first time the shelf federates.
     ap_slug: Option<String>,
+    /// User ids a restricted shelf is shared with; replaces the list.
+    members: Option<Vec<i64>>,
 }
 
 pub async fn update(
@@ -272,27 +325,34 @@ pub async fn update(
         new_slug = Some(slug);
     }
 
+    let restricted = visibility == Visibility::Restricted;
+    let stored = if restricted { Visibility::Private } else { visibility };
+
     // is_public follows visibility, so an older image reads the same shelves
     // as public after a rollback.
     let result = sqlx::query(
         "UPDATE shelves SET name = $1, description = $2, visibility = $3, is_public = $4, updated_at = $5,
-             ap_slug = COALESCE(ap_slug, $8)
+             ap_slug = COALESCE(ap_slug, $8), restricted = $9
          WHERE id = $6 AND owner_id = $7",
     )
     .bind(name)
     .bind(&description)
-    .bind(visibility.as_str())
-    .bind(DbFlag::from(visibility != Visibility::Private))
+    .bind(stored.as_str())
+    .bind(DbFlag::from(stored != Visibility::Private))
     .bind(now_ts())
     .bind(id)
     .bind(user.0.id)
     .bind(&new_slug)
+    .bind(DbFlag::from(restricted))
     .execute(&state.db)
     .await;
 
     match result {
         Ok(r) if r.rows_affected() == 0 => Err(not_found()),
         Ok(_) => {
+            if let (true, Some(members)) = (restricted, &req.members) {
+                set_members(&state, id, user.0.id, members).await.map_err(internal)?;
+            }
             state.fed.wake.notify_one();
             let shelf = fetch_shelf(&state, user.0.id, id).await?;
             crate::audit::log(
@@ -307,6 +367,60 @@ pub async fn update(
         Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Err(conflict()),
         Err(e) => Err(internal(e.into())),
     }
+}
+
+/// Replace the users a shelf is shared with. Unknown ids and the owner are
+/// left out.
+async fn set_members(state: &AppState, shelf_id: i64, owner_id: i64, members: &[i64]) -> anyhow::Result<()> {
+    let mut tx = state.db.begin().await?;
+    sqlx::query("DELETE FROM shelf_members WHERE shelf_id = $1").bind(shelf_id).execute(&mut *tx).await?;
+    for user_id in members.iter().filter(|m| **m != owner_id) {
+        sqlx::query(
+            "INSERT INTO shelf_members (shelf_id, user_id)
+             SELECT CAST($1 AS BIGINT), id FROM users WHERE id = $2
+             ON CONFLICT (shelf_id, user_id) DO NOTHING",
+        )
+        .bind(shelf_id)
+        .bind(*user_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+#[derive(Deserialize)]
+pub struct UserSearch {
+    #[serde(default)]
+    q: String,
+}
+
+/// Other users whose name contains `q`, for picking who a restricted shelf is
+/// shared with. Needs two characters and returns at most ten names.
+pub async fn search_users(
+    State(state): State<AppState>,
+    user: AuthUser,
+    axum::extract::Query(params): axum::extract::Query<UserSearch>,
+) -> Result<Json<Vec<Member>>, Response> {
+    let q = params.q.trim();
+    if q.chars().count() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    // LIKE wildcards in the input match themselves.
+    let pattern = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let users: Vec<Member> = sqlx::query_as(
+        "SELECT id, username, CAST(CASE WHEN avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_avatar
+         FROM users
+         WHERE id <> $1 AND LOWER(username) LIKE '%' || LOWER($2) || '%' ESCAPE '\\'
+         ORDER BY LOWER(username)
+         LIMIT 10",
+    )
+    .bind(user.0.id)
+    .bind(pattern)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    Ok(Json(users))
 }
 
 pub async fn delete(

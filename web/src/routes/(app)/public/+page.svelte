@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Users } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { defaultShelfCover } from '#lib/shelfCovers';
 	import { t } from '#lib/i18n';
@@ -28,6 +29,9 @@
 						<Avatar userId={shelf.owner_id} hasAvatar={shelf.owner_has_avatar} size={18} alt="" />
 						{t('public.by', { owner: shelf.owner })} · {shelf.book_count}
 					</span>
+					{#if shelf.restricted}
+						<span class="restricted"><Users size={12} strokeWidth={1.75} /> {t('public.restricted')}</span>
+					{/if}
 				</div>
 			</a>
 		{/each}
@@ -89,6 +93,13 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-size: 0.8rem;
+		color: var(--muted);
+	}
+	.restricted {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.75rem;
 		color: var(--muted);
 	}
 </style>

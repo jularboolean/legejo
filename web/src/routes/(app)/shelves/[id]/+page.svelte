@@ -49,6 +49,8 @@
 				{#if shelf.handle}<span class="handle">{shelf.handle}</span>{/if}
 			{:else if shelf.is_public}
 				· <span class="public">{t('shelf.public')}</span>
+			{:else if shelf.visibility === 'restricted'}
+				· <span class="public">{t('shelf.restricted')}</span>
 			{/if}
 		</p>
 	</div>

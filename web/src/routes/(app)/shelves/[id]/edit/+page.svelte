@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ImagePlus, ImageOff, Trash2 } from '@lucide/svelte';
+	import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ImagePlus, ImageOff, Trash2, X } from '@lucide/svelte';
+	import Avatar from '#lib/Avatar.svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { SLUG_RE } from '#lib/fed';
 	import { t } from '#lib/i18n';
 	import { reasonText } from '#lib/license';
 	import { defaultShelfCoverIndex, shelfCovers } from '#lib/shelfCovers';
-	import type { BlockingBook } from '#lib/types';
+	import type { BlockingBook, ShelfMember } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -36,6 +37,45 @@
 	let saving = $state(false);
 	let errorMsg = $state('');
 	let deleteOpen = $state(false);
+
+	// Who a restricted shelf is shared with. The list is sent when the form
+	// is saved; the search only proposes users to add.
+	let members = $state<ShelfMember[]>([...data.shelf.members]);
+	let userQuery = $state('');
+	let userHits = $state<ShelfMember[]>([]);
+	let userSearched = $state(false);
+	let searchRun = 0;
+
+	async function searchUsers() {
+		const q = userQuery.trim();
+		const run = ++searchRun;
+		if (q.length < 2) {
+			userHits = [];
+			userSearched = false;
+			return;
+		}
+		try {
+			const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+			const hits: ShelfMember[] = res.ok ? await res.json() : [];
+			// A slower, older answer must not replace a newer one.
+			if (run !== searchRun) return;
+			userHits = hits.filter((u) => !members.some((m) => m.id === u.id));
+			userSearched = true;
+		} catch {
+			if (run === searchRun) userHits = [];
+		}
+	}
+
+	function addMember(user: ShelfMember) {
+		members = [...members, user].sort((a, b) => a.username.localeCompare(b.username));
+		userQuery = '';
+		userHits = [];
+		userSearched = false;
+	}
+
+	function removeMember(id: number) {
+		members = members.filter((m) => m.id !== id);
+	}
 
 	// Federation. The slug is chosen once, the first time the
 	// shelf federates; after that the handle is fixed and only shown.
@@ -146,6 +186,7 @@
 					name: form.name,
 					description: form.description || null,
 					visibility: form.visibility,
+					...(form.visibility === 'restricted' ? { members: members.map((m) => m.id) } : {}),
 					...(goingFederated ? { ap_slug: slug } : {})
 				})
 			});
@@ -233,6 +274,65 @@
 				<span class="hint">{t('shelfEdit.visibility.privateHint')}</span>
 			</span>
 		</label>
+		<label class="choice">
+			<input type="radio" bind:group={form.visibility} value="restricted" />
+			<span>
+				{t('shelfEdit.visibility.restricted')}
+				<span class="hint">{t('shelfEdit.visibility.restrictedHint')}</span>
+			</span>
+		</label>
+
+		{#if form.visibility === 'restricted'}
+			<div class="fed">
+				<span class="fed-label">{t('shelfEdit.members.label')}</span>
+				{#if members.length === 0}
+					<span class="hint">{t('shelfEdit.members.none')}</span>
+				{:else}
+					<ul class="members">
+						{#each members as member (member.id)}
+							<li>
+								<Avatar userId={member.id} hasAvatar={member.has_avatar} size={20} alt="" />
+								<span class="member-name">{member.username}</span>
+								<button
+									type="button"
+									class="member-remove"
+									aria-label={t('shelfEdit.members.remove', { name: member.username })}
+									title={t('shelfEdit.members.remove', { name: member.username })}
+									onclick={() => removeMember(member.id)}
+								>
+									<X size={13} />
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<input
+					type="search"
+					bind:value={userQuery}
+					oninput={searchUsers}
+					placeholder={t('shelfEdit.members.search')}
+					aria-label={t('shelfEdit.members.search')}
+					autocapitalize="off"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+				{#if userHits.length > 0}
+					<ul class="user-hits">
+						{#each userHits as hit (hit.id)}
+							<li>
+								<button type="button" class="user-hit" onclick={() => addMember(hit)}>
+									<Avatar userId={hit.id} hasAvatar={hit.has_avatar} size={20} alt="" />
+									{hit.username}
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{:else if userSearched}
+					<span class="hint" aria-live="polite">{t('shelfEdit.members.noMatch')}</span>
+				{/if}
+			</div>
+		{/if}
+
 		<label class="choice">
 			<input type="radio" bind:group={form.visibility} value="instance" />
 			<span>
@@ -470,6 +570,57 @@
 	}
 	.fed .hint {
 		margin-top: 0;
+	}
+	.members,
+	.user-hits {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.members li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.9rem;
+	}
+	.member-name {
+		flex: 1;
+		overflow-wrap: anywhere;
+	}
+	.member-remove {
+		padding: 0.25rem;
+		border: none;
+		background: none;
+		color: var(--muted);
+	}
+	.member-remove:hover {
+		color: var(--danger);
+	}
+	.user-hits {
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.25rem;
+		background: var(--card);
+	}
+	.user-hit {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.3rem 0.4rem;
+		border: none;
+		background: none;
+		color: var(--fg);
+		font-size: 0.9rem;
+		text-align: left;
+	}
+	.user-hit:hover,
+	.user-hit:focus-visible {
+		background: var(--border);
+		filter: none;
 	}
 	.hint.bad {
 		color: var(--danger);

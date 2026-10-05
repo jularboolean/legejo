@@ -51,8 +51,8 @@ your library is mostly PDFs or comics, another tool will serve you better.
 - Select many books at once to tag, shelve, mark as want-to-read or delete them.
 
 **Shelves**
-- Private shelves, shelves shared with everyone on the instance, and public shelves anyone can browse.
-- Users can copy books from public shelves into their own library.
+- Private shelves, shelves shared with the users you choose, and shelves shared with everyone on the instance.
+- Users can copy books from shared shelves into their own library.
 
 **Reading**
 - A web reader with themes, font settings and saved position.

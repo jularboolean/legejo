@@ -399,3 +399,96 @@ async fn opds_takes_the_account_password_and_app_passwords() {
     assert_eq!(opds("alice", &secret).await, StatusCode::UNAUTHORIZED);
     assert_eq!(opds("alice", "kontots lösenord").await, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn restricted_shelves_are_shared_with_chosen_users() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (bob, b) = add_user(&db, "bob").await;
+    let (_carol, c) = add_user(&db, "carol").await;
+    let (book, uuid) = add_book(&db, alice, "Hemlig").await;
+    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), "bytes").unwrap();
+
+    let (_, shelf) = send(&app, Method::POST, "/api/shelves", Some(&a), Some(json!({ "name": "Krets" }))).await;
+    let shelf = shelf["id"].as_i64().unwrap();
+    send(&app, Method::POST, "/api/books/bulk", Some(&a),
+        Some(json!({ "ids": [book], "action": "add_to_shelf", "shelf_id": shelf }))).await;
+
+    // The owner, an unknown id and a duplicate are left out of the list.
+    let (status, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a),
+        Some(json!({ "name": "Krets", "visibility": "restricted", "members": [bob, bob, alice, 9999] }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["visibility"], "restricted");
+    assert_eq!(v["is_public"], false);
+    assert_eq!(v["members"].as_array().unwrap().len(), 1);
+    assert_eq!(v["members"][0]["username"], "bob");
+    // Stored as private, so a server without the flag keeps it hidden.
+    let stored: String = sqlx::query_scalar("SELECT visibility FROM shelves WHERE id = ?").bind(shelf).fetch_one(&db).await.unwrap();
+    assert_eq!(stored, "private");
+
+    let shelf_url = "/api/public/alice/Krets";
+    let import_url = format!("/api/public/books/{book}/import");
+    let (_, list) = send(&app, Method::GET, "/api/public/shelves", Some(&b), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["restricted"], true);
+    let (status, detail) = send(&app, Method::GET, shelf_url, Some(&b), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["books"].as_array().unwrap().len(), 1);
+    let (_, found) = send(&app, Method::GET, "/api/search?q=Krets", Some(&b), None).await;
+    assert_eq!(found["shelves"].as_array().unwrap().len(), 1);
+
+    // Carol is not on the list: nothing of the shelf is reachable.
+    let (_, list) = send(&app, Method::GET, "/api/public/shelves", Some(&c), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 0);
+    let (status, _) = send(&app, Method::GET, shelf_url, Some(&c), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = send(&app, Method::GET, &format!("/api/public/alice/Krets/{uuid}"), Some(&c), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = send(&app, Method::POST, &import_url, Some(&c), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, found) = send(&app, Method::GET, "/api/search?q=Krets", Some(&c), None).await;
+    assert_eq!(found["shelves"].as_array().unwrap().len(), 0);
+    let (_, found) = send(&app, Method::GET, "/api/search?q=Hemlig", Some(&c), None).await;
+    assert_eq!(found["public"].as_array().unwrap().len(), 0);
+
+    let (status, _) = send(&app, Method::POST, &import_url, Some(&b), None).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Private again: Bob loses the shelf, and the list is not reported.
+    let (_, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a),
+        Some(json!({ "name": "Krets", "visibility": "private" }))).await;
+    assert_eq!(v["visibility"], "private");
+    assert_eq!(v["members"].as_array().unwrap().len(), 0);
+    let (status, _) = send(&app, Method::GET, shelf_url, Some(&b), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Restricted without a new list keeps the earlier one; an empty list clears it.
+    let (_, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a),
+        Some(json!({ "name": "Krets", "visibility": "restricted" }))).await;
+    assert_eq!(v["members"][0]["username"], "bob");
+    let (_, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a),
+        Some(json!({ "name": "Krets", "visibility": "restricted", "members": [] }))).await;
+    assert_eq!(v["members"].as_array().unwrap().len(), 0);
+    let (status, _) = send(&app, Method::GET, shelf_url, Some(&b), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Shared with everyone: Carol sees it, not marked as restricted.
+    send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a),
+        Some(json!({ "name": "Krets", "visibility": "instance" }))).await;
+    let (_, list) = send(&app, Method::GET, "/api/public/shelves", Some(&c), None).await;
+    assert_eq!(list[0]["restricted"], false);
+
+    // The user search needs two characters, leaves the caller out and treats
+    // wildcards as text.
+    let names = |v: Value| v.as_array().unwrap().iter().map(|u| u["username"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let (_, v) = send(&app, Method::GET, "/api/users/search?q=o", Some(&a), None).await;
+    assert!(names(v).is_empty());
+    let (_, v) = send(&app, Method::GET, "/api/users/search?q=BO", Some(&a), None).await;
+    assert_eq!(names(v), ["bob"]);
+    let (_, v) = send(&app, Method::GET, "/api/users/search?q=li", Some(&a), None).await;
+    assert!(names(v).is_empty(), "the caller is not listed");
+    let (_, v) = send(&app, Method::GET, "/api/users/search?q=%25%25", Some(&a), None).await;
+    assert!(names(v).is_empty());
+    let (status, _) = send(&app, Method::GET, "/api/users/search?q=bo", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

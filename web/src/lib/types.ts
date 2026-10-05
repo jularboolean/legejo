@@ -56,8 +56,11 @@ export type BookDetail = Book & {
 	federable: FederableStatus;
 };
 
-/** Who sees a shelf; 'instance' is what "public" has always meant. */
-export type Visibility = 'private' | 'instance' | 'federated';
+/** Who sees a shelf: the owner, chosen users, every user here, or the fediverse. */
+export type Visibility = 'private' | 'restricted' | 'instance' | 'federated';
+
+/** A user a restricted shelf is shared with. */
+export type ShelfMember = { id: number; username: string; has_avatar: boolean };
 
 export type Shelf = {
 	id: number;
@@ -75,6 +78,8 @@ export type Shelf = {
 	/** The server's proposal for ap_slug, from "<user>-<shelf>". */
 	suggested_slug: string;
 	followers: number;
+	/** Who a restricted shelf is shared with; empty in the other modes. */
+	members: ShelfMember[];
 };
 
 export type ShelfDetail = Shelf & { books: Book[] };
@@ -99,6 +104,8 @@ export type PublicShelf = {
 	owner: string;
 	owner_id: number;
 	owner_has_avatar: boolean;
+	/** Shared with the viewer by name rather than with everyone. */
+	restricted: boolean;
 };
 
 export type PublicBook = Book & { owned: boolean };

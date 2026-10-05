@@ -194,10 +194,11 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
             }
         })
         .collect::<Vec<_>>();
-    let shelf_rows: Vec<(String, Option<String>, String, i64)> = sqlx::query_as(
-        "SELECT s.name, s.description, s.visibility, COUNT(sb.book_id) FROM shelves s
+    let shelf_rows: Vec<(String, Option<String>, String, i64)> = sqlx::query_as(&format!(
+        "SELECT s.name, s.description, {visibility}, COUNT(sb.book_id) FROM shelves s
          LEFT JOIN shelf_books sb ON sb.shelf_id = s.id WHERE s.owner_id = $1 GROUP BY s.id ORDER BY LOWER(s.name)",
-    )
+        visibility = crate::shelves::VISIBILITY_EXPR,
+    ))
     .bind(user_id)
     .fetch_all(&state.db)
     .await?;

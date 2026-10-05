@@ -71,6 +71,7 @@
 		<p class="meta">
 			<Avatar userId={shelf.owner_id} hasAvatar={shelf.owner_has_avatar} size={20} alt="" />
 			{t('public.by', { owner: shelf.owner })} · {shelf.book_count}
+			{#if shelf.restricted}· {t('public.restricted')}{/if}
 		</p>
 	</div>
 </header>

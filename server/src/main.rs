@@ -141,6 +141,7 @@ fn router(state: AppState) -> Router {
         .route("/account/locale", axum::routing::put(account::set_locale))
         .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar))
         .route("/users/{id}/avatar", get(account::avatar))
+        .route("/users/search", get(shelves::search_users))
         .route("/auth/config", get(oidc::config))
         .route("/auth/oidc/start", get(oidc::start))
         .route("/auth/oidc/callback", get(oidc::callback))

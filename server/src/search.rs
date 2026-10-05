@@ -85,7 +85,7 @@ pub async fn search(
              SELECT sb.book_id, MIN(s.id) AS shelf_id
              FROM shelf_books sb
              JOIN shelves s ON s.id = sb.shelf_id
-             WHERE s.visibility <> 'private' AND s.owner_id != $1
+             WHERE {visible} AND s.owner_id != $1
              GROUP BY sb.book_id
          ) pick ON pick.book_id = b.id
          JOIN shelves ps ON ps.id = pick.shelf_id
@@ -94,6 +94,7 @@ pub async fn search(
          ORDER BY {order}
          LIMIT {GROUP_LIMIT}",
         owned = owned_expr("$1"),
+        visible = crate::shelves::visible_to("$1"),
         search_join = parts.join,
         condition = parts.condition,
         order = parts.order,
@@ -106,19 +107,17 @@ pub async fn search(
 
     // Shelf names are short; a simple substring match beats FTS here.
     let shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
-        "SELECT s.id, s.name, s.description,
-                CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover,
-                COUNT(sb.book_id) AS book_count,
-                u.username AS owner, u.id AS owner_id,
-                CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS owner_has_avatar
+        "SELECT {columns}
          FROM shelves s
          JOIN users u ON u.id = s.owner_id
          LEFT JOIN shelf_books sb ON sb.shelf_id = s.id
-         WHERE s.visibility <> 'private' AND s.owner_id != $1
+         WHERE {visible} AND s.owner_id != $1
            AND LOWER(s.name) LIKE '%' || LOWER($2) || '%'
          GROUP BY s.id, u.id
          ORDER BY LOWER(s.name)
-         LIMIT {GROUP_LIMIT}"
+         LIMIT {GROUP_LIMIT}",
+        columns = crate::public::PUBLIC_SHELF_COLUMNS,
+        visible = crate::shelves::visible_to("$1"),
     ))
     .bind(user.0.id)
     .bind(&raw)

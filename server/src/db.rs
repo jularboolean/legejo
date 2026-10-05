@@ -2,8 +2,10 @@ use argon2::password_hash::{rand_core::OsRng, SaltString};
 use argon2::{Argon2, PasswordHasher};
 use rand::Rng;
 use sqlx::any::AnyPoolOptions;
+use sqlx::migrate::Migrator;
 use sqlx::{AnyPool, Executor};
 use std::path::Path;
+use std::sync::LazyLock;
 
 /// Which database the Any pool talks to. All SQL is written in the dialect
 /// both engines share ($N placeholders, ON CONFLICT, TEXT timestamps,
@@ -63,8 +65,18 @@ impl serde::Serialize for DbFlag {
     }
 }
 
-pub static SQLITE_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite");
-pub static POSTGRES_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/postgres");
+// A database migrated by a newer version is accepted: migrations only add,
+// so an older server can run on it after a rollback.
+pub static SQLITE_MIGRATOR: LazyLock<Migrator> = LazyLock::new(|| {
+    let mut migrator = sqlx::migrate!("./migrations/sqlite");
+    migrator.set_ignore_missing(true);
+    migrator
+});
+pub static POSTGRES_MIGRATOR: LazyLock<Migrator> = LazyLock::new(|| {
+    let mut migrator = sqlx::migrate!("./migrations/postgres");
+    migrator.set_ignore_missing(true);
+    migrator
+});
 
 /// Connect to DATABASE_URL (postgres://… or sqlite://…); without it, use a
 /// SQLite file in the data directory.

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
-	import { BookOpenCheck, Earth, Feather, Globe, LibraryBig, LogOut, BookMarked, Menu, Search, Settings, X } from '@lucide/svelte';
+	import { BookOpenCheck, Earth, Feather, Globe, LibraryBig, LogOut, BookMarked, Menu, Search, Settings, Users, X } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
@@ -108,6 +108,10 @@
 									{:else if shelf.visibility === 'instance'}
 										<span class="vis" title={t('sidebar.visInstance')} aria-label={t('sidebar.visInstance')}>
 											<Globe size={12} strokeWidth={1.75} />
+										</span>
+									{:else if shelf.visibility === 'restricted'}
+										<span class="vis" title={t('sidebar.visRestricted')} aria-label={t('sidebar.visRestricted')}>
+											<Users size={12} strokeWidth={1.75} />
 										</span>
 									{/if}
 									<span class="badge">{shelf.book_count}</span>
