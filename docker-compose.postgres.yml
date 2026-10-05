@@ -1,0 +1,44 @@
+# Legejo with PostgreSQL:
+#
+#   docker compose -f docker-compose.postgres.yml up -d
+#
+# Book files still live in the legejo-data volume; only metadata moves to
+# PostgreSQL. To move an existing SQLite installation over:
+#
+#   docker compose -f docker-compose.postgres.yml run --rm \
+#     legejo import-sqlite /data/legejo.db
+services:
+  legejo:
+    image: slurvdjur/legejo:1
+    ports:
+      - "3000:3000"
+    volumes:
+      - legejo-data:/data
+    environment:
+      DATABASE_URL: postgres://legejo:legejo@db/legejo
+      LEGEJO_ADMIN_USER: admin
+      # LEGEJO_ADMIN_PASSWORD: change-me
+      # LEGEJO_PUBLIC_URL: https://books.example.org
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: legejo
+      POSTGRES_PASSWORD: legejo
+      POSTGRES_DB: legejo
+    volumes:
+      - legejo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legejo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  legejo-data:
+  legejo-db:

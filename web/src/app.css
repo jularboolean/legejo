@@ -1,0 +1,170 @@
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/fraunces/700.css';
+@import '@fontsource-variable/inter';
+
+:root {
+	--bg: #f3f5f5;
+	--fg: #1d2224;
+	--muted: #6c7a7e;
+	--accent: #53676c;
+	--gold: #a08242;
+	--card: #fdfefe;
+	--border: #dbe1e2;
+	--danger: #b3362b;
+	--shadow: 0 1px 3px rgba(25, 35, 38, 0.1), 0 4px 14px rgba(25, 35, 38, 0.06);
+	font-family: 'Inter Variable', system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #15181a;
+		--fg: #e4e8e9;
+		--muted: #8d9a9e;
+		--accent: #94b0b8;
+		--gold: #c0a567;
+		--card: #1d2124;
+		--border: #333a3d;
+		--danger: #e06c5d;
+		--shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--fg);
+	line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+legend {
+	font-family: 'Fraunces', Georgia, serif;
+	letter-spacing: 0.01em;
+}
+
+a {
+	color: var(--accent);
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+
+button {
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	background: var(--accent);
+	color: var(--bg);
+	border: 1px solid transparent;
+	border-radius: 4px;
+	padding: 0.28rem 0.65rem;
+}
+button:hover {
+	filter: brightness(1.08);
+}
+button.ghost {
+	background: transparent;
+	color: var(--muted);
+	border: 1px solid var(--border);
+}
+button.ghost:hover {
+	filter: none;
+	color: var(--fg);
+	border-color: var(--muted);
+}
+
+input,
+textarea {
+	font: inherit;
+	background: var(--card);
+	color: var(--fg);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	padding: 0.45rem 0.7rem;
+	width: 100%;
+}
+input::placeholder,
+textarea::placeholder {
+	color: var(--muted);
+	opacity: 0.55;
+}
+
+input:focus,
+textarea:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+textarea {
+	resize: vertical;
+}
+
+/* Checkboxes are drawn here so they match the palette in both themes; the
+   reader's switch (role="switch") draws itself. */
+input[type='checkbox']:not([role='switch']) {
+	appearance: none;
+	-webkit-appearance: none;
+	flex-shrink: 0;
+	display: inline-grid;
+	place-content: center;
+	width: 1.05rem;
+	height: 1.05rem;
+	margin: 0;
+	padding: 0;
+	border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent);
+	border-radius: 4px;
+	background: var(--card);
+	cursor: pointer;
+	transition:
+		background 0.12s,
+		border-color 0.12s;
+}
+input[type='checkbox']:not([role='switch'])::before {
+	content: '';
+	width: 0.62rem;
+	height: 0.62rem;
+	background: var(--bg);
+	clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 26%, 86% 13%, 37% 71%);
+	transform: scale(0);
+	transition: transform 0.12s ease-out;
+}
+input[type='checkbox']:not([role='switch']):hover {
+	border-color: var(--accent);
+}
+input[type='checkbox']:not([role='switch']):checked {
+	background: var(--accent);
+	border-color: var(--accent);
+}
+input[type='checkbox']:not([role='switch']):checked::before {
+	transform: scale(1);
+}
+input[type='checkbox']:not([role='switch']):focus {
+	outline: none;
+}
+input[type='checkbox']:not([role='switch']):focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+input[type='checkbox']:not([role='switch']):disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+label:has(> input[type='checkbox']) {
+	cursor: pointer;
+}
+
+.error {
+	color: var(--danger);
+	font-size: 0.9rem;
+}

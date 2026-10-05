@@ -1,0 +1,141 @@
+/* Shared styles for the reader chrome. The reader has its own themes (the
+   book's page colours), independent of the catalog's light/dark scheme, so
+   everything here is driven by the --r-* variables set on .reader. */
+
+/* While the reader is open the page itself never scrolls or bounces; only the
+   book does. The class is set on <html> by Reader.svelte. */
+html.legejo-reading,
+html.legejo-reading body {
+	height: 100%;
+	overflow: hidden;
+	overscroll-behavior: none;
+	background: var(--reader-bg, #fdfcfa);
+}
+
+.reader {
+	color: var(--r-fg);
+	background: var(--r-bg);
+	font-size: 0.95rem;
+	line-height: 1.4;
+	-webkit-tap-highlight-color: transparent;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+	/* No double-tap zoom on the controls; pinching still works. */
+	touch-action: manipulation;
+}
+
+/* Reset the catalog's global button look inside the reader. */
+.reader button {
+	background: transparent;
+	color: var(--r-fg);
+	border: 1px solid transparent;
+	border-radius: 8px;
+	letter-spacing: 0;
+	font-weight: 500;
+	font-size: inherit;
+	padding: 0;
+	-webkit-user-select: none;
+	user-select: none;
+}
+.reader button:hover {
+	filter: none;
+}
+.reader button:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+.reader :is(button, a, input):focus-visible {
+	outline: 2px solid var(--r-link);
+	outline-offset: 2px;
+}
+
+/* Square icon button; 44px is the minimum comfortable touch target. */
+.reader .r-icon {
+	width: 2.75rem;
+	height: 2.75rem;
+	min-width: 44px;
+	min-height: 44px;
+	justify-content: center;
+	flex-shrink: 0;
+	color: var(--r-fg);
+	border-radius: 50%;
+}
+.reader a.r-icon {
+	display: inline-flex;
+	align-items: center;
+}
+@media (hover: hover) {
+	.reader .r-icon:hover:not(:disabled) {
+		background: color-mix(in srgb, var(--r-fg) 9%, transparent);
+		text-decoration: none;
+	}
+}
+.reader .r-icon:active:not(:disabled) {
+	background: color-mix(in srgb, var(--r-fg) 14%, transparent);
+}
+
+/* Segmented choice: a row of mutually exclusive buttons. */
+.reader .r-segments {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
+	gap: 0.2rem;
+	padding: 0.2rem;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--r-fg) 7%, transparent);
+}
+.reader .r-segments button {
+	justify-content: center;
+	gap: 0.4rem;
+	min-height: 2.5rem;
+	padding: 0 0.5rem;
+	color: var(--r-muted);
+	border-radius: 9px;
+	white-space: nowrap;
+}
+.reader .r-segments button[aria-checked='true'] {
+	background: var(--r-surface);
+	color: var(--r-fg);
+	font-weight: 600;
+	box-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.12),
+		0 0 0 1px color-mix(in srgb, var(--r-fg) 8%, transparent);
+}
+
+.reader input[type='range'] {
+	width: 100%;
+	padding: 0;
+	margin: 0;
+	border: none;
+	background: transparent;
+	accent-color: var(--r-link);
+	height: 1.75rem;
+	cursor: pointer;
+}
+.reader input[type='range']:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.reader kbd {
+	display: inline-block;
+	min-width: 1.6rem;
+	padding: 0.1rem 0.4rem;
+	border: 1px solid var(--r-border);
+	border-bottom-width: 2px;
+	border-radius: 6px;
+	background: var(--r-bg);
+	font: inherit;
+	font-size: 0.8rem;
+	text-align: center;
+	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.reader *,
+	.reader *::before,
+	.reader *::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+	}
+}
