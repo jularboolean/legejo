@@ -59,6 +59,7 @@ ENV LEGEJO_ADDR=0.0.0.0:3000 \
     LEGEJO_WEB_DIR=/app/web
 VOLUME /data
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["legejo", "healthcheck"]
 LABEL org.opencontainers.image.title="Legejo" \
       org.opencontainers.image.description="A self-hosted EPUB library with OPDS, Kobo sync and KOReader sync" \
       org.opencontainers.image.source="https://github.com/jularboolean/legejo" \

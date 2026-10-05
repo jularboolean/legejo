@@ -106,6 +106,29 @@ emails and federation depend on it.
 
 The image is published for `linux/amd64` and `linux/arm64` as
 [`slurvdjur/legejo`](https://hub.docker.com/r/slurvdjur/legejo) on Docker Hub, tagged with the version (`1.0.0`, `1.0`, `1`) and `latest`.
+It has a health check built in, so Docker and deployment platforms can tell
+when the server is ready.
+
+### Coolify, Dokploy and similar platforms
+
+Legejo runs as a single container, so it fits platforms that deploy a Docker
+image or a Compose file behind their own reverse proxy:
+
+- **Image:** `slurvdjur/legejo:1`, or one of the Compose files with the
+  `ports` mapping removed.
+- **Port:** route your domain to container port `3000`.
+- **Storage:** a persistent volume mounted at `/data`.
+- **Environment:**
+  - `LEGEJO_PUBLIC_URL`: the `https://` address of the domain.
+  - `LEGEJO_ADMIN_PASSWORD`: the admin password, so you do not have to find
+    the generated one in the logs. It is only used when the database is empty.
+  - `LEGEJO_CLIENT_IP_HEADER=X-Forwarded-For`: lets login throttling work per
+    client. Traefik and Caddy, which these platforms use, replace that header
+    in their default configuration; leave the variable unset if yours is
+    configured to trust it from clients.
+
+With SQLite, the database lives in the same volume as the books. For
+PostgreSQL, add `DATABASE_URL`.
 
 ### Configuration
 

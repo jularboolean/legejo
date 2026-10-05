@@ -17,6 +17,7 @@ mod booktext;
 mod db;
 mod export;
 mod fed;
+mod healthcheck;
 mod invite;
 mod kobo;
 mod kosync;
@@ -248,6 +249,11 @@ fn router(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
+        let listen = settings::var("LEGEJO_ADDR")?.unwrap_or_else(|| "127.0.0.1:3000".into());
+        let ok = healthcheck::target(&listen).is_some_and(healthcheck::healthy);
+        std::process::exit(if ok { 0 } else { 1 });
+    }
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "legejo=debug,tower_http=info".into());
     // LEGEJO_LOG_FORMAT=json emits one JSON object per line for log

@@ -7,6 +7,8 @@
 services:
   legejo:
     image: slurvdjur/legejo:1
+    # Behind a reverse proxy or a platform such as Coolify or Dokploy, remove
+    # the port mapping and route the domain to port 3000 instead.
     ports:
       - "3000:3000"
     volumes:
