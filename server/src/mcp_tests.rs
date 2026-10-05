@@ -186,11 +186,18 @@ async fn speaks_the_per_request_generation() {
     assert_eq!(status, StatusCode::OK, "{v}");
     assert_eq!(v["result"]["supportedVersions"], json!(["2026-07-28"]));
     assert_eq!(v["result"]["resultType"], "complete");
+    // Discovery and the tool list must carry caching hints.
+    assert_eq!((v["result"]["ttlMs"].as_u64(), v["result"]["cacheScope"].as_str()), (Some(3_600_000), Some("public")));
     assert_eq!(v["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "legejo");
     assert!(v["result"]["capabilities"]["tools"].is_object());
 
     let (status, v) = client.post(&[version, ("mcp-method", "tools/list")], request("tools/list", json!({}))).await;
     assert_eq!((status, v["result"]["tools"].as_array().unwrap().len()), (StatusCode::OK, 7));
+    assert_eq!((v["result"]["resultType"].as_str(), v["result"]["cacheScope"].as_str()), (Some("complete"), Some("public")));
+    assert!(v["result"]["ttlMs"].is_u64());
+    // This generation has no ping.
+    let (status, v) = client.post(&[version, ("mcp-method", "ping")], request("ping", json!({}))).await;
+    assert_eq!((status, v["error"]["code"].as_i64()), (StatusCode::NOT_FOUND, Some(-32601)));
 
     // The headers must agree with the body.
     let (status, v) = client.post(&[version], request("tools/list", json!({}))).await;

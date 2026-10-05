@@ -39,6 +39,9 @@ shelves and reading progress, and to read or search the text of a book. Everythi
 percentages of the book; when summarising for a reader who is partway through, do not reveal what comes after \
 their reading position unless asked.";
 
+/// How long a client may reuse the discovery and tool-list results.
+const CACHE_TTL_MS: u64 = 3_600_000;
+
 /// Text returned per call by read_section unless the caller asks for less.
 const DEFAULT_CHARS: usize = 12_000;
 const MAX_CHARS: usize = 30_000;
@@ -195,14 +198,20 @@ async fn modern_request(
         }
     }
 
+    // The discovery and tool-list results are the same for every user and
+    // only change with a new release, so clients may cache them.
+    let cacheable = |mut result: Value| {
+        result["ttlMs"] = json!(CACHE_TTL_MS);
+        result["cacheScope"] = json!("public");
+        result
+    };
     let mut result = match method {
-        "server/discover" => json!({
+        "server/discover" => cacheable(json!({
             "supportedVersions": [MODERN],
             "capabilities": { "tools": {} },
             "instructions": INSTRUCTIONS,
-        }),
-        "ping" => json!({}),
-        "tools/list" => json!({ "tools": tool_definitions() }),
+        })),
+        "tools/list" => cacheable(json!({ "tools": tool_definitions() })),
         "tools/call" => match call_tool(state, user, params).await {
             Ok(result) => result,
             Err(message) => return reply(StatusCode::BAD_REQUEST, rpc_error(id, INVALID_PARAMS, &message, None)),
