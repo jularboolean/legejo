@@ -131,7 +131,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'mcp.heading': "Asistentes de IA (MCP)",
 	'mcp.intro': "Deja que un asistente de IA que ya usas consulte tu biblioteca: tus libros, estanterías y progreso de lectura, y el texto de un libro. Solo puede leer; no puede cambiar nada.",
 	'mcp.url': "Dirección del servidor MCP",
-	'mcp.hint': "Añade esta dirección como servidor MCP (Streamable HTTP) en tu asistente, con una contraseña de aplicación de arriba como token bearer: Authorization: Bearer <contraseña de aplicación>.",
+	'mcp.hint': "Añade esta dirección como servidor MCP (Streamable HTTP) en tu asistente, con una contraseña de aplicación de arriba como token bearer: Authorization: Bearer <contraseña de aplicación>. Los asistentes que inician sesión con OAuth pueden enviar la contraseña de aplicación en una cabecera X-Api-Key.",
 	'nav.adminPending': "Admin – hay instancias esperando decisión",
 	'fed.state.awaiting': "Esperando al admin",
 	'fed.state.unreachable': "No responde",

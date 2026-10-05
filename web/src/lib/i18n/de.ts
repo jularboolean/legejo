@@ -131,7 +131,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'mcp.heading': "KI-Assistenten (MCP)",
 	'mcp.intro': "Lass einen KI-Assistenten, den du bereits nutzt, in deiner Bibliothek nachschlagen: deine Bücher, Regale und deinen Lesefortschritt sowie den Text eines Buchs. Er kann nur lesen; ändern kann er nichts.",
 	'mcp.url': "Adresse des MCP-Servers",
-	'mcp.hint': "Füge diese Adresse in deinem Assistenten als MCP-Server (Streamable HTTP) hinzu, mit einem App-Passwort von oben als Bearer-Token: Authorization: Bearer <App-Passwort>.",
+	'mcp.hint': "Füge diese Adresse in deinem Assistenten als MCP-Server (Streamable HTTP) hinzu, mit einem App-Passwort von oben als Bearer-Token: Authorization: Bearer <App-Passwort>. Assistenten, die sich per OAuth anmelden, können das App-Passwort stattdessen im Header X-Api-Key senden.",
 	'nav.adminPending': "Admin – Instanzen warten auf Entscheidung",
 	'fed.state.awaiting': "Wartet auf Admin",
 	'fed.state.unreachable': "Antwortet nicht",

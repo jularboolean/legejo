@@ -131,7 +131,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'mcp.heading': "Tekoälyavustajat (MCP)",
 	'mcp.intro': "Anna jo käyttämäsi tekoälyavustajan hakea tietoja kirjastostasi: kirjasi, hyllysi ja lukemisen edistymisen sekä kirjan tekstin. Se voi vain lukea; se ei voi muuttaa mitään.",
 	'mcp.url': "MCP-palvelimen osoite",
-	'mcp.hint': "Lisää tämä osoite MCP-palvelimeksi (Streamable HTTP) avustajaasi ja anna yllä luotu sovellussalasana bearer-tunnisteena: Authorization: Bearer <sovellussalasana>.",
+	'mcp.hint': "Lisää tämä osoite MCP-palvelimeksi (Streamable HTTP) avustajaasi ja anna yllä luotu sovellussalasana bearer-tunnisteena: Authorization: Bearer <sovellussalasana>. OAuthilla kirjautuvat avustajat voivat lähettää sovellussalasanan X-Api-Key-otsakkeessa.",
 	'nav.adminPending': "Ylläpito – instansseja odottaa päätöstä",
 	'fed.state.awaiting': "Odottaa ylläpitäjää",
 	'fed.state.unreachable': "Ei vastaa",

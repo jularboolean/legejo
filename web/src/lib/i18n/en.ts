@@ -129,7 +129,7 @@ export const en = {
 	'mcp.heading': "AI assistants (MCP)",
 	'mcp.intro': "Let an AI assistant you already use look things up in your library: your books, shelves and reading progress, and the text of a book. It can only read; it cannot change anything.",
 	'mcp.url': "MCP server address",
-	'mcp.hint': "Add this address as an MCP server (Streamable HTTP) in your assistant, with an app password from above as the bearer token: Authorization: Bearer <app password>.",
+	'mcp.hint': "Add this address as an MCP server (Streamable HTTP) in your assistant, with an app password from above as the bearer token: Authorization: Bearer <app password>. Assistants that sign in with OAuth can send the app password in an X-Api-Key header instead.",
 	'nav.adminPending': "Admin – instances await a decision",
 	'fed.state.awaiting': "Awaiting admin",
 	'fed.state.unreachable': "Not responding",

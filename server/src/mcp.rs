@@ -9,8 +9,9 @@
 //!   in the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers;
 //! - 2025-03-26 to 2025-11-25, which open with an `initialize` handshake.
 //!
-//! Off unless LEGEJO_MCP=true. Authentication is an app password as a bearer
-//! token; it also decides whose library is read. Every tool only reads.
+//! Off unless LEGEJO_MCP=true. Authentication is an app password, as a bearer
+//! token or in X-Api-Key; it also decides whose library is read. Every tool
+//! only reads.
 
 use crate::auth::{AuthUser, UserInfo};
 use crate::books::{self, Book};
@@ -62,10 +63,12 @@ fn server_info() -> Value {
     json!({ "name": "legejo", "title": "Legejo", "version": env!("CARGO_PKG_VERSION") })
 }
 
-/// The app password in `Authorization: Bearer …`, resolved to its user.
+/// The app password, resolved to its user. It is read from
+/// `Authorization: Bearer …`, or from `X-Api-Key` for clients that reserve
+/// the Authorization header for OAuth.
 async fn authenticate(state: &AppState, headers: &HeaderMap) -> Option<UserInfo> {
-    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
-    let token = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer "))?;
+    let bearer = header_str(headers, "authorization").and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")));
+    let token = bearer.or_else(|| header_str(headers, "x-api-key"))?;
     crate::app_passwords::user_for(state, token.trim()).await
 }
 

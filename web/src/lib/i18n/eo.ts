@@ -131,7 +131,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'mcp.heading': "AI-asistantoj (MCP)",
 	'mcp.intro': "Lasu AI-asistanton, kiun vi jam uzas, serĉi en via biblioteko: viajn librojn, bretojn kaj legoprogreson, kaj la tekston de libro. Ĝi povas nur legi; ĝi povas ŝanĝi nenion.",
 	'mcp.url': "Adreso de la MCP-servilo",
-	'mcp.hint': "Aldonu ĉi tiun adreson kiel MCP-servilon (Streamable HTTP) en via asistanto, kun aplikaĵa pasvorto de supre kiel bearer-ĵetono: Authorization: Bearer <aplikaĵa pasvorto>.",
+	'mcp.hint': "Aldonu ĉi tiun adreson kiel MCP-servilon (Streamable HTTP) en via asistanto, kun aplikaĵa pasvorto de supre kiel bearer-ĵetono: Authorization: Bearer <aplikaĵa pasvorto>. Asistantoj, kiuj ensalutas per OAuth, povas anstataŭe sendi la aplikaĵan pasvorton en la kapo X-Api-Key.",
 	'nav.adminPending': "Administrado – nodoj atendas decidon",
 	'fed.state.awaiting': "Atendas administranton",
 	'fed.state.unreachable': "Ne respondas",

@@ -114,6 +114,9 @@ async fn needs_an_app_password_and_a_same_origin() {
     assert_eq!(wrong.post(&[], ping.clone()).await.0, StatusCode::UNAUTHORIZED);
 
     assert_eq!(client.post(&[], ping.clone()).await, (StatusCode::OK, json!({ "jsonrpc": "2.0", "id": 1, "result": {} })));
+    // Clients that keep Authorization for OAuth send the app password as an API key.
+    assert_eq!(anonymous.post(&[("x-api-key", &client.token)], ping.clone()).await.0, StatusCode::OK);
+    assert_eq!(anonymous.post(&[("x-api-key", "abcd-efgh-jkmn-pqrs")], ping.clone()).await.0, StatusCode::UNAUTHORIZED);
     // A page on another origin is refused; the instance's own origin is not.
     assert_eq!(client.post(&[("origin", "https://evil.example"), ("host", "books.example")], ping.clone()).await.0, StatusCode::FORBIDDEN);
     assert_eq!(client.post(&[("origin", "https://books.example"), ("host", "books.example")], ping.clone()).await.0, StatusCode::OK);

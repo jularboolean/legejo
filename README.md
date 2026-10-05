@@ -135,8 +135,8 @@ claude mcp add --transport http legejo https://books.example.org/api/mcp \
   --header "Authorization: Bearer <app password>"
 ```
 
-Any client that can send an `Authorization` header to a remote MCP server
-works. OAuth sign-in, which some hosted assistants require, is not supported.
+Clients that reserve the `Authorization` header for OAuth can send the app
+password in an `X-Api-Key` header instead. OAuth sign-in itself is not supported.
 The text of a book only leaves the server when the assistant asks for it.
 
 **Mail** (self-registration, invitations, password reset):
