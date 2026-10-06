@@ -36,6 +36,8 @@ const DISPLAY_TIMEOUT_MS = 20_000;
 const SETTLE_TIMEOUT_MS = 2_500;
 /** Empty space after the last line of a chapter in scrolled flow, in px. */
 const SCROLL_END_PAD = 96;
+/** An element positioned this far from where it stands is meant to be out of sight, in px. */
+const OFFSCREEN_PX = 1000;
 const STYLE_KEY = 'legejo-reader';
 const LOCATIONS_PREFIX = 'legejo.reader.locations.';
 
@@ -180,6 +182,74 @@ const INLINE_TAGS = new Set(
 		' '
 	)
 );
+
+/** How an element is hidden where it would otherwise be moved out of sight. */
+const CLIPPED: [string, string][] = [
+	// On the first page and inside its text area, clear of the side margin
+	// (at most MARGIN_MAX_PX): a chapter is measured by the extent of its
+	// content, and a box in the margin would add to it and cost a page.
+	['left', `${MARGIN_MAX_PX + 8}px`],
+	['right', 'auto'],
+	['top', '32px'],
+	['bottom', 'auto'],
+	['width', '1px'],
+	['height', '1px'],
+	['margin', '0'],
+	['overflow', 'hidden'],
+	['clip-path', 'inset(50%)'],
+	['white-space', 'nowrap']
+];
+
+/** Whether a CSS offset puts an element far outside the page. */
+function farOff(value: string): boolean {
+	const m = /^(-?[\d.]+)(px|pt|em|rem|ex|ch|%)?$/.exec(value.trim());
+	if (!m) return false;
+	const n = Math.abs(parseFloat(m[1]));
+	const unit = m[2] ?? 'px';
+	if (unit === 'px' || unit === 'pt') return n >= OFFSCREEN_PX;
+	if (unit === '%') return n >= 300;
+	return n >= OFFSCREEN_PX / 16;
+}
+
+/**
+ * Books hide text meant for screen readers by positioning it far outside the
+ * page (`position: absolute; left: -999em`). A chapter is laid out in columns
+ * as wide as the page, and such an element stretches it by dozens of empty
+ * pages. This reads the book's stylesheets and returns rules that hide those
+ * elements by clipping instead. They go into the stylesheet every chapter
+ * gets, so they hold before the first layout.
+ */
+async function offscreenRules(files: Record<string, unknown>): Promise<string> {
+	if (typeof CSSStyleSheet !== 'function' || !('replaceSync' in CSSStyleSheet.prototype)) return '';
+	const selectors: string[] = [];
+	const collect = (rules: CSSRuleList) => {
+		for (const rule of rules) {
+			if ('cssRules' in rule && !(rule instanceof CSSStyleRule)) {
+				collect((rule as CSSGroupingRule).cssRules);
+				continue;
+			}
+			if (!(rule instanceof CSSStyleRule)) continue;
+			const style = rule.style;
+			if (style.position !== 'absolute' && style.position !== 'fixed') continue;
+			if (![style.left, style.right, style.top, style.bottom].some(farOff)) continue;
+			// A selector with a namespace prefix means nothing outside its own sheet.
+			if (!rule.selectorText.includes('|')) selectors.push(rule.selectorText);
+		}
+	};
+	for (const [name, entry] of Object.entries(files)) {
+		if (!name.toLowerCase().endsWith('.css')) continue;
+		try {
+			const text = await (entry as { async(type: 'string'): Promise<string> }).async('string');
+			const sheet = new CSSStyleSheet();
+			sheet.replaceSync(text);
+			collect(sheet.cssRules);
+		} catch {
+			// A stylesheet that can't be read or parsed has nothing to tell.
+		}
+	}
+	const body = CLIPPED.map(([name, value]) => `${name}: ${value} !important;`).join(' ');
+	return selectors.map((selector) => `\n${selector} { ${body} }`).join('');
+}
 
 function blockOf(node: Node): Node | null {
 	let el = node.parentNode;
@@ -328,6 +398,9 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	let layoutPass = true;
 	let layoutTimer: ReturnType<typeof setTimeout> | null = null;
 	let css = '';
+	const offscreenCss = await offscreenRules(
+		(book as unknown as { archive?: { zip?: { files?: Record<string, unknown> } } }).archive?.zip?.files ?? {}
+	);
 	let cssContext = { pageHeight: 0, marginPx: 0, columnPx: 0 };
 	// Renders run one at a time; a resize during a re-render waits its turn.
 	let queue: Promise<void> = Promise.resolve();
@@ -593,7 +666,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		viewport.style.width = width + 'px';
 		host.style.background = palettes[settings.theme].bg;
 		cssContext = { pageHeight: size.height, marginPx, columnPx: columnMax };
-		css = contentCss(settings, cssContext);
+		css = contentCss(settings, cssContext) + offscreenCss;
 
 		const created = book.renderTo(viewport, {
 			width,
@@ -612,6 +685,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		created.hooks.content.register((contents: Contents) => {
 			// Normally a no-op (see the serialize hook); covers chapters without a <head>.
 			contents.addStylesheetCss(css, STYLE_KEY);
+			keepOnPage(contents.document);
 			markAlignable(contents.document);
 			options.onContent?.(contents.document);
 		});
@@ -627,6 +701,23 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		});
 		rendition = created;
 		if (highlighted) mark(highlighted);
+	}
+
+	/**
+	 * The same as `offscreenRules`, for what the stylesheets did not show:
+	 * rules in a chapter's own <style>, or inline. This runs after the first
+	 * layout, so it shortens the chapter but may leave a blank page behind.
+	 */
+	function keepOnPage(doc: Document) {
+		const view = doc.defaultView;
+		if (!view || !doc.body) return;
+		const far = (value: string) => Math.abs(parseFloat(value)) >= OFFSCREEN_PX;
+		for (const el of doc.body.querySelectorAll<HTMLElement>('*')) {
+			const style = view.getComputedStyle(el);
+			if (style.position !== 'absolute' && style.position !== 'fixed') continue;
+			if (!far(style.left) && !far(style.right) && !far(style.top) && !far(style.bottom)) continue;
+			for (const [name, value] of CLIPPED) el.style.setProperty(name, value, 'important');
+		}
 	}
 
 	/**
@@ -806,7 +897,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 
 	function restyle() {
 		host.style.background = palettes[settings.theme].bg;
-		css = contentCss(settings, cssContext);
+		css = contentCss(settings, cssContext) + offscreenCss;
 		const contents = (rendition?.getContents() as unknown as Contents[]) ?? [];
 		for (const c of contents) c.addStylesheetCss(css, STYLE_KEY);
 		if (highlighted) {
