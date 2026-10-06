@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, Layers, Pencil, TabletSmartphone, Tag } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, FileWarning, Layers, Pencil, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { canRepair, fixedList, issueText } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
 	import { fedHost } from '#lib/fed';
@@ -72,6 +73,26 @@
 			if (res.ok) await invalidateAll();
 		} finally {
 			restoring = false;
+		}
+	}
+
+	// The health check: what is wrong with the file, and what a repair would mend.
+	const health = $derived(book.health);
+	const repairable = $derived((health?.issues ?? []).some((i) => canRepair(i, book)));
+	let repairing = $state(false);
+	let repairFailed = $state(false);
+
+	async function repairFile() {
+		repairing = true;
+		repairFailed = false;
+		try {
+			const res = await fetch(`/api/books/${book.id}/repair`, { method: 'POST' });
+			if (res.ok) await invalidateAll();
+			else repairFailed = true;
+		} catch {
+			repairFailed = true;
+		} finally {
+			repairing = false;
 		}
 	}
 
@@ -149,6 +170,32 @@
 			<a class="edit-btn" href={`/books/${book.id}/edit`}><Pencil size={13} /> {t('book.edit')}</a>
 		</div>
 
+		{#if health && health.issues.length > 0}
+			<section class="health" aria-label={t('health.heading')}>
+				<h2><FileWarning size={14} /> {t('health.title')}</h2>
+				<ul>
+					{#each health.issues as issue (issue.code)}
+						<li>
+							{issueText(issue)}
+							{#if !canRepair(issue, book) && (issue.code === 'no_language' || issue.code === 'no_cover')}
+								<a href={`/books/${book.id}/edit`}>{t('health.toEdit')}</a>
+							{/if}
+							{#if issue.examples?.length}
+								<span class="examples">{issue.examples.join(' · ')}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+				{#if repairable}
+					<button type="button" class="ghost" disabled={repairing} onclick={repairFile}>
+						<Wrench size={13} />
+						{repairing ? t('health.repairing') : t('health.repair')}
+					</button>
+				{/if}
+				{#if repairFailed}<p class="error">{t('health.repairFailed')}</p>{/if}
+			</section>
+		{/if}
+
 		{#if book.kobo_removed}
 			<p class="kobo-removed">
 				<TabletSmartphone size={14} />
@@ -219,6 +266,19 @@
 				<dd class="fed-source"><a href={book.fed_source} target="_blank" rel="noreferrer">{fedHost(book.fed_source)}</a></dd>
 			{/if}
 			<dt>{t('book.fileSize')}</dt><dd>{formatSize(book.file_size)}</dd>
+			{#if health}
+				<dt>{t('health.heading')}</dt>
+				<dd>
+					{health.issues.length === 0
+						? t('health.ok')
+						: health.issues.length === 1
+							? t('health.remark')
+							: t('health.remarks', { count: health.issues.length })}
+					{#if health.fixed.length > 0}
+						<span class="fixed">· {t('upload.repaired', { list: fixedList(health) })}</span>
+					{/if}
+				</dd>
+			{/if}
 			<dt>{t('book.added')}</dt><dd>{book.created_at.slice(0, 10)}</dd>
 		</dl>
 
@@ -412,6 +472,46 @@
 		border-radius: 8px;
 		background: var(--card);
 		font-size: 0.88rem;
+		color: var(--muted);
+	}
+	.health {
+		margin: 1rem 0 0;
+		padding: 0.6rem 0.8rem;
+		border: 1px solid var(--border);
+		border-left: 3px solid var(--gold, var(--accent));
+		border-radius: 8px;
+		background: var(--card);
+		font-size: 0.88rem;
+	}
+	.health h2 {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0 0 0.35rem;
+		font-family: inherit;
+		font-size: 0.88rem;
+		font-weight: 600;
+	}
+	.health ul {
+		margin: 0 0 0.5rem;
+		padding-left: 1.1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.health ul:last-child {
+		margin-bottom: 0;
+	}
+	.health .examples {
+		display: block;
+		color: var(--muted);
+		font-size: 0.78rem;
+		overflow-wrap: anywhere;
+	}
+	.health .error {
+		margin: 0.4rem 0 0;
+	}
+	.fixed {
 		color: var(--muted);
 	}
 	.kobo-removed span {

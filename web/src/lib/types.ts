@@ -17,6 +17,8 @@ export type Book = {
 	isbn: string | null;
 	libris_id: string | null;
 	file_size: number;
+	/** How many things the health check found wrong with the file. */
+	health_issues: number;
 	has_cover: boolean;
 	created_at: string;
 	updated_at: string | null;
@@ -47,7 +49,24 @@ export type LibraryBook = Book & { shelf_ids: number[] };
 
 export type ShelfRef = { id: number; name: string };
 
+/** One thing the health check found wrong with an EPUB file. */
+export type HealthIssue = {
+	code: string;
+	/** The server can repair it when asked. */
+	fixable: boolean;
+	count?: number;
+	examples?: string[];
+};
+
+export type Health = {
+	issues: HealthIssue[];
+	/** Codes of what has been repaired in the file. */
+	fixed: string[];
+};
+
 export type BookDetail = Book & {
+	/** What the health check says about the file; null until it has run. */
+	health: Health | null;
 	/** Removed from the owner's Kobo on the device; left out of the sync. */
 	kobo_removed: boolean;
 	shelves: ShelfRef[];

@@ -135,7 +135,13 @@ async fn put_progress(
     }
     let document = req.document.to_ascii_lowercase();
     let book_id: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM books WHERE owner_id = $1 AND koreader_md5 = $2 ORDER BY id LIMIT 1")
+        // The current file first; a copy from before the file was rewritten
+        // is known by an earlier id.
+        sqlx::query_scalar(
+            "SELECT id FROM books
+             WHERE owner_id = $1 AND (koreader_md5 = $2 OR id IN (SELECT book_id FROM book_file_ids WHERE md5 = $2))
+             ORDER BY CASE WHEN koreader_md5 = $2 THEN 0 ELSE 1 END, id LIMIT 1",
+        )
             .bind(user_id)
             .bind(&document)
             .fetch_optional(&state.db)
@@ -312,6 +318,21 @@ pub async fn backfill(state: AppState) {
 pub async fn set_md5(state: &AppState, id: i64, uuid: &str) -> bool {
     let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
     let Ok(Ok(md5)) = tokio::task::spawn_blocking(move || partial_md5(&path)).await else { return false };
+    // Every id the file has had is kept, so progress from a device that
+    // still has an earlier version of the file finds its book.
+    let _ = sqlx::query(
+        "INSERT INTO book_file_ids (md5, book_id)
+         SELECT koreader_md5, id FROM books WHERE id = $1 AND koreader_md5 IS NOT NULL
+         ON CONFLICT (md5, book_id) DO NOTHING",
+    )
+    .bind(id)
+    .execute(&state.db)
+    .await;
+    let _ = sqlx::query("INSERT INTO book_file_ids (md5, book_id) VALUES ($1, $2) ON CONFLICT (md5, book_id) DO NOTHING")
+        .bind(&md5)
+        .bind(id)
+        .execute(&state.db)
+        .await;
     sqlx::query("UPDATE books SET koreader_md5 = $1 WHERE id = $2")
         .bind(md5)
         .bind(id)

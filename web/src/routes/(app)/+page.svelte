@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { collectAuthors } from '#lib/library/authors';
 	import { CheckSquare, Upload } from '@lucide/svelte';
+	import UploadPanel, { type UploadItem } from '#lib/library/UploadPanel.svelte';
 	import SelectionBar from '#lib/library/SelectionBar.svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import {
@@ -71,6 +72,7 @@
 			.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 	});
 	const unshelvedCount = $derived(data.books.filter((b) => b.shelf_ids.length === 0).length);
+	const issuesCount = $derived(data.books.filter((b) => b.health_issues > 0).length);
 
 	const visible = $derived(
 		sortBooks(filterBooks(data.books, filters), prefs.sort, prefs.dir, getLocale())
@@ -98,6 +100,51 @@
 
 	let fileInput = $state<HTMLInputElement>();
 	let uploading = $state(false);
+	// One row per file of the current batch, shown until closed.
+	let uploads = $state<UploadItem[]>([]);
+	let uploadKey = 0;
+
+	type UploadResponse = {
+		added: Book[];
+		errors: string[];
+		duplicates?: Duplicate[];
+		reports?: { book_id: number; fixed: string[]; issues: unknown[] }[];
+	};
+
+	/** Send one file, reporting how much of it has left the browser. */
+	function send(file: File, allowDuplicates: boolean, item: UploadItem): Promise<UploadResponse | null> {
+		return new Promise((resolve) => {
+			const form = new FormData();
+			form.append('files', file);
+			const xhr = new XMLHttpRequest();
+			xhr.open('POST', `/api/books${allowDuplicates ? '?allow_duplicates=1' : ''}`);
+			xhr.upload.onprogress = (e) => {
+				if (e.lengthComputable) item.sent = Math.min(file.size, Math.round((e.loaded / e.total) * file.size));
+			};
+			// Everything is sent; the server is reading and checking the file.
+			xhr.upload.onload = () => {
+				item.sent = file.size;
+				item.state = 'checking';
+			};
+			xhr.onload = () => {
+				if (xhr.status === 413) {
+					item.message = t('upload.tooLarge');
+					resolve(null);
+					return;
+				}
+				try {
+					resolve(xhr.status >= 200 && xhr.status < 300 ? JSON.parse(xhr.responseText) : null);
+				} catch {
+					resolve(null);
+				}
+			};
+			xhr.onerror = () => {
+				item.message = t('common.network');
+				resolve(null);
+			};
+			xhr.send(form);
+		});
+	}
 	let messages = $state<string[]>([]);
 	type Duplicate = {
 		filename: string;
@@ -114,35 +161,59 @@
 		const epubs = [...(files ?? [])].filter(
 			(f) => f.name.toLowerCase().endsWith('.epub') || f.type === 'application/epub+zip'
 		);
-		if (epubs.length === 0) return;
+		if (epubs.length === 0 || uploading) return;
 		uploading = true;
 		messages = [];
-		if (!allowDuplicates) {
+		if (allowDuplicates) {
+			const again = new Set(epubs.map((f) => f.name));
+			duplicates = duplicates.filter((d) => !again.has(d.filename));
+		} else {
 			duplicates = [];
 			lastFiles = epubs;
 		}
-		const form = new FormData();
-		for (const file of epubs) form.append('files', file);
+		uploads = epubs.map((file) => ({
+			key: uploadKey++,
+			name: file.name,
+			size: file.size,
+			state: 'waiting',
+			sent: 0,
+			fixed: [],
+			issues: 0
+		}));
+		let added = 0;
 		try {
-			const res = await fetch(`/api/books${allowDuplicates ? '?allow_duplicates=1' : ''}`, {
-				method: 'POST',
-				body: form
-			});
-			if (!res.ok) {
-				messages = [t('home.uploadFailed')];
-				return;
+			// One file per request: each has its own progress and its own size
+			// limit, and one bad file does not stop the others.
+			for (const [i, file] of epubs.entries()) {
+				const item = uploads[i];
+				item.state = 'sending';
+				const result = await send(file, allowDuplicates, item);
+				if (!result) {
+					item.state = 'error';
+					item.message ??= t('home.uploadFailed');
+					continue;
+				}
+				const same = (result.duplicates ?? []).find((d) => d.kind === 'same_file');
+				duplicates = [...duplicates, ...(result.duplicates ?? [])];
+				const book = result.added[0];
+				if (book) {
+					const report = result.reports?.find((r) => r.book_id === book.id);
+					item.state = 'added';
+					item.bookId = book.id;
+					item.fixed = report?.fixed ?? [];
+					item.issues = report?.issues.length ?? 0;
+					added++;
+				} else if (same) {
+					item.state = 'duplicate';
+					item.bookId = same.existing_id;
+				} else {
+					item.state = 'error';
+					// The server names the file in front of the reason.
+					const reason = (result.errors[0] ?? '').replace(`${file.name}: `, '');
+					item.message = reason.startsWith('could not parse epub') ? t('upload.notEpub') : reason || t('home.uploadFailed');
+				}
 			}
-			const result: { added: Book[]; errors: string[]; duplicates?: Duplicate[] } = await res.json();
-			messages = result.errors;
-			if (allowDuplicates) {
-				const sent = new Set(epubs.map((f) => f.name));
-				duplicates = duplicates.filter((d) => !sent.has(d.filename));
-			} else {
-				duplicates = result.duplicates ?? [];
-			}
-			if (result.added.length > 0) await invalidateAll();
-		} catch {
-			messages = [t('common.network')];
+			if (added > 0) await invalidateAll();
 		} finally {
 			uploading = false;
 			if (fileInput) fileInput.value = '';
@@ -223,6 +294,10 @@
 	<p class="error">{msg}</p>
 {/each}
 
+{#if uploads.length > 0}
+	<UploadPanel items={uploads} onclose={() => (uploads = [])} />
+{/if}
+
 {#if duplicates.length > 0}
 	<div class="duplicates">
 		{#each duplicates as d (d.filename + d.kind)}
@@ -252,7 +327,7 @@
 {#if data.books.length === 0}
 	<p class="empty">{t('home.empty')}</p>
 {:else}
-	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} />
+	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} />
 
 	{#if visible.length === 0}
 		<div class="nomatch">

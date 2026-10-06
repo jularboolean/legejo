@@ -22,6 +22,8 @@ export type Filters = {
 	shelf: number | 'none' | null;
 	/** An author's identity key (authors.ts), matching any of a book's authors. */
 	author: string | null;
+	/** Only books whose file the health check has remarks on. */
+	file: 'issues' | null;
 };
 
 export type Prefs = { view: ViewMode; sort: SortKey; dir: SortDir };
@@ -35,11 +37,11 @@ export function defaultDir(key: SortKey): SortDir {
 }
 
 export function emptyFilters(): Filters {
-	return { text: '', status: null, language: null, shelf: null, author: null };
+	return { text: '', status: null, language: null, shelf: null, author: null, file: null };
 }
 
 export function activeFilterCount(f: Filters): number {
-	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0);
+	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0) + (f.file ? 1 : 0);
 }
 
 // EPUBs carry their language as anything from "sv" to "sv-SE" to "swe".
@@ -133,6 +135,7 @@ export function filterBooks(books: LibraryBook[], f: Filters): LibraryBook[] {
 		if (f.shelf === 'none' && book.shelf_ids.length > 0) return false;
 		if (typeof f.shelf === 'number' && !book.shelf_ids.includes(f.shelf)) return false;
 		if (f.author && !splitAuthors(book.author).some((p) => p.key === f.author)) return false;
+		if (f.file === 'issues' && !(book.health_issues > 0)) return false;
 		if (words.length > 0) {
 			const hay = fold(`${book.title} ${book.author ?? ''} ${book.series ?? ''}`);
 			if (!words.every((w) => hay.includes(w))) return false;
@@ -247,6 +250,7 @@ export function loadFilters(): Filters {
 		if (typeof saved?.language === 'string') filters.language = saved.language;
 		if (saved?.shelf === 'none' || typeof saved?.shelf === 'number') filters.shelf = saved.shelf;
 		if (typeof saved?.author === 'string') filters.author = saved.author;
+		if (saved?.file === 'issues') filters.file = saved.file;
 	} catch {
 		// As above.
 	}

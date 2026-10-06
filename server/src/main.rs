@@ -14,6 +14,7 @@ mod audit;
 mod auth;
 mod books;
 mod booktext;
+mod epubfix;
 mod db;
 mod export;
 mod fed;
@@ -162,6 +163,7 @@ fn router(state: AppState) -> Router {
         .route("/books/archive", get(books::archive))
         .route("/books/{id}", get(books::get_one).put(books::update).delete(books::delete))
         .route("/books/{id}/cover", get(books::cover).post(books::upload_cover))
+        .route("/books/{id}/repair", post(books::repair))
         .route("/books/{id}/cover/openlibrary", post(openlibrary::use_cover))
         .route("/books/{id}/file", get(books::download))
         .route("/books/{id}/rating", axum::routing::put(books::set_rating))
@@ -316,6 +318,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState { db, backend, data_dir, kepubify, http, mail, thumb_gate, fed, export_wake, oidc, settings };
     tokio::spawn(books::backfill_thumbs(state.clone()));
     tokio::spawn(books::backfill_sha256(state.clone()));
+    tokio::spawn(books::backfill_health(state.clone()));
     tokio::spawn(pubdate::backfill(state.clone()));
     tokio::spawn(kosync::backfill(state.clone()));
     tokio::spawn(fed::deliver::worker(state.clone()));

@@ -332,6 +332,7 @@ pub async fn import_book(
         .ok()
         .flatten();
     crate::kosync::set_md5(&state, book.id, &book.uuid).await;
+    crate::books::refresh_health(&state, book.id, &book.uuid, &[]).await;
     crate::audit::log(
         &state,
         crate::audit::by(&user.0),

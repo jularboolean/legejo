@@ -492,3 +492,85 @@ async fn restricted_shelves_are_shared_with_chosen_users() {
     let (status, _) = send(&app, Method::GET, "/api/users/search?q=bo", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
+    let (app, db, state) = test_app().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (_, bob) = add_user(&db, "bob").await;
+    let codes = |v: &Value| v.as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let opf_of = |uuid: &str| {
+        use std::io::Read;
+        let data = std::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data)).unwrap();
+        let mut opf = String::new();
+        archive.by_name("c.opf").unwrap().read_to_string(&mut opf).unwrap();
+        opf
+    };
+
+    // The test file has no contents, language or cover. Contents can be made;
+    // the other two are reported.
+    let original = epub("Röda rummet", "urn:rr");
+    let v = upload(&app, &cookie, &[("rr.epub", original.clone())], "").await;
+    let book = v["added"][0]["id"].as_i64().unwrap();
+    let uuid = v["added"][0]["uuid"].as_str().unwrap().to_string();
+    assert_eq!(v["added"][0]["health_issues"], 2);
+    assert_eq!(v["reports"][0]["filename"], "rr.epub");
+    assert_eq!(v["reports"][0]["fixed"], json!(["no_toc"]));
+    assert_eq!(codes(&v["reports"][0]["issues"]), ["no_language", "no_cover"]);
+    assert!(opf_of(&uuid).contains("application/x-dtbncx+xml"));
+    // The stored file is not the uploaded one, but the upload is still recognized.
+    let v = upload(&app, &cookie, &[("rr-igen.epub", original)], "").await;
+    assert_eq!(v["duplicates"][0]["kind"], "same_file");
+
+    let (first_md5, first_sha): (String, String) =
+        sqlx::query_as("SELECT koreader_md5, file_sha256 FROM books WHERE id = ?").bind(book).fetch_one(&db).await.unwrap();
+
+    // Saving the book writes title, author, language and series into the file.
+    let uri = format!("/api/books/{book}");
+    let (status, v) = send(&app, Method::PUT, &uri, Some(&cookie), Some(json!({
+        "title": "Röda rummet & annat", "author": "August Strindberg", "language": "sv",
+        "series": "Samlade verk", "series_index": 3.0
+    }))).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(codes(&v["health"]["issues"]), ["no_cover"]);
+    assert_eq!(v["health"]["fixed"], json!(["no_toc"]));
+    assert_eq!(v["health_issues"], 1);
+    let opf = opf_of(&uuid);
+    assert!(opf.contains("<dc:title>Röda rummet &amp; annat</dc:title>"), "{opf}");
+    assert!(opf.contains(">August Strindberg</dc:creator>") && opf.contains(">sv</dc:language>"));
+    assert!(opf.contains("name=\"calibre:series\" content=\"Samlade verk\"") && opf.contains("name=\"calibre:series_index\" content=\"3\""));
+    let (md5, sha, size): (String, String, i64) =
+        sqlx::query_as("SELECT koreader_md5, file_sha256, file_size FROM books WHERE id = ?").bind(book).fetch_one(&db).await.unwrap();
+    assert!(md5 != first_md5 && sha != first_sha);
+    assert_eq!(size as u64, std::fs::metadata(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap().len());
+    assert_eq!(v["file_size"], size);
+    // A KOReader that still has the earlier file finds the book by its old id.
+    let known: Vec<String> = sqlx::query_scalar("SELECT md5 FROM book_file_ids WHERE book_id = ? ORDER BY md5").bind(book).fetch_all(&db).await.unwrap();
+    assert!(known.contains(&first_md5) && known.contains(&md5));
+
+    // Saving again without a change leaves the file alone.
+    send(&app, Method::PUT, &uri, Some(&cookie), Some(json!({
+        "title": "Röda rummet & annat", "author": "August Strindberg", "language": "sv",
+        "series": "Samlade verk", "series_index": 3.0
+    }))).await;
+    let again: String = sqlx::query_scalar("SELECT file_sha256 FROM books WHERE id = ?").bind(book).fetch_one(&db).await.unwrap();
+    assert_eq!(again, sha);
+
+    // A book from before the health check: the check runs in the background,
+    // and the repair is the owner's to ask for.
+    let (old, old_uuid) = add_book(&db, alice, "Gammal").await;
+    std::fs::write(state.data_dir.join("books").join(format!("{old_uuid}.epub")), epub("Gammal", "urn:old")).unwrap();
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{old}"), Some(&cookie), None).await;
+    assert!(v["health"].is_null());
+    crate::books::backfill_health(state.clone()).await;
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{old}"), Some(&cookie), None).await;
+    assert_eq!(codes(&v["health"]["issues"]), ["no_language", "no_cover", "no_toc"]);
+    assert_eq!(v["health"]["issues"][2]["fixable"], true);
+    let (status, _) = send(&app, Method::POST, &format!("/api/books/{old}/repair"), Some(&bob), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "not someone else's book");
+    let (status, v) = send(&app, Method::POST, &format!("/api/books/{old}/repair"), Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(codes(&v["health"]["issues"]), ["no_language", "no_cover"]);
+    assert_eq!(v["health"]["fixed"], json!(["no_toc"]));
+}

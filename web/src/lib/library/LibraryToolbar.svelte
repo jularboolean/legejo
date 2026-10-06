@@ -32,7 +32,8 @@
 		languages,
 		authors,
 		shelves,
-		unshelvedCount
+		unshelvedCount,
+		issuesCount = 0
 	}: {
 		filters: Filters;
 		prefs: Prefs;
@@ -42,6 +43,8 @@
 		authors: { key: string; name: string; count: number }[];
 		shelves: Shelf[];
 		unshelvedCount: number;
+		/** Books whose file the health check has remarks on. */
+		issuesCount?: number;
 	} = $props();
 
 	const sortLabel = (key: SortKey) => t(`library.sort.${key}` as MessageKey);
@@ -62,12 +65,13 @@
 		return q ? authors.filter((a) => fold(a.name).includes(q)) : authors;
 	});
 
-	function toggle<K extends 'status' | 'language' | 'shelf' | 'author'>(field: K, value: Filters[K]) {
+	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file'>(field: K, value: Filters[K]) {
 		filters = { ...filters, [field]: filters[field] === value ? null : value };
 	}
 
 	const active = $derived.by(() => {
-		const chips: { field: 'status' | 'language' | 'shelf' | 'author'; label: string }[] = [];
+		const chips: { field: 'status' | 'language' | 'shelf' | 'author' | 'file'; label: string }[] = [];
+		if (filters.file) chips.push({ field: 'file', label: t('library.file.issues') });
 		if (filters.status) chips.push({ field: 'status', label: statusLabel(filters.status) });
 		if (filters.language) {
 			const lang = languages.find((l) => l.code === filters.language);
@@ -235,6 +239,23 @@
 										<span class="num">{unshelvedCount}</span>
 									</button>
 								{/if}
+							</div>
+						</section>
+					{/if}
+
+					{#if issuesCount > 0 || filters.file}
+						<section>
+							<h3>{t('library.filter.file')}</h3>
+							<div class="options">
+								<button
+									type="button"
+									class="option"
+									aria-pressed={filters.file === 'issues'}
+									onclick={() => toggle('file', 'issues')}
+								>
+									{t('library.file.issues')}
+									<span class="num">{issuesCount}</span>
+								</button>
 							</div>
 						</section>
 					{/if}

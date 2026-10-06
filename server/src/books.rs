@@ -1,5 +1,6 @@
 use crate::auth::AuthUser;
 use crate::db::{now_ts, Backend, DbFlag};
+use crate::epubfix::{self, Health};
 use crate::license::{self, License, LicenseFacts, NotFederable};
 use crate::progress;
 use crate::AppState;
@@ -51,6 +52,9 @@ pub struct Book {
     pub want_to_read: DbFlag,
     pub wanted_at: Option<String>,
     pub file_size: i64,
+    /// How many things the health check found wrong with the file.
+    #[sqlx(default)]
+    pub health_issues: i64,
     pub has_cover: DbFlag,
     pub created_at: String,
     pub updated_at: Option<String>,
@@ -89,6 +93,8 @@ pub struct BookDetail {
     pub federable: FederableStatus,
     /// The owner removed it from their Kobo; it is left out of the sync.
     pub kobo_removed: bool,
+    /// What the health check says about the file; absent until it has run.
+    pub health: Option<Health>,
 }
 
 /// `{"ok": true}` or `{"ok": false, "code": "missing_source", …}`.
@@ -121,7 +127,7 @@ impl Book {
 pub(crate) const BOOK_COLUMNS: &str =
     "id, uuid, title, author, language, description, publisher, published, first_published, \
      category, identifier, isbn, libris_id, source_uuid, series, series_index, rating, \
-     license, license_source_url, author_death_year, cover_is_free, fed_source, want_to_read, wanted_at, file_size, \
+     license, license_source_url, author_death_year, cover_is_free, fed_source, want_to_read, wanted_at, file_size, health_issues, \
      CAST(CASE WHEN cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      created_at, updated_at";
 
@@ -129,7 +135,7 @@ pub(crate) const BOOK_COLUMNS: &str =
 pub(crate) const BOOK_COLUMNS_B: &str =
     "b.id, b.uuid, b.title, b.author, b.language, b.description, b.publisher, b.published, b.first_published, \
      b.category, b.identifier, b.isbn, b.libris_id, b.source_uuid, b.series, b.series_index, b.rating, \
-     b.license, b.license_source_url, b.author_death_year, b.cover_is_free, b.fed_source, b.want_to_read, b.wanted_at, b.file_size, \
+     b.license, b.license_source_url, b.author_death_year, b.cover_is_free, b.fed_source, b.want_to_read, b.wanted_at, b.file_size, b.health_issues, \
      CAST(CASE WHEN b.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      b.created_at, b.updated_at";
 
@@ -320,7 +326,8 @@ pub async fn get_one(
     let tags = book_tags(&state, book.id).await?;
     let federable = book.federable_status();
     let kobo_removed = kobo_removed(&state, book.id).await?;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed }))
+    let health = stored_health(&state, book.id).await;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health }))
 }
 
 #[derive(serde::Deserialize)]
@@ -630,6 +637,21 @@ pub async fn update(
     )
     .await;
 
+    // The file follows the catalog. A file that cannot be rewritten does not
+    // undo the edit; the health check reports on it.
+    match tend_file(&state, &book, false).await {
+        Ok(true) => {
+            book = sqlx::query_as(&format!("SELECT {BOOK_COLUMNS} FROM books WHERE id = $1"))
+                .bind(book.id)
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| internal(e.into()))?;
+            state.fed.wake.notify_one();
+        }
+        Ok(false) => {}
+        Err(e) => tracing::warn!("could not write metadata into {}: {e:#}", book.uuid),
+    }
+
     book.progress_percent = progress::percent_for(&state, user.0.id, book.id)
         .await
         .map_err(|e| internal(e.into()))?;
@@ -637,7 +659,8 @@ pub async fn update(
     let tags = book_tags(&state, book.id).await?;
     let federable = book.federable_status();
     let kobo_removed = kobo_removed(&state, book.id).await?;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed }))
+    let health = stored_health(&state, book.id).await;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health }))
 }
 
 #[derive(serde::Deserialize)]
@@ -1170,6 +1193,17 @@ pub struct UploadResult {
     errors: Vec<String>,
     /// Files that match books already in the library.
     duplicates: Vec<Duplicate>,
+    /// What the health check repaired and found in the added files that had
+    /// something wrong with them.
+    reports: Vec<UploadReport>,
+}
+
+#[derive(Serialize)]
+pub struct UploadReport {
+    filename: String,
+    book_id: i64,
+    #[serde(flatten)]
+    health: Health,
 }
 
 /// `same_file`: byte-identical to an existing book, so it was NOT added
@@ -1201,6 +1235,7 @@ pub async fn upload(
     let mut added: Vec<Book> = Vec::new();
     let mut errors = Vec::new();
     let mut duplicates = Vec::new();
+    let mut reports = Vec::new();
     let allow_duplicates = params.allow_duplicates.as_deref() == Some("1");
 
     let books_dir = state.data_dir.join("books");
@@ -1224,7 +1259,10 @@ pub async fn upload(
         if !allow_duplicates {
             let sha = sha256_hex(&bytes);
             let same: Option<(i64, String)> =
-                sqlx::query_as("SELECT id, title FROM books WHERE owner_id = $1 AND file_sha256 = $2 ORDER BY id LIMIT 1")
+                sqlx::query_as(
+                    "SELECT id, title FROM books
+                     WHERE owner_id = $1 AND (file_sha256 = $2 OR upload_sha256 = $2) ORDER BY id LIMIT 1",
+                )
                     .bind(user.0.id)
                     .bind(&sha)
                     .fetch_optional(&state.db)
@@ -1263,17 +1301,22 @@ pub async fn upload(
                     });
                 }
                 crate::audit::log(&state, crate::audit::by(&user.0), "book.uploaded", serde_json::json!({ "book_id": book.id, "title": book.title })).await;
+                if let Some(health) = stored_health(&state, book.id).await.filter(|h| !h.issues.is_empty() || !h.fixed.is_empty()) {
+                    reports.push(UploadReport { filename: filename.clone(), book_id: book.id, health });
+                }
                 added.push(book)
             }
             Err(e) => errors.push(format!("{filename}: {e}")),
         }
     }
 
-    Ok(Json(UploadResult { added, errors, duplicates }))
+    Ok(Json(UploadResult { added, errors, duplicates, reports }))
 }
 
 /// Store one EPUB as a new book of `owner_id`: file, cover, metadata, tags.
-/// Ok(Err(..)) when the file is not a readable EPUB.
+/// What can be repaired without asking is repaired first, so the stored file
+/// may differ from the uploaded one. Ok(Err(..)) when the file is not a
+/// readable EPUB.
 pub(crate) async fn store_epub(
     state: &AppState,
     owner_id: i64,
@@ -1285,10 +1328,25 @@ pub(crate) async fn store_epub(
     tokio::fs::create_dir_all(&books_dir).await.map_err(|e| internal(e.into()))?;
     tokio::fs::create_dir_all(&covers_dir).await.map_err(|e| internal(e.into()))?;
     let fallback_title = filename.trim_end_matches(".epub").to_string();
+    let upload_sha256 = sha256_hex(bytes);
+    // A repair is kept only when the result still reads as a book.
+    let repaired = match epubfix::repair(bytes) {
+        Ok((Some(out), fixed)) if parse_epub(&out, &fallback_title).is_ok() => Some((out, fixed)),
+        Ok(_) => None,
+        Err(e) => {
+            tracing::debug!("no repair of {filename}: {e:#}");
+            None
+        }
+    };
+    let (bytes, fixed) = match &repaired {
+        Some((out, fixed)) => (out.as_slice(), fixed.clone()),
+        None => (bytes, Vec::new()),
+    };
     let parsed = match parse_epub(bytes, &fallback_title) {
         Ok(p) => p,
         Err(e) => return Ok(Err(e.to_string())),
     };
+    let health = epubfix::inspect(bytes).ok().map(|issues| Health { v: epubfix::CHECK_VERSION, issues, fixed });
 
     let uuid = new_uuid();
     let file_size = bytes.len() as i64;
@@ -1312,8 +1370,8 @@ pub(crate) async fn store_epub(
 
     let isbn = parsed.identifier.as_deref().and_then(extract_isbn);
     let book: Book = sqlx::query_as(&format!(
-        "INSERT INTO books (uuid, owner_id, title, author, language, description, publisher, published, identifier, isbn, file_size, cover_mime, series, series_index, file_sha256)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CAST($14 AS DOUBLE PRECISION), $15)
+        "INSERT INTO books (uuid, owner_id, title, author, language, description, publisher, published, identifier, isbn, file_size, cover_mime, series, series_index, file_sha256, upload_sha256)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CAST($14 AS DOUBLE PRECISION), $15, $16)
          RETURNING {BOOK_COLUMNS}"
     ))
     .bind(&uuid)
@@ -1331,11 +1389,16 @@ pub(crate) async fn store_epub(
     .bind(&parsed.series)
     .bind(float_param(parsed.series_index))
     .bind(&sha256)
+    .bind(&upload_sha256)
     .fetch_one(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
 
     let mut book = book;
+    if let Some(health) = &health {
+        save_health(state, book.id, health).await;
+        book.health_issues = health.issues.len() as i64;
+    }
     if let Some(rating) = parsed.rating {
         sqlx::query("UPDATE books SET rating = $1 WHERE id = $2")
             .bind(rating)
@@ -1693,34 +1756,21 @@ pub(crate) async fn apply_cover(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    // Best effort: replace the cover image inside the EPUB as well.
+    // Best effort: put the image into the EPUB as well.
     let epub_path = state.data_dir.join("books").join(format!("{uuid}.epub"));
-    let embed_path = epub_path.clone();
-    let embed_bytes = bytes.clone();
-    let embed_mime = mime.clone();
-    let epub_updated = tokio::task::spawn_blocking(move || {
-        embed_cover(&embed_path, &embed_bytes, &embed_mime)
+    let (path, image, image_mime) = (epub_path.clone(), bytes.clone(), mime.clone());
+    let epub_updated = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let out = epubfix::set_cover(&std::fs::read(&path)?, &image, &image_mime)?;
+        write_atomic(&path, &out)?;
+        Ok(())
     })
     .await
     .map_err(|e| internal(e.into()))?
-    .unwrap_or_else(|e| {
-        tracing::warn!("could not embed cover in epub {uuid}: {e:#}");
-        false
-    });
-
+    .map_err(|e| tracing::warn!("could not embed cover in epub {uuid}: {e:#}"))
+    .is_ok();
     if epub_updated {
-        // The file changed on disk: keep size and hash in sync and drop the stale kepub.
-        if let Ok(data) = tokio::fs::read(&epub_path).await {
-            sqlx::query("UPDATE books SET file_size = $1, file_sha256 = $2 WHERE id = $3")
-                .bind(data.len() as i64)
-                .bind(sha256_hex(&data))
-                .bind(id)
-                .execute(&state.db)
-                .await
-                .map_err(|e| internal(e.into()))?;
-        }
-        let _ = tokio::fs::remove_file(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub"))).await;
-        crate::kosync::set_md5(&state, id, &uuid).await;
+        file_changed(&state, id, &uuid).await;
+        refresh_health(&state, id, &uuid, &[]).await;
     }
 
     let mut book: Book = sqlx::query_as(&format!("SELECT {BOOK_COLUMNS} FROM books WHERE id = $1"))
@@ -1736,89 +1786,153 @@ pub(crate) async fn apply_cover(
     Ok(Json(CoverResult { book, epub_updated }))
 }
 
-/// Replace the cover image inside the EPUB zip, keeping every other entry
-/// byte-identical (raw copy preserves compression, including the stored
-/// `mimetype` first entry). Returns false when the EPUB declares no cover.
-fn embed_cover(epub_path: &std::path::Path, image: &[u8], mime: &str) -> anyhow::Result<bool> {
-    let data = std::fs::read(epub_path)?;
-    let doc = EpubDoc::from_reader(Cursor::new(data.clone()))
-        .map_err(|e| anyhow::anyhow!("could not parse epub: {e}"))?;
-    let Some(cover_id) = doc.get_cover_id() else {
-        return Ok(false);
-    };
-    let Some(item) = doc.resources.get(&cover_id) else {
-        return Ok(false);
-    };
-    let cover_name = item.path.to_string_lossy().replace('\\', "/");
-    let old_mime = item.mime.clone();
-    let opf_name = doc.root_file.to_string_lossy().replace('\\', "/");
-    let cover_rel = item
-        .path
-        .strip_prefix(&doc.root_base)
-        .unwrap_or(&item.path)
-        .to_string_lossy()
-        .replace('\\', "/");
-
-    let mut archive = zip::ZipArchive::new(Cursor::new(data))?;
-
-    // When the image type changes, the OPF manifest's media-type should follow.
-    let patched_opf: Option<String> = if mime != old_mime {
-        let mut opf = String::new();
-        {
-            use std::io::Read;
-            archive.by_name(&opf_name)?.read_to_string(&mut opf)?;
-        }
-        patch_media_type(&opf, &cover_rel, mime)
-    } else {
-        None
-    };
-
-    let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-    for i in 0..archive.len() {
-        let name = archive.by_index_raw(i)?.name().to_string();
-        if name == cover_name {
-            use std::io::Write;
-            writer.start_file(&name, options)?;
-            writer.write_all(image)?;
-        } else if patched_opf.is_some() && name == opf_name {
-            use std::io::Write;
-            writer.start_file(&name, options)?;
-            writer.write_all(patched_opf.as_deref().unwrap().as_bytes())?;
-        } else {
-            writer.raw_copy_file(archive.by_index_raw(i)?)?;
-        }
-    }
-    let out = writer.finish()?.into_inner();
-
-    // Atomic replace so a failed write never corrupts the book.
-    let tmp = epub_path.with_extension("epub.tmp");
-    std::fs::write(&tmp, &out)?;
-    std::fs::rename(&tmp, epub_path)?;
-    Ok(true)
+/// Replace a file through a temporary one beside it, so that a failed write
+/// never leaves half a book and two writers never share a temporary file.
+pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = path.with_extension(format!("{}.tmp", new_uuid()));
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
 }
 
-/// Best-effort media-type update of the manifest item whose href matches the
-/// cover. Returns None when the item can't be located confidently.
-fn patch_media_type(opf: &str, cover_href: &str, new_mime: &str) -> Option<String> {
-    let href_pos = opf
-        .find(&format!("href=\"{cover_href}\""))
-        .or_else(|| {
-            let filename = cover_href.rsplit('/').next()?;
-            opf.find(&format!("href=\"{filename}\""))
-        })?;
-    let tag_start = opf[..href_pos].rfind('<')?;
-    let tag_end = tag_start + opf[tag_start..].find('>')?;
-    let tag = &opf[tag_start..tag_end];
-    let mt_rel = tag.find("media-type=\"")?;
-    let value_start = tag_start + mt_rel + "media-type=\"".len();
-    let value_end = value_start + opf[value_start..].find('"')?;
-    let mut patched = String::with_capacity(opf.len());
-    patched.push_str(&opf[..value_start]);
-    patched.push_str(new_mime);
-    patched.push_str(&opf[value_end..]);
-    Some(patched)
+/// After the stored file of a book changed: size, hash and KOReader id
+/// follow, and the converted copy for Kobo is made again when next asked for.
+async fn file_changed(state: &AppState, id: i64, uuid: &str) {
+    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    if let Ok(data) = tokio::fs::read(&path).await {
+        let _ = sqlx::query("UPDATE books SET file_size = $1, file_sha256 = $2 WHERE id = $3")
+            .bind(data.len() as i64)
+            .bind(sha256_hex(&data))
+            .bind(id)
+            .execute(&state.db)
+            .await;
+    }
+    let _ = tokio::fs::remove_file(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub"))).await;
+    crate::kosync::set_md5(state, id, uuid).await;
+}
+
+pub(crate) async fn stored_health(state: &AppState, id: i64) -> Option<Health> {
+    let raw: Option<String> = sqlx::query_scalar("SELECT health FROM books WHERE id = $1").bind(id).fetch_optional(&state.db).await.ok()??;
+    serde_json::from_str(&raw?).ok()
+}
+
+async fn save_health(state: &AppState, id: i64, health: &Health) {
+    let _ = sqlx::query("UPDATE books SET health = $1, health_issues = $2 WHERE id = $3")
+        .bind(serde_json::to_string(health).unwrap_or_default())
+        .bind(health.issues.len() as i64)
+        .bind(id)
+        .execute(&state.db)
+        .await;
+}
+
+/// Run the health check on a book's file and store the result. `fixed` adds
+/// to the repairs already noted for the book.
+pub(crate) async fn refresh_health(state: &AppState, id: i64, uuid: &str, fixed: &[String]) {
+    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let issues = tokio::task::spawn_blocking(move || epubfix::inspect(&std::fs::read(path)?)).await;
+    let Ok(Ok(issues)) = issues else { return };
+    let mut health = stored_health(state, id).await.unwrap_or_default();
+    health.v = epubfix::CHECK_VERSION;
+    health.issues = issues;
+    for code in fixed {
+        if !health.fixed.contains(code) {
+            health.fixed.push(code.clone());
+        }
+    }
+    save_health(state, id, &health).await;
+}
+
+/// Bring a book's file in line with the catalog: title, authors, language
+/// and series are written into it, and with `repair` what the health check
+/// can mend is mended. Returns whether the file changed.
+pub(crate) async fn tend_file(state: &AppState, book: &Book, repair: bool) -> anyhow::Result<bool> {
+    let path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
+    let (title, author, language, series, series_index) =
+        (book.title.clone(), book.author.clone(), book.language.clone(), book.series.clone(), book.series_index);
+    let (changed, fixed) = tokio::task::spawn_blocking(move || -> anyhow::Result<(bool, Vec<String>)> {
+        let original = std::fs::read(&path)?;
+        let mut current = original.clone();
+        let mut fixed = Vec::new();
+        if repair {
+            if let (Some(out), done) = epubfix::repair(&current)? {
+                current = out;
+                fixed = done;
+            }
+        }
+        let meta = epubfix::Meta {
+            title: &title,
+            author: author.as_deref(),
+            language: language.as_deref(),
+            series: series.as_deref(),
+            series_index,
+        };
+        if let Some(out) = epubfix::write_metadata(&current, &meta)? {
+            current = out;
+        }
+        if current == original {
+            return Ok((false, fixed));
+        }
+        // Whatever was changed, the result must still read as a book.
+        EpubDoc::from_reader(Cursor::new(current.clone())).map_err(|e| anyhow::anyhow!("result does not parse: {e}"))?;
+        write_atomic(&path, &current)?;
+        Ok((true, fixed))
+    })
+    .await??;
+    if changed {
+        file_changed(state, book.id, &book.uuid).await;
+    }
+    if changed || repair {
+        refresh_health(state, book.id, &book.uuid, &fixed).await;
+    }
+    Ok(changed)
+}
+
+/// POST /api/books/{id}/repair: mend what can be mended in the file and
+/// write the catalog's metadata into it.
+pub async fn repair(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<Json<BookDetail>, Response> {
+    let book: Option<Book> = sqlx::query_as(&format!("SELECT {BOOK_COLUMNS} FROM books WHERE id = $1 AND owner_id = $2"))
+        .bind(id)
+        .bind(user.0.id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let book = book.ok_or_else(not_found)?;
+    let changed = tend_file(&state, &book, true).await.map_err(|e| {
+        tracing::warn!("could not repair {}: {e:#}", book.uuid);
+        (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "could not repair the file" }))).into_response()
+    })?;
+    if changed {
+        state.fed.wake.notify_one();
+        crate::audit::log(&state, crate::audit::by(&user.0), "book.repaired", serde_json::json!({ "book_id": book.id, "title": book.title })).await;
+    }
+    get_one(State(state), user, Path(id)).await
+}
+
+/// Run the health check on books that have not had one, or had one from an
+/// older version of the check.
+pub async fn backfill_health(state: AppState) {
+    let current = format!("%\"v\":{},%", epubfix::CHECK_VERSION);
+    let rows: Vec<(i64, String)> =
+        match sqlx::query_as("SELECT id, uuid FROM books WHERE health IS NULL OR health NOT LIKE $1 ORDER BY id")
+            .bind(current)
+            .fetch_all(&state.db)
+            .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                tracing::warn!("health check backfill skipped: {e}");
+                return;
+            }
+        };
+    if rows.is_empty() {
+        return;
+    }
+    let total = rows.len();
+    for (id, uuid) in rows {
+        refresh_health(&state, id, &uuid, &[]).await;
+    }
+    tracing::info!("health check: {total} books checked");
 }
 
 /// Lowercase hex SHA-256, the form federation compares.

@@ -211,7 +211,7 @@ async fn import_one(state: &AppState, owner_id: i64, owner_name: &str, path: &Pa
         return Outcome::Failed(format!("larger than LEGEJO_MAX_UPLOAD_MB ({} MB)", state.settings.max_upload_bytes / (1024 * 1024)));
     }
     let sha = crate::books::sha256_hex(&bytes);
-    let same: Result<Option<i64>, _> = sqlx::query_scalar("SELECT id FROM books WHERE owner_id = $1 AND file_sha256 = $2 LIMIT 1")
+    let same: Result<Option<i64>, _> = sqlx::query_scalar("SELECT id FROM books WHERE owner_id = $1 AND (file_sha256 = $2 OR upload_sha256 = $2) LIMIT 1")
         .bind(owner_id)
         .bind(&sha)
         .fetch_optional(&state.db)
