@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { BookMarked, Bookmark, Download, Tag, Trash2, X } from '@lucide/svelte';
+	import { BookMarked, Bookmark, Download, Tag, Trash2, X, Wrench } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { t } from '#lib/i18n';
 	import { reasonText, type NotFederable } from '#lib/license';
@@ -167,6 +167,16 @@
 				{/snippet}
 			</Popover>
 
+			<button
+				type="button"
+				class="ghost"
+				disabled={busy || selected.size === 0}
+				title={t('select.repairHint')}
+				onclick={() => run({ action: 'repair' }, (n) => t('select.repaired', { count: n }))}
+			>
+				<Wrench size={13} />
+				{t('select.repair')}
+			</button>
 			<a
 				class="button ghost"
 				class:disabled={selected.size === 0}

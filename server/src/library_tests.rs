@@ -573,6 +573,19 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(codes(&v["health"]["issues"]), ["no_language", "no_cover"]);
     assert_eq!(v["health"]["fixed"], json!(["no_toc"]));
+
+    // A cover chosen in the catalog while the file had nowhere to put it goes
+    // into the file with the next repair, here for a whole selection.
+    std::fs::write(state.data_dir.join("covers").join(&old_uuid), b"jpeg bytes").unwrap();
+    sqlx::query("UPDATE books SET cover_mime = 'image/jpeg' WHERE id = ?").bind(old).execute(&db).await.unwrap();
+    let (status, v) = send(&app, Method::POST, "/api/books/bulk", Some(&cookie), Some(json!({ "ids": [old, book], "action": "repair" }))).await;
+    assert_eq!((status, v["done"].clone()), (StatusCode::OK, json!(2)));
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{old}"), Some(&cookie), None).await;
+    assert_eq!(codes(&v["health"]["issues"]), ["no_language"]);
+    assert_eq!(v["health"]["fixed"], json!(["no_toc", "no_cover"]));
+    let data = std::fs::read(state.data_dir.join("books").join(format!("{old_uuid}.epub"))).unwrap();
+    let mut doc = epub::doc::EpubDoc::from_reader(std::io::Cursor::new(data)).unwrap();
+    assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
 }
 
 #[tokio::test]

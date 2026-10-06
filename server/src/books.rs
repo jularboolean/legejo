@@ -723,6 +723,8 @@ pub enum BulkAction {
     AddTag { tag: String },
     RemoveTag { tag: String },
     Want { want: bool },
+    /// Mend the files and write the catalog's metadata and cover into them.
+    Repair,
     Delete,
 }
 
@@ -850,6 +852,16 @@ pub async fn bulk(
             let ids: Vec<i64> = mine.iter().map(|b| b.id).collect();
             done = set_want_for(&state, user.0.id, &ids, *want).await? as usize;
             action_name = if *want { "book.bulk_wanted" } else { "book.bulk_unwanted" };
+            details = serde_json::json!({ "count": done });
+        }
+        BulkAction::Repair => {
+            for b in &mine {
+                match tend_file(&state, b, true).await {
+                    Ok(_) => done += 1,
+                    Err(e) => tracing::warn!("could not repair {}: {e:#}", b.uuid),
+                }
+            }
+            action_name = "book.bulk_repaired";
             details = serde_json::json!({ "count": done });
         }
         BulkAction::Delete => {
@@ -1856,12 +1868,17 @@ pub(crate) async fn refresh_health(state: &AppState, id: i64, uuid: &str, fixed:
 }
 
 /// Bring a book's file in line with the catalog: title, authors, language
-/// and series are written into it, and with `repair` what the health check
-/// can mend is mended. Returns whether the file changed.
+/// and series are written into it, the catalog's cover is put into a file
+/// that has none, and with `repair` what the health check can mend is
+/// mended. Returns whether the file changed.
 pub(crate) async fn tend_file(state: &AppState, book: &Book, repair: bool) -> anyhow::Result<bool> {
     let path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
     let (title, author, language, series, series_index) =
         (book.title.clone(), book.author.clone(), book.language.clone(), book.series.clone(), book.series_index);
+    // The catalog's cover, when it is an image a file can carry.
+    let cover_mime: Option<String> =
+        sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1").bind(book.id).fetch_optional(&state.db).await?.flatten();
+    let cover = cover_mime.filter(|m| m.starts_with("image/")).map(|mime| (state.data_dir.join("covers").join(&book.uuid), mime));
     let (changed, fixed) = tokio::task::spawn_blocking(move || -> anyhow::Result<(bool, Vec<String>)> {
         let original = std::fs::read(&path)?;
         let mut current = original.clone();
@@ -1881,6 +1898,15 @@ pub(crate) async fn tend_file(state: &AppState, book: &Book, repair: bool) -> an
         };
         if let Some(out) = epubfix::write_metadata(&current, &meta)? {
             current = out;
+        }
+        // A cover chosen in the catalog while the file had nowhere to put it.
+        if let Some((path, mime)) = &cover {
+            if !epubfix::has_cover(&current) {
+                if let Ok(image) = std::fs::read(path) {
+                    current = epubfix::set_cover(&current, &image, mime)?;
+                    fixed.push("no_cover".into());
+                }
+            }
         }
         if current == original {
             return Ok((false, fixed));

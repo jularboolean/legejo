@@ -14,9 +14,11 @@ export function fixedText(code: string): string {
 /**
  * Whether asking for a repair would get rid of the issue. A missing title or
  * language is written from the catalog when the catalog has one.
+ * A missing cover is put in from the catalog when the catalog has one.
  */
-export function canRepair(issue: HealthIssue, book: { language: string | null }): boolean {
+export function canRepair(issue: HealthIssue, book: { language: string | null; has_cover: boolean }): boolean {
 	if (issue.fixable || issue.code === 'no_title') return true;
+	if (issue.code === 'no_cover') return book.has_cover;
 	return issue.code === 'no_language' && !!book.language;
 }
 

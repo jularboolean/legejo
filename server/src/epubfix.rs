@@ -1163,6 +1163,11 @@ fn extension(mime: &str) -> &'static str {
     }
 }
 
+/// Whether the file declares a cover image that is in it.
+pub fn has_cover(bytes: &[u8]) -> bool {
+    load(bytes).is_ok_and(|package| package.cover_item().is_some())
+}
+
 /// Put a cover image into the file: in place of the declared one, or as a
 /// new declared cover when the file has none.
 pub fn set_cover(bytes: &[u8], image: &[u8], mime: &str) -> anyhow::Result<Vec<u8>> {
