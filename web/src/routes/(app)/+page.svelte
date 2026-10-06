@@ -210,7 +210,12 @@
 					item.state = 'error';
 					// The server names the file in front of the reason.
 					const reason = (result.errors[0] ?? '').replace(`${file.name}: `, '');
-					item.message = reason.startsWith('could not parse epub') ? t('upload.notEpub') : reason || t('home.uploadFailed');
+					item.message =
+						reason === 'copy-protected'
+							? t('upload.drm')
+							: reason.startsWith('could not parse epub')
+								? t('upload.notEpub')
+								: reason || t('home.uploadFailed');
 				}
 			}
 			if (added > 0) await invalidateAll();

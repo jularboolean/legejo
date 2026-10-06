@@ -65,6 +65,7 @@ export const en = {
 	'upload.failed': 'Failed',
 	'upload.tooLarge': 'The file is larger than this server accepts.',
 	'upload.notEpub': 'The file is not a readable EPUB.',
+	'upload.drm': 'The file is copy-protected (DRM) and can only be read in the app it was bought for. It was not added.',
 	'upload.repaired': 'Repaired: {list}',
 	'upload.issue': '1 remark on the file',
 	'upload.issues': '{count} remarks on the file',

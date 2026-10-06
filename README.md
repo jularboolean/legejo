@@ -47,7 +47,8 @@ your library is mostly PDFs or comics, another tool will serve you better.
 - Upload EPUB files; title, author, series, cover and other metadata are read from the file.
 - Edit metadata by hand or look it up in Open Library or Libris (the Swedish national catalogue).
 - The file follows the catalog: title, authors, language, series and cover are written back into the EPUB, so it is right on the e-reader and in exports too.
-- A health check on every upload: a missing table of contents, language, identifier or cover declaration is repaired, and copy protection, broken links and missing files are reported.
+- A health check on every upload: a missing table of contents, language, identifier or cover declaration is repaired, and broken links are reported. Copy-protected files are refused.
+- A book whose file claims copyright is marked as protected from the start.
 - Series, tags, ratings, a want-to-read list and an edition date picker.
 - Full-text search, filters, sorting, an authors page and duplicate detection on upload.
 - Select many books at once to tag, shelve, mark as want-to-read or delete them.

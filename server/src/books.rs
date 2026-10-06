@@ -1328,6 +1328,10 @@ pub(crate) async fn store_epub(
     tokio::fs::create_dir_all(&books_dir).await.map_err(|e| internal(e.into()))?;
     tokio::fs::create_dir_all(&covers_dir).await.map_err(|e| internal(e.into()))?;
     let fallback_title = filename.trim_end_matches(".epub").to_string();
+    // A copy-protected file cannot be read here or sent on to a device.
+    if epubfix::encrypted(bytes) {
+        return Ok(Err("copy-protected".to_string()));
+    }
     let upload_sha256 = sha256_hex(bytes);
     // A repair is kept only when the result still reads as a book.
     let repaired = match epubfix::repair(bytes) {
@@ -1398,6 +1402,14 @@ pub(crate) async fn store_epub(
     if let Some(health) = &health {
         save_health(state, book.id, health).await;
         book.health_issues = health.issues.len() as i64;
+    }
+    if epubfix::claims_copyright(bytes) {
+        let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2")
+            .bind(License::Copyright.as_str())
+            .bind(book.id)
+            .execute(&state.db)
+            .await;
+        book.license = Some(License::Copyright.as_str().to_string());
     }
     if let Some(rating) = parsed.rating {
         sqlx::query("UPDATE books SET rating = $1 WHERE id = $2")
@@ -1931,6 +1943,16 @@ pub async fn backfill_health(state: AppState) {
     let total = rows.len();
     for (id, uuid) in rows {
         refresh_health(&state, id, &uuid, &[]).await;
+        // A book with no licence stated gets the one its file claims.
+        let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+        let claimed = tokio::task::spawn_blocking(move || std::fs::read(path).map(|b| epubfix::claims_copyright(&b)).unwrap_or(false)).await;
+        if claimed.unwrap_or(false) {
+            let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2 AND (license IS NULL OR license = '')")
+                .bind(License::Copyright.as_str())
+                .bind(id)
+                .execute(&state.db)
+                .await;
+        }
     }
     tracing::info!("health check: {total} books checked");
 }

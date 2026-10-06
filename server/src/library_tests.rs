@@ -574,3 +574,62 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     assert_eq!(codes(&v["health"]["issues"]), ["no_language", "no_cover"]);
     assert_eq!(v["health"]["fixed"], json!(["no_toc"]));
 }
+
+#[tokio::test]
+async fn copy_protected_files_are_refused_and_copyright_is_read_from_the_file() {
+    use std::io::Write;
+    let (app, db, state) = test_app().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    // Rebuild the test EPUB with one more entry and a changed package document.
+    let rebuilt = |extra: Option<(&str, &str)>, rights: &str| {
+        let base = epub("Blood and Thunder", "urn:bt");
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(base)).unwrap();
+        let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        for i in 0..archive.len() {
+            let name = archive.by_index_raw(i).unwrap().name().to_string();
+            if name == "c.opf" {
+                let mut opf = String::new();
+                std::io::Read::read_to_string(&mut archive.by_index(i).unwrap(), &mut opf).unwrap();
+                z.start_file(&name, options).unwrap();
+                z.write_all(opf.replace("</metadata>", &format!("{rights}</metadata>")).as_bytes()).unwrap();
+            } else {
+                z.raw_copy_file(archive.by_index_raw(i).unwrap()).unwrap();
+            }
+        }
+        if let Some((name, content)) = extra {
+            z.start_file(name, options).unwrap();
+            z.write_all(content.as_bytes()).unwrap();
+        }
+        z.finish().unwrap().into_inner()
+    };
+
+    let drm = rebuilt(
+        Some(("META-INF/encryption.xml", r#"<encryption><EncryptedData><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/></EncryptedData></encryption>"#)),
+        "",
+    );
+    let v = upload(&app, &cookie, &[("skyddad.epub", drm)], "").await;
+    assert_eq!(v["added"].as_array().unwrap().len(), 0);
+    assert_eq!(v["errors"], json!(["skyddad.epub: copy-protected"]));
+
+    let v = upload(&app, &cookie, &[("bt.epub", rebuilt(None, "<dc:rights>Copyright © 2006 by Hampton Sides</dc:rights>"))], "").await;
+    assert_eq!(v["added"][0]["license"], "copyright");
+    let v = upload(&app, &cookie, &[("fri.epub", rebuilt(None, "<dc:rights>Public domain in the USA.</dc:rights>"))], "?allow_duplicates=1").await;
+    assert!(v["added"][0]["license"].is_null());
+
+    // Books from before: the background pass fills in a licence that is not
+    // set, and leaves one the owner has chosen.
+    let (unset, u1) = add_book(&db, alice, "Äldre").await;
+    let (chosen, u2) = add_book(&db, alice, "Vald").await;
+    for uuid in [&u1, &u2] {
+        std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), rebuilt(None, "<dc:rights>All rights reserved.</dc:rights>")).unwrap();
+    }
+    sqlx::query("UPDATE books SET license = 'cc-by' WHERE id = ?").bind(chosen).execute(&db).await.unwrap();
+    crate::books::backfill_health(state.clone()).await;
+    let license = |id: i64| {
+        let db = db.clone();
+        async move { sqlx::query_scalar::<_, Option<String>>("SELECT license FROM books WHERE id = ?").bind(id).fetch_one(&db).await.unwrap() }
+    };
+    assert_eq!(license(unset).await.as_deref(), Some("copyright"));
+    assert_eq!(license(chosen).await.as_deref(), Some("cc-by"));
+}

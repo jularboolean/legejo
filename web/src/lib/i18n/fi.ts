@@ -67,6 +67,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'upload.failed': 'Epäonnistui',
 	'upload.tooLarge': 'Tiedosto on suurempi kuin palvelin hyväksyy.',
 	'upload.notEpub': 'Tiedosto ei ole luettava EPUB.',
+	'upload.drm': 'Tiedosto on kopiosuojattu (DRM), ja sitä voi lukea vain sovelluksessa, johon se ostettiin. Sitä ei lisätty.',
 	'upload.repaired': 'Korjattu: {list}',
 	'upload.issue': '1 huomautus tiedostosta',
 	'upload.issues': '{count} huomautusta tiedostosta',

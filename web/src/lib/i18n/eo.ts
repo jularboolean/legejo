@@ -67,6 +67,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'upload.failed': 'Malsukcesis',
 	'upload.tooLarge': 'La dosiero estas pli granda ol ĉi tiu servilo akceptas.',
 	'upload.notEpub': 'La dosiero ne estas legebla EPUB.',
+	'upload.drm': 'La dosiero estas kopiprotektita (DRM) kaj legeblas nur en la aplikaĵo, por kiu ĝi estis aĉetita. Ĝi ne estis aldonita.',
 	'upload.repaired': 'Riparita: {list}',
 	'upload.issue': '1 rimarko pri la dosiero',
 	'upload.issues': '{count} rimarkoj pri la dosiero',

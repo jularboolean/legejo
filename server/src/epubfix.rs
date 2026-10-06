@@ -594,8 +594,55 @@ fn mimetype_ok(bytes: &[u8]) -> bool {
     read_text(&mut archive, "mimetype").is_some_and(|content| content.trim() == MIMETYPE)
 }
 
+/// Whether a text is a rights statement, and which way it points: Some(true)
+/// for a claim of copyright, Some(false) for a free licence or the public
+/// domain, None when it says neither.
+fn rights_verdict(text: &str) -> Option<bool> {
+    let text = text.to_lowercase();
+    const FREE: [&str; 6] = ["public domain", "creative commons", "creativecommons", "cc0", "cc by", "gutenberg"];
+    const CLAIM: [&str; 8] = [
+        "©",
+        "copyright",
+        "all rights reserved",
+        "alla rättigheter",
+        "alle rechte vorbehalten",
+        "tous droits réservés",
+        "todos los derechos reservados",
+        "kaikki oikeudet pidätetään",
+    ];
+    if FREE.iter().any(|m| text.contains(m)) {
+        return Some(false);
+    }
+    CLAIM.iter().any(|m| text.contains(m)).then_some(true)
+}
+
+/// Whether the file itself says it is protected by copyright: in its rights
+/// statement, or else on the pages where a copyright notice usually sits.
+/// Only this direction is read out of a file. That a book is free is for the
+/// owner to state, with a source.
+pub fn claims_copyright(bytes: &[u8]) -> bool {
+    let Ok(package) = load(bytes) else { return false };
+    let stated: Vec<String> = package.meta().into_iter().filter(|e| e.tag.local() == "rights").map(|e| e.text).collect();
+    if let Some(verdict) = rights_verdict(&stated.join(" ")) {
+        return verdict;
+    }
+    let Ok(mut archive) = open_archive(bytes) else { return false };
+    let spine = package.spine_items();
+    let pages = spine.iter().take(8).chain(spine.iter().skip(8).rev().take(3));
+    let mut claimed = false;
+    for item in pages {
+        let Some(text) = read_text(&mut archive, &item.path) else { continue };
+        match rights_verdict(&crate::booktext::html_to_text(&text)) {
+            Some(false) => return false,
+            Some(true) => claimed = true,
+            None => {}
+        }
+    }
+    claimed
+}
+
 /// Encryption other than font obfuscation, which reading apps undo themselves.
-fn encrypted(bytes: &[u8]) -> bool {
+pub fn encrypted(bytes: &[u8]) -> bool {
     let Ok(mut archive) = open_archive(bytes) else { return false };
     let Some(xml) = read_text(&mut archive, "META-INF/encryption.xml") else { return false };
     tags(&xml).iter().filter(|t| t.local() == "EncryptionMethod").filter_map(|t| attr(t.raw(&xml), "Algorithm")).any(|a| {
@@ -1405,6 +1452,26 @@ pub(crate) mod tests {
         let (out, fixed) = repair(&bytes).unwrap();
         assert_eq!(fixed, ["mimetype"]);
         assert!(mimetype_first(&out.unwrap()));
+    }
+
+    #[test]
+    fn a_claim_of_copyright_is_read_from_the_file() {
+        let with = |rights: &str, page: &str| {
+            let opf = format!(
+                r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>T</dc:title>{rights}</metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/></spine></package>"#
+            );
+            let page = format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><p>{page}</p></body></html>"#);
+            build(&opf, &[("one.xhtml", &page)], true)
+        };
+        assert!(claims_copyright(&with("<dc:rights>Copyright © 2006 by Hampton Sides</dc:rights>", "Text")));
+        assert!(claims_copyright(&with("<dc:rights>All rights reserved.</dc:rights>", "Text")));
+        assert!(!claims_copyright(&with("<dc:rights>Public domain in the USA.</dc:rights>", "Copyright laws are changing.")));
+        assert!(!claims_copyright(&with("<dc:rights>© 2020 A. Author, CC BY 4.0</dc:rights>", "Text")));
+        // Without a statement that says either, the pages decide.
+        assert!(claims_copyright(&with("<dc:rights>Sven Delblancs efterlevande 1981</dc:rights>", "&#169; N&#229;gon 1981. Alla r&#228;ttigheter f&#246;rbeh&#229;llna.")));
+        assert!(claims_copyright(&with("", "First published 2006. All rights reserved.")));
+        assert!(!claims_copyright(&with("", "This eBook is for the use of anyone anywhere. Project Gutenberg. Copyright status: free.")));
+        assert!(!claims_copyright(&with("", "Det var en gång.")));
     }
 
     #[test]
