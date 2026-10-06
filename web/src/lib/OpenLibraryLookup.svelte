@@ -60,7 +60,7 @@
 			const result: { found: number; candidates: Candidate[] } = await res.json();
 			candidates = result.candidates;
 			found = result.found;
-			if (candidates.length === 0) message = t('libris.none');
+			if (candidates.length === 0) message = t('ol.none');
 		} catch {
 			message = t('common.network');
 		} finally {
@@ -76,7 +76,7 @@
 		if (c.language) form.language = primaryLanguage(c.language) ?? c.language;
 		if (c.isbn.length > 0 && !form.isbn.trim()) form.isbn = c.isbn[0];
 		candidates = [];
-		message = t('libris.applied');
+		message = t('ol.applied');
 		// The work's description, when ours is empty.
 		if (c.work && !form.description.trim()) {
 			try {
@@ -85,7 +85,7 @@
 					const { description }: { description: string | null } = await res.json();
 					if (description && !form.description.trim()) {
 						form.description = description;
-						message = t('libris.appliedSummary');
+						message = t('ol.appliedSummary');
 					}
 				}
 			} catch {
