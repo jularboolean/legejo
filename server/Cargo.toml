@@ -1,6 +1,6 @@
 [package]
 name = "legejo"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2021"
 description = "A self-hosted EPUB library with OPDS, Kobo sync and KOReader sync"
 license = "AGPL-3.0-or-later"
