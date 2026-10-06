@@ -251,6 +251,27 @@ fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// Add the built web frontend to the router. A hashed file under
+/// /_app/immutable never changes and may be kept for good; everything else,
+/// index.html above all, is revalidated. A file that is missing must not be
+/// remembered as missing: while two versions run side by side during an
+/// update, a request for a new file can land on the old one.
+pub(crate) fn serve_web(app: Router, web_dir: &std::path::Path) -> Router {
+    use axum::http::{header, HeaderValue, StatusCode};
+    use tower_http::set_header::SetResponseHeaderLayer;
+
+    let immutable = tower::ServiceBuilder::new()
+        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, |res: &axum::http::Response<_>| {
+            let found = res.status().is_success() || res.status() == StatusCode::NOT_MODIFIED;
+            Some(HeaderValue::from_static(if found { "public, max-age=31536000, immutable" } else { "no-store" }))
+        }))
+        .service(ServeDir::new(web_dir.join("_app/immutable")));
+    let shell = tower::ServiceBuilder::new()
+        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-cache")))
+        .service(ServeDir::new(web_dir).fallback(ServeFile::new(web_dir.join("index.html"))));
+    app.nest_service("/_app/immutable", immutable).fallback_service(shell)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     if std::env::args().nth(1).as_deref() == Some("healthcheck") {
@@ -336,25 +357,8 @@ async fn main() -> anyhow::Result<()> {
     // always be revalidated: a heuristically cached shell keeps referencing
     // chunk hashes that no longer exist after a deploy.
     if let Some(web_dir) = settings::var("LEGEJO_WEB_DIR")?.map(PathBuf::from) {
-        use axum::http::{header, HeaderValue};
-        use tower_http::set_header::SetResponseHeaderLayer;
-
         tracing::info!("serving web frontend from {}", web_dir.display());
-        let immutable = tower::ServiceBuilder::new()
-            .layer(SetResponseHeaderLayer::overriding(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("public, max-age=31536000, immutable"),
-            ))
-            .service(ServeDir::new(web_dir.join("_app/immutable")));
-        let shell = tower::ServiceBuilder::new()
-            .layer(SetResponseHeaderLayer::overriding(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("no-cache"),
-            ))
-            .service(ServeDir::new(&web_dir).fallback(ServeFile::new(web_dir.join("index.html"))));
-        app = app
-            .nest_service("/_app/immutable", immutable)
-            .fallback_service(shell);
+        app = serve_web(app, &web_dir);
     }
 
     let addr: SocketAddr = settings::var("LEGEJO_ADDR")?

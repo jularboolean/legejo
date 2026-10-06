@@ -242,3 +242,26 @@ async fn session_cookies_are_secure_when_configured() {
     user_with_password(&db, "carol", "secret password").await;
     assert!(!login_cookie(&app, "carol", "secret password").await.contains("Secure"));
 }
+
+#[tokio::test]
+async fn a_missing_web_file_is_not_cached() {
+    use axum::body::Body;
+    use axum::http::{header, Request};
+    use tower::ServiceExt;
+    let dir = std::env::temp_dir().join(format!("legejo-web-{}", crate::books::new_uuid()));
+    std::fs::create_dir_all(dir.join("_app/immutable/nodes")).unwrap();
+    std::fs::write(dir.join("index.html"), "<html></html>").unwrap();
+    std::fs::write(dir.join("_app/immutable/nodes/0.abc.js"), "export {}").unwrap();
+    let app = crate::serve_web(axum::Router::new(), &dir);
+    let get = |uri: &'static str| {
+        let app = app.clone();
+        async move {
+            let res = app.oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap()).await.unwrap();
+            (res.status(), res.headers().get(header::CACHE_CONTROL).unwrap().to_str().unwrap().to_string())
+        }
+    };
+    assert_eq!(get("/_app/immutable/nodes/0.abc.js").await, (StatusCode::OK, "public, max-age=31536000, immutable".into()));
+    // During an update a request for a new file can land on the old version.
+    assert_eq!(get("/_app/immutable/nodes/0.new.js").await, (StatusCode::NOT_FOUND, "no-store".into()));
+    assert_eq!(get("/books/1").await, (StatusCode::OK, "no-cache".into()));
+}
