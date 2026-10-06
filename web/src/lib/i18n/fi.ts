@@ -666,6 +666,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.align.justify': 'Molemmat reunat',
 	'reader.hyphenate': 'Tavutus',
 	'reader.hyphenate.hint': 'Tavuta pitkät sanat rivin lopussa',
+	'reader.animate': 'Sivuanimaatio',
+	'reader.animate.hint': 'Lyhyt liuku sivun kääntyessä',
 	'reader.flow': 'Asettelu',
 	'reader.flow.paginated': 'Sivut',
 	'reader.flow.scrolled': 'Vieritys',

@@ -257,6 +257,18 @@
 					{/each}
 				</div>
 			</div>
+			<label class="switch-row">
+				<span>
+					{t('reader.animate')}
+					<small>{t('reader.animate.hint')}</small>
+				</span>
+				<input
+					type="checkbox"
+					role="switch"
+					checked={settings.animate}
+					onchange={(e) => set('animate', e.currentTarget.checked)}
+				/>
+			</label>
 		{/if}
 	</div>
 </Sheet>

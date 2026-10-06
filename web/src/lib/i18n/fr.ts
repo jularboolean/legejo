@@ -666,6 +666,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.align.justify': 'Justifié',
 	'reader.hyphenate': 'Césure',
 	'reader.hyphenate.hint': 'Couper les mots longs en fin de ligne',
+	'reader.animate': 'Animation des pages',
+	'reader.animate.hint': 'Un court glissement quand la page se tourne',
 	'reader.flow': 'Mise en page',
 	'reader.flow.paginated': 'Pages',
 	'reader.flow.scrolled': 'Défilement',

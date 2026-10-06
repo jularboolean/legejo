@@ -666,6 +666,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.align.justify': 'Ambaŭflanka',
 	'reader.hyphenate': 'Vortodivido',
 	'reader.hyphenate.hint': 'Dividi longajn vortojn ĉe linifinoj',
+	'reader.animate': 'Paĝa animacio',
+	'reader.animate.hint': 'Mallonga glito, kiam la paĝo turniĝas',
 	'reader.flow': 'Aranĝo',
 	'reader.flow.paginated': 'Paĝoj',
 	'reader.flow.scrolled': 'Rulumado',

@@ -664,6 +664,8 @@ export const en = {
 	'reader.align.justify': 'Justified',
 	'reader.hyphenate': 'Hyphenation',
 	'reader.hyphenate.hint': 'Break long words at line ends',
+	'reader.animate': 'Page animation',
+	'reader.animate.hint': 'A short glide when the page turns',
 	'reader.flow': 'Layout',
 	'reader.flow.paginated': 'Pages',
 	'reader.flow.scrolled': 'Scrolling',

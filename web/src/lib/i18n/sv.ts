@@ -666,6 +666,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.align.justify': 'Marginaljusterad',
 	'reader.hyphenate': 'Avstavning',
 	'reader.hyphenate.hint': 'Avstava långa ord vid radslut',
+	'reader.animate': 'Sidanimering',
+	'reader.animate.hint': 'En kort glidning när sidan vänds',
 	'reader.flow': 'Layout',
 	'reader.flow.paginated': 'Sidor',
 	'reader.flow.scrolled': 'Rullning',

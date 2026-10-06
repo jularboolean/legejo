@@ -198,7 +198,19 @@
 		clearHighlight();
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
-		(forward ? engine.next() : engine.prev()).catch(() => {});
+		(forward ? engine.next() : engine.prev()).then(() => slide(forward)).catch(() => {});
+	}
+
+	// ---- Page-turn animation ----------------------------------------------------
+
+	/** Which way the page last came in from; the counter restarts the animation. */
+	let slid = $state<{ forward: boolean; n: number } | null>(null);
+
+	/** Let the new page glide in, when the reader has asked for it. */
+	function slide(forward: boolean) {
+		if (!settings.animate || !paginated) return;
+		// The page comes from where it lay: the far side for the next one.
+		slid = { forward: forward !== rtl, n: (slid?.n ?? 0) + 1 };
 	}
 
 	async function goTo(item: TocItem) {
@@ -678,7 +690,13 @@
 		use:surface
 		tabindex="-1"
 	>
-		<div class="page" bind:this={host}></div>
+		<div
+			class="page"
+			class:slide-a={slid !== null && slid.n % 2 === 1}
+			class:slide-b={slid !== null && slid.n % 2 === 0}
+			class:back={slid !== null && !slid.forward}
+			bind:this={host}
+		></div>
 	</div>
 
 	{#if status === 'ready' && paginated}
@@ -820,6 +838,34 @@
 	.page {
 		width: 100%;
 		height: 100%;
+	}
+	/* Two names for the same animation: switching between them restarts it. */
+	.page.slide-a {
+		animation: slide-in-a 0.18s ease-out;
+	}
+	.page.slide-b {
+		animation: slide-in-b 0.18s ease-out;
+	}
+	.page.back {
+		--slide-from: -2.5%;
+	}
+	@keyframes slide-in-a {
+		from {
+			opacity: 0.25;
+			translate: var(--slide-from, 2.5%) 0;
+		}
+	}
+	@keyframes slide-in-b {
+		from {
+			opacity: 0.25;
+			translate: var(--slide-from, 2.5%) 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.page.slide-a,
+		.page.slide-b {
+			animation: none;
+		}
 	}
 
 	.edge {

@@ -24,6 +24,8 @@ export type ReaderSettings = {
 	/** Let the browser hyphenate, in the book's language. */
 	hyphenate: boolean;
 	spread: ReaderSpread;
+	/** A short slide when the page turns (paginated flow). */
+	animate: boolean;
 };
 
 /** Colours for one theme; used for the book content and the reader chrome. */

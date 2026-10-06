@@ -34,7 +34,8 @@ export function defaultSettings(): ReaderSettings {
 		flow: 'paginated',
 		textAlign: 'book',
 		hyphenate: false,
-		spread: 'auto'
+		spread: 'auto',
+		animate: false
 	};
 }
 
@@ -60,7 +61,8 @@ export function normalizeSettings(raw: unknown): ReaderSettings {
 		flow: oneOf(r.flow, FLOWS, d.flow),
 		textAlign: oneOf(r.textAlign, ALIGNS, d.textAlign),
 		hyphenate: typeof r.hyphenate === 'boolean' ? r.hyphenate : d.hyphenate,
-		spread: oneOf(r.spread, SPREADS, d.spread)
+		spread: oneOf(r.spread, SPREADS, d.spread),
+		animate: typeof r.animate === 'boolean' ? r.animate : d.animate
 	};
 }
 
