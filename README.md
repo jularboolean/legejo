@@ -156,9 +156,10 @@ works with Docker and Kubernetes secrets.
 
 **AI assistants (MCP).** With `LEGEJO_MCP=true`, Legejo serves a read-only Model
 Context Protocol endpoint at `/api/mcp` (Streamable HTTP). It is off by default.
-It gives an assistant seven tools:
+It gives an assistant nine tools:
 search the library, book details, shelves, a reading overview, a book's table
-of contents, reading a section and searching inside a book. Each user creates
+of contents, reading a section, searching inside a book, and the shelves
+other users share with you and the books on them. Each user creates
 an app password under Account and gives it to the assistant as a bearer token;
 the assistant then sees that user's library and nothing else. For example, in
 Claude Code:

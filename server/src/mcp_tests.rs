@@ -2,7 +2,7 @@
 
 use crate::library_tests::upload;
 use crate::settings::Settings;
-use crate::testutil::{add_user, send, test_app};
+use crate::testutil::{add_book, add_user, send, test_app};
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use axum::Router;
@@ -162,7 +162,7 @@ async fn speaks_the_handshake_generation() {
     let (_, v) = client.post(&[("mcp-protocol-version", "2025-11-25")], json!({ "jsonrpc": "2.0", "id": "a", "method": "tools/list" })).await;
     let tools = v["result"]["tools"].as_array().unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(names, ["search_books", "get_book", "list_shelves", "reading_overview", "get_table_of_contents", "read_section", "search_in_book"]);
+    assert_eq!(names, ["search_books", "get_book", "list_shelves", "list_shared_shelves", "get_shared_shelf", "reading_overview", "get_table_of_contents", "read_section", "search_in_book"]);
     for tool in tools {
         assert_eq!(tool["annotations"]["readOnlyHint"], true, "{tool}");
         assert_eq!(tool["inputSchema"]["type"], "object");
@@ -195,7 +195,7 @@ async fn speaks_the_per_request_generation() {
     assert!(v["result"]["capabilities"]["tools"].is_object());
 
     let (status, v) = client.post(&[version, ("mcp-method", "tools/list")], request("tools/list", json!({}))).await;
-    assert_eq!((status, v["result"]["tools"].as_array().unwrap().len()), (StatusCode::OK, 7));
+    assert_eq!((status, v["result"]["tools"].as_array().unwrap().len()), (StatusCode::OK, 9));
     assert_eq!((v["result"]["resultType"].as_str(), v["result"]["cacheScope"].as_str()), (Some("complete"), Some("public")));
     assert!(v["result"]["ttlMs"].is_u64());
     // This generation has no ping.
@@ -308,4 +308,63 @@ async fn the_tools_read_the_callers_own_library() {
     // Nothing was written by any of the calls.
     let books: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM books").fetch_one(&db).await.unwrap();
     assert_eq!(books, 2);
+}
+
+#[tokio::test]
+async fn shared_shelves_can_be_listed_but_not_read() {
+    let (client, db, cookie) = setup().await;
+    let app = client.app.clone();
+    let alice: i64 = sqlx::query_scalar("SELECT id FROM users WHERE username = 'alice'").fetch_one(&db).await.unwrap();
+    let (bob, bob_cookie) = add_user(&db, "bob").await;
+    let (_carol, carol_cookie) = add_user(&db, "carol").await;
+    let (theirs, _) = add_book(&db, bob, "Dracula").await;
+    sqlx::query("UPDATE books SET author = 'Bram Stoker', description = ?, isbn = '111' WHERE id = ?")
+        .bind("A count. ".repeat(200))
+        .bind(theirs)
+        .execute(&db)
+        .await
+        .unwrap();
+    // Alice has the same book already.
+    let (mine, _) = add_book(&db, alice, "Dracula (min)").await;
+    sqlx::query("UPDATE books SET isbn = '111' WHERE id = ?").bind(mine).execute(&db).await.unwrap();
+
+    let shelve = |cookie: String, name: &'static str, body: Value, book: Option<i64>| {
+        let (app, db) = (app.clone(), db.clone());
+        async move {
+            let (_, v) = send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": name }))).await;
+            let id = v["id"].as_i64().unwrap();
+            if let Some(book) = book {
+                sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(id).bind(book).execute(&db).await.unwrap();
+            }
+            send(&app, Method::PUT, &format!("/api/shelves/{id}"), Some(&cookie), Some(body)).await;
+        }
+    };
+    shelve(bob_cookie.clone(), "Gothic", json!({ "name": "Gothic", "description": "Dark things", "visibility": "restricted", "members": [alice] }), Some(theirs)).await;
+    shelve(bob_cookie, "Hemlig", json!({ "name": "Hemlig", "visibility": "private" }), None).await;
+    shelve(carol_cookie.clone(), "Alla", json!({ "name": "Alla", "visibility": "instance" }), None).await;
+    // Shared with Carol only: not Alice's to see.
+    shelve(carol_cookie, "Inte Alice", json!({ "name": "Inte Alice", "visibility": "restricted", "members": [bob] }), None).await;
+    let _ = cookie;
+
+    let listed = client.call("list_shared_shelves", json!({})).await;
+    assert_eq!(
+        listed["shelves"],
+        json!([
+            { "owner": "carol", "name": "Alla", "books": 0, "description": null, "shared_with": "everyone" },
+            { "owner": "bob", "name": "Gothic", "books": 1, "description": "Dark things", "shared_with": "you" },
+        ])
+    );
+
+    let shelf = client.call("get_shared_shelf", json!({ "owner": "bob", "name": "Gothic" })).await;
+    assert_eq!((shelf["shared_with"].as_str(), shelf["books"].as_array().unwrap().len()), (Some("you"), 1));
+    let book = &shelf["books"][0];
+    assert_eq!((book["title"].as_str(), book["author"].as_str(), book["in_your_library"].as_bool()), (Some("Dracula"), Some("Bram Stoker"), Some(true)));
+    assert!(book["description"].as_str().unwrap().chars().count() <= 600);
+    assert!(book.get("id").is_none(), "no id: the book is not the caller's to read");
+
+    // Not shared with the caller, and the text of a shared book stays out of reach.
+    assert_eq!(client.call_error("get_shared_shelf", json!({ "owner": "bob", "name": "Hemlig" })).await, "not found in this library");
+    assert_eq!(client.call_error("get_shared_shelf", json!({ "owner": "carol", "name": "Inte Alice" })).await, "not found in this library");
+    assert_eq!(client.call_error("get_table_of_contents", json!({ "book_id": theirs })).await, "not found in this library");
+    assert_eq!(client.call_error("get_book", json!({ "book_id": theirs })).await, "not found in this library");
 }

@@ -36,7 +36,8 @@ const HEADER_MISMATCH: i64 = -32020;
 const UNSUPPORTED_VERSION: i64 = -32022;
 
 const INSTRUCTIONS: &str = "Legejo is the user's personal EPUB library. Use these tools to look up their books, \
-shelves and reading progress, and to read or search the text of a book. Everything is read-only. Positions are \
+shelves and reading progress, and to read or search the text of a book. Shelves that other users share with them \
+can be listed too, to suggest what to import; those books are not theirs to read here. Everything is read-only. Positions are \
 percentages of the book; when summarising for a reader who is partway through, do not reveal what comes after \
 their reading position unless asked.";
 
@@ -263,6 +264,25 @@ fn tool_definitions() -> Value {
         ),
         tool("list_shelves", "List shelves", "The user's shelves, with how many books each holds.", json!({}), &[]),
         tool(
+            "list_shared_shelves",
+            "List shared shelves",
+            "Shelves that other users of this library share with the user: with everyone, or with the user by name. \
+             The books on them are not in the user's library until the user imports them.",
+            json!({}),
+            &[],
+        ),
+        tool(
+            "get_shared_shelf",
+            "Books on a shared shelf",
+            "The books on a shelf another user shares, with their descriptions and whether the user already has each one. \
+             Use it to suggest what is worth importing. The text of these books cannot be read here.",
+            json!({
+                "owner": { "type": "string", "description": "The username of the shelf's owner, from list_shared_shelves." },
+                "name": { "type": "string", "description": "The shelf's name, from list_shared_shelves." },
+            }),
+            &["owner", "name"],
+        ),
+        tool(
             "reading_overview",
             "Reading overview",
             "What the user is reading now, wants to read and finished most recently, with totals for the library.",
@@ -313,6 +333,8 @@ async fn call_tool(state: &AppState, user: &UserInfo, params: &Value) -> Result<
         "search_books" => search_books(state, user, args).await,
         "get_book" => get_book(state, user, args).await,
         "list_shelves" => list_shelves(state, user).await,
+        "list_shared_shelves" => list_shared_shelves(state, user).await,
+        "get_shared_shelf" => get_shared_shelf(state, user, args).await,
         "reading_overview" => reading_overview(state, user).await,
         "get_table_of_contents" => table_of_contents(state, user, args).await,
         "read_section" => read_section(state, user, args).await,
@@ -453,6 +475,56 @@ async fn list_shelves(state: &AppState, user: &UserInfo) -> ToolResult {
         .map(|s| json!({ "id": s.id, "name": s.name, "books": s.book_count, "visibility": s.visibility, "description": s.description }))
         .collect();
     Ok(json!({ "shelves": shelves }))
+}
+
+fn shared_shelf_summary(shelf: &crate::public::PublicShelf) -> Value {
+    json!({
+        "owner": shelf.owner,
+        "name": shelf.name,
+        "books": shelf.book_count,
+        "description": shelf.description,
+        "shared_with": if shelf.restricted.as_bool() { "you" } else { "everyone" },
+    })
+}
+
+async fn list_shared_shelves(state: &AppState, user: &UserInfo) -> ToolResult {
+    let Json(shelves) = crate::public::shelves(State(state.clone()), as_user(user)).await.map_err(handler_error)?;
+    Ok(json!({ "shelves": shelves.iter().map(shared_shelf_summary).collect::<Vec<_>>() }))
+}
+
+/// Longest description of a book on a shared shelf, in characters.
+const SHARED_DESCRIPTION_CHARS: usize = 600;
+
+async fn get_shared_shelf(state: &AppState, user: &UserInfo, args: &Map<String, Value>) -> ToolResult {
+    let text = |name: &str| {
+        args.get(name).and_then(Value::as_str).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).ok_or_else(|| format!("{name} is required"))
+    };
+    let (owner, name) = (text("owner")?, text("name")?);
+    let Json(detail) = crate::public::shelf(State(state.clone()), as_user(user), Path((owner, name))).await.map_err(handler_error)?;
+    let books: Vec<Value> = detail
+        .books
+        .iter()
+        .map(|entry| {
+            let book = &entry.book;
+            let mut v = json!({ "title": book.title, "author": book.author, "in_your_library": entry.owned.as_bool() });
+            for (key, value) in [
+                ("series", json!(book.series)),
+                ("series_index", json!(book.series_index)),
+                ("first_published", json!(book.first_published)),
+                ("language", json!(book.language)),
+                ("category", json!(book.category)),
+                ("description", json!(book.description.as_deref().map(|d| crate::fed::objects::shorten(d, SHARED_DESCRIPTION_CHARS)))),
+            ] {
+                if !value.is_null() {
+                    v[key] = value;
+                }
+            }
+            v
+        })
+        .collect();
+    let mut v = shared_shelf_summary(&detail.shelf);
+    v["books"] = json!(books);
+    Ok(v)
 }
 
 async fn reading_overview(state: &AppState, user: &UserInfo) -> ToolResult {
