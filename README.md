@@ -111,7 +111,8 @@ emails and federation depend on it.
 The image is published for `linux/amd64` and `linux/arm64` as
 [`slurvdjur/legejo`](https://hub.docker.com/r/slurvdjur/legejo) on Docker Hub, tagged with the version (`1.0.0`, `1.0`, `1`) and `latest`.
 It has a health check built in, so Docker and deployment platforms can tell
-when the server is ready.
+when the server is ready. What changed in each version is in the
+[changelog](CHANGELOG.md) and on the [releases page](https://github.com/jularboolean/legejo/releases).
 
 ### Coolify, Dokploy and similar platforms
 

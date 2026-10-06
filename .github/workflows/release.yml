@@ -1,7 +1,8 @@
 name: Release
 
-# Builds the image natively for amd64 and arm64 on a version tag (v1.2.3)
-# and publishes it to Docker Hub as 1.2.3, 1.2, 1 and latest.
+# Builds the image natively for amd64 and arm64 on a version tag (v1.2.3),
+# publishes it to Docker Hub as 1.2.3, 1.2, 1 and latest, and creates the
+# release on GitHub with the version's section of CHANGELOG.md as its notes.
 
 on:
   push:
@@ -11,7 +12,31 @@ env:
   IMAGE: slurvdjur/legejo
 
 jobs:
+  # A release has notes: the section of CHANGELOG.md for its version. Checked
+  # first, so that a tag without notes fails before anything is built.
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            index($0, "## " v " ") == 1 || $0 == "## " v { on = 1; next }
+            on && /^## / { exit }
+            on
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: notes.md
+          retention-days: 1
+
   build:
+    needs: notes
     strategy:
       matrix:
         include:
@@ -72,3 +97,19 @@ jobs:
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+
+  # The release on GitHub, with the notes, once the image is out.
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "Legejo ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
