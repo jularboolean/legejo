@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ALargeSmall, ArrowLeft, Keyboard, List, Maximize, Minimize, Search } from '@lucide/svelte';
+	import { ALargeSmall, ArrowLeft, Keyboard, List, Maximize, Minimize, Search, Volume2 } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 
 	type Props = {
@@ -20,6 +20,9 @@
 		onsettings: () => void;
 		onfullscreen: () => void;
 		onhelp: () => void;
+		/** Whether reading aloud is on; null where the browser cannot speak. */
+		speaking: boolean | null;
+		onspeech: () => void;
 	};
 	let {
 		title,
@@ -33,7 +36,9 @@
 		ontoc,
 		onsettings,
 		onfullscreen,
-		onhelp
+		onhelp,
+		speaking,
+		onspeech
 	}: Props = $props();
 </script>
 
@@ -63,6 +68,19 @@
 	>
 		<List size={20} />
 	</button>
+	{#if speaking !== null}
+		<button
+			class="r-icon"
+			class:on={speaking}
+			onclick={onspeech}
+			disabled={!ready}
+			aria-pressed={speaking}
+			aria-label={t('reader.speech')}
+			title={`${t('reader.speech')} (L)`}
+		>
+			<Volume2 size={20} />
+		</button>
+	{/if}
 	<button
 		class="r-icon"
 		onclick={onsettings}
@@ -89,6 +107,9 @@
 </header>
 
 <style>
+	.r-icon.on {
+		color: var(--r-link);
+	}
 	.toolbar {
 		position: absolute;
 		inset: 0 0 auto 0;

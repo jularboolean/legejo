@@ -59,6 +59,7 @@ your library is mostly PDFs or comics, another tool will serve you better.
 
 **Reading**
 - A web reader with themes, font settings and saved position.
+- Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. Books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
@@ -239,6 +240,16 @@ cd ../server && LEGEJO_WEB_DIR=../web/build cargo run --release
 
 Requires Rust and Node.js 24. [kepubify](https://github.com/pgaskin/kepubify)
 in `PATH` enables KEPUB conversion for Kobo devices.
+
+## Built with
+
+Legejo stands on other people's work, above all:
+
+- [Axum](https://github.com/tokio-rs/axum) and [SQLx](https://github.com/launchbadge/sqlx) for the server.
+- [SvelteKit](https://svelte.dev) for the web interface.
+- [epub.js](https://github.com/futurepress/epub.js) for rendering books in the web reader.
+- [kepubify](https://github.com/pgaskin/kepubify) for converting books to KEPUB for Kobo devices.
+- [Lucide](https://lucide.dev) for the icons, and the [Inter](https://rsms.me/inter/) and [Fraunces](https://fonts.google.com/specimen/Fraunces) typefaces.
 
 ## License
 

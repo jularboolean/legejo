@@ -7,9 +7,11 @@
 		open: boolean;
 		/** Leave out the fullscreen shortcut where the browser can't do it. */
 		fullscreen: boolean;
+		/** Leave out reading aloud where the browser can't speak. */
+		speech: boolean;
 		onclose: () => void;
 	};
-	let { open, fullscreen, onclose }: Props = $props();
+	let { open, fullscreen, speech, onclose }: Props = $props();
 
 	type Shortcut = { keys: string[]; label: MessageKey };
 
@@ -19,6 +21,7 @@
 		{ keys: ['T'], label: 'reader.help.toc' },
 		{ keys: ['/'], label: 'reader.help.search' },
 		{ keys: ['S'], label: 'reader.help.settings' },
+		...(speech ? [{ keys: ['L'], label: 'reader.help.speech' } as Shortcut] : []),
 		{ keys: ['+', '−'], label: 'reader.help.size' },
 		...(fullscreen ? [{ keys: ['F'], label: 'reader.help.fullscreen' } as Shortcut] : []),
 		{ keys: ['Esc'], label: 'reader.help.escape' },

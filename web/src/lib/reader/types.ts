@@ -138,6 +138,15 @@ export type SearchOptions = {
 	onProgress?: (fraction: number) => void;
 };
 
+export type SpeechText = {
+	sentences: string[];
+	first: number;
+	/** Which chapter this is, by its place in the book. */
+	chapter: number;
+	/** The chapter's language as the book states it; may be empty. */
+	language: string;
+};
+
 /** The surface of the epub.js wrapper. Create with `openReader`. */
 export interface ReaderEngine {
 	readonly metadata: ReaderMetadata;
@@ -170,6 +179,20 @@ export interface ReaderEngine {
 	search(query: string, options: SearchOptions): Promise<boolean>;
 	/** Mark a passage (a search hit) on the page; null removes the mark. */
 	highlight(cfi: string | null): void;
+	/**
+	 * The sentences of the chapter on screen, for reading aloud. `first` is
+	 * the first one on screen (the count when none is left). Null when no
+	 * chapter is shown.
+	 */
+	speechText(): SpeechText | null;
+	/**
+	 * Mark sentence `index` of the last `speechText()` and bring it on screen;
+	 * null removes the mark. Resolves to false when the chapter has been laid
+	 * out again since, and the text has to be fetched anew.
+	 */
+	speechShow(index: number | null): Promise<boolean>;
+	/** Whether sentence `index` of the last `speechText()` is on screen. */
+	speechOnScreen(index: number): boolean;
 	/** Apply new settings, keeping the reading position. */
 	applySettings(settings: ReaderSettings): Promise<void>;
 	destroy(): void;

@@ -25,7 +25,20 @@
 		type SearchHit,
 		type TocItem
 	} from './types';
+	import { getLocale } from '#lib/i18n';
+	import { languageLabel } from '#lib/library';
+	import {
+		createSpeech,
+		loadSpeechPrefs,
+		saveSpeechPrefs,
+		speechSupported,
+		voicesFor,
+		type Speech,
+		type SpeechPrefs,
+		type SpeechState
+	} from './speech';
 	import HelpPanel from './HelpPanel.svelte';
+	import SpeechBar from './SpeechBar.svelte';
 	import ProgressBar from './ProgressBar.svelte';
 	import ReaderToolbar from './ReaderToolbar.svelte';
 	import SearchPanel from './SearchPanel.svelte';
@@ -126,6 +139,8 @@
 
 	function onRelocated(next: ReaderLocation) {
 		location = next;
+		// The reader turned the page or jumped: reading aloud goes on from there.
+		speech?.resync();
 		if (!moved) return;
 		// The same place is saved again once its percentage is exact: until the
 		// positions are worked out it is an estimate, and the catalog shows it.
@@ -199,6 +214,54 @@
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
 		(forward ? engine.next() : engine.prev()).then(() => slide(forward)).catch(() => {});
+	}
+
+	// ---- Reading aloud -----------------------------------------------------------
+
+	const canSpeak = speechSupported();
+	let speech: Speech | null = null;
+	let speechState = $state<SpeechState>('off');
+	let speechPrefs = $state.raw<SpeechPrefs>(loadSpeechPrefs());
+	let speechLanguage = $state<string | null>(null);
+	let speechVoices = $state.raw<SpeechSynthesisVoice[]>([]);
+	/** The language a missing voice has been reported for; said once, not per chapter. */
+	let voiceWarned: string | null = null;
+
+	function toggleSpeech() {
+		if (!engine || !canSpeak) return;
+		speech ??= createSpeech({
+			engine,
+			prefs: () => speechPrefs,
+			onState: (next) => {
+				speechState = next;
+				if (next === 'off') voiceWarned = null;
+			},
+			onLanguage: (language, hasVoice) => {
+				speechLanguage = language;
+				speechVoices = voicesFor(language);
+				if (!hasVoice && language && voiceWarned !== language) {
+					voiceWarned = language;
+					showToast(t('reader.speech.noVoice', { language: languageLabel(language, getLocale()) }));
+				}
+			},
+			onFinished: () => showToast(t('reader.endOfBook')),
+			onError: () => showToast(t('reader.speech.failed'))
+		});
+		// Listening is reading: the position is saved as it moves on.
+		moved = true;
+		hideChrome();
+		speech.toggle();
+	}
+
+	/** Browsers load their list of voices after the page; follow it. */
+	function onVoices() {
+		if (speechState !== 'off') speechVoices = voicesFor(speechLanguage);
+	}
+
+	function changeSpeechPrefs(next: SpeechPrefs) {
+		speechPrefs = next;
+		saveSpeechPrefs(next);
+		speech?.refresh();
 	}
 
 	// ---- Page-turn animation ----------------------------------------------------
@@ -317,6 +380,11 @@
 				return true;
 			case '/':
 				togglePanel('search');
+				return true;
+			case 'l':
+			case 'L':
+				if (!canSpeak || status !== 'ready') return false;
+				toggleSpeech();
 				return true;
 			case '?':
 				togglePanel('help');
@@ -605,6 +673,7 @@
 		};
 		document.addEventListener('fullscreenchange', onFullscreen);
 		document.addEventListener('visibilitychange', onVisibility);
+		if (canSpeak) speechSynthesis.addEventListener('voiceschanged', onVoices);
 		window.addEventListener('pagehide', flush);
 		host.addEventListener('pointerdown', onPointerDown);
 		stage.addEventListener('focusin', onFocusIn);
@@ -621,6 +690,8 @@
 			for (const timer of [chromeTimer, returnTimer, toastTimer]) if (timer) clearTimeout(timer);
 			if (pointerFrame) cancelAnimationFrame(pointerFrame);
 			searchAbort?.abort();
+			speech?.stop();
+			if (canSpeak) speechSynthesis.removeEventListener('voiceschanged', onVoices);
 			flush();
 			engine?.destroy();
 			html.classList.remove('legejo-reading');
@@ -677,6 +748,8 @@
 		onsettings={() => openPanel('settings')}
 		onfullscreen={toggleFullscreen}
 		onhelp={() => openPanel('help')}
+		speaking={canSpeak ? speechState !== 'off' : null}
+		onspeech={() => (speechState === 'off' ? toggleSpeech() : speech?.stop())}
 	/>
 
 	<!-- The book. Keyboard and pointer input is handled in `gestures`; the
@@ -716,7 +789,21 @@
 	{/if}
 
 	{#if toast}
-		<div class="pill toast" role="status">{toast}</div>
+		<div class="pill toast" class:lifted={speechState !== 'off'} role="status">{toast}</div>
+	{/if}
+
+	{#if speechState !== 'off'}
+		<SpeechBar
+			state={speechState}
+			prefs={speechPrefs}
+			language={speechLanguage}
+			voices={speechVoices}
+			raised={chromeVisible}
+			ontoggle={toggleSpeech}
+			onstep={(direction) => speech?.step(direction)}
+			onprefs={changeSpeechPrefs}
+			onstop={() => speech?.stop()}
+		/>
 	{/if}
 
 	{#if status === 'loading'}
@@ -792,7 +879,7 @@
 		onchange={changeSettings}
 		onclose={closePanel}
 	/>
-	<HelpPanel open={panel === 'help'} fullscreen={fullscreen !== null} onclose={closePanel} />
+	<HelpPanel open={panel === 'help'} fullscreen={fullscreen !== null} speech={canSpeak} onclose={closePanel} />
 </div>
 
 <style>
@@ -921,6 +1008,10 @@
 	}
 	.pill.toast {
 		pointer-events: none;
+	}
+	/* Above the bar for reading aloud. */
+	.pill.toast.lifted {
+		bottom: calc(9.2rem + env(safe-area-inset-bottom));
 	}
 	@keyframes rise {
 		from {

@@ -13,6 +13,7 @@ import {
 	type ReaderSettings,
 	type SearchHit,
 	type SearchOptions,
+	type SpeechText,
 	type TocItem
 } from './types';
 
@@ -249,6 +250,45 @@ async function offscreenRules(files: Record<string, unknown>): Promise<string> {
 	}
 	const body = CLIPPED.map(([name, value]) => `${name}: ${value} !important;`).join(' ');
 	return selectors.map((selector) => `\n${selector} { ${body} }`).join('');
+}
+
+/** Elements whose text is not read aloud. */
+const UNSPOKEN_TAGS = new Set(['script', 'style', 'rt', 'rp', 'head', 'title', 'svg', 'math']);
+
+/** Whether a text node is left out of reading aloud: hidden, or a note marker. */
+function unspoken(node: Node, body: Element): boolean {
+	for (let el = node.parentElement; el && el !== body; el = el.parentElement) {
+		if (UNSPOKEN_TAGS.has(el.localName)) return true;
+		if (el.hasAttribute('hidden') || el.getAttribute('aria-hidden') === 'true') return true;
+		const type = `${el.getAttribute('epub:type') ?? ''} ${el.getAttribute('role') ?? ''}`;
+		if (/\b(noteref|doc-noteref|pagebreak|doc-pagebreak)\b/.test(type)) return true;
+	}
+	return false;
+}
+
+/** Split a paragraph into sentences, as offsets into it. */
+function sentenceSpans(text: string, language: string): [number, number][] {
+	const spans: [number, number][] = [];
+	const Segmenter = (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter;
+	if (Segmenter) {
+		let segmenter: Intl.Segmenter;
+		try {
+			segmenter = new Segmenter(language || undefined, { granularity: 'sentence' });
+		} catch {
+			segmenter = new Segmenter(undefined, { granularity: 'sentence' });
+		}
+		for (const part of segmenter.segment(text)) spans.push([part.index, part.index + part.segment.length]);
+	} else {
+		// Without a segmenter: end a sentence at . ! ? … followed by space.
+		const end = /[.!?…]+["'”’»)\]]*\s+/g;
+		let from = 0;
+		for (let m = end.exec(text); m; m = end.exec(text)) {
+			spans.push([from, m.index + m[0].length]);
+			from = m.index + m[0].length;
+		}
+		if (from < text.length) spans.push([from, text.length]);
+	}
+	return spans;
 }
 
 function blockOf(node: Node): Node | null {
@@ -904,6 +944,11 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			unmark(highlighted);
 			mark(highlighted);
 		}
+		if (spokenMark) {
+			const cfi = spokenMark;
+			unmarkSpoken();
+			markSpoken(cfi);
+		}
 	}
 
 	let resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1001,6 +1046,120 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 
 	function currentIndex(): number {
 		return rendition?.location?.start?.index ?? 0;
+	}
+
+	// ---- Reading aloud --------------------------------------------------------
+
+	/** The sentences of the chapter last asked for, each with where it is. */
+	let spoken: { range: Range; text: string }[] = [];
+	/** CFI of the sentence that is marked. */
+	let spokenMark: string | null = null;
+
+	function shownContents(): Contents | null {
+		const all = (rendition?.getContents() as unknown as Contents[]) ?? [];
+		const index = currentIndex();
+		return all.find((c) => c.sectionIndex === index) ?? all[0] ?? null;
+	}
+
+	function collectSpoken(doc: Document, language: string) {
+		const out: { range: Range; text: string }[] = [];
+		const body = doc.body;
+		// One paragraph at a time: its text, and the node each stretch came from.
+		let nodes: { node: Text; start: number }[] = [];
+		let text = '';
+		const locate = (offset: number, end: boolean) => {
+			let i = nodes.length - 1;
+			while (i > 0 && nodes[i].start > offset) i--;
+			// An end offset on a node boundary belongs to the node before it.
+			if (end && i > 0 && nodes[i].start === offset) i--;
+			return { node: nodes[i].node, offset: Math.min(nodes[i].node.length, offset - nodes[i].start) };
+		};
+		const flush = () => {
+			if (nodes.length > 0 && /[\p{L}\p{N}]/u.test(text)) {
+				for (const [from, to] of sentenceSpans(text, language)) {
+					const sentence = text.slice(from, to);
+					const said = sentence.replace(/\s+/g, ' ').trim();
+					// Punctuation and ornaments on their own are not read.
+					if (!/[\p{L}\p{N}]/u.test(said)) continue;
+					const lead = sentence.length - sentence.trimStart().length;
+					const trail = sentence.length - sentence.trimEnd().length;
+					const a = locate(from + lead, false);
+					const b = locate(to - trail, true);
+					const range = doc.createRange();
+					try {
+						range.setStart(a.node, a.offset);
+						range.setEnd(b.node, b.offset);
+					} catch {
+						continue;
+					}
+					out.push({ range, text: said });
+				}
+			}
+			nodes = [];
+			text = '';
+		};
+		let block: Node | null = null;
+		const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			const value = node.nodeValue ?? '';
+			if (!value || unspoken(node, body)) continue;
+			const parent = blockOf(node);
+			if (parent !== block) flush();
+			block = parent;
+			nodes.push({ node: node as Text, start: text.length });
+			text += value;
+		}
+		flush();
+		return out;
+	}
+
+	/** The first and last position on screen, as ranges in the chapter. */
+	function screenEdges(contents: Contents): { start: Range | null; end: Range | null } {
+		const shown = rendition?.currentLocation() as unknown as Location | undefined;
+		const at = (cfi?: string) => {
+			try {
+				return cfi ? contents.range(cfi) : null;
+			} catch {
+				return null;
+			}
+		};
+		return { start: at(shown?.start?.cfi), end: at(shown?.end?.cfi) };
+	}
+
+	function onScreen(contents: Contents, range: Range): boolean {
+		const { start, end } = screenEdges(contents);
+		try {
+			if (start && start.comparePoint(range.endContainer, range.endOffset) < 0) return false;
+			if (end && end.comparePoint(range.startContainer, range.startOffset) > 0) return false;
+		} catch {
+			// Ranges from another document: the chapter has changed.
+			return false;
+		}
+		return true;
+	}
+
+	function unmarkSpoken() {
+		if (!spokenMark) return;
+		try {
+			rendition?.annotations.remove(spokenMark, 'highlight');
+		} catch {
+			// Already gone with its page.
+		}
+		spokenMark = null;
+	}
+
+	function markSpoken(cfi: string) {
+		const p = palettes[settings.theme];
+		try {
+			rendition?.annotations.highlight(cfi, {}, undefined, 'legejo-spoken', {
+				fill: p.link,
+				'fill-opacity': '0.2',
+				'mix-blend-mode': settings.theme === 'dark' ? 'screen' : 'multiply'
+			});
+			spokenMark = cfi;
+		} catch {
+			// Not on a rendered page; nothing to mark.
+		}
 	}
 
 	const engine: ReaderEngine = {
@@ -1161,6 +1320,57 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			if (highlighted) unmark(highlighted);
 			highlighted = cfi;
 			if (cfi) mark(cfi);
+		},
+		speechText(): SpeechText | null {
+			const contents = shownContents();
+			const doc = contents?.document;
+			if (!contents || !doc?.body) return null;
+			const language = doc.documentElement.lang || metadata.language || '';
+			spoken = collectSpoken(doc, language);
+			const { start } = screenEdges(contents);
+			let first = 0;
+			if (start) {
+				// The first sentence that has not ended before the screen begins.
+				first = spoken.findIndex((s) => {
+					try {
+						return s.range.comparePoint(start.startContainer, start.startOffset) <= 0;
+					} catch {
+						return true;
+					}
+				});
+				if (first < 0) first = spoken.length;
+			}
+			return { sentences: spoken.map((s) => s.text), first, chapter: contents.sectionIndex, language };
+		},
+		speechShow(index) {
+			let ok = true;
+			return enqueue(async () => {
+				unmarkSpoken();
+				if (index === null) return;
+				const sentence = spoken[index];
+				const contents = shownContents();
+				if (!sentence || !contents || !sentence.range.startContainer.isConnected || sentence.range.startContainer.ownerDocument !== contents.document) {
+					ok = false;
+					return;
+				}
+				if (!onScreen(contents, sentence.range)) {
+					const at = sentence.range.cloneRange();
+					at.collapse(true);
+					await show(contents.cfiFromRange(at));
+				}
+				// Showing it may have laid the chapter out again.
+				if (!sentence.range.startContainer.isConnected) {
+					ok = false;
+					return;
+				}
+				markSpoken((shownContents() ?? contents).cfiFromRange(sentence.range));
+			}).then(() => ok);
+		},
+		speechOnScreen(index) {
+			const sentence = spoken[index];
+			const contents = shownContents();
+			if (!sentence || !contents || !sentence.range.startContainer.isConnected) return false;
+			return onScreen(contents, sentence.range);
 		},
 		async applySettings(next) {
 			const previous = settings;
