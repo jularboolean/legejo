@@ -763,6 +763,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'fedAdmin.shelf': 'Estantería',
 	'fedAdmin.followers': 'Seguidores',
 	'fedAdmin.rejections': 'Últimas actividades rechazadas',
+	'fedAdmin.clearRejections': 'Vaciar la lista',
 	'fedAdmin.noRejections': 'No hay actividades rechazadas.',
 	'fedAdmin.when': 'Cuándo',
 	'fedAdmin.type': 'Tipo',

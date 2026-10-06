@@ -307,3 +307,9 @@ pub async fn overview(State(state): State<AppState>, _admin: AdminUser) -> Resul
         "rejections": rejections,
     })))
 }
+
+/// DELETE /api/admin/federation/rejections: empty the list of refused activities.
+pub async fn clear_rejections(State(state): State<AppState>, _admin: AdminUser) -> Result<StatusCode, Response> {
+    sqlx::query("DELETE FROM ap_rejections").execute(&state.db).await.map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -763,6 +763,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'fedAdmin.shelf': 'Breto',
 	'fedAdmin.followers': 'Sekvantoj',
 	'fedAdmin.rejections': 'Laste rifuzitaj aktivecoj',
+	'fedAdmin.clearRejections': 'Malplenigi la liston',
 	'fedAdmin.noRejections': 'Neniuj rifuzitaj aktivecoj.',
 	'fedAdmin.when': 'Kiam',
 	'fedAdmin.type': 'Tipo',

@@ -763,6 +763,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'fedAdmin.shelf': 'Hylly',
 	'fedAdmin.followers': 'Seuraajat',
 	'fedAdmin.rejections': 'Viimeksi hylätyt aktiviteetit',
+	'fedAdmin.clearRejections': 'Tyhjennä luettelo',
 	'fedAdmin.noRejections': 'Ei hylättyjä aktiviteetteja.',
 	'fedAdmin.when': 'Milloin',
 	'fedAdmin.type': 'Tyyppi',

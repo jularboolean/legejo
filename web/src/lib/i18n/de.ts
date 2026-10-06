@@ -763,6 +763,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'fedAdmin.shelf': 'Regal',
 	'fedAdmin.followers': 'Follower',
 	'fedAdmin.rejections': 'Zuletzt abgelehnte Aktivitäten',
+	'fedAdmin.clearRejections': 'Liste leeren',
 	'fedAdmin.noRejections': 'Keine abgelehnten Aktivitäten.',
 	'fedAdmin.when': 'Wann',
 	'fedAdmin.type': 'Typ',

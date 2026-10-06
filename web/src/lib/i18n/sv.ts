@@ -763,6 +763,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'fedAdmin.shelf': 'Hylla',
 	'fedAdmin.followers': 'Följare',
 	'fedAdmin.rejections': 'Senast avvisade aktiviteter',
+	'fedAdmin.clearRejections': 'Töm listan',
 	'fedAdmin.noRejections': 'Inga avvisade aktiviteter.',
 	'fedAdmin.when': 'När',
 	'fedAdmin.type': 'Typ',

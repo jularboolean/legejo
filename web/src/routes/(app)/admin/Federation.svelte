@@ -180,6 +180,20 @@
 		}
 	}
 
+	async function clearRejections() {
+		listError = '';
+		try {
+			const res = await fetch('/api/admin/federation/rejections', { method: 'DELETE' });
+			if (!res.ok) {
+				listError = t('edit.saveFailed');
+				return;
+			}
+			await invalidateAll();
+		} catch {
+			listError = t('common.network');
+		}
+	}
+
 	// ---- Block / remove, both behind a confirm ----
 	let pending = $state<{ kind: 'block' | 'remove'; domain: string } | null>(null);
 
@@ -433,6 +447,10 @@
 		{#if overview.rejections.length === 0}
 			<p class="hint">{t('fedAdmin.noRejections')}</p>
 		{:else}
+			<button type="button" class="ghost clear" onclick={clearRejections}>
+				<Trash2 size={13} />
+				{t('fedAdmin.clearRejections')}
+			</button>
 			<div class="scroll">
 				<table class="small">
 					<thead>
@@ -501,6 +519,9 @@
 	h3 {
 		font-size: 1rem;
 		margin: 1.75rem 0 0.5rem;
+	}
+	.clear {
+		margin-bottom: 0.5rem;
 	}
 	h4 {
 		font-size: 0.85rem;

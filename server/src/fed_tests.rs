@@ -317,6 +317,11 @@ mod requests {
         let other = json!({ "id": format!("{actor}#delete2"), "type": "Delete", "actor": actor, "object": "http://127.0.0.1:9/notes/1" }).to_string();
         assert_eq!(post(other).await.unwrap().status(), StatusCode::UNAUTHORIZED);
         assert_eq!(rejected().await, 1);
+
+        // The admin can empty the list.
+        let (status, _) = send(&app, Method::DELETE, "/api/admin/federation/rejections", Some(&admin), None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(rejected().await, 0);
     }
 
     #[tokio::test]

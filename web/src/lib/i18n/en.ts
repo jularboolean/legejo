@@ -761,6 +761,7 @@ export const en = {
 	'fedAdmin.shelf': 'Shelf',
 	'fedAdmin.followers': 'Followers',
 	'fedAdmin.rejections': 'Latest rejected activities',
+	'fedAdmin.clearRejections': 'Clear the list',
 	'fedAdmin.noRejections': 'No rejected activities.',
 	'fedAdmin.when': 'When',
 	'fedAdmin.type': 'Type',

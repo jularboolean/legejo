@@ -183,6 +183,7 @@ fn router(state: AppState) -> Router {
         .route("/admin/federation/pending", get(fed::requests::pending))
         .route("/admin/federation/requests/{domain}", axum::routing::delete(fed::requests::dismiss))
         .route("/admin/federation/overview", get(fed::admin::overview))
+        .route("/admin/federation/rejections", axum::routing::delete(fed::admin::clear_rejections))
         .route("/public/shelves", get(public::shelves))
         .route("/public/shelves/{id}/cover", get(public::shelf_cover))
         .route("/public/books/{id}/cover", get(public::book_cover))
