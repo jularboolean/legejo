@@ -88,6 +88,12 @@ async fn a_shelf_federates_only_with_free_books_and_keeps_its_handle() {
     let (status, v) = send(&app, Method::GET, "/.well-known/webfinger?resource=acct:alice-klassiker@a.test", None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["links"][0]["href"], "https://a.test/ap/shelves/alice-klassiker");
+    // The instance actor, which signs fetches, resolves too: by its handle and by its id.
+    for resource in ["acct:a.test@a.test", "https://a.test/ap/actor"] {
+        let (status, v) = send(&app, Method::GET, &format!("/.well-known/webfinger?resource={resource}"), None, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!((v["subject"].as_str(), v["links"][0]["href"].as_str()), (Some("acct:a.test@a.test"), Some("https://a.test/ap/actor")));
+    }
     let (status, v): (StatusCode, Value) = send(&app, Method::GET, "/ap/shelves/alice-klassiker/outbox?page=1", None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["orderedItems"][0]["object"]["license"], "pd");
@@ -283,6 +289,34 @@ mod requests {
         let like = body.replace("Follow", "Like").replace("follows/1", "likes/1");
         post(like).await.unwrap();
         assert_eq!(send(&app, Method::GET, "/api/admin/federation/pending", Some(&admin), None).await.1["count"], 1);
+    }
+
+    #[tokio::test]
+    async fn a_deleted_account_that_was_never_seen_is_dropped_quietly() {
+        let (app, db, _) = local_instance().await;
+        let admin = admin(&db).await;
+        set_mode(&db, "open").await;
+        let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
+        // Port 9 answers nothing: a fetch of the key would fail.
+        let actor = "http://127.0.0.1:9/users/gone";
+        let post = |body: String| {
+            let url = reqwest::Url::parse("http://127.0.0.1:1/ap/inbox").unwrap();
+            let mut req = Request::builder().method(Method::POST).uri("/ap/inbox").header(header::HOST, "127.0.0.1:1");
+            for (name, value) in crate::fed::sig::sign("POST", &url, Some(body.as_bytes()), &format!("{actor}#main-key"), &key) {
+                req = req.header(name, value);
+            }
+            app.clone().oneshot(req.body(Body::from(body)).unwrap())
+        };
+        let rejected = || async { send(&app, Method::GET, "/api/admin/federation/overview", Some(&admin), None).await.1["rejections"].as_array().unwrap().len() };
+
+        let delete = json!({ "id": format!("{actor}#delete"), "type": "Delete", "actor": actor, "object": actor }).to_string();
+        assert_eq!(post(delete).await.unwrap().status(), StatusCode::ACCEPTED);
+        assert_eq!(rejected().await, 0);
+
+        // Deleting something else still needs a key that can be checked.
+        let other = json!({ "id": format!("{actor}#delete2"), "type": "Delete", "actor": actor, "object": "http://127.0.0.1:9/notes/1" }).to_string();
+        assert_eq!(post(other).await.unwrap().status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(rejected().await, 1);
     }
 
     #[tokio::test]

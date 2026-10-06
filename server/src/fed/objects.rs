@@ -176,6 +176,16 @@ pub fn activity(c: &FedConfig, kind: &str, actor: &str, object: Value) -> Value 
     })
 }
 
+/// WebFinger for the instance actor. Servers that require signed fetches
+/// look the signer up this way before they accept its key.
+pub fn instance_webfinger(c: &FedConfig) -> Value {
+    json!({
+        "subject": format!("acct:{host}@{host}", host = c.host),
+        "aliases": [c.instance_actor()],
+        "links": [{ "rel": "self", "type": super::AP_JSON, "href": c.instance_actor() }]
+    })
+}
+
 pub fn webfinger(c: &FedConfig, slug: &str) -> Value {
     let actor = c.shelf_actor(slug);
     json!({

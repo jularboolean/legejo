@@ -79,9 +79,20 @@ struct Resource {
 async fn webfinger(State(state): State<AppState>, Query(q): Query<Resource>) -> Result<Response, Response> {
     let c = on(&state).await?;
     let acct = q.resource.strip_prefix("acct:").unwrap_or(&q.resource);
+    let jrd = |doc: Value| {
+        ([(header::CONTENT_TYPE, "application/jrd+json"), (header::CACHE_CONTROL, "private, max-age=60")], doc.to_string())
+            .into_response()
+    };
+    if acct == c.instance_actor() {
+        return Ok(jrd(objects::instance_webfinger(&c)));
+    }
     let slug = if let Some((user, host)) = acct.trim_start_matches('@').split_once('@') {
         if !host.eq_ignore_ascii_case(&c.host) {
             return Err(not_found());
+        }
+        // The instance actor is named after the host; a shelf handle has no dots.
+        if user.eq_ignore_ascii_case(&c.host) {
+            return Ok(jrd(objects::instance_webfinger(&c)));
         }
         user.to_string()
     } else if let Some(slug) = c.slug_of(acct) {
@@ -90,11 +101,7 @@ async fn webfinger(State(state): State<AppState>, Query(q): Query<Resource>) -> 
         return Err(not_found());
     };
     let shelf = fed_shelf(&state, &slug).await?;
-    Ok((
-        [(header::CONTENT_TYPE, "application/jrd+json"), (header::CACHE_CONTROL, "private, max-age=60")],
-        objects::webfinger(&c, &shelf.ap_slug).to_string(),
-    )
-        .into_response())
+    Ok(jrd(objects::webfinger(&c, &shelf.ap_slug)))
 }
 
 async fn nodeinfo_links(State(state): State<AppState>) -> Result<Response, Response> {

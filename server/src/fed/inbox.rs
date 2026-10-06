@@ -78,6 +78,12 @@ async fn handle(state: &AppState, uri: &Uri, headers: &HeaderMap, body: &[u8]) -
     let path = uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
     let mut key_actor = match remote::cached_actor(state, &key_owner).await {
         Some(a) => a,
+        // A server announces a deleted account to every server it knows. One
+        // that was never seen here leaves nothing to remove, and its key is
+        // already gone, so the activity is dropped without a fetch.
+        None if kind.as_deref() == Some("Delete") && activity.get("object").and_then(id_of).as_deref() == Some(actor.as_str()) => {
+            return Ok(());
+        }
         None => match remote::fetch_actor(state, &key_owner).await {
             Ok(a) => a,
             // A deleted account signs its own Delete; there is no key left to check.
