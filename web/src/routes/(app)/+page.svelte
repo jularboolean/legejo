@@ -22,7 +22,8 @@
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
 	import LibraryToolbar from '#lib/library/LibraryToolbar.svelte';
-	import type { Book } from '#lib/types';
+	import { needsAttention } from '#lib/health';
+	import type { Book, HealthIssue } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -108,7 +109,7 @@
 		added: Book[];
 		errors: string[];
 		duplicates?: Duplicate[];
-		reports?: { book_id: number; fixed: string[]; issues: unknown[] }[];
+		reports?: { book_id: number; fixed: string[]; issues: HealthIssue[] }[];
 	};
 
 	/** Send one file, reporting how much of it has left the browser. */
@@ -201,7 +202,7 @@
 					item.state = 'added';
 					item.bookId = book.id;
 					item.fixed = report?.fixed ?? [];
-					item.issues = report?.issues.length ?? 0;
+					item.issues = report?.issues.filter(needsAttention).length ?? 0;
 					added++;
 				} else if (same) {
 					item.state = 'duplicate';

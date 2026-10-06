@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, FileWarning, Layers, Pencil, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
-	import { canRepair, fixedList, issueText } from '#lib/health';
+	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
 	import { fedHost } from '#lib/fed';
@@ -77,8 +77,12 @@
 	}
 
 	// The health check: what is wrong with the file, and what a repair would mend.
+	// Issues that call for something to be done are shown up front; the rest
+	// is detail, folded away.
 	const health = $derived(book.health);
-	const repairable = $derived((health?.issues ?? []).some((i) => canRepair(i, book)));
+	const attention = $derived((health?.issues ?? []).filter(needsAttention));
+	const details = $derived((health?.issues ?? []).filter((i) => !needsAttention(i)));
+	const repairable = $derived(attention.some((i) => canRepair(i, book)));
 	let repairing = $state(false);
 	let repairFailed = $state(false);
 
@@ -170,18 +174,15 @@
 			<a class="edit-btn" href={`/books/${book.id}/edit`}><Pencil size={13} /> {t('book.edit')}</a>
 		</div>
 
-		{#if health && health.issues.length > 0}
+		{#if attention.length > 0}
 			<section class="health" aria-label={t('health.heading')}>
 				<h2><FileWarning size={14} /> {t('health.title')}</h2>
 				<ul>
-					{#each health.issues as issue (issue.code)}
+					{#each attention as issue (issue.code)}
 						<li>
 							{issueText(issue)}
 							{#if !canRepair(issue, book) && (issue.code === 'no_language' || issue.code === 'no_cover')}
 								<a href={`/books/${book.id}/edit`}>{t('health.toEdit')}</a>
-							{/if}
-							{#if issue.examples?.length}
-								<span class="examples">{issue.examples.join(' · ')}</span>
 							{/if}
 						</li>
 					{/each}
@@ -269,11 +270,11 @@
 			{#if health}
 				<dt>{t('health.heading')}</dt>
 				<dd>
-					{health.issues.length === 0
+					{attention.length === 0
 						? t('health.ok')
-						: health.issues.length === 1
+						: attention.length === 1
 							? t('health.remark')
-							: t('health.remarks', { count: health.issues.length })}
+							: t('health.remarks', { count: attention.length })}
 					{#if health.fixed.length > 0}
 						<span class="fixed">· {t('upload.repaired', { list: fixedList(health) })}</span>
 					{/if}
@@ -282,6 +283,22 @@
 			<dt>{t('book.added')}</dt><dd>{book.created_at.slice(0, 10)}</dd>
 		</dl>
 
+		{#if details.length > 0}
+			<details class="file-details">
+				<summary>{t('health.details')}</summary>
+				<p>{t('health.readable')}</p>
+				<ul>
+					{#each details as issue (issue.code)}
+						<li>
+							{issueText(issue)}
+							{#if issue.examples?.length}
+								<span class="examples">{issue.examples.join(' · ')}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
 	</div>
 </div>
 
@@ -502,9 +519,26 @@
 	.health ul:last-child {
 		margin-bottom: 0;
 	}
-	.health .examples {
-		display: block;
+	.file-details {
+		margin-top: 0.9rem;
+		font-size: 0.85rem;
 		color: var(--muted);
+	}
+	.file-details summary {
+		cursor: pointer;
+	}
+	.file-details p {
+		margin: 0.4rem 0 0.3rem;
+	}
+	.file-details ul {
+		margin: 0;
+		padding-left: 1.1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.examples {
+		display: block;
 		font-size: 0.78rem;
 		overflow-wrap: anywhere;
 	}

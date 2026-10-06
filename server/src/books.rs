@@ -52,7 +52,7 @@ pub struct Book {
     pub want_to_read: DbFlag,
     pub wanted_at: Option<String>,
     pub file_size: i64,
-    /// How many things the health check found wrong with the file.
+    /// How many things about the file need attention (see epubfix::Issue).
     #[sqlx(default)]
     pub health_issues: i64,
     pub has_cover: DbFlag,
@@ -1413,7 +1413,7 @@ pub(crate) async fn store_epub(
     let mut book = book;
     if let Some(health) = &health {
         save_health(state, book.id, health).await;
-        book.health_issues = health.issues.len() as i64;
+        book.health_issues = health.attention();
     }
     if epubfix::claims_copyright(bytes) {
         let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2")
@@ -1844,7 +1844,7 @@ pub(crate) async fn stored_health(state: &AppState, id: i64) -> Option<Health> {
 async fn save_health(state: &AppState, id: i64, health: &Health) {
     let _ = sqlx::query("UPDATE books SET health = $1, health_issues = $2 WHERE id = $3")
         .bind(serde_json::to_string(health).unwrap_or_default())
-        .bind(health.issues.len() as i64)
+        .bind(health.attention())
         .bind(id)
         .execute(&state.db)
         .await;

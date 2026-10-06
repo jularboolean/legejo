@@ -21,6 +21,15 @@ pub struct Issue {
     pub examples: Vec<String>,
 }
 
+impl Issue {
+    /// Whether there is something to do about it: a repair, or something the
+    /// owner can add or decide. The rest is detail about a file that reads
+    /// as it is.
+    pub fn needs_attention(&self) -> bool {
+        self.fixable || matches!(self.code.as_str(), "encrypted" | "no_title" | "no_language" | "no_cover")
+    }
+}
+
 fn is_zero(n: &usize) -> bool {
     *n == 0
 }
@@ -31,7 +40,7 @@ fn issue(code: &str, fixable: bool) -> Issue {
 
 /// Raised when the check learns something new, so that stored results from
 /// an older check are made again.
-pub const CHECK_VERSION: u32 = 1;
+pub const CHECK_VERSION: u32 = 2;
 
 /// The result of the health check, as stored with a book.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, PartialEq)]
@@ -44,6 +53,13 @@ pub struct Health {
     /// What has been repaired in this file.
     #[serde(default)]
     pub fixed: Vec<String>,
+}
+
+impl Health {
+    /// How many of the issues need attention; the number kept with the book.
+    pub fn attention(&self) -> i64 {
+        self.issues.iter().filter(|i| i.needs_attention()).count() as i64
+    }
 }
 
 /// What the catalog knows and the file should say.
@@ -666,12 +682,12 @@ fn content_language(bytes: &[u8], package: &Package) -> Option<String> {
     None
 }
 
-/// References from content documents to entries that are not in the archive.
-fn broken_links(bytes: &[u8], package: &Package) -> (usize, Vec<String>) {
-    let Ok(mut archive) = open_archive(bytes) else { return (0, Vec::new()) };
+/// References from content documents to entries that are not in the
+/// archive: links first, pictures second, each with a count and examples.
+fn broken_references(bytes: &[u8], package: &Package) -> [(usize, Vec<String>); 2] {
+    let mut found = [(0, Vec::new()), (0, Vec::new())];
+    let Ok(mut archive) = open_archive(bytes) else { return found };
     let present: HashSet<&str> = package.names.iter().map(String::as_str).collect();
-    let mut count = 0;
-    let mut examples = Vec::new();
     for item in package.items.iter().filter(|i| i.media_type == "application/xhtml+xml" && present.contains(i.path.as_str())) {
         let Some(text) = read_text(&mut archive, &item.path) else { continue };
         let base = dir_of(&item.path);
@@ -680,23 +696,23 @@ fn broken_links(bytes: &[u8], package: &Package) -> (usize, Vec<String>) {
             if tag.kind == Kind::Close {
                 continue;
             }
-            let name = match tag.local() {
-                "a" => "href",
-                "img" => "src",
-                "image" => "xlink:href",
+            let (kind, name) = match tag.local() {
+                "a" => (0, "href"),
+                "img" => (1, "src"),
+                "image" => (1, "xlink:href"),
                 _ => continue,
             };
             let Some(target) = attr(tag.raw(&text), name).and_then(|h| resolve(base, h.trim())) else { continue };
             if target.is_empty() || present.contains(target.as_str()) || !seen.insert(target.clone()) {
                 continue;
             }
-            count += 1;
-            if examples.len() < EXAMPLES {
-                examples.push(format!("{} → {}", item.href, target));
+            found[kind].0 += 1;
+            if found[kind].1.len() < EXAMPLES {
+                found[kind].1.push(format!("{} → {}", item.href, target));
             }
         }
     }
-    (count, examples)
+    found
 }
 
 /// What is wrong with the file. An empty list is a clean bill of health.
@@ -731,12 +747,13 @@ pub fn inspect(bytes: &[u8]) -> anyhow::Result<Vec<Issue>> {
         found.examples = missing.iter().take(EXAMPLES).map(|i| i.href.clone()).collect();
         issues.push(found);
     }
-    let (count, examples) = broken_links(bytes, &package);
-    if count > 0 {
-        let mut found = issue("broken_links", false);
-        found.count = count;
-        found.examples = examples;
-        issues.push(found);
+    for (code, (count, examples)) in ["broken_links", "missing_images"].into_iter().zip(broken_references(bytes, &package)) {
+        if count > 0 {
+            let mut found = issue(code, false);
+            found.count = count;
+            found.examples = examples;
+            issues.push(found);
+        }
     }
     Ok(issues)
 }
@@ -1304,21 +1321,24 @@ pub(crate) mod tests {
     fn issues_are_found_and_the_fixable_ones_repaired() {
         let bytes = ailing();
         let issues = inspect(&bytes).unwrap();
-        assert_eq!(codes(&issues), ["no_language", "no_identifier", "no_cover", "no_toc", "missing_files", "broken_links"]);
+        assert_eq!(codes(&issues), ["no_language", "no_identifier", "no_cover", "no_toc", "missing_files", "broken_links", "missing_images"]);
         let by = |code: &str| issues.iter().find(|i| i.code == code).unwrap().clone();
         assert!(by("no_language").fixable && by("no_cover").fixable && by("no_toc").fixable && by("missing_files").fixable);
         assert_eq!((by("missing_files").count, by("missing_files").examples), (1, vec!["gone.css".to_string()]));
         // The same missing file linked twice counts once per document; links
         // out of the book and within the page are not checked.
-        assert_eq!(by("broken_links").count, 2);
-        assert_eq!(by("broken_links").examples, ["two.xhtml → OEBPS/img/saknas.png", "two.xhtml → OEBPS/borta.xhtml"]);
+        assert_eq!((by("broken_links").count, by("broken_links").examples), (1, vec!["two.xhtml → OEBPS/borta.xhtml".to_string()]));
+        assert_eq!((by("missing_images").count, by("missing_images").examples), (1, vec!["two.xhtml → OEBPS/img/saknas.png".to_string()]));
+        // A dead link or a missing picture is detail; the rest is for someone to act on.
+        assert!(!by("broken_links").needs_attention() && !by("missing_images").needs_attention());
+        assert!(by("no_toc").needs_attention() && by("missing_files").needs_attention());
 
         let (out, fixed) = repair(&bytes).unwrap();
         let out = out.unwrap();
         assert_eq!(fixed, ["no_language", "no_identifier", "no_cover", "no_toc", "missing_files"]);
         // A rewritten file has `mimetype` first and uncompressed, as the format asks.
         assert!(!mimetype_first(&bytes) && mimetype_first(&out));
-        assert_eq!(codes(&inspect(&out).unwrap()), ["broken_links"]);
+        assert_eq!(codes(&inspect(&out).unwrap()), ["broken_links", "missing_images"]);
         assert!(!load(&out).unwrap().opf.contains("gone.css"));
         // Repairing again changes nothing.
         assert!(repair(&out).unwrap().0.is_none());

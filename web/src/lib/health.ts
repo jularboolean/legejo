@@ -22,6 +22,15 @@ export function canRepair(issue: HealthIssue, book: { language: string | null; h
 	return issue.code === 'no_language' && !!book.language;
 }
 
+/**
+ * Whether there is something to do about the issue: a repair, or something
+ * the owner can add or decide. The rest is detail about a file that reads as
+ * it is. The server counts the same way for the library's filter.
+ */
+export function needsAttention(issue: HealthIssue): boolean {
+	return issue.fixable || ['encrypted', 'no_title', 'no_language', 'no_cover'].includes(issue.code);
+}
+
 export function fixedList(health: Pick<Health, 'fixed'>): string {
 	return health.fixed.map(fixedText).join(', ');
 }
