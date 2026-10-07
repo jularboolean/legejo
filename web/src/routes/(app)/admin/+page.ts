@@ -20,7 +20,7 @@ export const load: PageLoad = async ({ fetch }) => {
 		audiobooks_enabled?: boolean;
 		registration_enabled: boolean;
 		mail_configured: boolean;
-		wider_search?: { endpoint: string; model: string; requests: number; prompt_tokens: number; completion_tokens: number };
+		librarian?: { endpoint: string; model: string; questions: number; prompt_tokens: number; completion_tokens: number };
 	} = settingsRes.ok
 		? await settingsRes.json()
 		: { libris_enabled: true, registration_enabled: false, mail_configured: false };

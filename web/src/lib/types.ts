@@ -146,10 +146,6 @@ export type SearchResult = {
 	public: PublicHit[];
 	shelves: PublicShelf[];
 	audiobooks: Audiobook[];
-	/** The wider search only: the terms that were searched for. */
-	terms?: string[];
-	/** The wider search only: what the request to the language model took. */
-	usage?: { prompt_tokens: number; completion_tokens: number; cached: boolean };
 };
 
 export type AdminUserRow = {

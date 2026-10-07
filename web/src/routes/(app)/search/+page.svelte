@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Check, Download, Headphones, Search, Sparkles } from '@lucide/svelte';
+	import { Check, Download, Headphones, Search } from '@lucide/svelte';
 	import { formatLength } from '#lib/audio';
 	import Avatar from '#lib/Avatar.svelte';
 	import { defaultShelfCover } from '#lib/shelfCovers';
@@ -22,49 +22,17 @@
 		input?.focus();
 	});
 
-	// Two ways to search. The exact one answers while you type. The wider
-	// one asks a language model for related terms first, which takes a
-	// moment and costs the operator a little, so it waits until it is asked
-	// for with Enter or the button: a longer question can be written in peace.
-	let wide = $state(data.wide);
-	let searching = $state(false);
-
-	const target = (q: string, wider: boolean) =>
-		q ? `/search?q=${encodeURIComponent(q)}${wider ? '&wide=1' : ''}` : wider ? '/search?wide=1' : '/search';
-
 	function onInput() {
 		clearTimeout(debounce);
-		if (wide) return;
 		debounce = setTimeout(() => {
+			const target = query.trim()
+				? `/search?q=${encodeURIComponent(query.trim())}`
+				: '/search';
 			// reset: false keeps the caret in the box (and the scroll position)
 			// while the results change under it.
-			goto(target(query.trim(), false), { replace: true, reset: false });
+			goto(target, { replace: true, reset: false });
 		}, 250);
 	}
-
-	async function run(wider: boolean) {
-		clearTimeout(debounce);
-		wide = wider;
-		searching = wider && query.trim() !== '';
-		try {
-			await goto(target(query.trim(), wider), { replace: true, reset: false });
-		} finally {
-			searching = false;
-		}
-	}
-
-	function onSubmit(e: SubmitEvent) {
-		e.preventDefault();
-		run(wide);
-	}
-
-	const wideErrorText = $derived(
-		data.wideError === 'too-many'
-			? t('search.wider.tooMany')
-			: data.wideError
-				? t('search.wider.failed')
-				: ''
-	);
 
 	const result = $derived(data.result);
 	const nothing = $derived(
@@ -149,63 +117,28 @@
 
 <h1>{t('search.heading')}</h1>
 
-<form class="top" onsubmit={onSubmit}>
+<div class="top">
 	<div class="searchbox">
 		<Search size={15} class="search-icon" aria-hidden="true" />
 		<input
 			type="search"
-			placeholder={wide ? t('search.wider.placeholder') : t('search.placeholder')}
+			placeholder={t('search.placeholder')}
 			bind:value={query}
 			bind:this={input}
 			oninput={onInput}
 		/>
 	</div>
-	{#if data.widerSearch}
-		<div class="modes" role="group" aria-label={t('search.mode')}>
-			<button type="button" aria-pressed={!wide} onclick={() => run(false)}>{t('search.mode.exact')}</button>
-			<button type="button" aria-pressed={wide} onclick={() => run(true)}>
-				<Sparkles size={13} />
-				{t('search.mode.wider')}
-			</button>
-		</div>
-		{#if wide}
-			<button type="submit" disabled={searching || query.trim() === ''}>
-				{searching ? t('search.wider.searching') : t('search.wider.go')}
-			</button>
-		{/if}
-	{/if}
 	{#if result.mine.length > 0 || result.public.length > 0}
 		<ViewSwitch {view} onchange={setView} />
 	{/if}
-</form>
-
-{#if data.widerSearch && wide}
-	{#if wideErrorText}
-		<p class="error">{wideErrorText}</p>
-	{:else}
-		<p class="hint">
-			{t('search.wider.hint')}
-			<!-- What the search just made cost, for the one who pays for it. -->
-			{#if data.user?.is_admin && result.usage && data.q === query.trim()}
-				<span class="usage">
-					{result.usage.cached
-						? t('search.wider.cached')
-						: t('search.wider.usage', { input: result.usage.prompt_tokens, output: result.usage.completion_tokens })}
-				</span>
-			{/if}
-		</p>
-	{/if}
-{/if}
+</div>
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
 {#if nothing}
 	<p class="empty">{t('search.none')}</p>
-	{#if data.widerSearch && !wide}
-		<button type="button" class="ghost widen" onclick={() => run(true)}>
-			<Sparkles size={13} />
-			{t('search.wider.try', { query: data.q })}
-		</button>
+	{#if data.librarian}
+		<a class="ask" href={`/librarian?q=${encodeURIComponent(data.q)}`}>{t('librarian.askInstead')}</a>
 	{/if}
 {/if}
 
@@ -348,58 +281,10 @@
 	}
 	.top {
 		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
 		align-items: center;
+		justify-content: space-between;
 		gap: 0.75rem;
-		max-width: none;
 		margin-bottom: 1.75rem;
-	}
-	.top :global(.seg) {
-		margin-left: auto;
-	}
-	.modes {
-		display: inline-flex;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		overflow: hidden;
-	}
-	.modes button {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		background: none;
-		color: var(--muted);
-		border: none;
-		border-radius: 0;
-		font-size: 0.85rem;
-		font-weight: 500;
-		letter-spacing: 0;
-		padding: 0.4rem 0.8rem;
-	}
-	.modes button[aria-pressed='true'] {
-		background: var(--accent);
-		color: var(--bg);
-	}
-	.hint {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.35rem;
-		margin: -1rem 0 1.5rem;
-		font-size: 0.85rem;
-		color: var(--muted);
-	}
-	.usage {
-		margin-left: 0.4rem;
-		font-size: 0.78rem;
-		font-variant-numeric: tabular-nums;
-	}
-	.widen {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.88rem;
 	}
 	.searchbox {
 		position: relative;
@@ -419,6 +304,9 @@
 	}
 	.empty {
 		color: var(--muted);
+	}
+	.ask {
+		font-size: 0.9rem;
 	}
 	section {
 		margin-bottom: 2.25rem;

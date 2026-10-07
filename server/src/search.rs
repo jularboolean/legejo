@@ -1,7 +1,6 @@
 //! The unified search: one query over the caller's own library, books on
 //! other users' public shelves, the caller's own shelves and the public
-//! ones, and the caller's audiobooks. The wider search does the same for the
-//! terms a language model relates to the query (wider.rs).
+//! ones, and the caller's audiobooks.
 
 use crate::auth::AuthUser;
 use crate::books::{search_expr, search_parts, Book, BOOK_COLUMNS_B};
@@ -60,12 +59,6 @@ pub struct SearchResult {
     pub public: Vec<PublicHit>,
     pub shelves: Vec<PublicShelf>,
     pub audiobooks: Vec<crate::audiobooks::Audiobook>,
-    /// The wider search only: the terms that were searched for.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub terms: Option<Vec<String>>,
-    /// The wider search only: what the request to the model took.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage: Option<crate::wider::Usage>,
 }
 
 /// The caller's own shelves whose name contains the query. Shelf names are
@@ -229,66 +222,5 @@ pub async fn search(
         mine: own_books(&state, id, &raw).await?,
         public: shared_books(&state, id, &raw).await?,
         shelves: if searchable { shared_shelves(&state, id, &raw).await? } else { Vec::new() },
-        terms: None,
-        usage: None,
-    }))
-}
-
-/// What matched the most terms comes first; within that, what was found
-/// first, and the terms come most telling first.
-fn merge<T>(found: Vec<Vec<T>>, id: impl Fn(&T) -> i64) -> Vec<T> {
-    let mut merged: Vec<(i64, usize, T)> = Vec::new();
-    for list in found {
-        for item in list {
-            match merged.iter_mut().find(|(_, _, kept)| id(kept) == id(&item)) {
-                Some(entry) => entry.0 += 1,
-                None => {
-                    let order = merged.len();
-                    merged.push((1, order, item));
-                }
-            }
-        }
-    }
-    merged.sort_by_key(|(terms, order, _)| (-*terms, *order));
-    merged.into_iter().take(GROUP_LIMIT as usize).map(|(_, _, item)| item).collect()
-}
-
-/// The wider search: the query is first turned into related search terms by
-/// the language model the operator has set up, and each term is searched
-/// for. Shelves are still found by the query as it was written.
-pub async fn wider(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Query(params): Query<Params>,
-) -> Result<Json<SearchResult>, Response> {
-    let fail = |status: StatusCode, code: &str| (status, Json(serde_json::json!({ "error": code }))).into_response();
-    let raw = params.q.as_deref().unwrap_or("").trim().to_string();
-    if raw.is_empty() {
-        return Err(fail(StatusCode::UNPROCESSABLE_ENTITY, "empty"));
-    }
-    let id = user.0.id;
-    let expansion = match crate::wider::expand(&state, id, &raw).await {
-        Ok(expansion) => expansion,
-        Err(crate::wider::Failure::Off) => return Err(fail(StatusCode::NOT_FOUND, "off")),
-        Err(crate::wider::Failure::TooMany) => return Err(fail(StatusCode::TOO_MANY_REQUESTS, "too-many")),
-        Err(crate::wider::Failure::Model(reason)) => {
-            tracing::warn!("wider search: {reason}");
-            return Err(fail(StatusCode::BAD_GATEWAY, "model"));
-        }
-    };
-    let (mut mine, mut public, mut audiobooks) = (Vec::new(), Vec::new(), Vec::new());
-    for term in &expansion.terms {
-        mine.push(own_books(&state, id, term).await?);
-        public.push(shared_books(&state, id, term).await?);
-        audiobooks.push(crate::audiobooks::search(&state, id, term).await?);
-    }
-    Ok(Json(SearchResult {
-        mine: merge(mine, |b| b.id),
-        public: merge(public, |h| h.book.id),
-        audiobooks: merge(audiobooks, |a| a.id),
-        my_shelves: own_shelves(&state, id, &raw).await?,
-        shelves: shared_shelves(&state, id, &raw).await?,
-        terms: Some(expansion.terms),
-        usage: Some(expansion.usage),
     }))
 }

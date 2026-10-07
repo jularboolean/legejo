@@ -152,13 +152,13 @@
 	{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 </section>
 
-{#if data.settings.wider_search}
-	{@const ai = data.settings.wider_search}
+{#if data.settings.librarian}
+	{@const ai = data.settings.librarian}
 	<section>
-		<h2>{t('admin.wider')}</h2>
-		<p class="hint">{t('admin.widerHint', { model: ai.model, endpoint: ai.endpoint })}</p>
+		<h2>{t('librarian.heading')}</h2>
+		<p class="hint">{t('admin.librarianHint', { model: ai.model, endpoint: ai.endpoint })}</p>
 		<p class="hint">
-			{t('admin.widerUse', { requests: ai.requests, input: ai.prompt_tokens, output: ai.completion_tokens })}
+			{t('admin.librarianUse', { questions: ai.questions, input: ai.prompt_tokens, output: ai.completion_tokens })}
 		</p>
 	</section>
 {/if}

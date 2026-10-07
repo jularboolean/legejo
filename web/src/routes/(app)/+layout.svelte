@@ -1,6 +1,21 @@
 <script lang="ts">
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
-	import { BookOpenCheck, Earth, Feather, Globe, Headphones, LibraryBig, LogOut, BookMarked, Menu, Search, Settings, Users, X } from '@lucide/svelte';
+	import {
+		BookMarked,
+		BookOpenCheck,
+		Earth,
+		Feather,
+		Globe,
+		Headphones,
+		LibraryBig,
+		LogOut,
+		Menu,
+		Search,
+		Settings,
+		Sparkles,
+		Users,
+		X
+	} from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
@@ -82,6 +97,12 @@
 					<Search size={15} strokeWidth={1.75} />
 					{t('sidebar.search')}
 				</a>
+				{#if data.librarian}
+					<a class="nav-item" href="/librarian">
+						<Sparkles size={15} strokeWidth={1.75} />
+						{t('librarian.heading')}
+					</a>
+				{/if}
 				<a class="nav-item" href="/">
 					<LibraryBig size={15} strokeWidth={1.75} />
 					{t('sidebar.allBooks')}
