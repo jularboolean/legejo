@@ -4,6 +4,22 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.5.0 (2026-10-07)
+
+- **Audiobooks (optional):** an admin can turn on audiobook support in the
+  admin settings. Upload MP3, M4A or M4B files, or a whole folder; each audiobook
+  becomes a private podcast feed with one episode per file. Add the address
+  in a podcast app, or use the buttons for Apple Podcasts, Pocket Casts,
+  Overcast and Castro, and the app keeps your place. Parts can also be
+  played on the audiobook's page.
+- **Sharing audiobooks:** keep an audiobook to yourself, share it with the
+  users you choose, or with everyone on the instance. Every listener has a
+  feed address of their own, which stops working when the sharing ends.
+- **Finding audiobooks:** category and tags, a filter bar with text search
+  (title, author, reader, description), a gallery and a list view, and the
+  search over everything finds audiobooks too.
+- **Sidebar:** Search is now the first entry.
+
 ## 1.4.1 (2026-10-06)
 
 - **AI assistants (MCP):** two new read-only tools list the shelves other
