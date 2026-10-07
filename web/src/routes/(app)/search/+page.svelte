@@ -182,11 +182,11 @@
 {#if data.widerSearch && wide}
 	{#if wideErrorText}
 		<p class="error">{wideErrorText}</p>
-	{:else if result.terms && data.q === query.trim()}
-		<p class="terms">
-			{t('search.wider.terms')}
-			{#each result.terms as term (term)}<span class="term">{term}</span>{/each}
-			{#if data.user?.is_admin && result.usage}
+	{:else}
+		<p class="hint">
+			{t('search.wider.hint')}
+			<!-- What the search just made cost, for the one who pays for it. -->
+			{#if data.user?.is_admin && result.usage && data.q === query.trim()}
 				<span class="usage">
 					{result.usage.cached
 						? t('search.wider.cached')
@@ -194,8 +194,6 @@
 				</span>
 			{/if}
 		</p>
-	{:else}
-		<p class="hint">{t('search.wider.hint')}</p>
 	{/if}
 {/if}
 
@@ -383,7 +381,6 @@
 		background: var(--accent);
 		color: var(--bg);
 	}
-	.terms,
 	.hint {
 		display: flex;
 		flex-wrap: wrap;
@@ -392,12 +389,6 @@
 		margin: -1rem 0 1.5rem;
 		font-size: 0.85rem;
 		color: var(--muted);
-	}
-	.term {
-		padding: 0.05rem 0.55rem;
-		border: 1px solid var(--border);
-		border-radius: 99px;
-		color: var(--fg);
 	}
 	.usage {
 		margin-left: 0.4rem;
