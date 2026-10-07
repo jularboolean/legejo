@@ -711,7 +711,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'search.wider.failed': "Den bredare sökningen svarade inte. Det här är de exakta träffarna.",
 	'search.wider.tooMany': "För många bredare sökningar den senaste timmen. Det här är de exakta träffarna.",
 	'admin.wider': "Bredare sökning",
-	'admin.widerHint': "En språkmodell ({model}) knyter en sökfråga till fler sökord. Den ställs in med LEGEJO_AI_API_KEY, och anropen betalas av det kontot. Bara sökfrågan skickas, och varje fråga bara en gång.",
+	'admin.widerHint': "En språkmodell knyter en sökfråga till fler sökord. Den här instansen använder {model} hos {endpoint}; den som driver instansen väljer leverantör med LEGEJO_AI_BASE_URL, LEGEJO_AI_MODEL och LEGEJO_AI_API_KEY, och det kontot betalar anropen. Alla tjänster med ett chatt-API av OpenAI-typ fungerar, även en egen modell. Bara sökfrågan skickas, och varje fråga bara en gång.",
 	'admin.widerUse': "Senaste 30 dagarna: {requests} anrop, {input} token in och {output} ut.",
 	'book.readElsewhere': "Legejo öppnar bara EPUB-böcker. Ladda ner den här {format}-filen, eller hämta den till en enhet, för att läsa den.",
 	'book.format': "Format",

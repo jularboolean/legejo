@@ -711,7 +711,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'search.wider.failed': "La recherche élargie n’a pas répondu. Voici les résultats exacts.",
 	'search.wider.tooMany': "Trop de recherches élargies depuis une heure. Voici les résultats exacts.",
 	'admin.wider': "Recherche élargie",
-	'admin.widerHint': "Un modèle de langage ({model}) associe une recherche à d’autres termes. Il se configure avec LEGEJO_AI_API_KEY, et les requêtes sont payées par ce compte. Seule la recherche est envoyée, et chaque recherche une seule fois.",
+	'admin.widerHint': "Un modèle de langage associe une recherche à d’autres termes. Cette instance utilise {model} chez {endpoint} ; l’exploitant choisit le fournisseur avec LEGEJO_AI_BASE_URL, LEGEJO_AI_MODEL et LEGEJO_AI_API_KEY, et ce compte paie les requêtes. Tout service doté d’une API de chat de type OpenAI convient, y compris un modèle local. Seule la recherche est envoyée, et chaque recherche une seule fois.",
 	'admin.widerUse': "Les 30 derniers jours : {requests} requêtes, {input} jetons en entrée et {output} en sortie.",
 	'book.readElsewhere': "Legejo n’ouvre que les livres EPUB. Téléchargez ce fichier {format}, ou récupérez-le sur un appareil, pour le lire.",
 	'book.format': "Format",

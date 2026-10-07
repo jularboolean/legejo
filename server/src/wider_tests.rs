@@ -18,12 +18,20 @@ async fn model(terms: Value) -> (String, Arc<Mutex<Vec<(String, Value)>>>) {
         post(move |headers: axum::http::HeaderMap, Json(body): Json<Value>| {
             let (log, terms) = (log.clone(), terms.clone());
             async move {
+                // Like a provider without a JSON mode: it refuses the request
+                // that asks for one, and wraps its answer in a code block.
+                if body.get("response_format").is_some() {
+                    let refusal = json!({ "error": { "message": "response_format is not supported" } });
+                    return (StatusCode::BAD_REQUEST, Json(refusal));
+                }
                 let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
                 log.lock().unwrap().push((auth, body));
-                Json(json!({
-                    "choices": [{ "message": { "role": "assistant", "content": json!({ "terms": terms }).to_string() } }],
+                let content = format!("```json\n{}\n```", json!({ "terms": terms }));
+                let answer = json!({
+                    "choices": [{ "message": { "role": "assistant", "content": content } }],
                     "usage": { "prompt_tokens": 100, "completion_tokens": 40 },
-                }))
+                });
+                (StatusCode::OK, Json(answer))
             }
         }),
     );
@@ -90,7 +98,7 @@ async fn a_query_is_widened_by_the_model() {
     // The operator sees the use; the key is nowhere in it.
     sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'alice'").execute(&db).await.unwrap();
     let (_, settings) = send(&app, Method::GET, "/api/admin/settings", Some(&a), None).await;
-    assert_eq!(settings["wider_search"], json!({ "model": "test-model", "requests": 1, "prompt_tokens": 100, "completion_tokens": 40 }));
+    assert_eq!(settings["wider_search"], json!({ "endpoint": "127.0.0.1", "model": "test-model", "requests": 1, "prompt_tokens": 100, "completion_tokens": 40 }));
     assert!(!settings.to_string().contains("secret-key"));
 
     // One user cannot run the bill up.

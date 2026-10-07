@@ -709,7 +709,7 @@ export const en = {
 	'search.wider.failed': "The wider search did not answer. These are the exact matches.",
 	'search.wider.tooMany': "Too many wider searches in the last hour. These are the exact matches.",
 	'admin.wider': "Wider search",
-	'admin.widerHint': "A language model ({model}) relates a search query to more search terms. It is set up with LEGEJO_AI_API_KEY, and the requests are paid for by that account. Only the query is sent, and each query only once.",
+	'admin.widerHint': "A language model relates a search query to more search terms. This instance uses {model} at {endpoint}; the operator chooses the provider with LEGEJO_AI_BASE_URL, LEGEJO_AI_MODEL and LEGEJO_AI_API_KEY, and that account pays for the requests. Any service with an OpenAI-style chat API works, a model of your own included. Only the query is sent, and each query only once.",
 	'admin.widerUse': "The last 30 days: {requests} requests, {input} tokens in and {output} out.",
 	'book.readElsewhere': "Legejo opens EPUB books only. Download this {format} file, or fetch it to a device, to read it.",
 	'book.format': "Format",

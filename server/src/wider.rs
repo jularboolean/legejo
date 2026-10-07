@@ -92,24 +92,21 @@ pub async fn expand(state: &AppState, user_id: i64, query: &str) -> Result<Expan
         return Err(Failure::TooMany);
     }
 
-    let response = state
-        .http
-        .post(format!("{}/chat/completions", ai.base_url))
-        .bearer_auth(&ai.key)
-        .timeout(std::time::Duration::from_secs(20))
-        .json(&json!({
-            "model": ai.model,
-            "messages": [
-                { "role": "system", "content": INSTRUCTIONS },
-                { "role": "user", "content": query },
-            ],
-            "response_format": { "type": "json_object" },
-        }))
-        .send()
-        .await
-        .map_err(|e| Failure::Model(format!("no answer: {e}")))?;
-    let status = response.status();
-    let body: Value = response.json().await.map_err(|e| Failure::Model(format!("unreadable answer: {e}")))?;
+    let mut request = json!({
+        "model": ai.model,
+        "messages": [
+            { "role": "system", "content": INSTRUCTIONS },
+            { "role": "user", "content": query },
+        ],
+        "response_format": { "type": "json_object" },
+    });
+    let (mut status, mut body) = ask(state, ai, &request).await?;
+    // Not every provider knows the JSON mode; the instructions ask for JSON
+    // as well, so the request is worth one more try without it.
+    if status == reqwest::StatusCode::BAD_REQUEST || status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        request.as_object_mut().map(|r| r.remove("response_format"));
+        (status, body) = ask(state, ai, &request).await?;
+    }
     if !status.is_success() {
         let reason = body["error"]["message"].as_str().unwrap_or("no reason given");
         return Err(Failure::Model(format!("HTTP {status}: {reason}")));
@@ -130,7 +127,7 @@ pub async fn expand(state: &AppState, user_id: i64, query: &str) -> Result<Expan
         .await;
     let answer: Value = body["choices"][0]["message"]["content"]
         .as_str()
-        .and_then(|text| serde_json::from_str(text).ok())
+        .and_then(json_in)
         .ok_or_else(|| Failure::Model("the answer was not the JSON asked for".to_string()))?;
     let terms = clean_terms(&query, &answer);
     let _ = sqlx::query(
@@ -146,9 +143,36 @@ pub async fn expand(state: &AppState, user_id: i64, query: &str) -> Result<Expan
     Ok(Expansion { terms, usage })
 }
 
+async fn ask(state: &AppState, ai: &crate::settings::Ai, request: &Value) -> Result<(reqwest::StatusCode, Value), Failure> {
+    let response = state
+        .http
+        .post(format!("{}/chat/completions", ai.base_url))
+        .bearer_auth(&ai.key)
+        .timeout(std::time::Duration::from_secs(20))
+        .json(request)
+        .send()
+        .await
+        .map_err(|e| Failure::Model(format!("no answer: {e}")))?;
+    let status = response.status();
+    let body: Value = response.json().await.map_err(|e| Failure::Model(format!("unreadable answer: {e}")))?;
+    Ok((status, body))
+}
+
+/// The JSON object in a model's answer: the answer itself, or what stands
+/// between its first and last brace when the model wrapped it in text or in
+/// a code block.
+fn json_in(text: &str) -> Option<Value> {
+    serde_json::from_str(text.trim()).ok().or_else(|| {
+        let (start, end) = (text.find('{')?, text.rfind('}')?);
+        serde_json::from_str(text.get(start..=end)?).ok()
+    })
+}
+
 /// The use of the model over the last 30 days, for the operator.
 #[derive(Serialize)]
 pub struct Summary {
+    /// The host the requests go to.
+    pub endpoint: String,
     pub model: String,
     pub requests: i64,
     pub prompt_tokens: i64,
@@ -166,7 +190,8 @@ pub async fn summary(state: &AppState) -> Option<Summary> {
     .fetch_one(&state.db)
     .await
     .unwrap_or((0, 0, 0));
-    Some(Summary { model: ai.model.clone(), requests, prompt_tokens, completion_tokens })
+    let endpoint = reqwest::Url::parse(&ai.base_url).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_else(|| ai.base_url.clone());
+    Some(Summary { endpoint, model: ai.model.clone(), requests, prompt_tokens, completion_tokens })
 }
 
 #[cfg(test)]
@@ -181,5 +206,9 @@ mod tests {
         let many = json!({ "terms": (0..30).map(|n| format!("t{n}")).collect::<Vec<_>>() });
         assert_eq!(clean_terms("q", &many).len(), MAX_TERMS + 1);
         assert_eq!(normalize("  Böcker   OM  Is "), "böcker om is");
+        // An answer wrapped in a code block or in a sentence still reads.
+        assert_eq!(json_in("```json\n{\"terms\": [\"a\"]}\n```"), Some(json!({ "terms": ["a"] })));
+        assert_eq!(json_in("Here you are: {\"terms\": []} Anything else?"), Some(json!({ "terms": [] })));
+        assert_eq!(json_in("no json here"), None);
     }
 }

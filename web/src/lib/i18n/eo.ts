@@ -711,7 +711,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'search.wider.failed': "La pli vasta serĉo ne respondis. Jen la ĝustaj trafoj.",
 	'search.wider.tooMany': "Tro multaj pli vastaj serĉoj en la lasta horo. Jen la ĝustaj trafoj.",
 	'admin.wider': "Pli vasta serĉo",
-	'admin.widerHint': "Lingvomodelo ({model}) ligas serĉon al pliaj serĉvortoj. Ĝi estas agordata per LEGEJO_AI_API_KEY, kaj la petojn pagas tiu konto. Nur la serĉo estas sendata, kaj ĉiu serĉo nur unufoje.",
+	'admin.widerHint': "Lingvomodelo ligas serĉon al pliaj serĉvortoj. Ĉi tiu instanco uzas {model} ĉe {endpoint}; la funkciiganto elektas la provizanton per LEGEJO_AI_BASE_URL, LEGEJO_AI_MODEL kaj LEGEJO_AI_API_KEY, kaj tiu konto pagas la petojn. Ĉiu servo kun babil-API laŭ la maniero de OpenAI taŭgas, ankaŭ propra modelo. Nur la serĉo estas sendata, kaj ĉiu serĉo nur unufoje.",
 	'admin.widerUse': "La lastaj 30 tagoj: {requests} petoj, {input} ĵetonoj enen kaj {output} elen.",
 	'book.readElsewhere': "Legejo malfermas nur EPUB-librojn. Elŝutu ĉi tiun {format}-dosieron, aŭ prenu ĝin al aparato, por legi ĝin.",
 	'book.format': "Formato",

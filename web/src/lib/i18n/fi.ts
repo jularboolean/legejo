@@ -711,7 +711,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'search.wider.failed': "Laajempi haku ei vastannut. Nämä ovat tarkat osumat.",
 	'search.wider.tooMany': "Liian monta laajempaa hakua viimeisen tunnin aikana. Nämä ovat tarkat osumat.",
 	'admin.wider': "Laajempi haku",
-	'admin.widerHint': "Kielimalli ({model}) liittää hakuun lisää hakusanoja. Se otetaan käyttöön asetuksella LEGEJO_AI_API_KEY, ja pyynnöt maksaa kyseinen tili. Vain haku lähetetään, ja kukin haku vain kerran.",
+	'admin.widerHint': "Kielimalli liittää hakuun lisää hakusanoja. Tämä instanssi käyttää mallia {model} osoitteessa {endpoint}; ylläpitäjä valitsee palvelun asetuksilla LEGEJO_AI_BASE_URL, LEGEJO_AI_MODEL ja LEGEJO_AI_API_KEY, ja kyseinen tili maksaa pyynnöt. Mikä tahansa palvelu, jolla on OpenAI-tyylinen keskustelurajapinta, käy, myös oma malli. Vain haku lähetetään, ja kukin haku vain kerran.",
 	'admin.widerUse': "Viimeiset 30 päivää: {requests} pyyntöä, {input} tokenia sisään ja {output} ulos.",
 	'book.readElsewhere': "Legejo avaa vain EPUB-kirjoja. Lataa tämä {format}-tiedosto tai hae se laitteelle lukeaksesi sitä.",
 	'book.format': "Muoto",

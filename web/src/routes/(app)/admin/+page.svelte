@@ -156,7 +156,7 @@
 	{@const ai = data.settings.wider_search}
 	<section>
 		<h2>{t('admin.wider')}</h2>
-		<p class="hint">{t('admin.widerHint', { model: ai.model })}</p>
+		<p class="hint">{t('admin.widerHint', { model: ai.model, endpoint: ai.endpoint })}</p>
 		<p class="hint">
 			{t('admin.widerUse', { requests: ai.requests, input: ai.prompt_tokens, output: ai.completion_tokens })}
 		</p>
