@@ -4,6 +4,28 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.9.0 (2026-10-07)
+
+- **The librarian (optional):** ask for something to read in your own
+  words, such as "something short and funny I have not read", and get a
+  handful of books from your library and from the shelves others share
+  with you. The librarian is a language model that the operator of the
+  instance sets up and pays for (`LEGEJO_AI_API_KEY`, with
+  `LEGEJO_AI_BASE_URL` and `LEGEJO_AI_MODEL` to choose the provider; any
+  service with an OpenAI-style chat API works).
+  - It is off for every user until they turn it on from their account
+    page.
+  - What is sent to the model is the question and what the catalogue says
+    about the books: title, author, shelves, tags, reading status and the
+    beginning of the description. The books themselves are never sent.
+  - The model can only point at books in the catalogue it was given;
+    nothing it writes is shown.
+  - Each user can ask 30 questions an hour, and the admin page shows how
+    many were asked and how many tokens they took. The cost of a question
+    grows with the size of the library.
+- **Search:** when a search finds nothing and the librarian is on, the page
+  offers to ask the librarian instead.
+
 ## 1.8.0 (2026-10-07)
 
 - **Comics on a Kobo:** Kobo sync now brings your comics (CBZ) to the
