@@ -154,17 +154,12 @@
 		gap: 1.1rem;
 		margin-bottom: 1.25rem;
 	}
+	/* The head stands free on the page, without a frame. */
 	.portrait {
-		width: 5.5rem;
-		height: 5.5rem;
+		width: 9rem;
+		height: 9rem;
 		flex-shrink: 0;
-		border-radius: 50%;
-		object-fit: cover;
-		object-position: 50% 50%;
-		/* The drawing is made for white paper, in the dark theme too. */
-		background: #fff;
-		border: 1px solid var(--border);
-		box-shadow: var(--shadow);
+		object-fit: contain;
 	}
 	h1 {
 		font-size: 1.4rem;
