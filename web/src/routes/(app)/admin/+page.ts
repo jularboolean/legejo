@@ -17,6 +17,7 @@ export const load: PageLoad = async ({ fetch }) => {
 	const settings: {
 		libris_enabled: boolean;
 		openlibrary_enabled?: boolean;
+		audiobooks_enabled?: boolean;
 		registration_enabled: boolean;
 		mail_configured: boolean;
 	} = settingsRes.ok

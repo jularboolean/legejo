@@ -10,6 +10,7 @@
 
 	let librisEnabled = $state(data.settings.libris_enabled);
 	let openLibraryEnabled = $state(data.settings.openlibrary_enabled ?? false);
+	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -28,6 +29,7 @@
 				body: JSON.stringify({
 					libris_enabled: librisEnabled,
 					openlibrary_enabled: openLibraryEnabled,
+					audiobooks_enabled: audiobooksEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -35,8 +37,13 @@
 				errorMsg = t('edit.saveFailed');
 				return false;
 			}
-			const settings: { libris_enabled: boolean; openlibrary_enabled: boolean; registration_enabled: boolean } =
-				await res.json();
+			const settings: {
+				libris_enabled: boolean;
+				openlibrary_enabled: boolean;
+				audiobooks_enabled: boolean;
+				registration_enabled: boolean;
+			} = await res.json();
+			audiobooksEnabled = settings.audiobooks_enabled;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -60,6 +67,12 @@
 		const previous = openLibraryEnabled;
 		openLibraryEnabled = enabled;
 		if (!(await saveSettings())) openLibraryEnabled = previous;
+	}
+
+	async function toggleAudiobooks(enabled: boolean) {
+		const previous = audiobooksEnabled;
+		audiobooksEnabled = enabled;
+		if (!(await saveSettings())) audiobooksEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -116,6 +129,16 @@
 		{t('admin.openLibraryToggle')}
 	</label>
 	<p class="hint">{t('admin.openLibraryHint')}</p>
+	<label class="toggle reg">
+		<input
+			type="checkbox"
+			checked={audiobooksEnabled}
+			disabled={saving}
+			onchange={(e) => toggleAudiobooks(e.currentTarget.checked)}
+		/>
+		{t('admin.audiobooksToggle')}
+	</label>
+	<p class="hint">{t('admin.audiobooksHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"

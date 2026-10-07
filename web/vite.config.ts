@@ -3,7 +3,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
 import pkg from './package.json' with { type: 'json' };
 
-// Where the dev server proxies /api. Override to run against another instance,
+// Where the dev server proxies /api and /podcast. Override to run against another instance,
 // e.g. LEGEJO_API=http://127.0.0.1:3001 npm run dev -- --port 5174
 // (from the environment or an .env file).
 const DEFAULT_API = 'http://127.0.0.1:3000';
@@ -32,7 +32,9 @@ export default defineConfig(({ mode }) => ({
 	],
 	server: {
 		proxy: {
-			'/api': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API
+			'/api': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API,
+			// Podcast feeds of audiobooks: fetched by podcast apps, not by the web app.
+			'/podcast': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API
 		}
 	}
 }));

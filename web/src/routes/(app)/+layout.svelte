@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
-	import { BookOpenCheck, Earth, Feather, Globe, LibraryBig, LogOut, BookMarked, Menu, Search, Settings, Users, X } from '@lucide/svelte';
+	import { BookOpenCheck, Earth, Feather, Globe, Headphones, LibraryBig, LogOut, BookMarked, Menu, Search, Settings, Users, X } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
@@ -121,7 +121,13 @@
 					</ul>
 				{/if}
 
-				<a class="nav-item lower" href="/search">
+				{#if data.audiobooksEnabled}
+					<a class="nav-item lower" href="/audiobooks">
+						<Headphones size={15} strokeWidth={1.75} />
+						{t('sidebar.audiobooks')}
+					</a>
+				{/if}
+				<a class="nav-item" class:lower={!data.audiobooksEnabled} href="/search">
 					<Search size={15} strokeWidth={1.75} />
 					{t('sidebar.search')}
 				</a>

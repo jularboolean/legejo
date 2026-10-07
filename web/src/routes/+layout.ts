@@ -23,6 +23,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	let librisEnabled = true;
 	let openLibraryEnabled = false;
 	let mcpEnabled = false;
+	let audiobooksEnabled = false;
 	// Federation UI stays hidden unless the server says it is available.
 	let fed: FedStatus = { available: false, mode: 'off', host: null };
 	if (user) {
@@ -36,13 +37,18 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 		}
 		shelves = shelvesRes.ok ? await shelvesRes.json() : [];
 		if (configRes.ok) {
-			const config: { libris_enabled: boolean; openlibrary_enabled?: boolean; mcp_enabled?: boolean } =
-				await configRes.json();
+			const config: {
+				libris_enabled: boolean;
+				openlibrary_enabled?: boolean;
+				mcp_enabled?: boolean;
+				audiobooks_enabled?: boolean;
+			} = await configRes.json();
+			audiobooksEnabled = config.audiobooks_enabled ?? false;
 			mcpEnabled = config.mcp_enabled ?? false;
 			librisEnabled = config.libris_enabled;
 			openLibraryEnabled = config.openlibrary_enabled ?? false;
 		}
 	}
 
-	return { user, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, fed };
+	return { user, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, audiobooksEnabled, fed };
 };

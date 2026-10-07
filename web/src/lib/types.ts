@@ -248,3 +248,35 @@ export type FedOverview = {
 	queue: { length: number; oldest: string | null };
 	rejections: { at: string; activity_type: string; actor: string; domain: string; reason: string }[];
 };
+
+/** One file of an audiobook: a part, in listening order. */
+export type AudiobookPart = {
+	id: number;
+	position: number;
+	/** From the file's tags; null when it has none. */
+	title: string | null;
+	filename: string;
+	seconds: number;
+	bytes: number;
+};
+
+export type Audiobook = {
+	id: number;
+	title: string;
+	author: string | null;
+	narrator: string | null;
+	language: string | null;
+	description: string | null;
+	has_cover: boolean;
+	created_at: string;
+	updated_at: string | null;
+	parts: number;
+	seconds: number;
+	bytes: number;
+};
+
+export type AudiobookDetail = Audiobook & {
+	files: AudiobookPart[];
+	/** The podcast feed: the address to give a podcast app. */
+	feed_url: string;
+};
