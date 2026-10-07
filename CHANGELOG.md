@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.6.1 (2026-10-07)
+
+- **Fixed:** the system log (Admin) did not open once an audiobook had been
+  added or deleted. Those entries now have texts, the log has a filter for
+  audiobooks, and an entry the page has no text for is shown by its code
+  rather than stopping the page.
+
 ## 1.6.0 (2026-10-07)
 
 - **Send to Kindle:** give the address of your Kindle on your account page,
