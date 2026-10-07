@@ -96,6 +96,31 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     assert!(disposition.ends_with("On Ice.pdf\""), "{disposition}");
     assert_eq!(body, pdf_bytes);
 
+    // A reading app is told what kind of file each book is, and gets that file.
+    {
+        use base64::Engine;
+        let hash = crate::db::hash_password("opds password").unwrap();
+        sqlx::query("UPDATE users SET password_hash = ? WHERE username = 'alice'").bind(&hash).execute(&db).await.unwrap();
+        let auth = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("alice:opds password"));
+        let fetch = |uri: String| {
+            let req = Request::builder().uri(uri).header(header::AUTHORIZATION, auth.clone()).body(Body::empty()).unwrap();
+            let app = app.clone();
+            async move {
+                let res = app.oneshot(req).await.unwrap();
+                let kind = res.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+                (res.status(), kind, axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec())
+            }
+        };
+        let (status, _, feed) = fetch("/api/opds/books".to_string()).await;
+        let feed = String::from_utf8(feed).unwrap();
+        assert_eq!(status, StatusCode::OK);
+        assert!(feed.contains(&format!("href=\"/api/opds/books/{ear_id}/file\" type=\"application/vnd.comicbook+zip\"")), "{feed}");
+        assert!(feed.contains(&format!("href=\"/api/opds/books/{ice_id}/file\" type=\"application/pdf\"")), "{feed}");
+        assert_eq!(feed.matches("type=\"application/epub+zip\"").count(), 1);
+        let (status, kind, body) = fetch(format!("/api/opds/books/{ice_id}/file")).await;
+        assert_eq!((status, kind.as_str(), body), (StatusCode::OK, "application/pdf", pdf_bytes.clone()));
+    }
+
     // Editing and repairing change the catalog, never the file.
     let (status, v) = send(&app, Method::PUT, &format!("/api/books/{ear_id}"), Some(&a), Some(json!({ "title": "L'Oreille cassée" }))).await;
     assert_eq!((status, v["title"].as_str(), v["format"].as_str()), (StatusCode::OK, Some("L'Oreille cassée"), Some("cbz")));

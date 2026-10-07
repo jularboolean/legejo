@@ -4,6 +4,24 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.7.0 (2026-10-07)
+
+- **PDF and comics (CBZ):** these files can now be kept in the library next
+  to your EPUB books: upload them, or drop them in the import folder, and
+  put them on shelves, tag, search, share, download and export them like
+  any other book. Reading apps get them over OPDS.
+  - A comic takes its first page as the cover and reads title, series,
+    number, writer and language from a `ComicInfo.xml` when it has one.
+  - A PDF gives its title and author, and a scanned one its first page as
+    the cover. Password-protected PDFs are refused.
+  - Legejo keeps these files as they are. The web reader, reading aloud,
+    the file check, writing corrections back into the file and Kobo sync
+    remain EPUB only, and so does sharing over the fediverse.
+  - The library marks them with their format and can filter on it. Send to
+    Kindle works for PDF.
+- **Upgrading:** nothing to do. Going back to an earlier version afterwards
+  works, but that version cannot open the PDF and CBZ books added meanwhile.
+
 ## 1.6.1 (2026-10-07)
 
 - **Fixed:** the system log (Admin) did not open once an audiobook had been
