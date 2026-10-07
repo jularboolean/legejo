@@ -8,14 +8,21 @@ use axum::http::{header, Method, Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
+/// A real image of the given size, as PNG.
+fn page(width: u32, height: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    image::RgbImage::new(width, height).write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).unwrap();
+    out
+}
+
 fn cbz(title: &str) -> Vec<u8> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let options = zip::write::SimpleFileOptions::default();
-    z.start_file("002.jpg", options).unwrap();
-    z.write_all(b"second page").unwrap();
-    z.start_file("001.jpg", options).unwrap();
-    z.write_all(b"first page").unwrap();
+    z.start_file("002.png", options).unwrap();
+    z.write_all(&page(40, 30)).unwrap();
+    z.start_file("001.png", options).unwrap();
+    z.write_all(&page(30, 40)).unwrap();
     z.start_file("ComicInfo.xml", options).unwrap();
     write!(z, "<ComicInfo><Title>{title}</Title><Series>Tintin</Series><Number>2</Number><Writer>Herg\u{e9}</Writer></ComicInfo>").unwrap();
     z.finish().unwrap().into_inner()
@@ -81,7 +88,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     assert_eq!(scan["format"], "pdf");
     let (ice_id, ear_id) = (ice["id"].as_i64().unwrap(), ear["id"].as_i64().unwrap());
     let (_, kind, _, cover) = get(&app, &format!("/api/books/{ear_id}/cover"), &a).await;
-    assert_eq!((kind.as_str(), cover.as_slice()), ("image/jpeg", b"first page".as_slice()), "the first page in reading order");
+    assert_eq!((kind.as_str(), cover), ("image/png", page(30, 40)), "the first page in reading order");
 
     // Stored under their own extension, and handed out unchanged.
     let uuid: String = sqlx::query_scalar("SELECT uuid FROM books WHERE id = ?").bind(ear_id).fetch_one(&db).await.unwrap();
@@ -144,17 +151,44 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     let (_, kind, _, body) = get(&app, &format!("/api/books/{}/file", copy["id"]), &b).await;
     assert_eq!((kind.as_str(), body), ("application/vnd.comicbook+zip", cbz_bytes.clone()));
 
-    // An e-reader that syncs as a Kobo is offered the EPUB only.
-    let offered: Vec<String> = sqlx::query_scalar("SELECT title FROM books WHERE owner_id = (SELECT id FROM users WHERE username = 'alice') AND format = 'epub'")
-        .fetch_all(&db)
-        .await
-        .unwrap();
-    assert_eq!(offered, ["A Novel"]);
+    // A Kobo e-reader is offered the EPUB and the comic, the comic as a book
+    // made for it; a PDF stays behind.
+    let (_, account) = send(&app, Method::POST, "/api/account/kobo-token", Some(&a), None).await;
+    let token = account["kobo_token"].as_str().unwrap().to_string();
+    let (status, sync) = send(&app, Method::GET, &format!("/api/kobo/{token}/v1/library/sync"), None, None).await;
+    assert_eq!(status, StatusCode::OK, "{sync}");
+    let offered: Vec<(String, String, String)> = sync
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item.get("NewEntitlement"))
+        .map(|e| {
+            let (meta, url) = (&e["BookMetadata"], &e["BookMetadata"]["DownloadUrls"][0]);
+            (meta["Title"].as_str().unwrap().to_string(), url["Format"].as_str().unwrap().to_string(), url["Url"].as_str().unwrap().to_string())
+        })
+        .collect();
+    let mut titles: Vec<&str> = offered.iter().map(|(title, _, _)| title.as_str()).collect();
+    titles.sort();
+    assert_eq!(titles, ["A Novel", "L'Oreille cassée"], "{sync}");
+    let (_, format, url) = offered.iter().find(|(title, _, _)| title.starts_with("L'Oreille")).unwrap();
+    assert_eq!(format, "KEPUB");
+    assert!(url.ends_with(".kepub.epub"), "{url}");
+    let (status, kind, _, book) = get(&app, &url[url.find("/api/kobo/").unwrap()..], "").await;
+    assert_eq!((status, kind.as_str()), (StatusCode::OK, "application/epub+zip"));
+    let mut made = zip::ZipArchive::new(std::io::Cursor::new(book)).unwrap();
+    assert_eq!(made.file_names().filter(|name| name.starts_with("OEBPS/images/")).count(), 2);
+    let mut opf = String::new();
+    std::io::Read::read_to_string(&mut made.by_name("OEBPS/content.opf").unwrap(), &mut opf).unwrap();
+    assert!(opf.contains("pre-paginated") && opf.contains("<dc:title>L'Oreille cassée</dc:title>"), "{opf}");
+    // Made once and kept; the comic itself is as it came.
+    assert!(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub")).exists());
+    assert_eq!(std::fs::read(&file).unwrap(), cbz_bytes);
 
     // Deleting takes the file along.
     let (status, _) = send(&app, Method::DELETE, &format!("/api/books/{ear_id}"), Some(&a), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert!(!file.exists());
+    assert!(!state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub")).exists(), "the book made of it goes too");
     let (_, list) = send(&app, Method::GET, "/api/books", Some(&a), None).await;
     let formats: Vec<&str> = list.as_array().unwrap().iter().map(|b| b["format"].as_str().unwrap()).collect();
     assert_eq!(formats.iter().filter(|f| **f == "pdf").count(), 2);

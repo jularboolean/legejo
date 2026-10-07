@@ -50,9 +50,10 @@ and repairs, writes your corrections back into, converts for Kobo and reads
 aloud.
 
 PDF and CBZ files are welcome, but only looked after: Legejo stores them,
-describes them and hands them out. It does not open them, does not change them,
-and does not send them to a Kobo through Kobo sync. If you want to read comics
-or PDFs in the browser, another tool will serve you better.
+describes them and hands them out. It does not open them and does not change
+them. A comic does reach a Kobo through Kobo sync, as a book made for the
+device; a PDF does not. If you want to read comics or PDFs in the browser,
+another tool will serve you better.
 
 Audiobooks are an optional extra, and deliberately a small one. Legejo stores
 the files and serves them as a podcast feed; it has no listening app of its
@@ -86,7 +87,7 @@ own, and each file is one part.
 - A web reader with themes, font settings and saved position.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics.
-- **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
+- **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly. Comics (CBZ) are made into fixed-layout books for the device, one page per image.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
 - **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.

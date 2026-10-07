@@ -258,8 +258,11 @@ pub async fn auth_device(
 /// bookmarks on kepub span markers. In a plain EPUB every position is then
 /// reported as the first span of the chapter and the book reopens at the
 /// chapter start. Calibre-Web likewise offers only the kepub when it has one.
+///
+/// A comic is always offered as kepub: it is made into a book with a fixed
+/// layout here, without the converter that EPUB books need.
 fn download_urls(book: &Book, base: &str, kepub: bool) -> Vec<Value> {
-    let (format, extension) = if kepub { ("KEPUB", "kepub.epub") } else { ("EPUB3", "epub") };
+    let (format, extension) = if kepub || book.format == "cbz" { ("KEPUB", "kepub.epub") } else { ("EPUB3", "epub") };
     vec![json!({
         "DrmType": "None",
         "Format": format,
@@ -458,7 +461,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
     // 1. New books since the last sync, in stable creation order.
     let new_books: Vec<Book> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS} FROM books
-         WHERE owner_id = $1 AND created_at > $2 AND kobo_removed_at IS NULL AND format = 'epub'
+         WHERE owner_id = $1 AND created_at > $2 AND kobo_removed_at IS NULL AND format IN ('epub', 'cbz')
          ORDER BY created_at, id
          LIMIT $3"
     ))
@@ -489,7 +492,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         let changed: Vec<Book> = sqlx::query_as(&format!(
             "SELECT {BOOK_COLUMNS} FROM books
              WHERE owner_id = $1 AND updated_at IS NOT NULL AND updated_at > $2
-               AND created_at <= $3 AND kobo_removed_at IS NULL AND format = 'epub'
+               AND created_at <= $3 AND kobo_removed_at IS NULL AND format IN ('epub', 'cbz')
              ORDER BY updated_at, id
              LIMIT $4"
         ))
@@ -632,7 +635,7 @@ async fn tag_json(
     let uuids: Vec<String> = sqlx::query_scalar(
         "SELECT b.uuid FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
-         WHERE sb.shelf_id = $1 AND b.owner_id = $2 AND b.format = 'epub'",
+         WHERE sb.shelf_id = $1 AND b.owner_id = $2 AND b.format IN ('epub', 'cbz')",
     )
     .bind(shelf_id)
     .bind(user_id)
@@ -859,7 +862,7 @@ pub async fn delete_tag_items(
 async fn book_by_uuid(state: &AppState, user_id: i64, uuid: &str) -> Result<Book, Response> {
     let clean: String = uuid.chars().filter(|c| *c != '-').collect();
     let book: Option<Book> = sqlx::query_as(&format!(
-        "SELECT {BOOK_COLUMNS} FROM books WHERE uuid = $1 AND owner_id = $2 AND format = 'epub'"
+        "SELECT {BOOK_COLUMNS} FROM books WHERE uuid = $1 AND owner_id = $2 AND format IN ('epub', 'cbz')"
     ))
     .bind(&clean)
     .bind(user_id)
@@ -962,6 +965,46 @@ pub async fn library_delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// A comic archive as a book with a fixed layout, which is what the device
+/// reads; made once and kept beside the converted EPUB books. None when the
+/// archive cannot be read.
+async fn ensure_comic(state: &AppState, book: &Book) -> Option<std::path::PathBuf> {
+    let out_dir = state.data_dir.join("kepub");
+    let out = out_dir.join(format!("{}.kepub.epub", book.uuid));
+    if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+        return Some(out);
+    }
+    tokio::fs::create_dir_all(&out_dir).await.ok()?;
+    let src = crate::books::book_path(state, &book.uuid, crate::formats::Format::Cbz);
+    // Written beside its final name and moved there, so that a half-made
+    // file is never served and two requests never share one.
+    let tmp = out_dir.join(format!("{}.{}.tmp", book.uuid, crate::books::new_uuid()));
+    let meta = crate::formats::ComicMeta {
+        uuid: book.uuid.clone(),
+        title: book.title.clone(),
+        author: book.author.clone(),
+        language: book.language.clone(),
+    };
+    let (from, to) = (src, tmp.clone());
+    let made = tokio::task::spawn_blocking(move || crate::formats::cbz_to_epub(&from, &to, &meta)).await;
+    match made {
+        Ok(Ok(_)) => {
+            tokio::fs::rename(&tmp, &out).await.ok()?;
+            Some(out)
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("comic {} could not be made into a book: {e:#}", book.uuid);
+            let _ = tokio::fs::remove_file(&tmp).await;
+            None
+        }
+        Err(e) => {
+            tracing::warn!("comic conversion did not finish: {e}");
+            let _ = tokio::fs::remove_file(&tmp).await;
+            None
+        }
+    }
+}
+
 /// Convert to kepub with the external `kepubify` binary, caching the result.
 /// Returns None (fall back to plain epub) when conversion is unavailable or fails.
 async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
@@ -1032,6 +1075,12 @@ async fn download_file(state: &AppState, token: &str, filename: &str) -> Result<
         .unwrap_or(filename);
     let book = book_by_uuid(state, user_id, uuid).await?;
 
+    if book.format == "cbz" {
+        // A comic has no file a device can read but the one made here.
+        let path = ensure_comic(state, &book).await.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
+        let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
+        return Ok((([(header::CONTENT_TYPE, "application/epub+zip")], data).into_response(), book.title, "kepub"));
+    }
     let epub_path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
     let kepub = if want_kepub { ensure_kepub(state, &book.uuid).await } else { None };
     let format = if kepub.is_some() { "kepub" } else { "epub" };
