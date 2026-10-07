@@ -7,6 +7,8 @@
 Legejo is a self-hosted library for EPUB books. Upload your books, organize
 them on shelves and read them in the browser, on a Kobo, in KOReader or in any
 OPDS reading app, with your reading position following you between devices.
+Audiobooks can live there too: each one becomes a private podcast feed for the
+podcast app you already use.
 
 It runs as a single container with SQLite or PostgreSQL and is built with Rust
 (Axum) and SvelteKit.
@@ -24,6 +26,9 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   and needs no configuration. PostgreSQL is there if you want it.
 - **Made for e-readers.** Kobo sync, KOReader sync and OPDS are core features, not
   plugins, and your reading position follows you between them.
+- **Audiobooks without another app.** Turn it on, and each audiobook gets a
+  private podcast feed. Listen in Apple Podcasts, Pocket Casts, Overcast or any
+  other podcast app, which keeps your place the way it does for any show.
 - **Fediverse ready.** Connect your instance to the fediverse: shelves of free
   books can be followed from other Legejo instances and from Mastodon, over
   ActivityPub.
@@ -36,10 +41,14 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 ## Why not?
 
-Legejo does one thing: EPUB. It does not handle PDF, comics, audiobooks or
-any other format. That is on purpose: the goal is a fast, smooth application
-for EPUB books that runs on its own, with no other services to set up. If
-your library is mostly PDFs or comics, another tool will serve you better.
+Legejo is built around EPUB. It does not handle PDF or comics, and that is on
+purpose: the goal is a fast, smooth application that runs on its own, with no
+other services to set up.
+
+Audiobooks are an optional extra, and deliberately a small one. Legejo stores
+the files and serves them as a podcast feed; it has no listening app of its
+own, and each file is one part. If audiobooks are the heart of your library, or
+it is mostly PDFs or comics, another tool will serve you better.
 
 ## Features
 
@@ -56,6 +65,13 @@ your library is mostly PDFs or comics, another tool will serve you better.
 **Shelves**
 - Private shelves, shelves shared with the users you choose, and shelves shared with everyone on the instance.
 - Users can copy books from shared shelves into their own library.
+
+**Audiobooks (optional)**
+- Off until an admin turns it on.
+- Upload MP3, M4A or M4B files, or a whole folder; title, author, narrator, cover and length are read from the files.
+- Each audiobook is a private podcast feed with one episode per file, and buttons that open it in Apple Podcasts, Pocket Casts, Overcast and Castro.
+- Keep an audiobook to yourself, share it with the users you choose, or with everyone on the instance. Every listener has a feed address of their own, which stops working when the sharing ends.
+- Category, tags, filters and search, as for books.
 
 **Reading**
 - A web reader with themes, font settings and saved position.
