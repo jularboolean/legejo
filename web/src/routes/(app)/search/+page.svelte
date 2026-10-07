@@ -73,6 +73,14 @@
 		return `/public/${encodeURIComponent(hit.owner)}/${encodeURIComponent(hit.shelf_name)}/${hit.uuid}`;
 	}
 
+	/** "in {shelf} by …" cut at the shelf's name, which is shown as a link. */
+	function inShelf(hit: PublicHit): [string, string] {
+		const mark = '\u0000';
+		const text = t('search.inShelf', { shelf: mark, by: t('public.by', { owner: hit.owner }) });
+		const at = text.indexOf(mark);
+		return at < 0 ? [text, ''] : [text.slice(0, at), text.slice(at + 1)];
+	}
+
 	function publicCover(hit: PublicHit): string {
 		return `/api/public/books/${hit.id}/cover?size=thumb&v=${encodeURIComponent(hit.updated_at ?? hit.created_at)}`;
 	}
@@ -87,7 +95,11 @@
 </script>
 
 {#snippet hitContext(hit: PublicHit)}
-	{t('search.inShelf', { shelf: hit.shelf_name, by: t('public.by', { owner: hit.owner }) })}
+	{@const [before, after] = inShelf(hit)}
+	{before}<a
+		class="shelfpill"
+		href={`/public/${encodeURIComponent(hit.owner)}/${encodeURIComponent(hit.shelf_name)}`}>{hit.shelf_name}</a
+	>{after}
 {/snippet}
 
 {#snippet hitAction(hit: PublicHit)}
@@ -348,6 +360,18 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.shelfpill {
+		display: inline-block;
+		padding: 0 0.5rem;
+		border: 1px solid var(--gold);
+		border-radius: 99px;
+		color: var(--gold);
+		font-weight: 600;
+	}
+	.shelfpill:hover {
+		text-decoration: none;
+		background: var(--card);
 	}
 	.import {
 		font-size: 0.78rem;
