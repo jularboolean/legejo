@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import portrait from '#lib/assets/librarian.svg';
-	import { t } from '#lib/i18n';
+	import { t, type MessageKey } from '#lib/i18n';
 	import { loadView, saveView, type ViewMode } from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
@@ -20,6 +20,8 @@
 	/** The question the answer on the page belongs to. */
 	let asked = $state('');
 	let answer = $state<Answer | null>(null);
+	/** Which of the librarian's ways of handing books over goes with this answer. */
+	let phrase = $state(1);
 	let asking = $state(false);
 	let errorMsg = $state('');
 	let view = $state<ViewMode>(loadView());
@@ -44,8 +46,9 @@
 			if (res.ok) {
 				answer = await res.json();
 				asked = q;
+				phrase = 1 + Math.floor(Math.random() * 4);
 				try {
-					sessionStorage.setItem(KEPT, JSON.stringify({ asked, answer }));
+					sessionStorage.setItem(KEPT, JSON.stringify({ asked, answer, phrase }));
 				} catch {
 					// No storage: the answer just does not survive leaving the page.
 				}
@@ -74,6 +77,7 @@
 			if (kept?.answer?.books && kept.answer.shared) {
 				answer = kept.answer;
 				asked = question = kept.asked ?? '';
+				if ([1, 2, 3, 4].includes(kept.phrase)) phrase = kept.phrase;
 			}
 		} catch {
 			// Nothing kept, or something else's data.
@@ -117,7 +121,7 @@
 			{#if answer.books.length === 0 && answer.shared.length === 0}
 				{t('librarian.none')}
 			{:else}
-				{t('librarian.found', { question: asked })}
+				{t(`librarian.found.${phrase}` as MessageKey)}
 			{/if}
 			<span class="looked">
 				{answer.all

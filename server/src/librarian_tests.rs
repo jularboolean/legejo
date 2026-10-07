@@ -122,6 +122,9 @@ async fn the_librarian_picks_from_the_users_own_books() {
         let line = catalogue.lines().find(|l| l.contains("Labyrinth of Ice")).unwrap();
         assert!(line.contains("not the user's own: on the shared shelf Polar"), "{line}");
         assert!(!catalogue.contains("bob"), "no user names are sent");
+        // With more than one candidate, the model takes a second look at them alone.
+        let second = seen[2].1["messages"][0]["content"].as_str().unwrap();
+        assert!(second.contains("CANDIDATES") && second.contains("Labyrinth of Ice") && !second.contains("Sommarboken"), "{second}");
     }
     // Bob's own question does not show him his own book as someone else's.
     let (_, answer) = send(&app, Method::POST, "/api/librarian", Some(&b), Some(json!({ "question": "ice" }))).await;
@@ -132,7 +135,7 @@ async fn the_librarian_picks_from_the_users_own_books() {
     let (_, settings) = send(&app, Method::GET, "/api/admin/settings", Some(&a), None).await;
     assert_eq!(
         settings["librarian"],
-        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 3, "prompt_tokens": 3000, "completion_tokens": 30 })
+        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 3, "prompt_tokens": 4000, "completion_tokens": 40 })
     );
     assert!(!settings.to_string().contains("secret-key"));
 
@@ -148,7 +151,7 @@ async fn the_librarian_picks_from_the_users_own_books() {
     }
     let (status, v) = send(&app, Method::POST, "/api/librarian", Some(&b), Some(json!({ "question": "ice" }))).await;
     assert_eq!((status, v["error"].as_str()), (StatusCode::TOO_MANY_REQUESTS, Some("too-many")));
-    assert_eq!(seen.lock().unwrap().len(), 3);
+    assert_eq!(seen.lock().unwrap().len(), 4);
 }
 
 #[tokio::test]

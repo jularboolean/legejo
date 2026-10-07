@@ -173,7 +173,7 @@ impl Settings {
                 base_url: var("LEGEJO_AI_BASE_URL")?
                     .map(|u| u.trim().trim_end_matches('/').to_string())
                     .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
-                model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-4.1-mini".to_string()),
+                model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
         Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies, mcp, ai })
