@@ -19,6 +19,7 @@ mod epubfix;
 mod db;
 mod export;
 mod fed;
+mod formats;
 mod healthcheck;
 mod invite;
 mod kobo;
@@ -52,6 +53,8 @@ mod mcp_tests;
 mod audiobook_tests;
 #[cfg(test)]
 mod kindle_tests;
+#[cfg(test)]
+mod format_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;

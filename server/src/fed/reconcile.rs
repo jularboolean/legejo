@@ -27,7 +27,7 @@ pub struct Published {
 pub async fn shelf_books(state: &AppState, shelf_id: i64) -> anyhow::Result<Vec<Published>> {
     let rows: Vec<Book> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B} FROM books b JOIN shelf_books sb ON sb.book_id = b.id
-         WHERE sb.shelf_id = $1 AND b.file_sha256 IS NOT NULL
+         WHERE sb.shelf_id = $1 AND b.file_sha256 IS NOT NULL AND b.format = 'epub'
          ORDER BY sb.added_at DESC, b.id DESC"
     ))
     .bind(shelf_id)

@@ -659,7 +659,7 @@ pub async fn import(
     if !is_epub(&bytes) {
         return Err(err(StatusCode::UNPROCESSABLE_ENTITY, "not an epub"));
     }
-    let book = match crate::books::store_epub(&state, user.0.id, &bytes, &format!("{}.epub", row.title)).await? {
+    let book = match crate::books::store_book(&state, user.0.id, &bytes, &format!("{}.epub", row.title)).await? {
         Ok(book) => book,
         Err(e) => return Err(err(StatusCode::UNPROCESSABLE_ENTITY, &e)),
     };

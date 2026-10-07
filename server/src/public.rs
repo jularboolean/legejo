@@ -269,9 +269,9 @@ pub async fn import_book(
     }
 
     let uuid = new_uuid();
-    let src_epub = state.data_dir.join("books").join(format!("{}.epub", source.uuid));
-    let dst_epub = state.data_dir.join("books").join(format!("{uuid}.epub"));
-    tokio::fs::copy(&src_epub, &dst_epub).await.map_err(|e| internal(e.into()))?;
+    let (src_file, format) = crate::books::book_file(&state, &source.uuid).await;
+    let dst_file = crate::books::book_path(&state, &uuid, format);
+    tokio::fs::copy(&src_file, &dst_file).await.map_err(|e| internal(e.into()))?;
 
     let cover_mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1")
         .bind(source.id)
@@ -290,10 +290,10 @@ pub async fn import_book(
         "INSERT INTO books (uuid, owner_id, title, author, language, description, publisher,
                             published, identifier, category, isbn, libris_id, file_size, cover_mime,
                             source_uuid, series, series_index,
-                            license, license_source_url, author_death_year, cover_is_free, file_sha256)
+                            license, license_source_url, author_death_year, cover_is_free, file_sha256, format)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
                  CAST($17 AS DOUBLE PRECISION), $18, $19, CAST($20 AS BIGINT), $21,
-                 (SELECT file_sha256 FROM books WHERE id = $22))
+                 (SELECT file_sha256 FROM books WHERE id = $22), (SELECT format FROM books WHERE id = $22))
          RETURNING {BOOK_COLUMNS}",
         BOOK_COLUMNS = crate::books::BOOK_COLUMNS,
     ))

@@ -187,8 +187,9 @@ fn book_entry(book: &Book) -> String {
         ));
     }
     entry.push_str(&format!(
-        "<link rel=\"http://opds-spec.org/acquisition\" href=\"/api/opds/books/{id}/file\" type=\"application/epub+zip\"/>\n</entry>\n",
-        id = book.id
+        "<link rel=\"http://opds-spec.org/acquisition\" href=\"/api/opds/books/{id}/file\" type=\"{mime}\"/>\n</entry>\n",
+        id = book.id,
+        mime = crate::formats::Format::parse(&book.format).mime(),
     ));
     entry
 }
@@ -423,17 +424,15 @@ pub async fn download(
     Path(id): Path<i64>,
 ) -> Result<Response, Response> {
     let (uuid, _, title) = owned_book(&state, user.id, id).await?;
-    let data = tokio::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub")))
-        .await
-        .map_err(|e| internal(e.into()))?;
-    let safe_title: String = title
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' })
-        .collect();
+    let (path, format) = crate::books::book_file(&state, &uuid).await;
+    let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
     Ok((
         [
-            (header::CONTENT_TYPE, "application/epub+zip".to_string()),
-            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{safe_title}.epub\"")),
+            (header::CONTENT_TYPE, format.mime().to_string()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", crate::books::download_name(&title, format)),
+            ),
         ],
         data,
     )

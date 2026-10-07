@@ -458,7 +458,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
     // 1. New books since the last sync, in stable creation order.
     let new_books: Vec<Book> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS} FROM books
-         WHERE owner_id = $1 AND created_at > $2 AND kobo_removed_at IS NULL
+         WHERE owner_id = $1 AND created_at > $2 AND kobo_removed_at IS NULL AND format = 'epub'
          ORDER BY created_at, id
          LIMIT $3"
     ))
@@ -489,7 +489,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         let changed: Vec<Book> = sqlx::query_as(&format!(
             "SELECT {BOOK_COLUMNS} FROM books
              WHERE owner_id = $1 AND updated_at IS NOT NULL AND updated_at > $2
-               AND created_at <= $3 AND kobo_removed_at IS NULL
+               AND created_at <= $3 AND kobo_removed_at IS NULL AND format = 'epub'
              ORDER BY updated_at, id
              LIMIT $4"
         ))
@@ -632,7 +632,7 @@ async fn tag_json(
     let uuids: Vec<String> = sqlx::query_scalar(
         "SELECT b.uuid FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
-         WHERE sb.shelf_id = $1 AND b.owner_id = $2",
+         WHERE sb.shelf_id = $1 AND b.owner_id = $2 AND b.format = 'epub'",
     )
     .bind(shelf_id)
     .bind(user_id)
@@ -859,7 +859,7 @@ pub async fn delete_tag_items(
 async fn book_by_uuid(state: &AppState, user_id: i64, uuid: &str) -> Result<Book, Response> {
     let clean: String = uuid.chars().filter(|c| *c != '-').collect();
     let book: Option<Book> = sqlx::query_as(&format!(
-        "SELECT {BOOK_COLUMNS} FROM books WHERE uuid = $1 AND owner_id = $2"
+        "SELECT {BOOK_COLUMNS} FROM books WHERE uuid = $1 AND owner_id = $2 AND format = 'epub'"
     ))
     .bind(&clean)
     .bind(user_id)

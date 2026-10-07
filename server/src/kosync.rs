@@ -316,7 +316,7 @@ pub async fn backfill(state: AppState) {
 
 /// (Re)compute one book's KOReader id from its file.
 pub async fn set_md5(state: &AppState, id: i64, uuid: &str) -> bool {
-    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let (path, _) = crate::books::book_file(state, uuid).await;
     let Ok(Ok(md5)) = tokio::task::spawn_blocking(move || partial_md5(&path)).await else { return false };
     // Every id the file has had is kept, so progress from a device that
     // still has an earlier version of the file finds its book.

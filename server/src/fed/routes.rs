@@ -263,7 +263,7 @@ pub async fn fed_book(state: &AppState, uuid: &str) -> Result<FedBook, Response>
         "SELECT b.id, s.ap_slug FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
          JOIN shelves s ON s.id = sb.shelf_id
-         WHERE b.uuid = $1 AND s.visibility = 'federated' AND s.ap_slug IS NOT NULL
+         WHERE b.uuid = $1 AND b.format = 'epub' AND s.visibility = 'federated' AND s.ap_slug IS NOT NULL
          ORDER BY sb.added_at LIMIT 1",
     )
     .bind(uuid)

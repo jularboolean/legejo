@@ -1,6 +1,7 @@
 use crate::auth::AuthUser;
 use crate::db::{now_ts, Backend, DbFlag};
 use crate::epubfix::{self, Health};
+use crate::formats::Format;
 use crate::license::{self, License, LicenseFacts, NotFederable};
 use crate::progress;
 use crate::AppState;
@@ -51,6 +52,9 @@ pub struct Book {
     /// On the owner's want-to-read list.
     pub want_to_read: DbFlag,
     pub wanted_at: Option<String>,
+    /// epub | pdf | cbz (formats.rs). Only EPUB is read, tended and converted.
+    #[sqlx(default)]
+    pub format: String,
     pub file_size: i64,
     /// How many things about the file need attention (see epubfix::Issue).
     #[sqlx(default)]
@@ -127,7 +131,7 @@ impl Book {
 pub(crate) const BOOK_COLUMNS: &str =
     "id, uuid, title, author, language, description, publisher, published, first_published, \
      category, identifier, isbn, libris_id, source_uuid, series, series_index, rating, \
-     license, license_source_url, author_death_year, cover_is_free, fed_source, want_to_read, wanted_at, file_size, health_issues, \
+     license, license_source_url, author_death_year, cover_is_free, fed_source, want_to_read, wanted_at, format, file_size, health_issues, \
      CAST(CASE WHEN cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      created_at, updated_at";
 
@@ -135,9 +139,29 @@ pub(crate) const BOOK_COLUMNS: &str =
 pub(crate) const BOOK_COLUMNS_B: &str =
     "b.id, b.uuid, b.title, b.author, b.language, b.description, b.publisher, b.published, b.first_published, \
      b.category, b.identifier, b.isbn, b.libris_id, b.source_uuid, b.series, b.series_index, b.rating, \
-     b.license, b.license_source_url, b.author_death_year, b.cover_is_free, b.fed_source, b.want_to_read, b.wanted_at, b.file_size, b.health_issues, \
+     b.license, b.license_source_url, b.author_death_year, b.cover_is_free, b.fed_source, b.want_to_read, b.wanted_at, b.format, b.file_size, b.health_issues, \
      CAST(CASE WHEN b.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      b.created_at, b.updated_at";
+
+/// Where a book's file is kept.
+pub(crate) fn book_path(state: &AppState, uuid: &str, format: Format) -> std::path::PathBuf {
+    state.data_dir.join("books").join(format!("{uuid}.{}", format.as_str()))
+}
+
+/// A book's file and its format, by the book's uuid. A uuid no book has
+/// counts as EPUB, so that the caller's own "not found" stays in charge.
+pub(crate) async fn book_file(state: &AppState, uuid: &str) -> (std::path::PathBuf, Format) {
+    let name: Option<String> =
+        sqlx::query_scalar("SELECT format FROM books WHERE uuid = $1").bind(uuid).fetch_optional(&state.db).await.ok().flatten();
+    let format = Format::parse(name.as_deref().unwrap_or("epub"));
+    (book_path(state, uuid, format), format)
+}
+
+/// A title as a file name, for a download.
+pub(crate) fn download_name(title: &str, format: Format) -> String {
+    let safe: String = title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+    format!("{safe}.{}", format.as_str())
+}
 
 async fn book_shelves(state: &AppState, book_id: i64) -> Result<Vec<ShelfRef>, Response> {
     sqlx::query_as(
@@ -901,14 +925,15 @@ pub async fn archive(
     let mut files: Vec<(String, std::path::PathBuf)> = Vec::new();
     let mut used = std::collections::HashSet::new();
     for id in ids {
-        let row: Option<(String, String, Option<String>)> =
-            sqlx::query_as("SELECT uuid, title, author FROM books WHERE id = $1 AND owner_id = $2")
+        let row: Option<(String, String, Option<String>, String)> =
+            sqlx::query_as("SELECT uuid, title, author, format FROM books WHERE id = $1 AND owner_id = $2")
                 .bind(id)
                 .bind(user.0.id)
                 .fetch_optional(&state.db)
                 .await
                 .map_err(|e| internal(e.into()))?;
-        let Some((uuid, title, author)) = row else { continue };
+        let Some((uuid, title, author, format)) = row else { continue };
+        let format = Format::parse(&format);
         let raw = match &author {
             Some(a) => format!("{a} - {title}"),
             None => title,
@@ -920,13 +945,14 @@ pub async fn archive(
             .collect::<String>()
             .trim()
             .to_string();
-        let mut name = format!("{base}.epub");
+        let ext = format.as_str();
+        let mut name = format!("{base}.{ext}");
         let mut n = 2;
         while !used.insert(name.clone()) {
-            name = format!("{base} ({n}).epub");
+            name = format!("{base} ({n}).{ext}");
             n += 1;
         }
-        files.push((name, state.data_dir.join("books").join(format!("{uuid}.epub"))));
+        files.push((name, book_path(&state, &uuid, format)));
     }
     if files.is_empty() {
         return Err(not_found());
@@ -1256,7 +1282,7 @@ pub async fn upload(
     tokio::fs::create_dir_all(&covers_dir).await.map_err(|e| internal(e.into()))?;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
-        let filename = field.file_name().unwrap_or("book.epub").to_string();
+        let filename = field.file_name().unwrap_or("book").to_string();
         let bytes = match field.bytes().await {
             Ok(b) => b,
             Err(e) => {
@@ -1286,7 +1312,7 @@ pub async fn upload(
             }
         }
 
-        match store_epub(&state, user.0.id, &bytes, &filename).await? {
+        match store_book(&state, user.0.id, &bytes, &filename).await? {
             Ok(book) => {
                 // Another file of the same book? Same ISBN, or same identifier.
                 let similar: Option<(i64, String)> = sqlx::query_as(
@@ -1325,11 +1351,35 @@ pub async fn upload(
     Ok(Json(UploadResult { added, errors, duplicates, reports }))
 }
 
-/// Store one EPUB as a new book of `owner_id`: file, cover, metadata, tags.
-/// What can be repaired without asking is repaired first, so the stored file
-/// may differ from the uploaded one. Ok(Err(..)) when the file is not a
-/// readable EPUB.
-pub(crate) async fn store_epub(
+/// A PDF or a comic archive as a book: what the file says about itself, with
+/// the file's name as the title when it says nothing.
+fn parse_other(format: Format, bytes: &[u8], fallback_title: &str) -> Result<ParsedEpub, String> {
+    let found = match format {
+        Format::Pdf => crate::formats::inspect_pdf(bytes),
+        _ => crate::formats::inspect_cbz(bytes),
+    }
+    .map_err(str::to_string)?;
+    Ok(ParsedEpub {
+        title: found.title.unwrap_or_else(|| fallback_title.to_string()),
+        author: found.author,
+        language: found.language,
+        description: found.description,
+        publisher: found.publisher,
+        published: found.published,
+        identifier: None,
+        cover: found.cover,
+        subjects: found.subjects,
+        series: found.series,
+        series_index: found.series_index,
+        rating: None,
+    })
+}
+
+/// Store one file as a new book of `owner_id`: file, cover, metadata, tags.
+/// In an EPUB, what can be repaired without asking is repaired first, so the
+/// stored file may differ from the uploaded one; a PDF or a comic archive is
+/// stored as it is. Ok(Err(..)) when the file is not a readable book.
+pub(crate) async fn store_book(
     state: &AppState,
     owner_id: i64,
     bytes: &[u8],
@@ -1339,12 +1389,26 @@ pub(crate) async fn store_epub(
     let covers_dir = state.data_dir.join("covers");
     tokio::fs::create_dir_all(&books_dir).await.map_err(|e| internal(e.into()))?;
     tokio::fs::create_dir_all(&covers_dir).await.map_err(|e| internal(e.into()))?;
-    let fallback_title = filename.trim_end_matches(".epub").to_string();
+    let Some(format) = Format::detect(bytes, filename) else {
+        return Ok(Err("not an EPUB, PDF or CBZ file".to_string()));
+    };
+    let fallback_title = crate::formats::stem(filename).to_string();
+    let upload_sha256 = sha256_hex(bytes);
+    if format != Format::Epub {
+        // Reading a large PDF takes a while; keep it off the request threads.
+        let (data, title) = (bytes.to_vec(), fallback_title.clone());
+        let parsed = tokio::task::spawn_blocking(move || parse_other(format, &data, &title))
+            .await
+            .map_err(|e| internal(e.into()))?;
+        return match parsed {
+            Ok(parsed) => insert_book(state, owner_id, bytes, format, parsed, None, &upload_sha256).await.map(Ok),
+            Err(e) => Ok(Err(e)),
+        };
+    }
     // A copy-protected file cannot be read here or sent on to a device.
     if epubfix::encrypted(bytes) {
         return Ok(Err("copy-protected".to_string()));
     }
-    let upload_sha256 = sha256_hex(bytes);
     // A repair is kept only when the result still reads as a book.
     let repaired = match epubfix::repair(bytes) {
         Ok((Some(out), fixed)) if parse_epub(&out, &fallback_title).is_ok() => Some((out, fixed)),
@@ -1363,11 +1427,33 @@ pub(crate) async fn store_epub(
         Err(e) => return Ok(Err(e.to_string())),
     };
     let health = epubfix::inspect(bytes).ok().map(|issues| Health { v: epubfix::CHECK_VERSION, issues, fixed });
+    let mut book = insert_book(state, owner_id, bytes, format, parsed, health, &upload_sha256).await?;
+    if epubfix::claims_copyright(bytes) {
+        let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2")
+            .bind(License::Copyright.as_str())
+            .bind(book.id)
+            .execute(&state.db)
+            .await;
+        book.license = Some(License::Copyright.as_str().to_string());
+    }
+    Ok(Ok(book))
+}
 
+/// The row, the file, the cover and the tags of a new book.
+async fn insert_book(
+    state: &AppState,
+    owner_id: i64,
+    bytes: &[u8],
+    format: Format,
+    parsed: ParsedEpub,
+    health: Option<Health>,
+    upload_sha256: &str,
+) -> Result<Book, Response> {
+    let covers_dir = state.data_dir.join("covers");
     let uuid = new_uuid();
     let file_size = bytes.len() as i64;
     let sha256 = sha256_hex(bytes);
-    tokio::fs::write(books_dir.join(format!("{uuid}.epub")), bytes)
+    tokio::fs::write(book_path(state, &uuid, format), bytes)
         .await
         .map_err(|e| internal(e.into()))?;
 
@@ -1386,8 +1472,8 @@ pub(crate) async fn store_epub(
 
     let isbn = parsed.identifier.as_deref().and_then(extract_isbn);
     let book: Book = sqlx::query_as(&format!(
-        "INSERT INTO books (uuid, owner_id, title, author, language, description, publisher, published, identifier, isbn, file_size, cover_mime, series, series_index, file_sha256, upload_sha256)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CAST($14 AS DOUBLE PRECISION), $15, $16)
+        "INSERT INTO books (uuid, owner_id, title, author, language, description, publisher, published, identifier, isbn, file_size, cover_mime, series, series_index, file_sha256, upload_sha256, format)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CAST($14 AS DOUBLE PRECISION), $15, $16, $17)
          RETURNING {BOOK_COLUMNS}"
     ))
     .bind(&uuid)
@@ -1405,7 +1491,8 @@ pub(crate) async fn store_epub(
     .bind(&parsed.series)
     .bind(float_param(parsed.series_index))
     .bind(&sha256)
-    .bind(&upload_sha256)
+    .bind(upload_sha256)
+    .bind(format.as_str())
     .fetch_one(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -1414,14 +1501,6 @@ pub(crate) async fn store_epub(
     if let Some(health) = &health {
         save_health(state, book.id, health).await;
         book.health_issues = health.attention();
-    }
-    if epubfix::claims_copyright(bytes) {
-        let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2")
-            .bind(License::Copyright.as_str())
-            .bind(book.id)
-            .execute(&state.db)
-            .await;
-        book.license = Some(License::Copyright.as_str().to_string());
     }
     if let Some(rating) = parsed.rating {
         sqlx::query("UPDATE books SET rating = $1 WHERE id = $2")
@@ -1443,7 +1522,7 @@ pub(crate) async fn store_epub(
     }
 
     crate::kosync::set_md5(state, book.id, &book.uuid).await;
-    Ok(Ok(book))
+    Ok(book)
 }
 
 #[derive(serde::Deserialize)]
@@ -1660,17 +1739,12 @@ pub async fn download(
     Path(id): Path<i64>,
 ) -> Result<Response, Response> {
     let (uuid, _, title) = owned_book(&state, user.0.id, id).await?;
-    let data = tokio::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub")))
-        .await
-        .map_err(|e| internal(e.into()))?;
-    let safe_title: String = title
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' })
-        .collect();
+    let (path, format) = book_file(&state, &uuid).await;
+    let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
     Ok((
         [
-            (header::CONTENT_TYPE, "application/epub+zip".to_string()),
-            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{safe_title}.epub\"")),
+            (header::CONTENT_TYPE, format.mime().to_string()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", download_name(&title, format))),
         ],
         data,
     )
@@ -1716,7 +1790,11 @@ pub async fn send_to_kindle(
     if recent >= KINDLE_PER_HOUR {
         return Err(fail(StatusCode::TOO_MANY_REQUESTS, "too-many"));
     }
-    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let (path, format) = book_file(&state, &uuid).await;
+    // Amazon takes EPUB and PDF by mail, not comic archives.
+    if format == Format::Cbz {
+        return Err(fail(StatusCode::CONFLICT, "not-supported"));
+    }
     let size = tokio::fs::metadata(&path).await.map_err(|e| internal(e.into()))?.len();
     if size > KINDLE_MAX_BYTES {
         return Err(fail(StatusCode::PAYLOAD_TOO_LARGE, "too-large"));
@@ -1730,8 +1808,9 @@ pub async fn send_to_kindle(
         .map(|c| if c.is_ascii_alphanumeric() || c == ' ' || c == '-' { c } else { '_' })
         .take(50)
         .collect();
-    let filename = format!("{}.epub", if name.trim_matches(['_', ' ']).is_empty() { "book" } else { name.trim() });
-    if let Err(e) = crate::mail::send_file(mail, &address, &title, &title, &filename, "application/epub+zip", data).await {
+    let name = if name.trim_matches(['_', ' ']).is_empty() { "book" } else { name.trim() };
+    let filename = format!("{name}.{}", format.as_str());
+    if let Err(e) = crate::mail::send_file(mail, &address, &title, &title, &filename, format.mime(), data).await {
         tracing::warn!("send to kindle: {e:#}");
         return Err(fail(StatusCode::BAD_GATEWAY, "mail-failed"));
     }
@@ -1765,7 +1844,10 @@ pub(crate) async fn remove_book(state: &AppState, owner_id: i64, id: i64, uuid: 
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let _ = tokio::fs::remove_file(state.data_dir.join("books").join(format!("{uuid}.epub"))).await;
+    // The row is gone, and with it the format: one of these is the file.
+    for format in [Format::Epub, Format::Pdf, Format::Cbz] {
+        let _ = tokio::fs::remove_file(book_path(state, uuid, format)).await;
+    }
     let _ = tokio::fs::remove_file(state.data_dir.join("covers").join(uuid)).await;
     let _ = tokio::fs::remove_file(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub"))).await;
     drop_thumb(state, uuid).await;
@@ -1848,18 +1930,20 @@ pub(crate) async fn apply_cover(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    // Best effort: put the image into the EPUB as well.
-    let epub_path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    // Best effort: put the image into the EPUB as well. Other formats keep
+    // their cover in the catalog only.
+    let (epub_path, format) = book_file(&state, &uuid).await;
     let (path, image, image_mime) = (epub_path.clone(), bytes.clone(), mime.clone());
-    let epub_updated = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let out = epubfix::set_cover(&std::fs::read(&path)?, &image, &image_mime)?;
-        write_atomic(&path, &out)?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| internal(e.into()))?
-    .map_err(|e| tracing::warn!("could not embed cover in epub {uuid}: {e:#}"))
-    .is_ok();
+    let epub_updated = format == Format::Epub
+        && tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            let out = epubfix::set_cover(&std::fs::read(&path)?, &image, &image_mime)?;
+            write_atomic(&path, &out)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| internal(e.into()))?
+        .map_err(|e| tracing::warn!("could not embed cover in epub {uuid}: {e:#}"))
+        .is_ok();
     if epub_updated {
         file_changed(&state, id, &uuid).await;
         refresh_health(&state, id, &uuid, &[]).await;
@@ -1891,7 +1975,7 @@ pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Res
 /// After the stored file of a book changed: size, hash and KOReader id
 /// follow, and the converted copy for Kobo is made again when next asked for.
 async fn file_changed(state: &AppState, id: i64, uuid: &str) {
-    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let (path, _) = book_file(state, uuid).await;
     if let Ok(data) = tokio::fs::read(&path).await {
         let _ = sqlx::query("UPDATE books SET file_size = $1, file_sha256 = $2 WHERE id = $3")
             .bind(data.len() as i64)
@@ -1921,7 +2005,11 @@ async fn save_health(state: &AppState, id: i64, health: &Health) {
 /// Run the health check on a book's file and store the result. `fixed` adds
 /// to the repairs already noted for the book.
 pub(crate) async fn refresh_health(state: &AppState, id: i64, uuid: &str, fixed: &[String]) {
-    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let (path, format) = book_file(state, uuid).await;
+    // The check is one of EPUB files.
+    if format != Format::Epub {
+        return;
+    }
     let issues = tokio::task::spawn_blocking(move || epubfix::inspect(&std::fs::read(path)?)).await;
     let Ok(Ok(issues)) = issues else { return };
     let mut health = stored_health(state, id).await.unwrap_or_default();
@@ -1940,7 +2028,11 @@ pub(crate) async fn refresh_health(state: &AppState, id: i64, uuid: &str, fixed:
 /// that has none, and with `repair` what the health check can mend is
 /// mended. Returns whether the file changed.
 pub(crate) async fn tend_file(state: &AppState, book: &Book, repair: bool) -> anyhow::Result<bool> {
-    let path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
+    // Only an EPUB is written to; a PDF or a comic archive stays as it came.
+    if Format::parse(&book.format) != Format::Epub {
+        return Ok(false);
+    }
+    let path = book_path(state, &book.uuid, Format::Epub);
     let (title, author, language, series, series_index) =
         (book.title.clone(), book.author.clone(), book.language.clone(), book.series.clone(), book.series_index);
     // The catalog's cover, when it is an image a file can carry.
@@ -2020,7 +2112,7 @@ pub async fn repair(State(state): State<AppState>, user: AuthUser, Path(id): Pat
 pub async fn backfill_health(state: AppState) {
     let current = format!("%\"v\":{},%", epubfix::CHECK_VERSION);
     let rows: Vec<(i64, String)> =
-        match sqlx::query_as("SELECT id, uuid FROM books WHERE health IS NULL OR health NOT LIKE $1 ORDER BY id")
+        match sqlx::query_as("SELECT id, uuid FROM books WHERE format = 'epub' AND (health IS NULL OR health NOT LIKE $1) ORDER BY id")
             .bind(current)
             .fetch_all(&state.db)
             .await
@@ -2038,7 +2130,7 @@ pub async fn backfill_health(state: AppState) {
     for (id, uuid) in rows {
         refresh_health(&state, id, &uuid, &[]).await;
         // A book with no licence stated gets the one its file claims.
-        let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+        let path = book_path(&state, &uuid, Format::Epub);
         let claimed = tokio::task::spawn_blocking(move || std::fs::read(path).map(|b| epubfix::claims_copyright(&b)).unwrap_or(false)).await;
         if claimed.unwrap_or(false) {
             let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2 AND (license IS NULL OR license = '')")
@@ -2082,7 +2174,7 @@ pub async fn backfill_sha256(state: AppState) {
         };
     let mut done = 0;
     for (id, uuid) in rows {
-        let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+        let (path, _) = book_file(&state, &uuid).await;
         let hash = tokio::task::spawn_blocking(move || sha256_file(&path)).await;
         let Ok(Ok(hash)) = hash else {
             tracing::warn!("sha256 backfill: could not read the epub for {uuid}");

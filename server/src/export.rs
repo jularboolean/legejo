@@ -127,12 +127,13 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
         created_at: String,
         cover_mime: Option<String>,
         file_size: i64,
+        format: String,
     }
     let rows: Vec<Row> = sqlx::query_as(&format!(
         "SELECT b.id, b.uuid, b.title, b.author, b.series, b.series_index, b.isbn, b.identifier, b.language,
                 b.publisher, b.published, b.first_published, b.category, b.description, b.rating, {percent} AS progress_percent,
                 b.want_to_read, b.license, b.license_source_url, b.author_death_year, b.created_at, b.cover_mime,
-                b.file_size
+                b.file_size, b.format
          FROM books b {joins}
          WHERE b.owner_id = $1 ORDER BY b.id",
         percent = progress::progress_percent(state.backend),
@@ -158,10 +159,11 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
         .into_iter()
         .map(|r| {
             let base = file_base(r.author.as_deref(), &r.title);
-            let mut file = format!("books/{base}.epub");
+            let ext = crate::formats::Format::parse(&r.format).as_str();
+            let mut file = format!("books/{base}.{ext}");
             let mut n = 2;
             while !used.insert(file.to_lowercase()) {
-                file = format!("books/{base} ({n}).epub");
+                file = format!("books/{base} ({n}).{ext}");
                 n += 1;
             }
             ExportBook {
@@ -514,7 +516,7 @@ fn stored() -> zip::write::SimpleFileOptions {
 
 const README: &str = "Legejo library export\n\
 ======================\n\n\
-books/        Your EPUB files, unmodified (\"Author - Title.epub\"). Each file\n\
+books/        Your book files, unmodified (\"Author - Title.epub\"). Each file\n\
               carries its own metadata and can be imported into Calibre or any\n\
               other e-book manager.\n\
 covers/       The covers as shown in Legejo, named like the book.\n\
@@ -554,7 +556,7 @@ async fn build(state: &AppState, id: i64, user_id: i64, me: &str) -> anyhow::Res
     let mut n = 1;
     let mut bytes: u64 = 0;
     for (i, book) in books.iter().enumerate() {
-        let epub = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
+        let (epub, _) = crate::books::book_file(state, &book.uuid).await;
         let cover = book.cover_mime.as_ref().map(|m| {
             let ext = match m.as_str() {
                 "image/png" => "png",
@@ -562,7 +564,7 @@ async fn build(state: &AppState, id: i64, user_id: i64, me: &str) -> anyhow::Res
                 "image/gif" => "gif",
                 _ => "jpg",
             };
-            let name = book.file.trim_start_matches("books/").trim_end_matches(".epub");
+            let name = crate::formats::stem(book.file.trim_start_matches("books/"));
             (state.data_dir.join("covers").join(&book.uuid), format!("covers/{name}.{ext}"))
         });
         // A new part when this book would push the current one over the cap.

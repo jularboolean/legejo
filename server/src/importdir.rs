@@ -1,4 +1,4 @@
-//! Watched import folder: EPUB files dropped into LEGEJO_IMPORT_DIR become
+//! Watched import folder: book files (EPUB, PDF, CBZ) dropped into LEGEJO_IMPORT_DIR become
 //! books of LEGEJO_IMPORT_USER (default: the oldest admin).
 //!
 //! Every LEGEJO_IMPORT_INTERVAL seconds the folder (and its subfolders) is
@@ -8,7 +8,7 @@
 //! process, so two server processes never import the same file.
 //! Afterwards it moves to `imported/` (or is deleted with
 //! LEGEJO_IMPORT_DELETE), to `duplicates/` when the owner already has the
-//! same file, or to `failed/` when it is not a readable EPUB.
+//! same file, or to `failed/` when it is not a readable book.
 
 use crate::settings::ImportDir;
 use crate::AppState;
@@ -49,12 +49,12 @@ fn skip_dir(name: &str) -> bool {
     name.starts_with('.') || [IMPORTED, DUPLICATES, FAILED].contains(&name)
 }
 
-fn is_epub(path: &Path) -> bool {
-    path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("epub"))
+fn is_book(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| ["epub", "pdf", "cbz"].iter().any(|ext| e.eq_ignore_ascii_case(ext)))
         && !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with('.'))
 }
 
-/// EPUB files waiting in the folder (subfolders included).
+/// Book files waiting in the folder (subfolders included).
 fn candidates(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let mut dirs = vec![root.to_path_buf()];
@@ -68,7 +68,7 @@ fn candidates(root: &Path) -> Vec<PathBuf> {
                 if !skip_dir(&name.to_string_lossy()) {
                     dirs.push(path);
                 }
-            } else if kind.is_file() && is_epub(&path) {
+            } else if kind.is_file() && is_book(&path) {
                 found.push(path);
             }
         }
@@ -221,7 +221,7 @@ async fn import_one(state: &AppState, owner_id: i64, owner_name: &str, path: &Pa
         Ok(None) => {}
         Err(e) => return Outcome::Failed(format!("database: {e}")),
     }
-    match crate::books::store_epub(state, owner_id, &bytes, name).await {
+    match crate::books::store_book(state, owner_id, &bytes, name).await {
         Ok(Ok(book)) => {
             crate::audit::log(
                 state,

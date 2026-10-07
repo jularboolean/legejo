@@ -556,6 +556,9 @@ async fn reading_overview(state: &AppState, user: &UserInfo) -> ToolResult {
 /// The book's text, with its title and the user's reading position (0–1).
 async fn book_text(state: &AppState, user: &UserInfo, id: i64) -> Result<(String, Option<f64>, Vec<booktext::Section>), String> {
     let Json(detail) = books::get_one(State(state.clone()), as_user(user), Path(id)).await.map_err(handler_error)?;
+    if detail.book.format != "epub" {
+        return Err(format!("the text of a {} file cannot be read here, only that of EPUB books", detail.book.format.to_uppercase()));
+    }
     let path = state.data_dir.join("books").join(format!("{}.epub", detail.book.uuid));
     let bytes = tokio::fs::read(&path).await.map_err(|_| "the book's file is missing".to_string())?;
     let sections = tokio::task::spawn_blocking(move || booktext::sections(bytes))
