@@ -160,7 +160,7 @@
 		flex-shrink: 0;
 		border-radius: 50%;
 		object-fit: cover;
-		object-position: 55% 15%;
+		object-position: 50% 50%;
 		/* The drawing is made for white paper, in the dark theme too. */
 		background: #fff;
 		border: 1px solid var(--border);
