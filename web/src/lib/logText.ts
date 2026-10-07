@@ -12,7 +12,7 @@ export type LogEntry = {
 export type LogPage = { entries: LogEntry[]; next: number | null };
 
 /** The filter groups: the part of the action before the dot. */
-export const LOG_GROUPS = ['user', 'account', 'book', 'shelf', 'kobo', 'admin', 'fed'] as const;
+export const LOG_GROUPS = ['user', 'account', 'book', 'audiobook', 'shelf', 'kobo', 'admin', 'fed'] as const;
 
 const s = (v: unknown) => (v == null ? '' : String(v));
 

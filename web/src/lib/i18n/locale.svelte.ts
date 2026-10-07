@@ -34,7 +34,9 @@ export function getLocale(): string {
 }
 
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
-	let msg = locales[current][key] ?? en[key];
+	// A key without a text (an action logged by a newer server, say) is
+	// shown as it is rather than breaking the page.
+	let msg: string = locales[current][key] ?? en[key] ?? key;
 	if (params) {
 		for (const [name, value] of Object.entries(params)) {
 			msg = msg.replaceAll(`{${name}}`, String(value));
