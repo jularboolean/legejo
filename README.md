@@ -36,9 +36,12 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 - **Fediverse ready.** Connect your instance to the fediverse: shelves of free
   books can be followed from other Legejo instances and from Mastodon, over
   ActivityPub.
-- **MCP server built in.** Let the AI assistant you already use search your
-  library and read your books, through a read-only Model Context Protocol
-  server. No AI runs inside Legejo, and it is off until you turn it on.
+- **AI on your terms.** Two optional features, both off until you turn them
+  on. A read-only Model Context Protocol server lets the AI assistant you
+  already use search your library and read your books. And a librarian, a
+  language model of the operator's choosing, suggests books from your shelves
+  when you ask for something to read in your own words. Without them, nothing
+  in Legejo talks to a language model.
 - **Free.** Open source under the AGPL, with no paid tier and no telemetry.
 - **Actively developed.** Legejo is under active development; issues and pull
   requests are welcome.
@@ -58,6 +61,10 @@ another tool will serve you better.
 Audiobooks are an optional extra, and deliberately a small one. Legejo stores
 the files and serves them as a podcast feed; it has no listening app of its
 own, and each file is one part.
+
+The librarian is a convenience, not a search engine. It suggests a handful of
+books and will sometimes miss one or pick an odd one, and it knows your books
+only by what the catalogue says about them.
 
 ## Features
 
@@ -92,6 +99,14 @@ own, and each file is one part.
 - **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
+
+**The librarian (optional)**
+- Ask for something to read in plain words ("something short and funny I have not read", "what should I read after The Terror?") and get books from your own library, and from the shelves others share with you.
+- Works with any provider that has an OpenAI-style chat API, a model you run yourself included. The operator sets it up and pays for the requests.
+- Off for every user until they turn it on from their account page.
+- What is sent to the model is the question and what the catalogue says about the books: title, author, shelves, tags, reading status and the beginning of the description. The books themselves are never sent.
+- The model can only answer with books from the catalogue it was given; nothing it writes is shown.
+- The admin page shows how many questions were asked and how many tokens they took.
 
 ![The reading page](docs/screenshots/reading.jpg)
 
@@ -181,6 +196,17 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_MAX_UPLOAD_MB` | `200` | Largest accepted upload |
 | `LEGEJO_LOG_FORMAT` | `text` | `json` for one JSON object per line. The level is set with `RUST_LOG` |
 | `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |
+| `LEGEJO_AI_API_KEY` | | Turns on the librarian. The key of the account that pays |
+| `LEGEJO_AI_BASE_URL` | `https://api.openai.com/v1` | The provider's chat API, for the librarian |
+| `LEGEJO_AI_MODEL` | `gpt-5.4-mini` | The model the librarian is |
+
+**The librarian.** With `LEGEJO_AI_API_KEY` set, users can turn on the
+librarian from their account page. Each question sends the catalogue of that
+user's books to the model, in parts, so the cost of a question grows with the
+size of the library: a few hundred books take some twenty thousand tokens.
+Libraries over 500 books are gone through in two steps, a quick pass by title
+and author and a close reading of what that turns up, which costs about a
+quarter as much per book. A user can ask 30 questions an hour.
 
 **AI assistants (MCP).** With `LEGEJO_MCP=true`, Legejo serves a read-only Model
 Context Protocol endpoint at `/api/mcp` (Streamable HTTP). It is off by default.
