@@ -22,6 +22,15 @@
 	$effect(() => saveAudioFilters(filters));
 	$effect(() => saveView(view));
 
+	const owners = $derived.by(() => {
+		const mine = data.audiobooks.filter((b) => b.mine).length;
+		const shared = data.audiobooks.length - mine;
+		if (mine === 0 || shared === 0) return [];
+		return [
+			{ key: 'mine', label: t('audio.owner.mine'), count: mine },
+			{ key: 'shared', label: t('audio.owner.shared'), count: shared }
+		];
+	});
 	const categories = $derived(counted(data.audiobooks.flatMap((b) => (b.category ? [b.category] : []))));
 	const tags = $derived(counted(data.audiobooks.flatMap((b) => b.tags)));
 	const languages = $derived(
@@ -132,7 +141,7 @@
 	<p class="hint">{t('audio.emptyHint')}</p>
 {:else}
 	{#if data.audiobooks.length > 0}
-		<AudioToolbar bind:filters bind:view {categories} {tags} {languages} />
+		<AudioToolbar bind:filters bind:view {owners} {categories} {tags} {languages} />
 	{/if}
 	{#if shown.length === 0 && data.audiobooks.length > 0}
 		<p class="empty">{t('audio.noMatch')}</p>
@@ -151,6 +160,7 @@
 						<span class="name">{book.title || t('audio.untitled')}</span>
 						{#if book.author}<span class="by">{book.author}</span>{/if}
 						<span class="length">{length(book)}</span>
+						{#if !book.mine}<span class="shared">{t('audio.sharedBy', { owner: book.owner })}</span>{/if}
 					</div>
 				</a>
 			{/each}
@@ -171,6 +181,7 @@
 							<span class="name">{book.title || t('audio.untitled')}</span>
 							{#if book.author}<span class="by">{book.author}</span>{/if}
 							{#if book.narrator}<span class="by">{t('audio.readBy', { name: book.narrator })}</span>{/if}
+							{#if !book.mine}<span class="shared">{t('audio.sharedBy', { owner: book.owner })}</span>{/if}
 							{#if book.category || book.tags.length > 0}
 								<span class="labels">
 									{#if book.category}<span class="label category">{book.category}</span>{/if}
@@ -359,6 +370,10 @@
 	.name {
 		font-weight: 600;
 		font-size: 0.95rem;
+	}
+	.shared {
+		font-size: 0.75rem;
+		color: var(--gold);
 	}
 	.by,
 	.length {

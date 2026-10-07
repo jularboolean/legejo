@@ -48,7 +48,7 @@ async fn fetch(app: &Router, uri: &str, range: Option<&str>) -> (StatusCode, axu
 async fn an_audiobook_is_a_podcast_feed() {
     let (app, db, state) = test_app().await;
     let (_, alice) = add_user(&db, "alice").await;
-    let (_, bob) = add_user(&db, "bob").await;
+    let (bob_id, bob) = add_user(&db, "bob").await;
 
     // Off until an admin turns it on.
     let (status, _) = send(&app, Method::GET, "/api/audiobooks", Some(&alice), None).await;
@@ -136,6 +136,60 @@ async fn an_audiobook_is_a_podcast_feed() {
     assert_eq!(fetch(&app, "/podcast/0000/feed.xml", None).await.0, StatusCode::NOT_FOUND);
     let (_, list) = send(&app, Method::GET, "/api/audiobooks", Some(&bob), None).await;
     assert_eq!(list.as_array().unwrap().len(), 0);
+
+    // Shared with Bob: he may listen, through an address of his own, but not change.
+    let book_uri = format!("/api/audiobooks/{id}");
+    let share = |visibility: &str, members: Value| {
+        json!({ "title": "The Sign of the Cross", "author": "Jean-Joseph Gaume", "visibility": visibility, "members": members })
+    };
+    let (_, v) = send(&app, Method::PUT, &book_uri, Some(&alice), Some(share("restricted", json!([bob_id, 9999])))).await;
+    assert_eq!((v["visibility"].as_str(), v["mine"].as_bool()), (Some("restricted"), Some(true)));
+    assert_eq!(v["members"].as_array().unwrap().len(), 1);
+    assert_eq!(v["members"][0]["username"], "bob");
+    let (status, v) = send(&app, Method::GET, &book_uri, Some(&bob), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!((v["mine"].as_bool(), v["owner"].as_str()), (Some(false), Some("alice")));
+    assert_eq!(v["members"].as_array().unwrap().len(), 0, "the list is the owner's to see");
+    let bob_url = v["feed_url"].as_str().unwrap().to_string();
+    assert_ne!(bob_url, feed_url);
+    let bob_path = bob_url[bob_url.find("/podcast/").unwrap()..].to_string();
+    let (status, _, body) = fetch(&app, &bob_path, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let bob_xml = String::from_utf8(body).unwrap();
+    let bob_audio = bob_xml.split("enclosure url=\"").nth(1).unwrap().split('"').next().unwrap();
+    let bob_audio = bob_audio[bob_audio.find("/podcast/").unwrap()..].to_string();
+    assert!(bob_audio.starts_with(bob_path.trim_end_matches("feed.xml")), "his episodes are under his key");
+    assert_eq!(fetch(&app, &bob_audio, None).await.0, StatusCode::OK);
+    let (_, list) = send(&app, Method::GET, "/api/audiobooks", Some(&bob), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (_, v) = send(&app, Method::GET, "/api/search?q=gaume", Some(&bob), None).await;
+    assert_eq!(v["audiobooks"].as_array().unwrap().len(), 1);
+    let (status, _) = send(&app, Method::PUT, &book_uri, Some(&bob), Some(share("instance", json!([])))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = send(&app, Method::DELETE, &book_uri, Some(&bob), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = post_files(&app, &files_uri, &bob, &[("three.mp3", "audio/mpeg", b"x")]).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    // His new address replaces his old one and leaves Alice's alone.
+    let (_, v) = send(&app, Method::POST, &format!("{book_uri}/feed-key"), Some(&bob), None).await;
+    assert_ne!(v["feed_url"].as_str().unwrap(), bob_url);
+    assert_eq!(fetch(&app, &bob_path, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(fetch(&app, &path, None).await.0, StatusCode::OK);
+    let bob_url = v["feed_url"].as_str().unwrap().to_string();
+    let bob_path = bob_url[bob_url.find("/podcast/").unwrap()..].to_string();
+    // Taken off the list, his address and his view close; Alice's stay.
+    send(&app, Method::PUT, &book_uri, Some(&alice), Some(share("restricted", json!([])))).await;
+    assert_eq!(fetch(&app, &bob_path, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(send(&app, Method::GET, &book_uri, Some(&bob), None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(fetch(&app, &path, None).await.0, StatusCode::OK);
+    // Everyone here: the same address works again. Private: closed.
+    send(&app, Method::PUT, &book_uri, Some(&alice), Some(share("instance", json!([])))).await;
+    assert_eq!(fetch(&app, &bob_path, None).await.0, StatusCode::OK);
+    let (status, _) = send(&app, Method::PUT, &book_uri, Some(&alice), Some(share("everyone", json!([])))).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    send(&app, Method::PUT, &book_uri, Some(&alice), Some(share("private", json!([])))).await;
+    assert_eq!(fetch(&app, &bob_path, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(fetch(&app, &bob_audio, None).await.0, StatusCode::NOT_FOUND);
 
     // A new key closes the old address at once.
     let (_, v) = send(&app, Method::POST, &format!("/api/audiobooks/{id}/feed-key"), Some(&alice), None).await;

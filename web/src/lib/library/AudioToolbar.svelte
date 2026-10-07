@@ -7,17 +7,20 @@
 	import ViewSwitch from './ViewSwitch.svelte';
 
 	type Option = { key: string; label: string; count: number };
-	type Field = 'category' | 'tag' | 'language';
+	type Field = 'owner' | 'category' | 'tag' | 'language';
 
 	let {
 		filters = $bindable(),
 		view = $bindable(),
+		owners,
 		categories,
 		tags,
 		languages
 	}: {
 		filters: AudioFilters;
 		view: ViewMode;
+		/** Own and shared, offered only when there are both. */
+		owners: Option[];
 		/** The values in use among the audiobooks, most common first. */
 		categories: Option[];
 		tags: Option[];
@@ -27,6 +30,7 @@
 	const groups = $derived(
 		(
 			[
+				{ field: 'owner', heading: t('audio.owner'), options: owners },
 				{ field: 'category', heading: t('book.category'), options: categories },
 				{ field: 'tag', heading: t('book.tags'), options: tags },
 				{ field: 'language', heading: t('library.filter.language'), options: languages }

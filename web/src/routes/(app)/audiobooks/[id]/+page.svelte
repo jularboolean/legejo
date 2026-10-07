@@ -13,12 +13,14 @@
 		Podcast,
 		RefreshCw,
 		Tag,
-		Trash2
+		Trash2,
+		Users
 	} from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
+	import MemberPicker from '#lib/MemberPicker.svelte';
 	import { formatBytes, formatLength } from '#lib/audio';
 	import { t } from '#lib/i18n';
-	import type { AudiobookDetail, AudiobookPart } from '#lib/types';
+	import type { Audiobook, AudiobookDetail, AudiobookPart, ShelfMember } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -57,6 +59,8 @@
 	// ---- Editing ----
 	let editing = $state(false);
 	let form = $state({ title: '', author: '', narrator: '', language: '', description: '', category: '', tags: '' });
+	let visibility = $state<Audiobook['visibility']>('private');
+	let members = $state<ShelfMember[]>([]);
 	let errorMsg = $state('');
 	function startEdit() {
 		form = {
@@ -68,6 +72,8 @@
 			category: book.category ?? '',
 			tags: book.tags.join(', ')
 		};
+		visibility = book.visibility;
+		members = [...book.members];
 		errorMsg = '';
 		editing = true;
 	}
@@ -84,7 +90,10 @@
 				language: form.language || null,
 				description: form.description || null,
 				category: form.category || null,
-				tags: form.tags.split(',')
+				tags: form.tags.split(','),
+				visibility,
+				// The list is kept while the audiobook is in another mode.
+				...(visibility === 'restricted' ? { members: members.map((m) => m.id) } : {})
 			})
 		});
 		if (res.ok) {
@@ -166,6 +175,33 @@
 					<input bind:value={form.tags} placeholder={t('edit.tagsPlaceholder')} />
 					<span class="hint">{t('edit.tagsHint')}</span>
 				</label>
+				<fieldset>
+					<legend>{t('audio.visibility')}</legend>
+					<label class="choice">
+						<input type="radio" bind:group={visibility} value="private" />
+						<span>
+							{t('shelfEdit.visibility.private')}
+							<span class="hint">{t('shelfEdit.visibility.privateHint')}</span>
+						</span>
+					</label>
+					<label class="choice">
+						<input type="radio" bind:group={visibility} value="restricted" />
+						<span>
+							{t('shelfEdit.visibility.restricted')}
+							<span class="hint">{t('audio.visibility.restrictedHint')}</span>
+						</span>
+					</label>
+					{#if visibility === 'restricted'}
+						<MemberPicker bind:members />
+					{/if}
+					<label class="choice">
+						<input type="radio" bind:group={visibility} value="instance" />
+						<span>
+							{t('shelfEdit.visibility.instance')}
+							<span class="hint">{t('audio.visibility.instanceHint')}</span>
+						</span>
+					</label>
+				</fieldset>
 				{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 				<div class="row">
 					<button type="submit">{t('edit.save')}</button>
@@ -181,6 +217,16 @@
 				{book.parts === 1 ? t('audio.part1') : t('audio.partsN', { count: book.parts })} ·
 				{formatBytes(book.bytes)}
 			</p>
+			{#if !book.mine}
+				<p class="shared"><Users size={13} /> {t('audio.sharedBy', { owner: book.owner })}</p>
+			{:else if book.visibility === 'instance'}
+				<p class="shared"><Users size={13} /> {t('audio.sharedInstance')}</p>
+			{:else if book.visibility === 'restricted'}
+				<p class="shared">
+					<Users size={13} />
+					{t('audio.sharedWith', { names: book.members.map((m) => m.username).join(', ') || '–' })}
+				</p>
+			{/if}
 			{#if book.category || book.tags.length > 0}
 				<div class="chips">
 					{#if book.category}
@@ -198,6 +244,7 @@
 				</div>
 			{/if}
 			{#if book.description}<p class="description">{book.description}</p>{/if}
+			{#if book.mine}
 			<div class="row">
 				<button type="button" class="ghost" onclick={startEdit}><Pencil size={13} /> {t('book.edit')}</button>
 				<button type="button" class="ghost" onclick={() => coverInput?.click()}>
@@ -206,6 +253,7 @@
 				</button>
 				<input type="file" accept="image/*" hidden bind:this={coverInput} onchange={(e) => uploadCover(e.currentTarget.files)} />
 			</div>
+			{/if}
 		{/if}
 	</div>
 </div>
@@ -266,12 +314,14 @@
 	{/if}
 </section>
 
-<div class="danger-zone">
-	<button type="button" class="ghost danger" onclick={() => (confirmDelete = true)}>
-		<Trash2 size={13} />
-		{t('audio.delete')}
-	</button>
-</div>
+{#if book.mine}
+	<div class="danger-zone">
+		<button type="button" class="ghost danger" onclick={() => (confirmDelete = true)}>
+			<Trash2 size={13} />
+			{t('audio.delete')}
+		</button>
+	</div>
+{/if}
 
 <ConfirmDialog
 	open={confirmDelete}
@@ -304,6 +354,7 @@
 	.top {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: flex-start;
 		gap: 1.5rem;
 	}
 	.cover {
@@ -403,6 +454,48 @@
 	}
 	.hint {
 		font-size: 0.78rem;
+	}
+	fieldset {
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 0.75rem 1rem 1rem;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	legend {
+		font-size: 0.88rem;
+		color: var(--muted);
+		padding: 0 0.3rem;
+	}
+	label.choice {
+		flex-direction: row;
+		align-items: start;
+		gap: 0.55rem;
+		color: var(--fg);
+		cursor: pointer;
+	}
+	input[type='radio'] {
+		width: auto;
+		margin: 0.2rem 0 0;
+		accent-color: var(--accent);
+	}
+	label.choice > span {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+	label.choice .hint {
+		color: var(--muted);
+	}
+	.shared {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin: 0.5rem 0 0;
+		font-size: 0.85rem;
+		color: var(--gold);
 	}
 	textarea {
 		font: inherit;

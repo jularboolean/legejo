@@ -271,6 +271,11 @@ export type Audiobook = {
 	category: string | null;
 	tags: string[];
 	has_cover: boolean;
+	/** The owner's user name. */
+	owner: string;
+	/** Whether it is the user's own; others may only listen. */
+	mine: boolean;
+	visibility: 'private' | 'restricted' | 'instance';
 	created_at: string;
 	updated_at: string | null;
 	parts: number;
@@ -280,6 +285,8 @@ export type Audiobook = {
 
 export type AudiobookDetail = Audiobook & {
 	files: AudiobookPart[];
-	/** The podcast feed: the address to give a podcast app. */
+	/** The podcast feed: the address to give a podcast app. Each user has their own. */
 	feed_url: string;
+	/** The users a restricted audiobook is shared with; empty unless it is the user's own. */
+	members: ShelfMember[];
 };

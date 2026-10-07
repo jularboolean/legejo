@@ -8,6 +8,7 @@
 use crate::auth::AuthUser;
 use crate::books::new_uuid;
 use crate::db::{now_ts, DbFlag};
+use crate::shelves::Member;
 use crate::AppState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
@@ -80,6 +81,15 @@ pub struct Audiobook {
     pub tags: Vec<String>,
     pub has_cover: DbFlag,
     #[serde(skip)]
+    pub owner_id: i64,
+    /// The owner's user name.
+    pub owner: String,
+    /// Whether the audiobook is the caller's own; others may only listen.
+    #[sqlx(skip)]
+    pub mine: bool,
+    /// private | restricted | instance.
+    pub visibility: String,
+    #[serde(skip)]
     pub feed_key: String,
     pub created_at: String,
     pub updated_at: Option<String>,
@@ -91,10 +101,20 @@ pub struct Audiobook {
 
 const COLUMNS: &str = "a.id, a.uuid, a.title, a.author, a.narrator, a.language, a.description, a.category, \
      CAST(CASE WHEN a.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
-     a.feed_key, a.created_at, a.updated_at, \
+     a.owner_id, u.username AS owner, a.visibility, a.feed_key, a.created_at, a.updated_at, \
      (SELECT COUNT(*) FROM audiobook_files f WHERE f.audiobook_id = a.id) AS parts, \
      CAST(COALESCE((SELECT SUM(f.seconds) FROM audiobook_files f WHERE f.audiobook_id = a.id), 0) AS BIGINT) AS seconds, \
      CAST(COALESCE((SELECT SUM(f.bytes) FROM audiobook_files f WHERE f.audiobook_id = a.id), 0) AS BIGINT) AS bytes";
+
+const FROM: &str = "audiobooks a JOIN users u ON u.id = a.owner_id";
+
+/// SQL condition: the audiobook `a` is the user's own or shared with them.
+fn visible_to(user: &str) -> String {
+    format!(
+        "(a.owner_id = {user} OR a.visibility = 'instance' OR (a.visibility = 'restricted' AND EXISTS (
+            SELECT 1 FROM audiobook_members am WHERE am.audiobook_id = a.id AND am.user_id = {user})))"
+    )
+}
 
 #[derive(Serialize, sqlx::FromRow, Clone)]
 pub struct Part {
@@ -118,25 +138,78 @@ pub struct Detail {
     #[serde(flatten)]
     pub book: Audiobook,
     pub files: Vec<Part>,
-    /// The podcast feed: the address to give a podcast app.
+    /// The podcast feed: the address to give a podcast app. Each user has
+    /// their own.
     pub feed_url: String,
+    /// The users a restricted audiobook is shared with; told to the owner only.
+    pub members: Vec<Member>,
 }
 
+/// An audiobook the user may listen to: their own, or one shared with them.
 async fn fetch(state: &AppState, user_id: i64, id: i64) -> Result<Audiobook, Response> {
-    let book: Option<Audiobook> =
-        sqlx::query_as(&format!("SELECT {COLUMNS} FROM audiobooks a WHERE a.id = $1 AND a.owner_id = $2"))
-            .bind(id)
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| internal(e.into()))?;
+    let book: Option<Audiobook> = sqlx::query_as(&format!(
+        "SELECT {COLUMNS} FROM {FROM} WHERE a.id = $1 AND {visible}",
+        visible = visible_to("$2")
+    ))
+    .bind(id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
     let mut book = book.ok_or_else(not_found)?;
+    book.mine = book.owner_id == user_id;
     book.tags = sqlx::query_scalar("SELECT tag FROM audiobook_tags WHERE audiobook_id = $1 ORDER BY LOWER(tag)")
         .bind(book.id)
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     Ok(book)
+}
+
+/// An audiobook the user may change: their own.
+async fn fetch_own(state: &AppState, user_id: i64, id: i64) -> Result<Audiobook, Response> {
+    let book = fetch(state, user_id, id).await?;
+    if book.mine {
+        Ok(book)
+    } else {
+        Err(not_found())
+    }
+}
+
+/// The key of the user's own feed for the audiobook. The owner's is the
+/// audiobook's; anyone else gets one of their own the first time they ask.
+async fn feed_key_for(state: &AppState, book: &Audiobook, user_id: i64) -> Result<String, Response> {
+    if book.mine {
+        return Ok(book.feed_key.clone());
+    }
+    sqlx::query(
+        "INSERT INTO audiobook_feeds (audiobook_id, user_id, feed_key) VALUES ($1, $2, $3)
+         ON CONFLICT (audiobook_id, user_id) DO NOTHING",
+    )
+    .bind(book.id)
+    .bind(user_id)
+    .bind(new_uuid())
+    .execute(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    sqlx::query_scalar("SELECT feed_key FROM audiobook_feeds WHERE audiobook_id = $1 AND user_id = $2")
+        .bind(book.id)
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))
+}
+
+async fn members(state: &AppState, audiobook_id: i64) -> Result<Vec<Member>, Response> {
+    sqlx::query_as(
+        "SELECT u.id, u.username, CAST(CASE WHEN u.avatar_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_avatar
+         FROM audiobook_members am JOIN users u ON u.id = am.user_id
+         WHERE am.audiobook_id = $1 ORDER BY LOWER(u.username)",
+    )
+    .bind(audiobook_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))
 }
 
 async fn parts(state: &AppState, audiobook_id: i64) -> Result<Vec<Part>, Response> {
@@ -152,8 +225,10 @@ async fn parts(state: &AppState, audiobook_id: i64) -> Result<Vec<Part>, Respons
 async fn detail(state: &AppState, headers: &HeaderMap, user_id: i64, id: i64) -> Result<Json<Detail>, Response> {
     let book = fetch(state, user_id, id).await?;
     let files = parts(state, book.id).await?;
-    let feed_url = format!("{}/podcast/{}/feed.xml", crate::invite::base(state, headers), book.feed_key);
-    Ok(Json(Detail { book, files, feed_url }))
+    let key = feed_key_for(state, &book, user_id).await?;
+    let feed_url = format!("{}/podcast/{key}/feed.xml", crate::invite::base(state, headers));
+    let members = if book.mine { members(state, book.id).await? } else { Vec::new() };
+    Ok(Json(Detail { book, files, feed_url, members }))
 }
 
 pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Audiobook>>, Response> {
@@ -161,7 +236,7 @@ pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<
     Ok(Json(owned(&state, user.0.id).await?))
 }
 
-/// The user's audiobooks that have every word of `query` somewhere in their
+/// The audiobooks the user may listen to that have every word of `query` somewhere in their
 /// title, author, narrator, description, category or tags. Nothing when the
 /// feature is off.
 pub(crate) async fn search(state: &AppState, user_id: i64, query: &str) -> Result<Vec<Audiobook>, Response> {
@@ -186,22 +261,28 @@ pub(crate) async fn search(state: &AppState, user_id: i64, query: &str) -> Resul
     Ok(books)
 }
 
+/// The user's own audiobooks and those shared with them, newest first.
 async fn owned(state: &AppState, user_id: i64) -> Result<Vec<Audiobook>, Response> {
     let mut books: Vec<Audiobook> = sqlx::query_as(&format!(
-        "SELECT {COLUMNS} FROM audiobooks a WHERE a.owner_id = $1 ORDER BY a.created_at DESC, a.id DESC"
+        "SELECT {COLUMNS} FROM {FROM} WHERE {visible} ORDER BY a.created_at DESC, a.id DESC",
+        visible = visible_to("$1")
     ))
     .bind(user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    let tags: Vec<(i64, String)> = sqlx::query_as(
+    let tags: Vec<(i64, String)> = sqlx::query_as(&format!(
         "SELECT t.audiobook_id, t.tag FROM audiobook_tags t JOIN audiobooks a ON a.id = t.audiobook_id
-         WHERE a.owner_id = $1 ORDER BY LOWER(t.tag)",
-    )
+         WHERE {visible} ORDER BY LOWER(t.tag)",
+        visible = visible_to("$1")
+    ))
     .bind(user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
+    for book in &mut books {
+        book.mine = book.owner_id == user_id;
+    }
     for (id, tag) in tags {
         if let Some(book) = books.iter_mut().find(|b| b.id == id) {
             book.tags.push(tag);
@@ -258,6 +339,10 @@ pub struct Update {
     category: Option<String>,
     /// Replaces the tags when given; left alone when absent.
     tags: Option<Vec<String>>,
+    /// private | restricted | instance; left alone when absent.
+    visibility: Option<String>,
+    /// User ids a restricted audiobook is shared with; replaces the list.
+    members: Option<Vec<i64>>,
 }
 
 fn clean(value: Option<String>) -> Option<String> {
@@ -276,10 +361,15 @@ pub async fn update(
     if title.is_empty() {
         return Err(unprocessable("title must not be empty"));
     }
+    if let Some(v) = req.visibility.as_deref() {
+        if !["private", "restricted", "instance"].contains(&v) {
+            return Err(unprocessable("unknown visibility"));
+        }
+    }
     let mut tx = state.db.begin().await.map_err(|e| internal(e.into()))?;
     let result = sqlx::query(
         "UPDATE audiobooks SET title = $1, author = $2, narrator = $3, language = $4, description = $5,
-                category = $6, updated_at = $7
+                category = $6, updated_at = $7, visibility = COALESCE($10, visibility)
          WHERE id = $8 AND owner_id = $9",
     )
     .bind(title)
@@ -291,6 +381,7 @@ pub async fn update(
     .bind(now_ts())
     .bind(id)
     .bind(user.0.id)
+    .bind(req.visibility.as_deref())
     .execute(&mut *tx)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -318,6 +409,26 @@ pub async fn update(
                 .map_err(|e| internal(e.into()))?;
         }
     }
+    // Unknown ids and the owner are left out.
+    if let Some(members) = &req.members {
+        sqlx::query("DELETE FROM audiobook_members WHERE audiobook_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        for member in members.iter().filter(|m| **m != user.0.id) {
+            sqlx::query(
+                "INSERT INTO audiobook_members (audiobook_id, user_id)
+                 SELECT CAST($1 AS BIGINT), id FROM users WHERE id = $2
+                 ON CONFLICT (audiobook_id, user_id) DO NOTHING",
+            )
+            .bind(id)
+            .bind(*member)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        }
+    }
     tx.commit().await.map_err(|e| internal(e.into()))?;
     detail(&state, &headers, user.0.id, id).await
 }
@@ -330,7 +441,7 @@ pub(crate) async fn remove_files(state: &AppState, uuid: &str) {
 
 pub async fn delete(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<StatusCode, Response> {
     on(&state).await?;
-    let book = fetch(&state, user.0.id, id).await?;
+    let book = fetch_own(&state, user.0.id, id).await?;
     sqlx::query("DELETE FROM audiobooks WHERE id = $1 AND owner_id = $2")
         .bind(id)
         .bind(user.0.id)
@@ -409,7 +520,7 @@ pub async fn add_files(
     mut multipart: Multipart,
 ) -> Result<Json<Added>, Response> {
     on(&state).await?;
-    let book = fetch(&state, user.0.id, id).await?;
+    let book = fetch_own(&state, user.0.id, id).await?;
     let dir = audio_dir(&state, &book.uuid);
     tokio::fs::create_dir_all(&dir).await.map_err(|e| internal(e.into()))?;
     let mut errors = Vec::new();
@@ -521,7 +632,7 @@ pub async fn delete_file(
     Path((id, file_id)): Path<(i64, i64)>,
 ) -> Result<Json<Detail>, Response> {
     on(&state).await?;
-    let book = fetch(&state, user.0.id, id).await?;
+    let book = fetch_own(&state, user.0.id, id).await?;
     let part = parts(&state, book.id).await?.into_iter().find(|p| p.id == file_id).ok_or_else(not_found)?;
     sqlx::query("DELETE FROM audiobook_files WHERE id = $1 AND audiobook_id = $2")
         .bind(file_id)
@@ -546,16 +657,20 @@ pub async fn new_feed_key(
     Path(id): Path<i64>,
 ) -> Result<Json<Detail>, Response> {
     on(&state).await?;
-    let result = sqlx::query("UPDATE audiobooks SET feed_key = $1 WHERE id = $2 AND owner_id = $3")
+    let book = fetch(&state, user.0.id, id).await?;
+    // The owner's key is the audiobook's; a listener's is their own.
+    let sql = if book.mine {
+        "UPDATE audiobooks SET feed_key = $1 WHERE id = $2 AND owner_id = $3"
+    } else {
+        "UPDATE audiobook_feeds SET feed_key = $1 WHERE audiobook_id = $2 AND user_id = $3"
+    };
+    sqlx::query(sql)
         .bind(new_uuid())
         .bind(id)
         .bind(user.0.id)
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    if result.rows_affected() == 0 {
-        return Err(not_found());
-    }
     detail(&state, &headers, user.0.id, id).await
 }
 
@@ -582,7 +697,7 @@ pub async fn upload_cover(
     mut multipart: Multipart,
 ) -> Result<Json<Detail>, Response> {
     on(&state).await?;
-    let book = fetch(&state, user.0.id, id).await?;
+    let book = fetch_own(&state, user.0.id, id).await?;
     while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
         let mime = field.content_type().unwrap_or("").to_string();
         if !mime.starts_with("image/") {
@@ -691,12 +806,28 @@ async fn by_key(state: &AppState, key: &str) -> Result<Audiobook, Response> {
     if !enabled(state).await {
         return Err(StatusCode::NOT_FOUND.into_response());
     }
-    let book: Option<Audiobook> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM audiobooks a WHERE a.feed_key = $1"))
+    let book: Option<Audiobook> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM {FROM} WHERE a.feed_key = $1"))
         .bind(key)
         .fetch_optional(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    book.ok_or_else(|| StatusCode::NOT_FOUND.into_response())
+    if let Some(book) = book {
+        return Ok(book);
+    }
+    // A listener's key works for as long as the audiobook is shared with them.
+    let book: Option<Audiobook> = sqlx::query_as(&format!(
+        "SELECT {COLUMNS} FROM {FROM} JOIN audiobook_feeds af ON af.audiobook_id = a.id
+         WHERE af.feed_key = $1 AND {visible}",
+        visible = visible_to("af.user_id")
+    ))
+    .bind(key)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut book = book.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
+    // The feed's own addresses are built on the key it was asked for with.
+    book.feed_key = key.to_string();
+    Ok(book)
 }
 
 fn xml(s: &str) -> String {

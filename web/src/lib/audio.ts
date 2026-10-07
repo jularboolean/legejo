@@ -57,16 +57,24 @@ export function sendPart(
 }
 
 /** What the list of audiobooks is narrowed by; null and '' leave a field alone. */
-export type AudioFilters = { text: string; tag: string | null; language: string | null; category: string | null };
+export type AudioFilters = {
+	text: string;
+	tag: string | null;
+	language: string | null;
+	category: string | null;
+	/** 'mine' or 'shared' (with the user, by someone else). */
+	owner: string | null;
+};
 
 export function emptyAudioFilters(): AudioFilters {
-	return { text: '', tag: null, language: null, category: null };
+	return { text: '', tag: null, language: null, category: null, owner: null };
 }
 
 /** The text is looked for in the title, the author, the reader and the description. */
 export function filterAudiobooks(books: Audiobook[], f: AudioFilters): Audiobook[] {
 	const words = fold(f.text).split(/\s+/).filter(Boolean);
 	return books.filter((book) => {
+		if (f.owner && (f.owner === 'mine') !== book.mine) return false;
 		if (f.tag && !book.tags.some((tag) => fold(tag) === f.tag)) return false;
 		if (f.category && fold(book.category ?? '') !== f.category) return false;
 		if (f.language && primaryLanguage(book.language) !== f.language) return false;
@@ -96,7 +104,7 @@ export function loadAudioFilters(): AudioFilters {
 	try {
 		const saved = JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? 'null');
 		if (typeof saved?.text === 'string') filters.text = saved.text;
-		for (const field of ['tag', 'language', 'category'] as const) {
+		for (const field of ['tag', 'language', 'category', 'owner'] as const) {
 			if (typeof saved?.[field] === 'string') filters[field] = saved[field];
 		}
 	} catch {
