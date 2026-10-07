@@ -704,6 +704,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Mirando por las estanterías…",
 	'librarian.privacy': "La bibliotecaria es un modelo de lenguaje. Tu pregunta y lo que el catálogo dice de tus libros y de los de las estanterías compartidas contigo (título, autor, estanterías, etiquetas y el comienzo de la descripción) se le envían; los libros en sí no.",
 	'librarian.shared': "En estanterías compartidas contigo",
+	'librarian.accountIntro': "La bibliotecaria es un modelo de lenguaje que sugiere libros de tu biblioteca cuando pides algo para leer. Cuando preguntas, tu pregunta y lo que el catálogo dice de tus libros y de los de las estanterías compartidas contigo (título, autor, estanterías, etiquetas, estado de lectura y el comienzo de la descripción) se envían al modelo que ha elegido quien administra este Legejo. Los libros en sí nunca se envían. Está desactivada hasta que la actives.",
+	'librarian.turnOn': "Permitirme preguntar a la bibliotecaria",
 	'librarian.found.1': "He recorrido las estanterías y he vuelto con estos.",
 	'librarian.found.2': "Entonces creo que alguno de estos te puede venir bien.",
 	'librarian.found.3': "A ver … sí, se me ocurren estos.",

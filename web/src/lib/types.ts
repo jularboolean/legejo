@@ -169,6 +169,10 @@ export type Account = {
 	kindle_email: string | null;
 	/** The address those mails come from; null when the server sends no mail. */
 	mail_from: string | null;
+	/** Whether the user has turned the librarian on. */
+	librarian: boolean;
+	/** Whether the server has a librarian to turn on. */
+	librarian_available: boolean;
 };
 
 /* ---- Federation ---- */

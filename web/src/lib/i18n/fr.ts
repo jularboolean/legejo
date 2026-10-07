@@ -704,6 +704,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Elle parcourt les étagères…",
 	'librarian.privacy': "La bibliothécaire est un modèle de langage. Votre question et ce que le catalogue dit de vos livres et de ceux des étagères partagées avec vous (titre, auteur, étagères, étiquettes et début de la description) lui sont envoyés ; les livres eux-mêmes ne le sont pas.",
 	'librarian.shared': "Sur les étagères partagées avec vous",
+	'librarian.accountIntro': "La bibliothécaire est un modèle de langage qui suggère des livres de votre bibliothèque quand vous demandez quelque chose à lire. Quand vous posez une question, celle-ci et ce que le catalogue dit de vos livres et de ceux des étagères partagées avec vous (titre, auteur, étagères, étiquettes, état de lecture et début de la description) sont envoyés au modèle choisi par l’exploitant de ce Legejo. Les livres eux-mêmes ne sont jamais envoyés. Elle est désactivée tant que vous ne l’activez pas.",
+	'librarian.turnOn': "Me laisser interroger la bibliothécaire",
 	'librarian.found.1': "J’ai longé les étagères et je reviens avec ceux-ci.",
 	'librarian.found.2': "Alors je crois que l’un de ceux-ci pourrait vous convenir.",
 	'librarian.found.3': "Voyons … oui, je pense à ceux-ci.",

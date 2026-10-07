@@ -18,6 +18,12 @@ pub struct Account {
     /// with Amazon. None when the server sends no mail.
     #[sqlx(skip)]
     pub mail_from: Option<String>,
+    /// Whether the user has turned the librarian on (librarian.rs).
+    pub librarian: crate::db::DbFlag,
+    /// Whether there is a librarian to turn on: the operator has set a
+    /// language model up.
+    #[sqlx(skip)]
+    pub librarian_available: bool,
 }
 
 fn internal(e: anyhow::Error) -> Response {
@@ -30,13 +36,36 @@ fn unprocessable(msg: &str) -> Response {
 }
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
-    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email FROM users WHERE id = $1")
+    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
+    account.librarian_available = state.settings.ai.is_some();
     Ok(account)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateLibrarian {
+    enabled: bool,
+}
+
+/// Turn the librarian on or off for oneself. On means that what the
+/// catalogue says about one's books is sent to the operator's language model
+/// when one asks it something.
+pub async fn set_librarian(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<UpdateLibrarian>,
+) -> Result<Json<Account>, Response> {
+    sqlx::query("UPDATE users SET librarian = $1 WHERE id = $2")
+        .bind(crate::db::DbFlag::from(req.enabled))
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
 #[derive(Deserialize)]

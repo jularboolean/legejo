@@ -704,6 +704,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Letar längs hyllorna…",
 	'librarian.privacy': "Bibliotekarien är en språkmodell. Din fråga och det katalogen säger om dina böcker och om böckerna på hyllor som delas med dig (titel, författare, hyllor, taggar och början av beskrivningen) skickas till den; själva böckerna skickas inte.",
 	'librarian.shared': "På hyllor som delas med dig",
+	'librarian.accountIntro': "Bibliotekarien är en språkmodell som föreslår böcker ur ditt bibliotek när du ber om något att läsa. När du frågar skickas din fråga och det katalogen säger om dina böcker och om böckerna på hyllor som delas med dig (titel, författare, hyllor, taggar, lässtatus och början av beskrivningen) till den modell som den som driver detta Legejo har valt. Själva böckerna skickas aldrig. Den är av tills du slår på den.",
+	'librarian.turnOn': "Låt mig fråga bibliotekarien",
 	'librarian.found.1': "Jag gick längs hyllorna och kom tillbaka med de här.",
 	'librarian.found.2': "Då tror jag att något av det här kan passa.",
 	'librarian.found.3': "Vänta lite … jo, de här tänker jag på.",

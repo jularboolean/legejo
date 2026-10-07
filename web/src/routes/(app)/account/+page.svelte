@@ -27,6 +27,7 @@
 	let kindle = $state(data.account.kindle_email ?? '');
 	let kindleSaved = $state(false);
 	let kindleErrorMsg = $state('');
+	let librarianErrorMsg = $state('');
 	let copied = $state(false);
 
 	const koboUrl = $derived(
@@ -122,6 +123,26 @@
 			locale = previous;
 			setLocale(previous);
 			localeError = t('common.network');
+		}
+	}
+
+	async function setLibrarian(enabled: boolean) {
+		librarianErrorMsg = '';
+		try {
+			const res = await fetch('/api/account/librarian', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ enabled })
+			});
+			if (res.ok) {
+				account = await res.json();
+				// The librarian appears in the menu, or leaves it.
+				await invalidateAll();
+			} else {
+				librarianErrorMsg = t('edit.saveFailed');
+			}
+		} catch {
+			librarianErrorMsg = t('common.network');
 		}
 	}
 
@@ -350,6 +371,18 @@
 	</section>
 {/if}
 
+{#if account.librarian_available}
+	<section class="kobo">
+		<h3>{t('librarian.heading')}</h3>
+		<p class="intro">{t('librarian.accountIntro')}</p>
+		<label class="choice">
+			<input type="checkbox" checked={account.librarian} onchange={(e) => setLibrarian(e.currentTarget.checked)} />
+			{t('librarian.turnOn')}
+		</label>
+		{#if librarianErrorMsg}<p class="error">{librarianErrorMsg}</p>{/if}
+	</section>
+{/if}
+
 <KosyncSetup username={account.username} />
 {#if data.mcpEnabled}<McpSetup />{/if}
 
@@ -453,6 +486,17 @@
 		display: flex;
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
+	}
+	.choice {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.95rem;
+		color: var(--fg);
+	}
+	.choice input {
+		width: auto;
 	}
 	form.token-row {
 		flex-direction: row;

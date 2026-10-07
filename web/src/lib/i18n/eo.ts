@@ -704,6 +704,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Rigardante laŭ la bretoj…",
 	'librarian.privacy': "La bibliotekisto estas lingvomodelo. Via demando kaj tio, kion la katalogo diras pri viaj libroj kaj pri tiuj sur bretoj kunhavigitaj kun vi (titolo, aŭtoro, bretoj, etikedoj kaj la komenco de la priskribo), estas sendataj al ĝi; la libroj mem ne.",
 	'librarian.shared': "Sur bretoj kunhavigitaj kun vi",
+	'librarian.accountIntro': "La bibliotekisto estas lingvomodelo, kiu proponas librojn el via biblioteko, kiam vi petas ion por legi. Kiam vi demandas, via demando kaj tio, kion la katalogo diras pri viaj libroj kaj pri tiuj sur bretoj kunhavigitaj kun vi (titolo, aŭtoro, bretoj, etikedoj, legostato kaj la komenco de la priskribo), estas sendataj al la modelo, kiun la funkciiganto de ĉi tiu Legejo elektis. La libroj mem neniam estas sendataj. Ĝi estas malŝaltita ĝis vi ŝaltos ĝin.",
+	'librarian.turnOn': "Lasu min demandi la bibliotekiston",
 	'librarian.found.1': "Mi iris laŭ la bretoj kaj revenis kun ĉi tiuj.",
 	'librarian.found.2': "Tiam mi kredas, ke iu el ĉi tiuj povus taŭgi.",
 	'librarian.found.3': "Atendu iom … jes, ĉi tiuj venas al mi en la kapon.",

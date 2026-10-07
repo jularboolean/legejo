@@ -704,6 +704,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Sie sieht die Regale durch …",
 	'librarian.privacy': "Die Bibliothekarin ist ein Sprachmodell. Deine Frage und was der Katalog über deine Bücher und die in mit dir geteilten Regalen sagt (Titel, Autor, Regale, Schlagwörter und der Anfang der Beschreibung) werden an sie gesendet; die Bücher selbst nicht.",
 	'librarian.shared': "In Regalen, die mit dir geteilt werden",
+	'librarian.accountIntro': "Die Bibliothekarin ist ein Sprachmodell, das Bücher aus deiner Bibliothek vorschlägt, wenn du um etwas zu lesen bittest. Wenn du fragst, werden deine Frage und was der Katalog über deine Bücher und die in mit dir geteilten Regalen sagt (Titel, Autor, Regale, Schlagwörter, Lesestatus und der Anfang der Beschreibung) an das Modell gesendet, das der Betreiber dieses Legejo gewählt hat. Die Bücher selbst werden nie gesendet. Sie ist aus, bis du sie einschaltest.",
+	'librarian.turnOn': "Ich möchte die Bibliothekarin fragen können",
 	'librarian.found.1': "Ich bin die Regale entlanggegangen und mit diesen zurückgekommen.",
 	'librarian.found.2': "Dann könnte eines von diesen hier passen.",
 	'librarian.found.3': "Moment … ja, an diese denke ich.",

@@ -246,8 +246,8 @@ pub struct Config {
     /// Whether the user can mail books to a Kindle: the server sends mail
     /// and the user has given their Kindle's address.
     send_to_kindle: bool,
-    /// Whether there is a librarian to ask: a language model that picks
-    /// books from the user's library for a question.
+    /// Whether the user has a librarian to ask: the operator has set a
+    /// language model up, and the user has turned the librarian on.
     librarian: bool,
 }
 
@@ -258,9 +258,10 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         .await
         .map_err(|e| internal(e.into()))?
         .flatten();
+    let librarian = state.settings.ai.is_some() && crate::librarian::turned_on(&state, user.0.id).await;
     Ok(Json(Config {
         send_to_kindle: state.mail.is_some() && kindle.is_some(),
-        librarian: state.settings.ai.is_some(),
+        librarian,
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

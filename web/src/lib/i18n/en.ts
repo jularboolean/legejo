@@ -702,6 +702,8 @@ export const en = {
 	'librarian.asking': "Looking along the shelves…",
 	'librarian.privacy': "The librarian is a language model. Your question and what the catalogue says about your books and those on shelves shared with you (title, author, shelves, tags and the beginning of the description) are sent to it; the books themselves are not.",
 	'librarian.shared': "On shelves shared with you",
+	'librarian.accountIntro': "The librarian is a language model that suggests books from your library when you ask for something to read. When you ask, your question and what the catalogue says about your books and those on shelves shared with you (title, author, shelves, tags, reading status and the beginning of the description) are sent to the model the operator of this Legejo has chosen. The books themselves are never sent. It is off until you turn it on.",
+	'librarian.turnOn': "Let me ask the librarian",
 	'librarian.found.1': "I walked along the shelves and came back with these.",
 	'librarian.found.2': "Then I think one of these might suit you.",
 	'librarian.found.3': "Let me see … yes, these come to mind.",

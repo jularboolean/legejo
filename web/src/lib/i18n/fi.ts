@@ -704,6 +704,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'librarian.asking': "Katselee hyllyjä…",
 	'librarian.privacy': "Kirjastonhoitaja on kielimalli. Kysymyksesi ja se, mitä luettelo kertoo kirjoistasi ja sinulle jaettujen hyllyjen kirjoista (nimi, tekijä, hyllyt, tunnisteet ja kuvauksen alku), lähetetään sille; itse kirjoja ei lähetetä.",
 	'librarian.shared': "Sinulle jaetuilla hyllyillä",
+	'librarian.accountIntro': "Kirjastonhoitaja on kielimalli, joka ehdottaa kirjoja kirjastostasi, kun pyydät jotain luettavaa. Kun kysyt, kysymyksesi ja se, mitä luettelo kertoo kirjoistasi ja sinulle jaettujen hyllyjen kirjoista (nimi, tekijä, hyllyt, tunnisteet, lukutila ja kuvauksen alku), lähetetään mallille, jonka tämän Legejon ylläpitäjä on valinnut. Itse kirjoja ei koskaan lähetetä. Se on pois päältä, kunnes otat sen käyttöön.",
+	'librarian.turnOn': "Anna minun kysyä kirjastonhoitajalta",
 	'librarian.found.1': "Kävelin hyllyjen välissä ja palasin näiden kanssa.",
 	'librarian.found.2': "Sitten luulen, että jokin näistä voisi sopia.",
 	'librarian.found.3': "Hetkinen … niin, nämä tulevat mieleen.",

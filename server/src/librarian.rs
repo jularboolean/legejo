@@ -1,7 +1,8 @@
 //! The librarian: a language model picks books from the user's own library
 //! and from the shelves others share with them, for a question asked in plain
 //! words. Off unless the operator sets
-//! LEGEJO_AI_API_KEY; the operator's account pays for the requests.
+//! LEGEJO_AI_API_KEY, and for each user until they turn it on for
+//! themselves; the operator's account pays for the requests.
 //!
 //! The model is given the question and a catalogue (title, author, shelves,
 //! tags, the beginning of the description) of the user's books and of the
@@ -261,6 +262,17 @@ async fn ask_model(state: &AppState, ai: &Ai, instructions: &str, catalogue: &st
     })
 }
 
+/// Whether the user has turned the librarian on for themselves.
+pub async fn turned_on(state: &AppState, user_id: i64) -> bool {
+    sqlx::query_scalar::<_, i64>("SELECT librarian FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .is_some_and(|on| on != 0)
+}
+
 #[derive(Deserialize)]
 pub struct Question {
     question: String,
@@ -293,6 +305,10 @@ pub async fn ask(
         return Err(fail(StatusCode::UNPROCESSABLE_ENTITY, "empty"));
     }
     let id = user.0.id;
+    // Nothing of a user's library is sent anywhere before they have said so.
+    if !turned_on(&state, id).await {
+        return Err(fail(StatusCode::FORBIDDEN, "not-turned-on"));
+    }
     let recent: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND at > $2")
         .bind(id)
         .bind(crate::db::ts_in_hours(-1))

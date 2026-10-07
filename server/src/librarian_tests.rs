@@ -77,6 +77,18 @@ async fn the_librarian_picks_from_the_users_own_books() {
         .await
         .unwrap();
 
+    // Off for each user until they turn it on: nothing is asked, nothing is sent.
+    let (_, config) = send(&app, Method::GET, "/api/config", Some(&a), None).await;
+    assert_eq!(config["librarian"], false);
+    let (status, v) = send(&app, Method::POST, "/api/librarian", Some(&a), Some(json!({ "question": "ice" }))).await;
+    assert_eq!((status, v["error"].as_str()), (StatusCode::FORBIDDEN, Some("not-turned-on")));
+    assert_eq!(seen.lock().unwrap().len(), 0);
+    let (_, account) = send(&app, Method::GET, "/api/account", Some(&a), None).await;
+    assert_eq!((account["librarian"].as_bool(), account["librarian_available"].as_bool()), (Some(false), Some(true)));
+    for cookie in [&a, &b] {
+        let (status, account) = send(&app, Method::PUT, "/api/account/librarian", Some(cookie), Some(json!({ "enabled": true }))).await;
+        assert_eq!((status, account["librarian"].as_bool()), (StatusCode::OK, Some(true)));
+    }
     let (_, config) = send(&app, Method::GET, "/api/config", Some(&a), None).await;
     assert_eq!(config["librarian"], true);
 
@@ -166,4 +178,6 @@ async fn without_a_model_there_is_no_librarian() {
     assert_eq!(config["librarian"], false);
     let (status, v) = send(&app, Method::POST, "/api/librarian", Some(&a), Some(json!({ "question": "ice" }))).await;
     assert_eq!((status, v["error"].as_str()), (StatusCode::NOT_FOUND, Some("off")));
+    let (_, account) = send(&app, Method::GET, "/api/account", Some(&a), None).await;
+    assert_eq!(account["librarian_available"], false);
 }
