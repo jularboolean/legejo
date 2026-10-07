@@ -155,13 +155,14 @@
 		margin-bottom: 1.25rem;
 	}
 	.portrait {
-		width: 5rem;
-		height: 5rem;
+		width: 5.5rem;
+		height: 5.5rem;
 		flex-shrink: 0;
 		border-radius: 50%;
 		object-fit: cover;
-		object-position: 50% 30%;
-		background: var(--card);
+		object-position: 55% 15%;
+		/* The drawing is made for white paper, in the dark theme too. */
+		background: #fff;
 		border: 1px solid var(--border);
 		box-shadow: var(--shadow);
 	}
