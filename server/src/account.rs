@@ -313,6 +313,14 @@ pub async fn delete_account(
     for (id, uuid) in &books {
         crate::books::remove_book(&state, user.0.id, *id, uuid).await?;
     }
+    let audiobooks: Vec<String> = sqlx::query_scalar("SELECT uuid FROM audiobooks WHERE owner_id = $1")
+        .bind(user.0.id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    for uuid in &audiobooks {
+        crate::audiobooks::remove_files(&state, uuid).await;
+    }
     let shelves: Vec<i64> = sqlx::query_scalar("SELECT id FROM shelves WHERE owner_id = $1")
         .bind(user.0.id)
         .fetch_all(&state.db)

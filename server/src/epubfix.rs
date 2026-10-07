@@ -72,7 +72,6 @@ pub struct Meta<'a> {
 }
 
 const MIMETYPE: &str = "application/epub+zip";
-const DC_NS: &str = "http://purl.org/dc/elements/1.1/";
 const EXAMPLES: usize = 5;
 
 // ---- A small tag scanner ---------------------------------------------------
@@ -1514,7 +1513,6 @@ pub(crate) mod tests {
         assert_eq!(resolve("OEBPS/", "mailto:a@b.c"), None);
         assert_eq!(resolve("OEBPS/", "#only"), None);
         assert_eq!(unescape("a &amp; b &#229; &#xE4; &nope; &"), "a & b å ä &nope; &");
-        assert_eq!(DC_NS, "http://purl.org/dc/elements/1.1/");
     }
 
     #[test]

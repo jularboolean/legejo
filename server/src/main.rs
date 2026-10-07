@@ -10,6 +10,7 @@ mod mcp;
 mod metrics;
 mod ratelimit;
 mod settings;
+mod audiobooks;
 mod audit;
 mod auth;
 mod books;
@@ -47,6 +48,8 @@ mod oidc_tests;
 mod selfhost_tests;
 #[cfg(test)]
 mod mcp_tests;
+#[cfg(test)]
+mod audiobook_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -151,6 +154,16 @@ fn router(state: AppState) -> Router {
             "/account/kobo-token",
             post(account::create_kobo_token).delete(account::delete_kobo_token),
         )
+        .route("/audiobooks", get(audiobooks::list).post(audiobooks::create))
+        .route(
+            "/audiobooks/{id}",
+            get(audiobooks::get_one).put(audiobooks::update).delete(audiobooks::delete),
+        )
+        .route("/audiobooks/{id}/files", post(audiobooks::add_files))
+        .route("/audiobooks/{id}/files/{file}", axum::routing::delete(audiobooks::delete_file))
+        .route("/audiobooks/{id}/files/{file}/audio", get(audiobooks::audio))
+        .route("/audiobooks/{id}/cover", get(audiobooks::cover).post(audiobooks::upload_cover))
+        .route("/audiobooks/{id}/feed-key", post(audiobooks::new_feed_key))
         .route("/books", get(books::list).post(books::upload))
         .route("/libris/search", get(libris::search))
         .route("/libris/summary", get(libris::summary))
@@ -243,6 +256,7 @@ fn router(state: AppState) -> Router {
     Router::new()
         .nest("/api", api)
         .nest("/api/opds", opds)
+        .nest("/podcast", audiobooks::podcast_router())
         .nest("/api/kobo/{token}", kobo)
         .nest("/api/kosync", kosync::router())
         .route("/metrics", get(metrics::metrics))

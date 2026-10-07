@@ -44,6 +44,7 @@ pub async fn libris_enabled(state: &AppState) -> Result<bool, sqlx::Error> {
 pub struct Settings {
     libris_enabled: bool,
     openlibrary_enabled: bool,
+    audiobooks_enabled: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -53,6 +54,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
     Ok(Json(Settings {
         libris_enabled: libris_enabled(state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(state).await,
+        audiobooks_enabled: crate::audiobooks::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -72,6 +74,8 @@ pub struct UpdateSettings {
     libris_enabled: bool,
     /// Absent from older clients: unchanged.
     openlibrary_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    audiobooks_enabled: Option<bool>,
     registration_enabled: bool,
 }
 
@@ -85,6 +89,11 @@ pub async fn update_settings(
         .map_err(|e| internal(e.into()))?;
     if let Some(on) = req.openlibrary_enabled {
         set_setting(&state, "openlibrary_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
+    if let Some(on) = req.audiobooks_enabled {
+        set_setting(&state, "audiobooks_enabled", if on { "true" } else { "false" })
             .await
             .map_err(|e| internal(e.into()))?;
     }
@@ -102,6 +111,7 @@ pub async fn update_settings(
         serde_json::json!({
             "libris_enabled": req.libris_enabled,
             "openlibrary_enabled": req.openlibrary_enabled,
+            "audiobooks_enabled": req.audiobooks_enabled,
             "registration_enabled": req.registration_enabled,
         }),
     )
@@ -227,6 +237,7 @@ pub struct Config {
     openlibrary_enabled: bool,
     /// Whether the MCP endpoint is served (LEGEJO_MCP).
     mcp_enabled: bool,
+    audiobooks_enabled: bool,
 }
 
 pub async fn config(State(state): State<AppState>, _user: AuthUser) -> Result<Json<Config>, Response> {
@@ -234,5 +245,6 @@ pub async fn config(State(state): State<AppState>, _user: AuthUser) -> Result<Js
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,
+        audiobooks_enabled: crate::audiobooks::enabled(&state).await,
     }))
 }
