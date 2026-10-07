@@ -436,6 +436,19 @@ async fn restricted_shelves_are_shared_with_chosen_users() {
     assert_eq!(detail["books"].as_array().unwrap().len(), 1);
     let (_, found) = send(&app, Method::GET, "/api/search?q=Krets", Some(&b), None).await;
     assert_eq!(found["shelves"].as_array().unwrap().len(), 1);
+    // The search also looks among tags and categories, of own books and shared ones.
+    sqlx::query("INSERT INTO book_tags (book_id, tag) VALUES (?, 'Polarforskning')").bind(book).execute(&db).await.unwrap();
+    sqlx::query("UPDATE books SET category = 'Reseskildring' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+    for q in ["polar", "FORSKNING", "reseskildring"] {
+        let (_, found) = send(&app, Method::GET, &format!("/api/search?q={q}"), Some(&a), None).await;
+        assert_eq!(found["mine"].as_array().unwrap().len(), 1, "{q}: own");
+        let (_, found) = send(&app, Method::GET, &format!("/api/search?q={q}"), Some(&b), None).await;
+        assert_eq!(found["public"].as_array().unwrap().len(), 1, "{q}: shared");
+        let (_, found) = send(&app, Method::GET, &format!("/api/search?q={q}"), Some(&c), None).await;
+        assert_eq!(found["public"].as_array().unwrap().len(), 0, "{q}: not shared with carol");
+    }
+    let (_, found) = send(&app, Method::GET, "/api/search?q=pol_r", Some(&a), None).await;
+    assert_eq!(found["mine"].as_array().unwrap().len(), 0, "wildcards match themselves");
 
     // Carol is not on the list: nothing of the shelf is reachable.
     let (_, list) = send(&app, Method::GET, "/api/public/shelves", Some(&c), None).await;

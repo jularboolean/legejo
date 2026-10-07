@@ -16,6 +16,11 @@ use serde::{Deserialize, Serialize};
 
 const GROUP_LIMIT: i64 = 50;
 
+/// SQL condition: the book `b` has a tag that contains $2, a LIKE pattern
+/// whose wildcards are escaped.
+const TAGGED: &str = "EXISTS (SELECT 1 FROM book_tags bt WHERE bt.book_id = b.id \
+     AND LOWER(bt.tag) LIKE '%' || LOWER($2) || '%' ESCAPE '\\')";
+
 fn internal(e: anyhow::Error) -> Response {
     tracing::error!("internal error: {e:#}");
     (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
@@ -111,6 +116,30 @@ pub async fn search(
     .await
     .map_err(|e| internal(e.into()))?;
 
+    // Tags are not part of the full-text index: books with a tag that
+    // contains the query are found on their own and follow the others.
+    let pattern = raw.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let tagged: Vec<Book> = sqlx::query_as(&format!(
+        "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent FROM books b
+         {progress_joins}
+         WHERE b.owner_id = $1 AND {TAGGED}
+         ORDER BY LOWER(b.title)
+         LIMIT {GROUP_LIMIT}",
+        percent = progress::progress_percent(state.backend),
+        progress_joins = progress::PROGRESS_JOINS,
+    ))
+    .bind(user.0.id)
+    .bind(&pattern)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut mine = mine;
+    for book in tagged {
+        if !mine.iter().any(|b| b.id == book.id) {
+            mine.push(book);
+        }
+    }
+
     let public: Vec<PublicHit> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B}, u.username AS owner, ps.name AS shelf_name, {owned} AS owned
          FROM books b
@@ -138,6 +167,36 @@ pub async fn search(
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
+
+    let tagged: Vec<PublicHit> = sqlx::query_as(&format!(
+        "SELECT {BOOK_COLUMNS_B}, u.username AS owner, ps.name AS shelf_name, {owned} AS owned
+         FROM books b
+         JOIN (
+             SELECT sb.book_id, MIN(s.id) AS shelf_id
+             FROM shelf_books sb
+             JOIN shelves s ON s.id = sb.shelf_id
+             WHERE {visible} AND s.owner_id != $1
+             GROUP BY sb.book_id
+         ) pick ON pick.book_id = b.id
+         JOIN shelves ps ON ps.id = pick.shelf_id
+         JOIN users u ON u.id = ps.owner_id
+         WHERE {TAGGED}
+         ORDER BY LOWER(b.title)
+         LIMIT {GROUP_LIMIT}",
+        owned = owned_expr("$1"),
+        visible = crate::shelves::visible_to("$1"),
+    ))
+    .bind(user.0.id)
+    .bind(&pattern)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut public = public;
+    for hit in tagged {
+        if !public.iter().any(|h| h.book.id == hit.book.id) {
+            public.push(hit);
+        }
+    }
 
     let shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
         "SELECT {columns}
