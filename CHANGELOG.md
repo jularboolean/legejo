@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.8.0 (2026-10-07)
+
+- **Comics on a Kobo:** Kobo sync now brings your comics (CBZ) to the
+  e-reader. Legejo makes each one into a book the device reads, one page
+  per image in reading order, with the images as they are; manga marked as
+  such in `ComicInfo.xml` is read from the right. The comic in your library
+  is not changed. PDF files still stay out of Kobo sync.
+- **Upgrading:** the comics already in a library get today's date as the
+  day they were added, so that they reach an e-reader that has synced
+  since; they show first under "recently added". The book made for the
+  device is kept on disk beside the comic, so a synced comic takes about
+  twice its size.
+
 ## 1.7.0 (2026-10-07)
 
 - **PDF and comics (CBZ):** these files can now be kept in the library next
