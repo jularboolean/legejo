@@ -301,9 +301,11 @@ pub fn cbz_to_epub(src: &std::path::Path, dst: &std::path::Path, meta: &ComicMet
     }
 
     let mut out = zip::ZipWriter::new(std::fs::File::create(dst)?);
-    let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored).large_file(true);
+    let plain = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    // Images may be large; the marker must be written without extra fields.
+    let stored = plain.large_file(true);
     let packed = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    out.start_file("mimetype", stored)?;
+    out.start_file("mimetype", plain)?;
     out.write_all(b"application/epub+zip")?;
     out.start_file("META-INF/container.xml", packed)?;
     out.write_all(
@@ -361,6 +363,13 @@ pub fn cbz_to_epub(src: &std::path::Path, dst: &std::path::Path, meta: &ComicMet
     anyhow::ensure!(!items.is_empty(), "no readable pages in the comic archive");
 
     let (title, language) = (esc(&meta.title), esc(meta.language.as_deref().unwrap_or("en")));
+    // The identifier in the form a UUID is written in, when it is one.
+    let id = &meta.uuid;
+    let uuid = if id.len() == 32 && id.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("{}-{}-{}-{}-{}", &id[..8], &id[8..12], &id[12..16], &id[16..20], &id[20..])
+    } else {
+        id.clone()
+    };
     out.start_file("OEBPS/nav.xhtml", packed)?;
     write!(
         out,
@@ -381,8 +390,7 @@ pub fn cbz_to_epub(src: &std::path::Path, dst: &std::path::Path, meta: &ComicMet
 <docTitle><text>{title}</text></docTitle>
 <navMap><navPoint id="n1" playOrder="1"><navLabel><text>{title}</text></navLabel><content src="p0001.xhtml"/></navPoint></navMap>
 </ncx>
-"#,
-        uuid = meta.uuid,
+"#
     )?;
     let (first_width, first_height) = (items[0].3, items[0].4);
     let creator = meta.author.as_deref().map(|a| format!("    <dc:creator>{}</dc:creator>\n", esc(a))).unwrap_or_default();
@@ -421,7 +429,6 @@ pub fn cbz_to_epub(src: &std::path::Path, dst: &std::path::Path, meta: &ComicMet
 {spine}  </spine>
 </package>
 "#,
-        uuid = meta.uuid,
         direction = if right_to_left { "rtl" } else { "ltr" },
     )?;
     out.finish()?;
