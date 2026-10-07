@@ -359,16 +359,17 @@
 		margin-bottom: 1rem;
 		color: var(--muted);
 	}
+	/* The cover and the text about the book are two columns of one block,
+	   as wide as the sections under it. */
 	.top {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: flex-start;
-		gap: 1.5rem;
+		display: grid;
+		grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+		align-items: start;
+		gap: 2rem;
+		max-width: 52rem;
 	}
 	.cover {
-		width: 12rem;
 		aspect-ratio: 1;
-		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -385,8 +386,7 @@
 		object-fit: cover;
 	}
 	.about {
-		flex: 1;
-		min-width: 16rem;
+		min-width: 0;
 	}
 	h1 {
 		font-size: 1.5rem;
@@ -516,7 +516,16 @@
 	}
 	section {
 		margin-top: 2rem;
-		max-width: 44rem;
+		max-width: 52rem;
+	}
+	@media (max-width: 40rem) {
+		.top {
+			grid-template-columns: 1fr;
+			gap: 1.25rem;
+		}
+		.cover {
+			max-width: 16rem;
+		}
 	}
 	.feed {
 		padding: 0.9rem 1rem 1rem;
@@ -631,7 +640,7 @@
 		margin-top: 2.5rem;
 		padding-top: 1.25rem;
 		border-top: 1px solid var(--border);
-		max-width: 44rem;
+		max-width: 52rem;
 	}
 	.danger {
 		color: var(--danger);

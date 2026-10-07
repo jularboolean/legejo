@@ -81,6 +81,8 @@ pub struct Audiobook {
     pub tags: Vec<String>,
     pub has_cover: DbFlag,
     #[serde(skip)]
+    pub cover_png: DbFlag,
+    #[serde(skip)]
     pub owner_id: i64,
     /// The owner's user name.
     pub owner: String,
@@ -101,6 +103,7 @@ pub struct Audiobook {
 
 const COLUMNS: &str = "a.id, a.uuid, a.title, a.author, a.narrator, a.language, a.description, a.category, \
      CAST(CASE WHEN a.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
+     CAST(CASE WHEN a.cover_mime = 'image/png' THEN 1 ELSE 0 END AS BIGINT) AS cover_png, \
      a.owner_id, u.username AS owner, a.visibility, a.feed_key, a.created_at, a.updated_at, \
      (SELECT COUNT(*) FROM audiobook_files f WHERE f.audiobook_id = a.id) AS parts, \
      CAST(COALESCE((SELECT SUM(f.seconds) FROM audiobook_files f WHERE f.audiobook_id = a.id), 0) AS BIGINT) AS seconds, \
@@ -798,6 +801,8 @@ pub fn podcast_router() -> Router<AppState> {
     Router::new()
         .route("/{key}/feed.xml", get(feed))
         .route("/{key}/cover", get(feed_cover))
+        .route("/{key}/cover.jpg", get(feed_cover))
+        .route("/{key}/cover.png", get(feed_cover))
         .route("/{key}/{file}", get(feed_audio))
         .fallback(|| async { StatusCode::NOT_FOUND })
 }
@@ -865,8 +870,15 @@ fn feed_xml(base: &str, book: &Audiobook, files: &[Part]) -> String {
             duration = clock(part.seconds),
         ));
     }
+    // Both the iTunes element and the plain RSS one: apps differ in which
+    // they read. The address ends in the image's file type, which some need.
     let image = if book.has_cover.as_bool() {
-        format!("    <itunes:image href=\"{root}/cover\"/>\n")
+        let cover = format!("{root}/cover.{}", if book.cover_png.as_bool() { "png" } else { "jpg" });
+        format!(
+            "    <itunes:image href=\"{cover}\"/>\n    <image>\n      <url>{cover}</url>\n      \
+             <title>{title}</title>\n      <link>{base}</link>\n    </image>\n",
+            title = xml(&book.title),
+        )
     } else {
         String::new()
     };
@@ -904,7 +916,10 @@ async fn feed(State(state): State<AppState>, headers: HeaderMap, Path(key): Path
 
 async fn feed_cover(State(state): State<AppState>, Path(key): Path<String>) -> Result<Response, Response> {
     let book = by_key(&state, &key).await?;
-    cover_response(&state, &book.uuid).await
+    let mut res = cover_response(&state, &book.uuid).await?;
+    // Podcast apps, and the services that fetch artwork for them, keep it.
+    res.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=3600"));
+    Ok(res)
 }
 
 async fn feed_audio(

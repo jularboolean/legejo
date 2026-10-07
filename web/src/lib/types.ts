@@ -139,6 +139,8 @@ export type PublicHit = Book & {
 
 export type SearchResult = {
 	mine: Book[];
+	/** The user's own shelves whose name matches. */
+	my_shelves: { id: number; name: string; has_cover: boolean; book_count: number }[];
 	public: PublicHit[];
 	shelves: PublicShelf[];
 	audiobooks: Audiobook[];

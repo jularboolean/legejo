@@ -1,7 +1,7 @@
 import type { SearchResult } from '#lib/types';
 import type { PageLoad } from './$types';
 
-const EMPTY: SearchResult = { mine: [], public: [], shelves: [], audiobooks: [] };
+const EMPTY: SearchResult = { mine: [], my_shelves: [], public: [], shelves: [], audiobooks: [] };
 
 export const load: PageLoad = async ({ fetch, url }) => {
 	const q = url.searchParams.get('q')?.trim() ?? '';

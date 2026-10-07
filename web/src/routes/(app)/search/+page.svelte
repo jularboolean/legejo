@@ -38,6 +38,7 @@
 	const nothing = $derived(
 		data.q !== '' &&
 			result.mine.length === 0 &&
+			result.my_shelves.length === 0 &&
 			result.public.length === 0 &&
 			result.shelves.length === 0 &&
 			result.audiobooks.length === 0
@@ -134,6 +135,29 @@
 		{:else}
 			<BookGrid books={result.mine} />
 		{/if}
+	</section>
+{/if}
+
+{#if result.my_shelves.length > 0}
+	<section>
+		<h2>{t('sidebar.shelves')}</h2>
+		<div class="shelfgrid">
+			{#each result.my_shelves as shelf (shelf.id)}
+				<a class="shelfcard" href={`/shelves/${shelf.id}`}>
+					<div class="shelfcover">
+						<img
+							src={shelf.has_cover ? `/api/shelves/${shelf.id}/cover` : defaultShelfCover(shelf.id)}
+							alt=""
+							loading="lazy"
+						/>
+					</div>
+					<div class="shelfmeta">
+						<span class="name">{shelf.name}</span>
+						<span class="sub">{t('shelf.books', { count: shelf.book_count })}</span>
+					</div>
+				</a>
+			{/each}
+		</div>
 	</section>
 {/if}
 

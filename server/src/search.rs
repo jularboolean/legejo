@@ -1,6 +1,6 @@
 //! The unified search: one query over the caller's own library, books on
-//! other users' public shelves, the public shelves themselves, and the
-//! caller's audiobooks.
+//! other users' public shelves, the caller's own shelves and the public
+//! ones, and the caller's audiobooks.
 
 use crate::auth::AuthUser;
 use crate::books::{search_expr, search_parts, Book, BOOK_COLUMNS_B};
@@ -38,9 +38,19 @@ pub struct PublicHit {
     pub owned: DbFlag,
 }
 
+/// One of the caller's own shelves, found by its name.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct OwnShelf {
+    pub id: i64,
+    pub name: String,
+    pub has_cover: DbFlag,
+    pub book_count: i64,
+}
+
 #[derive(Serialize)]
 pub struct SearchResult {
     pub mine: Vec<Book>,
+    pub my_shelves: Vec<OwnShelf>,
     pub public: Vec<PublicHit>,
     pub shelves: Vec<PublicShelf>,
     pub audiobooks: Vec<crate::audiobooks::Audiobook>,
@@ -53,9 +63,30 @@ pub async fn search(
 ) -> Result<Json<SearchResult>, Response> {
     let raw = params.q.as_deref().unwrap_or("").trim().to_string();
     let audiobooks = crate::audiobooks::search(&state, user.0.id, &raw).await?;
+    // Shelf names are short; a simple substring match beats FTS here.
+    let my_shelves: Vec<OwnShelf> = if raw.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as(&format!(
+            "SELECT s.id, s.name,
+                    CAST(CASE WHEN s.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover,
+                    COUNT(sb.book_id) AS book_count
+             FROM shelves s
+             LEFT JOIN shelf_books sb ON sb.shelf_id = s.id
+             WHERE s.owner_id = $1 AND LOWER(s.name) LIKE '%' || LOWER($2) || '%'
+             GROUP BY s.id
+             ORDER BY LOWER(s.name)
+             LIMIT {GROUP_LIMIT}"
+        ))
+        .bind(user.0.id)
+        .bind(&raw)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?
+    };
     let expr = search_expr(state.backend, &raw);
     let Some(expr) = expr else {
-        return Ok(Json(SearchResult { mine: Vec::new(), public: Vec::new(), shelves: Vec::new(), audiobooks }));
+        return Ok(Json(SearchResult { mine: Vec::new(), my_shelves, public: Vec::new(), shelves: Vec::new(), audiobooks }));
     };
     let parts = search_parts(state.backend);
 
@@ -108,7 +139,6 @@ pub async fn search(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    // Shelf names are short; a simple substring match beats FTS here.
     let shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
         "SELECT {columns}
          FROM shelves s
@@ -128,5 +158,5 @@ pub async fn search(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    Ok(Json(SearchResult { mine, public, shelves, audiobooks }))
+    Ok(Json(SearchResult { mine, my_shelves, public, shelves, audiobooks }))
 }

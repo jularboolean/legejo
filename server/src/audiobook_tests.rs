@@ -109,10 +109,29 @@ async fn an_audiobook_is_a_podcast_feed() {
     assert!(xml.contains("<title>The Sign of the Cross</title>") && xml.contains("<itunes:author>Jean-Joseph Gaume</itunes:author>"));
     assert!(xml.contains("<itunes:type>serial</itunes:type>") && xml.contains("Read by A &lt;Volunteer&gt;."));
     assert_eq!(xml.matches("<item>").count(), 2);
+    assert!(!xml.contains("<image>"), "no cover yet");
     assert!(xml.contains("<title>Part 1</title>") && xml.contains("<itunes:episode>2</itunes:episode>"));
     assert!(xml.contains("type=\"audio/mpeg\"") && xml.contains("type=\"audio/mp4\"") && xml.contains("length=\"100\""));
     // The first part is the oldest.
     assert!(xml.find("01 Jan 2020").unwrap() < xml.find("02 Jan 2020").unwrap());
+
+    // With a cover, the feed names it twice, at an address that ends in its type.
+    let (status, _) = post_files(&app, &format!("/api/audiobooks/{id}/cover"), &alice, &[("c.png", "image/png", b"png")]).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, _, body) = fetch(&app, &path, None).await;
+    let with_cover = String::from_utf8(body).unwrap();
+    let cover = with_cover.split("<itunes:image href=\"").nth(1).unwrap().split('"').next().unwrap();
+    assert!(cover.ends_with("/cover.png") && with_cover.contains(&format!("<image>\n      <url>{cover}</url>")));
+    let (status, headers, body) = fetch(&app, &cover[cover.find("/podcast/").unwrap()..], None).await;
+    assert_eq!((status, body.as_slice()), (StatusCode::OK, b"png".as_slice()));
+    assert_eq!(headers[header::CONTENT_TYPE], "image/png");
+
+    // The search over everything also finds the user's own shelves by name.
+    send(&app, Method::POST, "/api/shelves", Some(&alice), Some(json!({ "name": "Isens fasor" }))).await;
+    let (_, v) = send(&app, Method::GET, "/api/search?q=isen", Some(&alice), None).await;
+    assert_eq!(v["my_shelves"][0]["name"], "Isens fasor");
+    let (_, v) = send(&app, Method::GET, "/api/search?q=isen", Some(&bob), None).await;
+    assert_eq!(v["my_shelves"].as_array().unwrap().len(), 0);
 
     // An episode, whole and in part: podcast apps resume and seek with Range.
     let enclosure = xml.split("enclosure url=\"").nth(1).unwrap().split('"').next().unwrap();
