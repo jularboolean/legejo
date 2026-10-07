@@ -10,6 +10,7 @@ mod mcp;
 mod metrics;
 mod ratelimit;
 mod settings;
+mod wider;
 mod audiobooks;
 mod audit;
 mod auth;
@@ -55,6 +56,8 @@ mod audiobook_tests;
 mod kindle_tests;
 #[cfg(test)]
 mod format_tests;
+#[cfg(test)]
+mod wider_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -191,6 +194,7 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/kobo-restore", post(books::kobo_restore))
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
         .route("/search", get(search::search))
+        .route("/search/wider", get(search::wider))
         .route("/fed/status", get(fed::remote::status))
         .route("/fed/follows", get(fed::remote::list_follows).post(fed::remote::follow).delete(fed::remote::unfollow))
         .route("/fed/books", get(fed::remote::books))

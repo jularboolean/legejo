@@ -94,6 +94,25 @@ pub struct Settings {
     pub secure_cookies: bool,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
     pub mcp: bool,
+    /// The language model behind the wider search (wider.rs). None unless
+    /// LEGEJO_AI_API_KEY is set.
+    pub ai: Option<Ai>,
+}
+
+/// A chat-completions endpoint of the OpenAI kind, which many providers and
+/// local model servers offer.
+#[derive(Clone)]
+pub struct Ai {
+    pub base_url: String,
+    pub key: String,
+    pub model: String,
+}
+
+// The key stays out of anything that prints the settings.
+impl std::fmt::Debug for Ai {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ai").field("base_url", &self.base_url).field("model", &self.model).finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +132,7 @@ impl Default for Settings {
             import: None,
             secure_cookies: false,
             mcp: false,
+            ai: None,
         }
     }
 }
@@ -146,7 +166,17 @@ impl Settings {
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
         };
         let mcp = flag("LEGEJO_MCP")?;
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies, mcp })
+        let ai = match var("LEGEJO_AI_API_KEY")? {
+            None => None,
+            Some(key) => Some(Ai {
+                key: key.trim().to_string(),
+                base_url: var("LEGEJO_AI_BASE_URL")?
+                    .map(|u| u.trim().trim_end_matches('/').to_string())
+                    .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
+                model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-4.1-nano".to_string()),
+            }),
+        };
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies, mcp, ai })
     }
 }
 

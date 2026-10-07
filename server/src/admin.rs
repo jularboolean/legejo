@@ -48,6 +48,10 @@ pub struct Settings {
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
+    /// The model behind the wider search and its use over the last 30 days;
+    /// absent when the operator has set none up (LEGEJO_AI_API_KEY).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wider_search: Option<crate::wider::Summary>,
 }
 
 async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> {
@@ -59,6 +63,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
             .await
             .map_err(|e| internal(e.into()))?,
         mail_configured: state.mail.is_some(),
+        wider_search: crate::wider::summary(state).await,
     }))
 }
 
@@ -241,6 +246,8 @@ pub struct Config {
     /// Whether the user can mail books to a Kindle: the server sends mail
     /// and the user has given their Kindle's address.
     send_to_kindle: bool,
+    /// Whether the search can be widened by a language model.
+    wider_search: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -252,6 +259,7 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         .flatten();
     Ok(Json(Config {
         send_to_kindle: state.mail.is_some() && kindle.is_some(),
+        wider_search: state.settings.ai.is_some(),
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,
