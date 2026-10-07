@@ -4,6 +4,22 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.6.0 (2026-10-07)
+
+- **Send to Kindle:** give the address of your Kindle on your account page,
+  and every book of yours gets a button that mails it there. Needs mail to
+  be set up on the server (`LEGEJO_SMTP_*`); the account page names the
+  sender address to approve with Amazon. Files over 25 MB are not sent.
+- **Search:** finds your own shelves by name and books by their tags, names
+  the language of every book and audiobook found, and the shelf a shared
+  book is on is now a link to that shelf.
+- **Audiobooks:** the cover and the details sit side by side on the
+  audiobook's page.
+- **Fixed:** the cover of an audiobook did not show in some podcast apps.
+  The feed now gives it at an address that ends in the image type, in both
+  of the forms apps look for. An app that already follows the feed may need
+  the feed added again.
+
 ## 1.5.0 (2026-10-07)
 
 - **Audiobooks (optional):** an admin can turn on audiobook support in the
