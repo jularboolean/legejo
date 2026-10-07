@@ -50,7 +50,9 @@
 	const bare = $derived(book.feed_url.replace(/^https?:\/\//, ''));
 	const apps = $derived([
 		{ name: 'Apple Podcasts', href: `podcast://${bare}` },
-		{ name: 'Pocket Casts', href: `pktc://subscribe/${bare}` }
+		{ name: 'Pocket Casts', href: `pktc://subscribe/${bare}` },
+		{ name: 'Overcast', href: `overcast://x-callback-url/add?url=${encodeURIComponent(book.feed_url)}` },
+		{ name: 'Castro', href: `castro://subscribe/${bare}` }
 	]);
 	let confirmKey = $state(false);
 	async function newKey() {
