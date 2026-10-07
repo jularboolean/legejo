@@ -715,7 +715,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'audio.feedHeading': 'Lyssna i en poddapp',
 	'audio.feedHint': 'Lägg till adressen i din poddapp (i Apple Podcaster: Följ ett program via URL). Varje del blir ett avsnitt, och appen kommer ihåg var du är.',
 	'audio.copy': 'Kopiera',
-	'audio.openApp': 'Öppna i en poddapp',
+	'audio.openIn': 'Följ i',
 	'audio.feedSecret': 'Den som har adressen kan lyssna.',
 	'audio.newKey': 'Skapa en ny adress',
 	'audio.newKeyConfirm': 'Den nuvarande adressen slutar fungera direkt, i alla appar som följer den.',

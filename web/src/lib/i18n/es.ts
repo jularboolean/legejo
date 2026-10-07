@@ -715,7 +715,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'audio.feedHeading': 'Escuchar en una aplicación de pódcast',
 	'audio.feedHint': 'Añade esta dirección en tu aplicación de pódcast (en Apple Podcasts: Seguir un programa por URL). Cada parte se convierte en un episodio, y la aplicación recuerda por dónde vas.',
 	'audio.copy': 'Copiar',
-	'audio.openApp': 'Abrir en una aplicación de pódcast',
+	'audio.openIn': 'Seguir en',
 	'audio.feedSecret': 'Cualquiera que tenga la dirección puede escuchar.',
 	'audio.newKey': 'Crear una dirección nueva',
 	'audio.newKeyConfirm': 'La dirección actual deja de funcionar de inmediato, en todas las aplicaciones que la siguen.',

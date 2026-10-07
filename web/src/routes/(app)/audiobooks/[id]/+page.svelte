@@ -45,10 +45,13 @@
 			// Clipboard refused (insecure origin); the field is selectable anyway.
 		}
 	}
-	// Podcast apps register this scheme; it takes the address without its own.
-	const podcastLink = $derived(
-		book.feed_url.startsWith('https://') ? `podcast://${book.feed_url.slice('https://'.length)}` : null
-	);
+	// Podcast apps register schemes of their own, which take the feed's
+	// address without its scheme and open the app at that feed.
+	const bare = $derived(book.feed_url.replace(/^https?:\/\//, ''));
+	const apps = $derived([
+		{ name: 'Apple Podcasts', href: `podcast://${bare}` },
+		{ name: 'Pocket Casts', href: `pktc://subscribe/${bare}` }
+	]);
 	let confirmKey = $state(false);
 	async function newKey() {
 		confirmKey = false;
@@ -266,9 +269,12 @@
 		<button type="button" class="ghost" onclick={copyFeed}>
 			{#if copied}<Check size={13} /> {t('kobo.copied')}{:else}<Copy size={13} /> {t('audio.copy')}{/if}
 		</button>
-		{#if podcastLink}
-			<a class="button" href={podcastLink}>{t('audio.openApp')}</a>
-		{/if}
+	</div>
+	<div class="apps">
+		<span>{t('audio.openIn')}</span>
+		{#each apps as app (app.name)}
+			<a class="button" href={app.href}>{app.name}</a>
+		{/each}
 	</div>
 	<p class="small">
 		{t('audio.feedSecret')}
@@ -531,6 +537,15 @@
 		min-width: 14rem;
 		font-family: ui-monospace, 'SF Mono', monospace;
 		font-size: 0.8rem;
+	}
+	.apps {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+		font-size: 0.85rem;
+		color: var(--muted);
 	}
 	.button {
 		display: inline-flex;

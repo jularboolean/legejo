@@ -713,7 +713,7 @@ export const en = {
 	'audio.feedHeading': 'Listen in a podcast app',
 	'audio.feedHint': 'Add this address in your podcast app (in Apple Podcasts: Follow a Show by URL). Each part becomes an episode, and the app remembers where you are.',
 	'audio.copy': 'Copy',
-	'audio.openApp': 'Open in a podcast app',
+	'audio.openIn': 'Follow in',
 	'audio.feedSecret': 'Anyone who has the address can listen.',
 	'audio.newKey': 'Make a new address',
 	'audio.newKeyConfirm': 'The current address stops working at once, in every app that follows it.',
