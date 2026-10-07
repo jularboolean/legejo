@@ -4,11 +4,12 @@
 
 # Legejo
 
-Legejo is a self-hosted library for EPUB books. Upload your books, organize
+Legejo is a self-hosted library for your e-books. Upload your books, organize
 them on shelves and read them in the browser, on a Kobo, in KOReader or in any
-OPDS reading app, with your reading position following you between devices.
-Audiobooks can live there too: each one becomes a private podcast feed for the
-podcast app you already use.
+OPDS reading app, with your reading position following you between devices. It
+is built around EPUB; PDF files and comics (CBZ) are kept in the same library
+and handed to your devices as they are. Audiobooks can live there too: each one
+becomes a private podcast feed for the podcast app you already use.
 
 It runs as a single container with SQLite or PostgreSQL and is built with Rust
 (Axum) and SvelteKit.
@@ -26,6 +27,9 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   and needs no configuration. PostgreSQL is there if you want it.
 - **Made for e-readers.** Kobo sync, KOReader sync and OPDS are core features, not
   plugins, and your reading position follows you between them.
+- **One library.** EPUB is what Legejo reads, mends and converts. PDF files and
+  comics sit beside them, with covers, shelves, tags, search and sharing, ready
+  to download or fetch over OPDS.
 - **Audiobooks without another app.** Turn it on, and each audiobook gets a
   private podcast feed. Listen in Apple Podcasts, Pocket Casts, Overcast or any
   other podcast app, which keeps your place the way it does for any show.
@@ -41,22 +45,27 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 ## Why not?
 
-Legejo is built around EPUB. It does not handle PDF or comics, and that is on
-purpose: the goal is a fast, smooth application that runs on its own, with no
-other services to set up.
+Legejo is built around EPUB. That is the format it opens in the browser, checks
+and repairs, writes your corrections back into, converts for Kobo and reads
+aloud.
+
+PDF and CBZ files are welcome, but only looked after: Legejo stores them,
+describes them and hands them out. It does not open them, does not change them,
+and does not send them to a Kobo through Kobo sync. If you want to read comics
+or PDFs in the browser, another tool will serve you better.
 
 Audiobooks are an optional extra, and deliberately a small one. Legejo stores
 the files and serves them as a podcast feed; it has no listening app of its
-own, and each file is one part. If audiobooks are the heart of your library, or
-it is mostly PDFs or comics, another tool will serve you better.
+own, and each file is one part.
 
 ## Features
 
 **Library**
-- Upload EPUB files; title, author, series, cover and other metadata are read from the file.
+- Upload EPUB, PDF and CBZ files; title, author, series, cover and other metadata are read from the file where it has them.
+- PDF and CBZ are stored as they are: a scanned PDF and a comic take their first page as the cover, and a comic's `ComicInfo.xml` is read. Password-protected PDFs are refused.
 - Edit metadata by hand or look it up in Open Library or Libris (the Swedish national catalogue).
-- The file follows the catalog: title, authors, language, series and cover are written back into the EPUB, so it is right on the e-reader and in exports too.
-- A health check on every upload: a missing table of contents, language, identifier or cover declaration is repaired, and broken links are reported. Copy-protected files are refused.
+- An EPUB follows the catalog: title, authors, language, series and cover are written back into the file, so it is right on the e-reader and in exports too.
+- A health check on every EPUB uploaded: a missing table of contents, language, identifier or cover declaration is repaired, and broken links are reported. Copy-protected files are refused.
 - A book whose file claims copyright is marked as protected from the start.
 - Series, tags, ratings, a want-to-read list and an edition date picker.
 - Full-text search, filters, sorting, an authors page and duplicate detection on upload.
@@ -77,7 +86,7 @@ it is mostly PDFs or comics, another tool will serve you better.
 - A web reader with themes, font settings and saved position.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics.
-- **Kobo sync:** Legejo acts as the Kobo store for your e-reader. Books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
+- **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
 - **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
@@ -93,13 +102,13 @@ it is mostly PDFs or comics, another tool will serve you better.
 **Accounts and administration**
 - Multiple users with admin roles, invitations and optional self-registration with email verification.
 - Optional single sign-on through any OpenID Connect provider (Pocket ID, Authentik, Keycloak, Forgejo, ...).
-- An export of the whole library (EPUB files, covers, CSV and JSON) and account deletion.
+- An export of the whole library (book files, covers, CSV and JSON) and account deletion.
 - A system log of everything that happens on the instance.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
 
 **For self-hosters**
 - SQLite with zero configuration, or PostgreSQL.
-- A watched import folder for EPUB files.
+- A watched import folder for EPUB, PDF and CBZ files.
 - Prometheus metrics, JSON logs, throttling of password guessing, and secrets from files.
 
 ## Running Legejo with Docker
@@ -231,7 +240,7 @@ HTTP 429 until the window has passed.
 | `LEGEJO_LOGIN_WINDOW_MINUTES` | `15` | |
 | `LEGEJO_CLIENT_IP_HEADER` | | Header with the client IP set by your reverse proxy, e.g. `X-Real-IP`. Only set it if the proxy always overwrites it |
 
-**Import folder.** EPUB files placed in the folder (subfolders included) are
+**Import folder.** EPUB, PDF and CBZ files placed in the folder (subfolders included) are
 added to a user's library once they have stopped changing. Afterwards they are
 moved to `imported/`, `duplicates/` or `failed/` inside the folder.
 
