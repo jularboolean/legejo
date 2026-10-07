@@ -4,8 +4,8 @@
 	import { formatLength } from '#lib/audio';
 	import Avatar from '#lib/Avatar.svelte';
 	import { defaultShelfCover } from '#lib/shelfCovers';
-	import { t } from '#lib/i18n';
-	import { loadView, saveView, type ViewMode } from '#lib/library';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageName, loadView, saveView, type ViewMode } from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
@@ -143,9 +143,9 @@
 	<section>
 		<h2>{t('search.mine')}</h2>
 		{#if view === 'list'}
-			<BookRows books={result.mine} />
+			<BookRows books={result.mine} showLanguage />
 		{:else}
-			<BookGrid books={result.mine} />
+			<BookGrid books={result.mine} showLanguage />
 		{/if}
 	</section>
 {/if}
@@ -192,7 +192,11 @@
 					</div>
 					<div class="shelfmeta">
 						<span class="name">{book.title || t('audio.untitled')}</span>
-						<span class="sub">{[book.author, formatLength(book.seconds)].filter(Boolean).join(' · ')}</span>
+						<span class="sub">
+							{[book.author, formatLength(book.seconds), languageName(book.language, getLocale())]
+								.filter(Boolean)
+								.join(' · ')}
+						</span>
 					</div>
 				</a>
 			{/each}
@@ -206,6 +210,7 @@
 		{#if view === 'list'}
 			<BookRows
 				books={result.public}
+				showLanguage
 				href={publicBookPath}
 				cover={publicCover}
 				own={false}
@@ -225,6 +230,9 @@
 						</a>
 						<a class="title" href={publicBookPath(hit)} title={hit.title}>{hit.title}</a>
 						{#if hit.author}<span class="sub">{hit.author}</span>{/if}
+						{#if languageName(hit.language, getLocale())}
+							<span class="sub">{languageName(hit.language, getLocale())}</span>
+						{/if}
 						<span class="context">{@render hitContext(hit)}</span>
 						{@render hitAction(hit)}
 					</div>

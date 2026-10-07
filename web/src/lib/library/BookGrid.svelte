@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { Check, Download } from '@lucide/svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageName } from '#lib/library';
 	import type { Book } from '#lib/types';
 
 	let {
 		books,
+		showLanguage = false,
 		selected = null,
 		ontoggle
 	}: {
 		books: Book[];
+		/** Name each book's language under its author. */
+		showLanguage?: boolean;
 		/** Selection mode when set: a tap selects instead of opening the book. */
 		selected?: Set<number> | null;
 		ontoggle?: (id: number) => void;
@@ -49,6 +53,9 @@
 			<div class="meta">
 				<span class="title" title={book.title}>{book.title}</span>
 				{#if book.author}<span class="author">{book.author}</span>{/if}
+				{#if showLanguage && languageName(book.language, getLocale())}
+					<span class="author">{languageName(book.language, getLocale())}</span>
+				{/if}
 			</div>
 			<a
 				class="download"

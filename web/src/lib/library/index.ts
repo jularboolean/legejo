@@ -82,6 +82,12 @@ export function primaryLanguage(code: string | null | undefined): string | null 
 	return ISO3[base] ?? base;
 }
 
+/** A book's language by name, e.g. "Swedish"; null when it has none that is usable. */
+export function languageName(code: string | null | undefined, locale: string): string | null {
+	const primary = primaryLanguage(code);
+	return primary ? languageLabel(primary, locale) : null;
+}
+
 export function languageLabel(code: string, locale: string): string {
 	try {
 		const name = new Intl.DisplayNames([locale], { type: 'language' }).of(code);

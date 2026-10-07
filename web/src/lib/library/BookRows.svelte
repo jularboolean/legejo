@@ -1,14 +1,15 @@
 <script lang="ts" generics="T extends Book & { shelf_ids?: number[] }">
 	import { BookMarked, Check, Download, Layers } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
-	import { t } from '#lib/i18n';
-	import { bookYear, plainSnippet } from '#lib/library';
+	import { getLocale, t } from '#lib/i18n';
+	import { bookYear, languageName, plainSnippet } from '#lib/library';
 	import Rating from '#lib/Rating.svelte';
 	import type { Book, Shelf } from '#lib/types';
 
 	let {
 		books,
 		shelves = [],
+		showLanguage = false,
 		href = (book: T) => `/books/${book.id}`,
 		cover = (book: T) =>
 			`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`,
@@ -19,6 +20,8 @@
 		ontoggle
 	}: {
 		books: T[];
+		/** Name each book's language in the byline. */
+		showLanguage?: boolean;
 		/** For the shelf chips; rows without shelf_ids show none. */
 		shelves?: Shelf[];
 		href?: (book: T) => string;
@@ -70,6 +73,9 @@
 				<p class="byline">
 					{#if book.author}<span>{book.author}</span>{/if}
 					{#if year}<span>{year}</span>{/if}
+					{#if showLanguage && languageName(book.language, getLocale())}
+						<span>{languageName(book.language, getLocale())}</span>
+					{/if}
 					{#if book.series && own}
 						<a class="series" href={`/series/${encodeURIComponent(book.series)}`}>
 							<Layers size={12} />
