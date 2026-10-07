@@ -267,6 +267,8 @@ export type Audiobook = {
 	narrator: string | null;
 	language: string | null;
 	description: string | null;
+	category: string | null;
+	tags: string[];
 	has_cover: boolean;
 	created_at: string;
 	updated_at: string | null;

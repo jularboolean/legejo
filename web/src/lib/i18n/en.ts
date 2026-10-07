@@ -693,6 +693,8 @@ export const en = {
 	'audio.empty': 'No audiobooks yet.',
 	'audio.emptyHint': 'Add the audio files of one book, or the folder they are in. They become its parts, in the order of their names.',
 	'audio.untitled': 'Untitled',
+	'audio.filterPlaceholder': 'Filter by title, author, reader or description…',
+	'audio.noMatch': 'No audiobooks match the filters.',
 	'audio.part1': '1 part',
 	'audio.partsN': '{count} parts',
 	'audio.partN': 'Part {n}',

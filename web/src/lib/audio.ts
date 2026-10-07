@@ -1,3 +1,7 @@
+import { primaryLanguage } from '#lib/library';
+import { fold } from '#lib/library/authors';
+import type { Audiobook } from '#lib/types';
+
 /** "6 h 55 min", "29 min" or "45 s", for a length in seconds. */
 export function formatLength(seconds: number): string {
 	if (seconds <= 0) return '–';
@@ -50,4 +54,61 @@ export function sendPart(
 		xhr.onerror = () => resolve({ ok: false, error: 'network' });
 		xhr.send(form);
 	});
+}
+
+/** What the list of audiobooks is narrowed by; null and '' leave a field alone. */
+export type AudioFilters = { text: string; tag: string | null; language: string | null; category: string | null };
+
+export function emptyAudioFilters(): AudioFilters {
+	return { text: '', tag: null, language: null, category: null };
+}
+
+/** The text is looked for in the title, the author, the reader and the description. */
+export function filterAudiobooks(books: Audiobook[], f: AudioFilters): Audiobook[] {
+	const words = fold(f.text).split(/\s+/).filter(Boolean);
+	return books.filter((book) => {
+		if (f.tag && !book.tags.some((tag) => fold(tag) === f.tag)) return false;
+		if (f.category && fold(book.category ?? '') !== f.category) return false;
+		if (f.language && primaryLanguage(book.language) !== f.language) return false;
+		if (words.length === 0) return true;
+		const hay = fold([book.title, book.author, book.narrator, book.description].filter(Boolean).join(' '));
+		return words.every((word) => hay.includes(word));
+	});
+}
+
+/** The values in use, most common first, keyed without case or accents. */
+export function counted(values: string[]): { key: string; label: string; count: number }[] {
+	const found = new Map<string, { key: string; label: string; count: number }>();
+	for (const value of values) {
+		const key = fold(value);
+		const entry = found.get(key);
+		if (entry) entry.count += 1;
+		else found.set(key, { key, label: value, count: 1 });
+	}
+	return [...found.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+const FILTERS_KEY = 'legejo.audiobooks.filters';
+
+/** Filters last for the session, so they survive opening an audiobook and coming back. */
+export function loadAudioFilters(): AudioFilters {
+	const filters = emptyAudioFilters();
+	try {
+		const saved = JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? 'null');
+		if (typeof saved?.text === 'string') filters.text = saved.text;
+		for (const field of ['tag', 'language', 'category'] as const) {
+			if (typeof saved?.[field] === 'string') filters[field] = saved[field];
+		}
+	} catch {
+		// No storage, or something else's data: no filters.
+	}
+	return filters;
+}
+
+export function saveAudioFilters(filters: AudioFilters) {
+	try {
+		sessionStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+	} catch {
+		// Private windows and full disks: the filters just don't stick.
+	}
 }

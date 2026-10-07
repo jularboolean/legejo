@@ -695,6 +695,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'audio.empty': 'Inga ljudböcker ännu.',
 	'audio.emptyHint': 'Lägg till ljudfilerna för en bok, eller mappen de ligger i. De blir bokens delar, i namnordning.',
 	'audio.untitled': 'Namnlös',
+	'audio.filterPlaceholder': 'Filtrera på titel, författare, uppläsare eller beskrivning…',
+	'audio.noMatch': 'Inga ljudböcker matchar filtren.',
 	'audio.part1': '1 del',
 	'audio.partsN': '{count} delar',
 	'audio.partN': 'Del {n}',

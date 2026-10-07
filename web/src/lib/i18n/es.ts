@@ -695,6 +695,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'audio.empty': 'Aún no hay audiolibros.',
 	'audio.emptyHint': 'Añade los archivos de audio de un libro, o la carpeta donde están. Serán sus partes, en el orden de sus nombres.',
 	'audio.untitled': 'Sin título',
+	'audio.filterPlaceholder': 'Filtrar por título, autor, narrador o descripción…',
+	'audio.noMatch': 'Ningún audiolibro coincide con los filtros.',
 	'audio.part1': '1 parte',
 	'audio.partsN': '{count} partes',
 	'audio.partN': 'Parte {n}',

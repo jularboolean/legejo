@@ -695,6 +695,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'audio.empty': 'Ankoraŭ neniu aŭdlibro.',
 	'audio.emptyHint': 'Aldonu la sondosierojn de unu libro, aŭ la dosierujon, en kiu ili estas. Ili fariĝas ĝiaj partoj, laŭ la ordo de siaj nomoj.',
 	'audio.untitled': 'Sentitola',
+	'audio.filterPlaceholder': 'Filtri laŭ titolo, aŭtoro, voĉleganto aŭ priskribo…',
+	'audio.noMatch': 'Neniu aŭdlibro kongruas kun la filtriloj.',
 	'audio.part1': '1 parto',
 	'audio.partsN': '{count} partoj',
 	'audio.partN': 'Parto {n}',

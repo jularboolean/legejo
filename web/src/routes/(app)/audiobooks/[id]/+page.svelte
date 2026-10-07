@@ -1,6 +1,20 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, Check, Copy, Headphones, ImagePlus, Pause, Pencil, Play, Podcast, RefreshCw, Trash2 } from '@lucide/svelte';
+	import {
+		ArrowLeft,
+		Check,
+		Copy,
+		Headphones,
+		ImagePlus,
+		Layers,
+		Pause,
+		Pencil,
+		Play,
+		Podcast,
+		RefreshCw,
+		Tag,
+		Trash2
+	} from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { formatBytes, formatLength } from '#lib/audio';
 	import { t } from '#lib/i18n';
@@ -42,7 +56,7 @@
 
 	// ---- Editing ----
 	let editing = $state(false);
-	let form = $state({ title: '', author: '', narrator: '', language: '', description: '' });
+	let form = $state({ title: '', author: '', narrator: '', language: '', description: '', category: '', tags: '' });
 	let errorMsg = $state('');
 	function startEdit() {
 		form = {
@@ -50,7 +64,9 @@
 			author: book.author ?? '',
 			narrator: book.narrator ?? '',
 			language: book.language ?? '',
-			description: book.description ?? ''
+			description: book.description ?? '',
+			category: book.category ?? '',
+			tags: book.tags.join(', ')
 		};
 		errorMsg = '';
 		editing = true;
@@ -66,7 +82,9 @@
 				author: form.author || null,
 				narrator: form.narrator || null,
 				language: form.language || null,
-				description: form.description || null
+				description: form.description || null,
+				category: form.category || null,
+				tags: form.tags.split(',')
 			})
 		});
 		if (res.ok) {
@@ -139,6 +157,15 @@
 				<label>{t('audio.narrator')}<input bind:value={form.narrator} /></label>
 				<label>{t('book.language')}<input bind:value={form.language} placeholder="sv" /></label>
 				<label>{t('shelfEdit.description')}<textarea bind:value={form.description} rows="4"></textarea></label>
+				<label>
+					{t('edit.category')}
+					<input bind:value={form.category} placeholder={t('edit.categoryPlaceholder')} />
+				</label>
+				<label>
+					{t('edit.tags')}
+					<input bind:value={form.tags} placeholder={t('edit.tagsPlaceholder')} />
+					<span class="hint">{t('edit.tagsHint')}</span>
+				</label>
 				{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 				<div class="row">
 					<button type="submit">{t('edit.save')}</button>
@@ -154,6 +181,22 @@
 				{book.parts === 1 ? t('audio.part1') : t('audio.partsN', { count: book.parts })} ·
 				{formatBytes(book.bytes)}
 			</p>
+			{#if book.category || book.tags.length > 0}
+				<div class="chips">
+					{#if book.category}
+						<span class="chip category" title={t('book.category')}>
+							<Layers size={11} />
+							{book.category}
+						</span>
+					{/if}
+					{#each book.tags as tag (tag)}
+						<span class="chip" title={t('book.tags')}>
+							<Tag size={11} />
+							{tag}
+						</span>
+					{/each}
+				</div>
+			{/if}
 			{#if book.description}<p class="description">{book.description}</p>{/if}
 			<div class="row">
 				<button type="button" class="ghost" onclick={startEdit}><Pencil size={13} /> {t('book.edit')}</button>
@@ -306,6 +349,26 @@
 		color: var(--muted);
 		font-size: 0.9rem;
 	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-top: 0.7rem;
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.8rem;
+		padding: 0.15rem 0.6rem;
+		border-radius: 99px;
+		border: 1px solid var(--border);
+		color: var(--muted);
+	}
+	.chip.category {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
 	.description {
 		margin: 0.8rem 0 0;
 		white-space: pre-line;
@@ -337,6 +400,9 @@
 		gap: 0.25rem;
 		font-size: 0.88rem;
 		color: var(--muted);
+	}
+	.hint {
+		font-size: 0.78rem;
 	}
 	textarea {
 		font: inherit;

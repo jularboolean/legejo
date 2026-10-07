@@ -695,6 +695,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'audio.empty': 'Ei vielä äänikirjoja.',
 	'audio.emptyHint': 'Lisää yhden kirjan äänitiedostot tai kansio, jossa ne ovat. Niistä tulee kirjan osat nimien mukaisessa järjestyksessä.',
 	'audio.untitled': 'Nimetön',
+	'audio.filterPlaceholder': 'Suodata nimen, tekijän, lukijan tai kuvauksen mukaan…',
+	'audio.noMatch': 'Yksikään äänikirja ei vastaa suodattimia.',
 	'audio.part1': '1 osa',
 	'audio.partsN': '{count} osaa',
 	'audio.partN': 'Osa {n}',

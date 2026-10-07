@@ -1,11 +1,40 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { FolderUp, Headphones, Upload } from '@lucide/svelte';
-	import { audioFiles, formatLength, sendPart } from '#lib/audio';
-	import { t } from '#lib/i18n';
+	import {
+		audioFiles,
+		counted,
+		filterAudiobooks,
+		formatLength,
+		loadAudioFilters,
+		saveAudioFilters,
+		sendPart
+	} from '#lib/audio';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageLabel, loadView, primaryLanguage, saveView, type ViewMode } from '#lib/library';
+	import AudioToolbar from '#lib/library/AudioToolbar.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	let filters = $state(loadAudioFilters());
+	let view = $state<ViewMode>(loadView());
+	$effect(() => saveAudioFilters(filters));
+	$effect(() => saveView(view));
+
+	const categories = $derived(counted(data.audiobooks.flatMap((b) => (b.category ? [b.category] : []))));
+	const tags = $derived(counted(data.audiobooks.flatMap((b) => b.tags)));
+	const languages = $derived(
+		counted(data.audiobooks.flatMap((b) => primaryLanguage(b.language) ?? [])).map((l) => ({
+			...l,
+			label: languageLabel(l.key, getLocale())
+		}))
+	);
+	const shown = $derived(filterAudiobooks(data.audiobooks, filters));
+	const length = (book: PageData['audiobooks'][number]) =>
+		`${formatLength(book.seconds)} · ${book.parts === 1 ? t('audio.part1') : t('audio.partsN', { count: book.parts })}`;
+	const coverUrl = (book: PageData['audiobooks'][number]) =>
+		`/api/audiobooks/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? '')}`;
 
 	let fileInput = $state<HTMLInputElement>();
 	let folderInput = $state<HTMLInputElement>();
@@ -102,26 +131,59 @@
 	<p class="empty">{t('audio.empty')}</p>
 	<p class="hint">{t('audio.emptyHint')}</p>
 {:else}
-	<div class="grid">
-		{#each data.audiobooks as book (book.id)}
-			<a class="card" href={`/audiobooks/${book.id}`}>
-				<div class="cover">
-					{#if book.has_cover}
-						<img src={`/api/audiobooks/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? '')}`} alt="" loading="lazy" />
-					{:else}
-						<Headphones size={34} strokeWidth={1.4} />
-					{/if}
-				</div>
-				<div class="meta">
-					<span class="name">{book.title || t('audio.untitled')}</span>
-					{#if book.author}<span class="by">{book.author}</span>{/if}
-					<span class="length">
-						{formatLength(book.seconds)} · {book.parts === 1 ? t('audio.part1') : t('audio.partsN', { count: book.parts })}
-					</span>
-				</div>
-			</a>
-		{/each}
-	</div>
+	{#if data.audiobooks.length > 0}
+		<AudioToolbar bind:filters bind:view {categories} {tags} {languages} />
+	{/if}
+	{#if shown.length === 0 && data.audiobooks.length > 0}
+		<p class="empty">{t('audio.noMatch')}</p>
+	{:else if view === 'grid'}
+		<div class="grid">
+			{#each shown as book (book.id)}
+				<a class="card" href={`/audiobooks/${book.id}`}>
+					<div class="cover">
+						{#if book.has_cover}
+							<img src={coverUrl(book)} alt="" loading="lazy" />
+						{:else}
+							<Headphones size={34} strokeWidth={1.4} />
+						{/if}
+					</div>
+					<div class="meta">
+						<span class="name">{book.title || t('audio.untitled')}</span>
+						{#if book.author}<span class="by">{book.author}</span>{/if}
+						<span class="length">{length(book)}</span>
+					</div>
+				</a>
+			{/each}
+		</div>
+	{:else}
+		<ul class="rows">
+			{#each shown as book (book.id)}
+				<li>
+					<a class="row" href={`/audiobooks/${book.id}`}>
+						<div class="cover small">
+							{#if book.has_cover}
+								<img src={coverUrl(book)} alt="" loading="lazy" />
+							{:else}
+								<Headphones size={22} strokeWidth={1.4} />
+							{/if}
+						</div>
+						<div class="main">
+							<span class="name">{book.title || t('audio.untitled')}</span>
+							{#if book.author}<span class="by">{book.author}</span>{/if}
+							{#if book.narrator}<span class="by">{t('audio.readBy', { name: book.narrator })}</span>{/if}
+							{#if book.category || book.tags.length > 0}
+								<span class="labels">
+									{#if book.category}<span class="label category">{book.category}</span>{/if}
+									{#each book.tags as tag (tag)}<span class="label">{tag}</span>{/each}
+								</span>
+							{/if}
+						</div>
+						<span class="length">{length(book)}</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/if}
 
 <style>
@@ -225,6 +287,68 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+	.rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.rows li + li {
+		border-top: 1px solid var(--border);
+	}
+	.row {
+		display: grid;
+		grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+		gap: 1.1rem;
+		align-items: center;
+		padding: 0.8rem 0.75rem;
+		margin: 0 -0.75rem;
+		border-radius: 10px;
+		color: var(--fg);
+	}
+	.row:hover {
+		text-decoration: none;
+		background: var(--card);
+	}
+	.cover.small {
+		border: 1px solid var(--border);
+		border-radius: 5px;
+		overflow: hidden;
+		background: var(--card);
+	}
+	.main {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+	.labels {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		margin-top: 0.3rem;
+	}
+	.label {
+		font-size: 0.74rem;
+		padding: 0.05rem 0.5rem;
+		border-radius: 99px;
+		border: 1px solid var(--border);
+		color: var(--muted);
+	}
+	.label.category {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+	.row .length {
+		white-space: nowrap;
+	}
+	@media (max-width: 40rem) {
+		.row {
+			grid-template-columns: 3.5rem minmax(0, 1fr);
+		}
+		.row .length {
+			grid-column: 2;
+		}
 	}
 	.meta {
 		display: flex;

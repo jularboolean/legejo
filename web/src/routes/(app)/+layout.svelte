@@ -78,6 +78,10 @@
 			</a>
 
 			<nav>
+				<a class="nav-item" href="/search">
+					<Search size={15} strokeWidth={1.75} />
+					{t('sidebar.search')}
+				</a>
 				<a class="nav-item" href="/">
 					<LibraryBig size={15} strokeWidth={1.75} />
 					{t('sidebar.allBooks')}
@@ -121,17 +125,7 @@
 					</ul>
 				{/if}
 
-				{#if data.audiobooksEnabled}
-					<a class="nav-item lower" href="/audiobooks">
-						<Headphones size={15} strokeWidth={1.75} />
-						{t('sidebar.audiobooks')}
-					</a>
-				{/if}
-				<a class="nav-item" class:lower={!data.audiobooksEnabled} href="/search">
-					<Search size={15} strokeWidth={1.75} />
-					{t('sidebar.search')}
-				</a>
-				<a class="nav-item" href="/public">
+				<a class="nav-item lower" href="/public">
 					<Globe size={15} strokeWidth={1.75} />
 					{t('sidebar.public')}
 				</a>
@@ -139,6 +133,12 @@
 					<a class="nav-item" href="/fediverse">
 						<Earth size={15} strokeWidth={1.75} />
 						{t('sidebar.fediverse')}
+					</a>
+				{/if}
+				{#if data.audiobooksEnabled}
+					<a class="nav-item" href="/audiobooks">
+						<Headphones size={15} strokeWidth={1.75} />
+						{t('sidebar.audiobooks')}
 					</a>
 				{/if}
 			</nav>

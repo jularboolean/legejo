@@ -75,6 +75,9 @@ pub struct Audiobook {
     pub narrator: Option<String>,
     pub language: Option<String>,
     pub description: Option<String>,
+    pub category: Option<String>,
+    #[sqlx(skip)]
+    pub tags: Vec<String>,
     pub has_cover: DbFlag,
     #[serde(skip)]
     pub feed_key: String,
@@ -86,7 +89,7 @@ pub struct Audiobook {
     pub bytes: i64,
 }
 
-const COLUMNS: &str = "a.id, a.uuid, a.title, a.author, a.narrator, a.language, a.description, \
+const COLUMNS: &str = "a.id, a.uuid, a.title, a.author, a.narrator, a.language, a.description, a.category, \
      CAST(CASE WHEN a.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
      a.feed_key, a.created_at, a.updated_at, \
      (SELECT COUNT(*) FROM audiobook_files f WHERE f.audiobook_id = a.id) AS parts, \
@@ -127,7 +130,13 @@ async fn fetch(state: &AppState, user_id: i64, id: i64) -> Result<Audiobook, Res
             .fetch_optional(&state.db)
             .await
             .map_err(|e| internal(e.into()))?;
-    book.ok_or_else(not_found)
+    let mut book = book.ok_or_else(not_found)?;
+    book.tags = sqlx::query_scalar("SELECT tag FROM audiobook_tags WHERE audiobook_id = $1 ORDER BY LOWER(tag)")
+        .bind(book.id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(book)
 }
 
 async fn parts(state: &AppState, audiobook_id: i64) -> Result<Vec<Part>, Response> {
@@ -149,13 +158,26 @@ async fn detail(state: &AppState, headers: &HeaderMap, user_id: i64, id: i64) ->
 
 pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Audiobook>>, Response> {
     on(&state).await?;
-    let books: Vec<Audiobook> = sqlx::query_as(&format!(
+    let mut books: Vec<Audiobook> = sqlx::query_as(&format!(
         "SELECT {COLUMNS} FROM audiobooks a WHERE a.owner_id = $1 ORDER BY a.created_at DESC, a.id DESC"
     ))
     .bind(user.0.id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
+    let tags: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT t.audiobook_id, t.tag FROM audiobook_tags t JOIN audiobooks a ON a.id = t.audiobook_id
+         WHERE a.owner_id = $1 ORDER BY LOWER(t.tag)",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    for (id, tag) in tags {
+        if let Some(book) = books.iter_mut().find(|b| b.id == id) {
+            book.tags.push(tag);
+        }
+    }
     Ok(Json(books))
 }
 
@@ -204,6 +226,9 @@ pub struct Update {
     narrator: Option<String>,
     language: Option<String>,
     description: Option<String>,
+    category: Option<String>,
+    /// Replaces the tags when given; left alone when absent.
+    tags: Option<Vec<String>>,
 }
 
 fn clean(value: Option<String>) -> Option<String> {
@@ -222,24 +247,49 @@ pub async fn update(
     if title.is_empty() {
         return Err(unprocessable("title must not be empty"));
     }
+    let mut tx = state.db.begin().await.map_err(|e| internal(e.into()))?;
     let result = sqlx::query(
-        "UPDATE audiobooks SET title = $1, author = $2, narrator = $3, language = $4, description = $5, updated_at = $6
-         WHERE id = $7 AND owner_id = $8",
+        "UPDATE audiobooks SET title = $1, author = $2, narrator = $3, language = $4, description = $5,
+                category = $6, updated_at = $7
+         WHERE id = $8 AND owner_id = $9",
     )
     .bind(title)
     .bind(clean(req.author))
     .bind(clean(req.narrator))
     .bind(clean(req.language))
     .bind(clean(req.description))
+    .bind(clean(req.category))
     .bind(now_ts())
     .bind(id)
     .bind(user.0.id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await
     .map_err(|e| internal(e.into()))?;
     if result.rows_affected() == 0 {
         return Err(not_found());
     }
+    if let Some(tags) = &req.tags {
+        sqlx::query("DELETE FROM audiobook_tags WHERE audiobook_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        let mut seen: Vec<String> = Vec::new();
+        for tag in tags {
+            let tag = tag.trim();
+            if tag.is_empty() || tag.len() > 100 || seen.iter().any(|t| t.to_lowercase() == tag.to_lowercase()) {
+                continue;
+            }
+            seen.push(tag.to_string());
+            sqlx::query("INSERT INTO audiobook_tags (audiobook_id, tag) VALUES ($1, $2)")
+                .bind(id)
+                .bind(tag)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| internal(e.into()))?;
+        }
+    }
+    tx.commit().await.map_err(|e| internal(e.into()))?;
     detail(&state, &headers, user.0.id, id).await
 }
 

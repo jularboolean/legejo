@@ -78,9 +78,20 @@ async fn an_audiobook_is_a_podcast_feed() {
     assert!(v.get("feed_key").is_none() && v.get("uuid").is_none());
 
     let (_, v) = send(&app, Method::PUT, &format!("/api/audiobooks/{id}"), Some(&alice), Some(json!({
-        "title": "The Sign of the Cross", "author": "Jean-Joseph Gaume", "narrator": "A <Volunteer>", "language": "en"
+        "title": "The Sign of the Cross", "author": "Jean-Joseph Gaume", "narrator": "A <Volunteer>", "language": "en",
+        "category": " Religion ", "tags": ["Liturgy", "liturgy", " 1800s", ""]
     }))).await;
     assert_eq!(v["title"], "The Sign of the Cross");
+    assert_eq!(v["category"], "Religion");
+    assert_eq!(v["tags"], json!(["1800s", "Liturgy"]));
+    // Leaving the tags out of a later change keeps them; the list has them too.
+    let (_, v) = send(&app, Method::PUT, &format!("/api/audiobooks/{id}"), Some(&alice), Some(json!({
+        "title": "The Sign of the Cross", "author": "Jean-Joseph Gaume", "narrator": "A <Volunteer>", "language": "en",
+        "category": "Religion"
+    }))).await;
+    assert_eq!(v["tags"].as_array().unwrap().len(), 2);
+    let (_, list) = send(&app, Method::GET, "/api/audiobooks", Some(&alice), None).await;
+    assert_eq!(list[0]["tags"], json!(["1800s", "Liturgy"]));
 
     // The feed needs no session, only the key in its address.
     let feed_url = v["feed_url"].as_str().unwrap().to_string();

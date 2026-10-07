@@ -695,6 +695,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'audio.empty': 'Noch keine Hörbücher.',
 	'audio.emptyHint': 'Füge die Audiodateien eines Buches hinzu oder den Ordner, in dem sie liegen. Sie werden zu seinen Teilen, in der Reihenfolge ihrer Namen.',
 	'audio.untitled': 'Ohne Titel',
+	'audio.filterPlaceholder': 'Nach Titel, Autor, Sprecher oder Beschreibung filtern…',
+	'audio.noMatch': 'Kein Hörbuch entspricht den Filtern.',
 	'audio.part1': '1 Teil',
 	'audio.partsN': '{count} Teile',
 	'audio.partN': 'Teil {n}',
