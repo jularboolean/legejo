@@ -43,6 +43,7 @@
 				{:else}
 					<span class="placeholder">{book.title}</span>
 				{/if}
+				{#if book.format && book.format !== 'epub'}<span class="format">{book.format.toUpperCase()}</span>{/if}
 				{#if book.progress_percent != null}
 					{@const percent = Math.round(book.progress_percent * 100)}
 					<span class="read-progress" title={t('book.progress', { percent })}>
@@ -137,6 +138,19 @@
 		border: 1px solid var(--border);
 		display: flex;
 		box-shadow: var(--shadow);
+	}
+	/* Told only for the formats that cannot be read here. */
+	.format {
+		position: absolute;
+		top: 0.4rem;
+		left: 0.4rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: 4px;
+		background: color-mix(in srgb, var(--fg) 78%, transparent);
+		color: var(--bg);
+		font-size: 0.66rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
 	}
 	.cover img {
 		width: 100%;

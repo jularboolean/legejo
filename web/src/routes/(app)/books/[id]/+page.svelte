@@ -150,15 +150,18 @@
 				<span style:width={`${Math.round(progress * 100)}%`}></span>
 			</div>
 		{/if}
-		<a class="read" href={`/books/${book.id}/read`}>
-			<BookOpen size={15} />
-			{progress !== null ? t('book.continue') : t('book.read')}
-		</a>
+		{#if book.format !== 'epub'}<p class="elsewhere">{t('book.readElsewhere', { format: book.format.toUpperCase() })}</p>{/if}
+		{#if book.format === 'epub'}
+			<a class="read" href={`/books/${book.id}/read`}>
+				<BookOpen size={15} />
+				{progress !== null ? t('book.continue') : t('book.read')}
+			</a>
+		{/if}
 		<a class="download" href={`/api/books/${book.id}/file`}>
 			<Download size={14} />
-			{t('book.download')}
+			{t('book.download', { format: book.format.toUpperCase() })}
 		</a>
-		{#if data.sendToKindle}
+		{#if data.sendToKindle && book.format !== 'cbz'}
 			<button type="button" class="want" disabled={kindleState === 'sending'} onclick={sendToKindle}>
 				<Send size={14} />
 				{kindleState === 'sending' ? t('kindle.sending') : kindleState === 'sent' ? t('kindle.sent') : t('kindle.send')}
@@ -265,6 +268,7 @@
 
 		<dl>
 			{#if book.language}<dt>{t('book.language')}</dt><dd>{book.language}</dd>{/if}
+			{#if book.format !== 'epub'}<dt>{t('book.format')}</dt><dd>{book.format.toUpperCase()}</dd>{/if}
 			{#if book.first_published != null}<dt>{t('book.firstPublished')}</dt><dd>{book.first_published}</dd>{/if}
 			{#if book.published}<dt>{t('book.edition')}</dt><dd>{formatPublished(book.published, getLocale())}</dd>{/if}
 			{#if book.publisher}<dt>{t('book.publisher')}</dt><dd>{book.publisher}</dd>{/if}
@@ -407,6 +411,12 @@
 		gap: 0.4rem;
 		margin-top: 0.6rem;
 		font-size: 0.9rem;
+	}
+	.elsewhere {
+		margin: 0.7rem 0 0;
+		font-size: 0.82rem;
+		color: var(--muted);
+		text-align: center;
 	}
 	.kindle-error {
 		margin: 0.3rem 0 0;

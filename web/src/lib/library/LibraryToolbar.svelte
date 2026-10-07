@@ -33,7 +33,8 @@
 		authors,
 		shelves,
 		unshelvedCount,
-		issuesCount = 0
+		issuesCount = 0,
+		formats = []
 	}: {
 		filters: Filters;
 		prefs: Prefs;
@@ -45,6 +46,8 @@
 		unshelvedCount: number;
 		/** Books whose file the health check has remarks on. */
 		issuesCount?: number;
+		/** The file formats in the library, offered when there is more than one. */
+		formats?: { format: NonNullable<Filters['format']>; count: number }[];
 	} = $props();
 
 	const sortLabel = (key: SortKey) => t(`library.sort.${key}` as MessageKey);
@@ -65,13 +68,14 @@
 		return q ? authors.filter((a) => fold(a.name).includes(q)) : authors;
 	});
 
-	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file'>(field: K, value: Filters[K]) {
+	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format'>(field: K, value: Filters[K]) {
 		filters = { ...filters, [field]: filters[field] === value ? null : value };
 	}
 
 	const active = $derived.by(() => {
-		const chips: { field: 'status' | 'language' | 'shelf' | 'author' | 'file'; label: string }[] = [];
+		const chips: { field: 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format'; label: string }[] = [];
 		if (filters.file) chips.push({ field: 'file', label: t('library.file.issues') });
+		if (filters.format) chips.push({ field: 'format', label: filters.format.toUpperCase() });
 		if (filters.status) chips.push({ field: 'status', label: statusLabel(filters.status) });
 		if (filters.language) {
 			const lang = languages.find((l) => l.code === filters.language);
@@ -239,6 +243,25 @@
 										<span class="num">{unshelvedCount}</span>
 									</button>
 								{/if}
+							</div>
+						</section>
+					{/if}
+
+					{#if formats.length > 1 || filters.format}
+						<section>
+							<h3>{t('library.filter.format')}</h3>
+							<div class="options">
+								{#each formats as f (f.format)}
+									<button
+										type="button"
+										class="option"
+										aria-pressed={filters.format === f.format}
+										onclick={() => toggle('format', f.format)}
+									>
+										{f.format.toUpperCase()}
+										<span class="num">{f.count}</span>
+									</button>
+								{/each}
 							</div>
 						</section>
 					{/if}

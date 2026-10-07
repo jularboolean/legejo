@@ -78,7 +78,12 @@
 			const result: { epub_updated: boolean } = await res.json();
 			hasCover = true;
 			coverVersion++;
-			coverMsg = result.epub_updated ? t('cover.updatedEpub') : t('cover.updatedCatalogOnly');
+			coverMsg =
+				data.book.format !== 'epub'
+					? t('cover.updated')
+					: result.epub_updated
+						? t('cover.updatedEpub')
+						: t('cover.updatedCatalogOnly');
 			await invalidateAll();
 		} catch {
 			coverMsg = t('common.network');
@@ -324,7 +329,7 @@
 					<ImagePlus size={13} />
 					{t('cover.choose')}
 				</button>
-				<span class="hint">{t('cover.hint')}</span>
+				<span class="hint">{data.book.format === 'epub' ? t('cover.hint') : t('cover.hintCatalog')}</span>
 			</div>
 		</div>
 		{#if coverMsg}<p class={coverError ? 'error' : 'cover-msg'}>{coverMsg}</p>{/if}

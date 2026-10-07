@@ -10,6 +10,7 @@
 		activeFilterCount,
 		emptyFilters,
 		filterBooks,
+		FORMATS,
 		languageLabel,
 		loadFilters,
 		loadPrefs,
@@ -74,6 +75,9 @@
 	});
 	const unshelvedCount = $derived(data.books.filter((b) => b.shelf_ids.length === 0).length);
 	const issuesCount = $derived(data.books.filter((b) => b.health_issues > 0).length);
+	const formats = $derived(
+		FORMATS.map((format) => ({ format, count: data.books.filter((b) => b.format === format).length })).filter((f) => f.count > 0)
+	);
 
 	const visible = $derived(
 		sortBooks(filterBooks(data.books, filters), prefs.sort, prefs.dir, getLocale())
@@ -159,8 +163,9 @@
 	let lastFiles: File[] = [];
 
 	async function uploadFiles(files: FileList | File[] | null, allowDuplicates = false) {
+		// Book files only; what else was dropped along is left out.
 		const epubs = [...(files ?? [])].filter(
-			(f) => f.name.toLowerCase().endsWith('.epub') || f.type === 'application/epub+zip'
+			(f) => /\.(epub|pdf|cbz)$/i.test(f.name) || f.type === 'application/epub+zip' || f.type === 'application/pdf'
 		);
 		if (epubs.length === 0 || uploading) return;
 		uploading = true;
@@ -214,7 +219,7 @@
 					item.message =
 						reason === 'copy-protected'
 							? t('upload.drm')
-							: reason.startsWith('could not parse epub')
+							: reason.startsWith('could not parse epub') || reason.startsWith('not an EPUB')
 								? t('upload.notEpub')
 								: reason || t('home.uploadFailed');
 				}
@@ -288,7 +293,7 @@
 	</button>
 	<input
 		type="file"
-		accept=".epub,application/epub+zip"
+		accept=".epub,.pdf,.cbz,application/epub+zip,application/pdf"
 		multiple
 		hidden
 		bind:this={fileInput}
@@ -333,7 +338,7 @@
 {#if data.books.length === 0}
 	<p class="empty">{t('home.empty')}</p>
 {:else}
-	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} />
+	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats} />
 
 	{#if visible.length === 0}
 		<div class="nomatch">

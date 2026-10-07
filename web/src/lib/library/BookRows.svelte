@@ -73,6 +73,7 @@
 				<p class="byline">
 					{#if book.author}<span>{book.author}</span>{/if}
 					{#if year}<span>{year}</span>{/if}
+					{#if book.format && book.format !== 'epub'}<span>{book.format.toUpperCase()}</span>{/if}
 					{#if showLanguage && languageName(book.language, getLocale())}
 						<span>{languageName(book.language, getLocale())}</span>
 					{/if}

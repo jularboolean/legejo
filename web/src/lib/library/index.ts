@@ -3,7 +3,7 @@
 // and a few hundred books sort and filter instantly in the browser.
 
 import { renderMarkdown } from '../markdown';
-import type { LibraryBook } from '../types';
+import type { Book, LibraryBook } from '../types';
 import { splitAuthors } from './authors';
 
 export type SortKey = 'added' | 'title' | 'author' | 'year' | 'progress' | 'rating';
@@ -24,7 +24,11 @@ export type Filters = {
 	author: string | null;
 	/** Only books whose file the health check has remarks on. */
 	file: 'issues' | null;
+	/** Only books in this file format. */
+	format: Book['format'] | null;
 };
+
+export const FORMATS: Book['format'][] = ['epub', 'pdf', 'cbz'];
 
 export type Prefs = { view: ViewMode; sort: SortKey; dir: SortDir };
 
@@ -37,11 +41,11 @@ export function defaultDir(key: SortKey): SortDir {
 }
 
 export function emptyFilters(): Filters {
-	return { text: '', status: null, language: null, shelf: null, author: null, file: null };
+	return { text: '', status: null, language: null, shelf: null, author: null, file: null, format: null };
 }
 
 export function activeFilterCount(f: Filters): number {
-	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0) + (f.file ? 1 : 0);
+	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0) + (f.file ? 1 : 0) + (f.format ? 1 : 0);
 }
 
 // EPUBs carry their language as anything from "sv" to "sv-SE" to "swe".
@@ -142,6 +146,7 @@ export function filterBooks(books: LibraryBook[], f: Filters): LibraryBook[] {
 		if (typeof f.shelf === 'number' && !book.shelf_ids.includes(f.shelf)) return false;
 		if (f.author && !splitAuthors(book.author).some((p) => p.key === f.author)) return false;
 		if (f.file === 'issues' && !(book.health_issues > 0)) return false;
+		if (f.format && book.format !== f.format) return false;
 		if (words.length > 0) {
 			const hay = fold(`${book.title} ${book.author ?? ''} ${book.series ?? ''}`);
 			if (!words.every((w) => hay.includes(w))) return false;
@@ -257,6 +262,7 @@ export function loadFilters(): Filters {
 		if (saved?.shelf === 'none' || typeof saved?.shelf === 'number') filters.shelf = saved.shelf;
 		if (typeof saved?.author === 'string') filters.author = saved.author;
 		if (saved?.file === 'issues') filters.file = saved.file;
+		if (FORMATS.includes(saved?.format)) filters.format = saved.format;
 	} catch {
 		// As above.
 	}

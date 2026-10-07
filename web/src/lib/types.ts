@@ -16,6 +16,8 @@ export type Book = {
 	identifier: string | null;
 	isbn: string | null;
 	libris_id: string | null;
+	/** Only EPUB is read, tended and converted; the others are kept and handed out. */
+	format: 'epub' | 'pdf' | 'cbz';
 	file_size: number;
 	/** How many things the health check found wrong with the file. */
 	health_issues: number;
