@@ -238,10 +238,20 @@ pub struct Config {
     /// Whether the MCP endpoint is served (LEGEJO_MCP).
     mcp_enabled: bool,
     audiobooks_enabled: bool,
+    /// Whether the user can mail books to a Kindle: the server sends mail
+    /// and the user has given their Kindle's address.
+    send_to_kindle: bool,
 }
 
-pub async fn config(State(state): State<AppState>, _user: AuthUser) -> Result<Json<Config>, Response> {
+pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
+    let kindle: Option<String> = sqlx::query_scalar("SELECT kindle_email FROM users WHERE id = $1")
+        .bind(user.0.id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?
+        .flatten();
     Ok(Json(Config {
+        send_to_kindle: state.mail.is_some() && kindle.is_some(),
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

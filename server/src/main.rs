@@ -50,6 +50,8 @@ mod selfhost_tests;
 mod mcp_tests;
 #[cfg(test)]
 mod audiobook_tests;
+#[cfg(test)]
+mod kindle_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -143,6 +145,7 @@ fn router(state: AppState) -> Router {
         .route("/account/export", get(export::status).post(export::start).delete(export::discard))
         .route("/account/export/{id}/{part}", get(export::download))
         .route("/account/locale", axum::routing::put(account::set_locale))
+        .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar))
         .route("/users/{id}/avatar", get(account::avatar))
         .route("/users/search", get(shelves::search_users))
@@ -177,6 +180,7 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}", get(books::get_one).put(books::update).delete(books::delete))
         .route("/books/{id}/cover", get(books::cover).post(books::upload_cover))
         .route("/books/{id}/repair", post(books::repair))
+        .route("/books/{id}/kindle", post(books::send_to_kindle))
         .route("/books/{id}/cover/openlibrary", post(openlibrary::use_cover))
         .route("/books/{id}/file", get(books::download))
         .route("/books/{id}/rating", axum::routing::put(books::set_rating))

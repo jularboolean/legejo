@@ -79,6 +79,7 @@ it is mostly PDFs or comics, another tool will serve you better.
 - A reading page with what you are reading, what you want to read, and statistics.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. Books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
+- **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
 

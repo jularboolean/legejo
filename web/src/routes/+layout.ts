@@ -24,6 +24,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	let openLibraryEnabled = false;
 	let mcpEnabled = false;
 	let audiobooksEnabled = false;
+	let sendToKindle = false;
 	// Federation UI stays hidden unless the server says it is available.
 	let fed: FedStatus = { available: false, mode: 'off', host: null };
 	if (user) {
@@ -42,13 +43,15 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 				openlibrary_enabled?: boolean;
 				mcp_enabled?: boolean;
 				audiobooks_enabled?: boolean;
+				send_to_kindle?: boolean;
 			} = await configRes.json();
 			audiobooksEnabled = config.audiobooks_enabled ?? false;
+			sendToKindle = config.send_to_kindle ?? false;
 			mcpEnabled = config.mcp_enabled ?? false;
 			librisEnabled = config.libris_enabled;
 			openLibraryEnabled = config.openlibrary_enabled ?? false;
 		}
 	}
 
-	return { user, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, audiobooksEnabled, fed };
+	return { user, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, audiobooksEnabled, sendToKindle, fed };
 };

@@ -24,6 +24,9 @@
 	let saved = $state(false);
 	let errorMsg = $state('');
 	let koboErrorMsg = $state('');
+	let kindle = $state(data.account.kindle_email ?? '');
+	let kindleSaved = $state(false);
+	let kindleErrorMsg = $state('');
 	let copied = $state(false);
 
 	const koboUrl = $derived(
@@ -119,6 +122,30 @@
 			locale = previous;
 			setLocale(previous);
 			localeError = t('common.network');
+		}
+	}
+
+	async function saveKindle(e: SubmitEvent) {
+		e.preventDefault();
+		kindleErrorMsg = '';
+		kindleSaved = false;
+		try {
+			const res = await fetch('/api/account/kindle', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: kindle.trim() })
+			});
+			if (res.ok) {
+				account = await res.json();
+				kindle = account.kindle_email ?? '';
+				kindleSaved = true;
+				// The book pages show the button from now on, or stop showing it.
+				await invalidateAll();
+			} else {
+				kindleErrorMsg = res.status === 422 ? t('kindle.notKindle') : t('edit.saveFailed');
+			}
+		} catch {
+			kindleErrorMsg = t('common.network');
 		}
 	}
 
@@ -299,6 +326,30 @@
 	{#if koboErrorMsg}<p class="error">{koboErrorMsg}</p>{/if}
 </section>
 
+{#if account.mail_from}
+	<section class="kobo">
+		<h3>{t('kindle.heading')}</h3>
+		<p class="intro">{t('kindle.intro')}</p>
+		<p class="intro">{t('kindle.approve', { from: account.mail_from })}</p>
+		<form class="token-row" onsubmit={saveKindle}>
+			<input
+				type="email"
+				bind:value={kindle}
+				placeholder="name@kindle.com"
+				aria-label={t('kindle.address')}
+				autocapitalize="off"
+				autocomplete="off"
+				spellcheck="false"
+				oninput={() => (kindleSaved = false)}
+			/>
+			<button type="submit">
+				{#if kindleSaved}<Check size={13} /> {t('kindle.saved')}{:else}{t('edit.save')}{/if}
+			</button>
+		</form>
+		{#if kindleErrorMsg}<p class="error">{kindleErrorMsg}</p>{/if}
+	</section>
+{/if}
+
 <KosyncSetup username={account.username} />
 {#if data.mcpEnabled}<McpSetup />{/if}
 
@@ -402,6 +453,10 @@
 		display: flex;
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
+	}
+	form.token-row {
+		flex-direction: row;
+		max-width: none;
 	}
 	.token-row input {
 		font-size: 0.82rem;

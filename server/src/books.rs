@@ -1677,6 +1677,74 @@ pub async fn download(
         .into_response())
 }
 
+/// Mail servers and Amazon both cap the size of a message; an attachment
+/// grows by a third on the way.
+const KINDLE_MAX_BYTES: u64 = 25 * 1024 * 1024;
+/// Books one user may send in an hour.
+const KINDLE_PER_HOUR: i64 = 30;
+
+/// Mail the book's file to the user's Kindle address. Amazon delivers it to
+/// the device once the sending address is on the user's approved list.
+pub async fn send_to_kindle(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, Response> {
+    let fail = |status: StatusCode, code: &str| (status, Json(serde_json::json!({ "error": code }))).into_response();
+    let (uuid, _, title) = owned_book(&state, user.0.id, id).await?;
+    let Some(mail) = state.mail.as_ref() else {
+        return Err(fail(StatusCode::CONFLICT, "no-mail"));
+    };
+    let address: Option<String> = sqlx::query_scalar("SELECT kindle_email FROM users WHERE id = $1")
+        .bind(user.0.id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?
+        .flatten();
+    let Some(address) = address else {
+        return Err(fail(StatusCode::CONFLICT, "no-address"));
+    };
+    let since = crate::db::ts_in_hours(-1);
+    let recent: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM activity_log WHERE actor_id = $1 AND action = 'book.sent_to_kindle' AND at > $2",
+    )
+    .bind(user.0.id)
+    .bind(since)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    if recent >= KINDLE_PER_HOUR {
+        return Err(fail(StatusCode::TOO_MANY_REQUESTS, "too-many"));
+    }
+    let path = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let size = tokio::fs::metadata(&path).await.map_err(|e| internal(e.into()))?.len();
+    if size > KINDLE_MAX_BYTES {
+        return Err(fail(StatusCode::PAYLOAD_TOO_LARGE, "too-large"));
+    }
+    let data = tokio::fs::read(&path).await.map_err(|e| internal(e.into()))?;
+    // A short, plain file name: one with other characters is sent in an
+    // encoding that not every mail reader understands. The Kindle shows the
+    // title from inside the book.
+    let name: String = title
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == ' ' || c == '-' { c } else { '_' })
+        .take(50)
+        .collect();
+    let filename = format!("{}.epub", if name.trim_matches(['_', ' ']).is_empty() { "book" } else { name.trim() });
+    if let Err(e) = crate::mail::send_file(mail, &address, &title, &title, &filename, "application/epub+zip", data).await {
+        tracing::warn!("send to kindle: {e:#}");
+        return Err(fail(StatusCode::BAD_GATEWAY, "mail-failed"));
+    }
+    crate::audit::log(
+        &state,
+        crate::audit::by(&user.0),
+        "book.sent_to_kindle",
+        serde_json::json!({ "book_id": id, "title": title }),
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn delete(
     State(state): State<AppState>,
     user: AuthUser,

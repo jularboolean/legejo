@@ -163,6 +163,10 @@ export type AdminUserRow = {
 export type Account = {
 	username: string;
 	kobo_token: string | null;
+	/** Where Send to Kindle mails the user's books. */
+	kindle_email: string | null;
+	/** The address those mails come from; null when the server sends no mail. */
+	mail_from: string | null;
 };
 
 /* ---- Federation ---- */

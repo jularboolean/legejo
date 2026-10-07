@@ -12,6 +12,12 @@ use serde::{Deserialize, Serialize};
 pub struct Account {
     pub username: String,
     pub kobo_token: Option<String>,
+    /// Where Send to Kindle mails the user's books.
+    pub kindle_email: Option<String>,
+    /// The address those mails come from, which the user has to approve
+    /// with Amazon. None when the server sends no mail.
+    #[sqlx(skip)]
+    pub mail_from: Option<String>,
 }
 
 fn internal(e: anyhow::Error) -> Response {
@@ -24,11 +30,45 @@ fn unprocessable(msg: &str) -> Response {
 }
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
-    sqlx::query_as("SELECT username, kobo_token FROM users WHERE id = $1")
+    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
         .await
-        .map_err(|e| internal(e.into()))
+        .map_err(|e| internal(e.into()))?;
+    account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
+    Ok(account)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateKindle {
+    /// Empty or absent removes the address.
+    email: Option<String>,
+}
+
+/// Amazon's Send to Kindle addresses. Keeping to them means the server
+/// cannot be used to mail book files to arbitrary addresses.
+fn kindle_address(email: &str) -> bool {
+    let email = email.to_lowercase();
+    crate::register::looks_like_email(&email)
+        && ["@kindle.com", "@free.kindle.com", "@kindle.cn"].iter().any(|domain| email.ends_with(domain))
+}
+
+pub async fn set_kindle(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<UpdateKindle>,
+) -> Result<Json<Account>, Response> {
+    let email = req.email.map(|e| e.trim().to_string()).filter(|e| !e.is_empty());
+    if email.as_deref().is_some_and(|e| !kindle_address(e)) {
+        return Err(unprocessable("not-kindle"));
+    }
+    sqlx::query("UPDATE users SET kindle_email = $1 WHERE id = $2")
+        .bind(email.as_deref())
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
 pub async fn get(State(state): State<AppState>, user: AuthUser) -> Result<Json<Account>, Response> {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, FileWarning, Layers, Pencil, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, FileWarning, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
@@ -15,6 +15,26 @@
 	let { data }: { data: PageData } = $props();
 
 	const book = $derived(data.book);
+
+	let kindleState = $state<'idle' | 'sending' | 'sent'>('idle');
+	let kindleError = $state('');
+	async function sendToKindle() {
+		kindleState = 'sending';
+		kindleError = '';
+		try {
+			const res = await fetch(`/api/books/${book.id}/kindle`, { method: 'POST' });
+			if (res.ok) {
+				kindleState = 'sent';
+				return;
+			}
+			const code = (await res.json().catch(() => null))?.error;
+			kindleError =
+				code === 'too-large' ? t('kindle.tooLarge') : code === 'too-many' ? t('kindle.tooMany') : t('kindle.failed');
+		} catch {
+			kindleError = t('common.network');
+		}
+		kindleState = 'idle';
+	}
 	const descriptionHtml = $derived(book.description ? renderMarkdown(book.description) : '');
 
 	function seriesLabel(name: string, index: number | null): string {
@@ -138,6 +158,13 @@
 			<Download size={14} />
 			{t('book.download')}
 		</a>
+		{#if data.sendToKindle}
+			<button type="button" class="want" disabled={kindleState === 'sending'} onclick={sendToKindle}>
+				<Send size={14} />
+				{kindleState === 'sending' ? t('kindle.sending') : kindleState === 'sent' ? t('kindle.sent') : t('kindle.send')}
+			</button>
+			{#if kindleError}<p class="kindle-error" role="alert">{kindleError}</p>{/if}
+		{/if}
 		<button type="button" class="want" class:on={wanted} aria-pressed={wanted} onclick={toggleWant}>
 			{#if wanted}<BookmarkCheck size={14} />{:else}<Bookmark size={14} />{/if}
 			{wanted ? t('book.wanted') : t('book.want')}
@@ -380,6 +407,11 @@
 		gap: 0.4rem;
 		margin-top: 0.6rem;
 		font-size: 0.9rem;
+	}
+	.kindle-error {
+		margin: 0.3rem 0 0;
+		font-size: 0.8rem;
+		color: var(--danger);
 	}
 	.want {
 		display: flex;
