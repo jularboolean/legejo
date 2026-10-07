@@ -141,6 +141,7 @@ export type SearchResult = {
 	mine: Book[];
 	public: PublicHit[];
 	shelves: PublicShelf[];
+	audiobooks: Audiobook[];
 };
 
 export type AdminUserRow = {

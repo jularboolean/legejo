@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Check, Download, Search } from '@lucide/svelte';
+	import { Check, Download, Headphones, Search } from '@lucide/svelte';
+	import { formatLength } from '#lib/audio';
 	import Avatar from '#lib/Avatar.svelte';
 	import { defaultShelfCover } from '#lib/shelfCovers';
 	import { t } from '#lib/i18n';
@@ -38,7 +39,8 @@
 		data.q !== '' &&
 			result.mine.length === 0 &&
 			result.public.length === 0 &&
-			result.shelves.length === 0
+			result.shelves.length === 0 &&
+			result.audiobooks.length === 0
 	);
 
 	let importing = $state<Set<number>>(new Set());
@@ -132,6 +134,33 @@
 		{:else}
 			<BookGrid books={result.mine} />
 		{/if}
+	</section>
+{/if}
+
+{#if result.audiobooks.length > 0}
+	<section>
+		<h2>{t('sidebar.audiobooks')}</h2>
+		<div class="shelfgrid">
+			{#each result.audiobooks as book (book.id)}
+				<a class="shelfcard" href={`/audiobooks/${book.id}`}>
+					<div class="shelfcover">
+						{#if book.has_cover}
+							<img
+								src={`/api/audiobooks/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? '')}`}
+								alt=""
+								loading="lazy"
+							/>
+						{:else}
+							<Headphones size={20} strokeWidth={1.5} />
+						{/if}
+					</div>
+					<div class="shelfmeta">
+						<span class="name">{book.title || t('audio.untitled')}</span>
+						<span class="sub">{[book.author, formatLength(book.seconds)].filter(Boolean).join(' · ')}</span>
+					</div>
+				</a>
+			{/each}
+		</div>
 	</section>
 {/if}
 

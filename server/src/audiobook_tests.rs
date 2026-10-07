@@ -92,6 +92,11 @@ async fn an_audiobook_is_a_podcast_feed() {
     assert_eq!(v["tags"].as_array().unwrap().len(), 2);
     let (_, list) = send(&app, Method::GET, "/api/audiobooks", Some(&alice), None).await;
     assert_eq!(list[0]["tags"], json!(["1800s", "Liturgy"]));
+    // The search over everything finds it by any of its words, in any case.
+    for (q, hits) in [("gaume", 1), ("VOLUNTEER%20cross", 1), ("liturgy", 1), ("gaume%20nothing", 0)] {
+        let (_, v) = send(&app, Method::GET, &format!("/api/search?q={q}"), Some(&alice), None).await;
+        assert_eq!(v["audiobooks"].as_array().unwrap().len(), hits, "{q}");
+    }
 
     // The feed needs no session, only the key in its address.
     let feed_url = v["feed_url"].as_str().unwrap().to_string();

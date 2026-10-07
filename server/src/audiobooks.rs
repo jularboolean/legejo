@@ -158,10 +158,39 @@ async fn detail(state: &AppState, headers: &HeaderMap, user_id: i64, id: i64) ->
 
 pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Audiobook>>, Response> {
     on(&state).await?;
+    Ok(Json(owned(&state, user.0.id).await?))
+}
+
+/// The user's audiobooks that have every word of `query` somewhere in their
+/// title, author, narrator, description, category or tags. Nothing when the
+/// feature is off.
+pub(crate) async fn search(state: &AppState, user_id: i64, query: &str) -> Result<Vec<Audiobook>, Response> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    if words.is_empty() || !enabled(state).await {
+        return Ok(Vec::new());
+    }
+    let mut books = owned(state, user_id).await?;
+    books.retain(|book| {
+        let mut text = book.title.clone();
+        for part in [&book.author, &book.narrator, &book.description, &book.category].into_iter().flatten() {
+            text.push(' ');
+            text.push_str(part);
+        }
+        for tag in &book.tags {
+            text.push(' ');
+            text.push_str(tag);
+        }
+        let text = text.to_lowercase();
+        words.iter().all(|word| text.contains(word))
+    });
+    Ok(books)
+}
+
+async fn owned(state: &AppState, user_id: i64) -> Result<Vec<Audiobook>, Response> {
     let mut books: Vec<Audiobook> = sqlx::query_as(&format!(
         "SELECT {COLUMNS} FROM audiobooks a WHERE a.owner_id = $1 ORDER BY a.created_at DESC, a.id DESC"
     ))
-    .bind(user.0.id)
+    .bind(user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -169,7 +198,7 @@ pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<
         "SELECT t.audiobook_id, t.tag FROM audiobook_tags t JOIN audiobooks a ON a.id = t.audiobook_id
          WHERE a.owner_id = $1 ORDER BY LOWER(t.tag)",
     )
-    .bind(user.0.id)
+    .bind(user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
@@ -178,7 +207,7 @@ pub async fn list(State(state): State<AppState>, user: AuthUser) -> Result<Json<
             book.tags.push(tag);
         }
     }
-    Ok(Json(books))
+    Ok(books)
 }
 
 #[derive(Deserialize)]

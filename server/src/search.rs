@@ -1,5 +1,6 @@
 //! The unified search: one query over the caller's own library, books on
-//! other users' public shelves, and the public shelves themselves.
+//! other users' public shelves, the public shelves themselves, and the
+//! caller's audiobooks.
 
 use crate::auth::AuthUser;
 use crate::books::{search_expr, search_parts, Book, BOOK_COLUMNS_B};
@@ -42,6 +43,7 @@ pub struct SearchResult {
     pub mine: Vec<Book>,
     pub public: Vec<PublicHit>,
     pub shelves: Vec<PublicShelf>,
+    pub audiobooks: Vec<crate::audiobooks::Audiobook>,
 }
 
 pub async fn search(
@@ -50,9 +52,10 @@ pub async fn search(
     Query(params): Query<Params>,
 ) -> Result<Json<SearchResult>, Response> {
     let raw = params.q.as_deref().unwrap_or("").trim().to_string();
+    let audiobooks = crate::audiobooks::search(&state, user.0.id, &raw).await?;
     let expr = search_expr(state.backend, &raw);
     let Some(expr) = expr else {
-        return Ok(Json(SearchResult { mine: Vec::new(), public: Vec::new(), shelves: Vec::new() }));
+        return Ok(Json(SearchResult { mine: Vec::new(), public: Vec::new(), shelves: Vec::new(), audiobooks }));
     };
     let parts = search_parts(state.backend);
 
@@ -125,5 +128,5 @@ pub async fn search(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    Ok(Json(SearchResult { mine, public, shelves }))
+    Ok(Json(SearchResult { mine, public, shelves, audiobooks }))
 }
