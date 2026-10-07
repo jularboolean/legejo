@@ -203,6 +203,33 @@ async fn shared_books(state: &AppState, user_id: i64, raw: &str) -> Result<Vec<P
     Ok(public)
 }
 
+/// Every book on the shelves other users share with the caller that the
+/// caller does not have already, newest first.
+pub(crate) async fn all_shared_books(state: &AppState, user_id: i64, limit: usize) -> Result<Vec<PublicHit>, Response> {
+    sqlx::query_as(&format!(
+        "SELECT {BOOK_COLUMNS_B}, u.username AS owner, ps.name AS shelf_name, {owned} AS owned
+         FROM books b
+         JOIN (
+             SELECT sb.book_id, MIN(s.id) AS shelf_id
+             FROM shelf_books sb
+             JOIN shelves s ON s.id = sb.shelf_id
+             WHERE {visible} AND s.owner_id != $1
+             GROUP BY sb.book_id
+         ) pick ON pick.book_id = b.id
+         JOIN shelves ps ON ps.id = pick.shelf_id
+         JOIN users u ON u.id = ps.owner_id
+         WHERE {owned} = 0
+         ORDER BY b.created_at DESC, b.id DESC
+         LIMIT {limit}",
+        owned = owned_expr("$1"),
+        visible = crate::shelves::visible_to("$1"),
+    ))
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))
+}
+
 /// `raw` as a LIKE pattern in which its own wildcards match themselves.
 fn like_pattern(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")

@@ -7,13 +7,14 @@
 	import { loadView, saveView, type ViewMode } from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
+	import SharedHits from '#lib/library/SharedHits.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
-	import type { Book } from '#lib/types';
+	import type { Book, PublicHit } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	type Answer = { books: Book[]; looked_through: number; all: boolean; prompt_tokens: number; completion_tokens: number };
+	type Answer = { books: Book[]; shared: PublicHit[]; looked_through: number; all: boolean; prompt_tokens: number; completion_tokens: number };
 
 	let question = $state('');
 	/** The question the answer on the page belongs to. */
@@ -70,7 +71,7 @@
 		}
 		try {
 			const kept = JSON.parse(sessionStorage.getItem(KEPT) ?? 'null');
-			if (kept?.answer?.books) {
+			if (kept?.answer?.books && kept.answer.shared) {
 				answer = kept.answer;
 				asked = question = kept.asked ?? '';
 			}
@@ -113,7 +114,7 @@
 {#if answer && !asking}
 	<div class="result">
 		<p class="said">
-			{#if answer.books.length === 0}
+			{#if answer.books.length === 0 && answer.shared.length === 0}
 				{t('librarian.none')}
 			{:else}
 				{t('librarian.found', { question: asked })}
@@ -127,12 +128,18 @@
 				{/if}
 			</span>
 		</p>
-		{#if answer.books.length > 0}<ViewSwitch {view} onchange={setView} />{/if}
+		{#if answer.books.length > 0 || answer.shared.length > 0}<ViewSwitch {view} onchange={setView} />{/if}
 	</div>
-	{#if view === 'list'}
-		<BookRows books={answer.books} showLanguage />
-	{:else}
-		<BookGrid books={answer.books} showLanguage />
+	{#if answer.books.length > 0}
+		{#if view === 'list'}
+			<BookRows books={answer.books} showLanguage />
+		{:else}
+			<BookGrid books={answer.books} showLanguage />
+		{/if}
+	{/if}
+	{#if answer.shared.length > 0}
+		<h2>{t('librarian.shared')}</h2>
+		<SharedHits hits={answer.shared} {view} />
 	{/if}
 {/if}
 
@@ -157,6 +164,12 @@
 	h1 {
 		font-size: 1.4rem;
 		margin: 0 0 0.25rem;
+	}
+	h2 {
+		font-size: 1.05rem;
+		margin: 2rem 0 0.75rem;
+		padding-bottom: 0.35rem;
+		border-bottom: 1px solid var(--border);
 	}
 	.intro {
 		margin: 0;

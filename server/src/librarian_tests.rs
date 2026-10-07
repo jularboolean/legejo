@@ -83,9 +83,10 @@ async fn the_librarian_picks_from_the_users_own_books() {
     let question = json!({ "question": "  något om   polarexpeditioner " });
     let (status, answer) = send(&app, Method::POST, "/api/librarian", Some(&a), Some(question)).await;
     assert_eq!(status, StatusCode::OK, "{answer}");
-    // Her own book about ice; not Bob's, and not the id that is no book.
+    // Her own book about ice; not Bob's, which he has not shared, and not the id that is no book.
     let titles: Vec<&str> = answer["books"].as_array().unwrap().iter().map(|b| b["title"].as_str().unwrap()).collect();
     assert_eq!(titles, ["In the Kingdom of Ice"]);
+    assert_eq!(answer["shared"].as_array().unwrap().len(), 0);
     assert_eq!((answer["looked_through"].as_i64(), answer["all"].as_bool()), (Some(2), Some(true)));
     assert_eq!((answer["prompt_tokens"].as_i64(), answer["completion_tokens"].as_i64()), (Some(1000), Some(10)));
 
@@ -104,12 +105,34 @@ async fn the_librarian_picks_from_the_users_own_books() {
         assert!(catalogue.contains("Sommarboken") && !catalogue.contains("Labyrinth"));
     }
 
+    // Once Bob shares his shelf, his book is in her catalogue as someone
+    // else's, and comes back apart from her own.
+    let bobs: i64 = sqlx::query_scalar("SELECT id FROM books WHERE title = 'Labyrinth of Ice'").fetch_one(&db).await.unwrap();
+    let (_, shelf) = send(&app, Method::POST, "/api/shelves", Some(&b), Some(json!({ "name": "Polar" }))).await;
+    send(&app, Method::POST, "/api/books/bulk", Some(&b), Some(json!({ "ids": [bobs], "action": "add_to_shelf", "shelf_id": shelf["id"] }))).await;
+    send(&app, Method::PUT, &format!("/api/shelves/{}", shelf["id"]), Some(&b), Some(json!({ "name": "Polar", "visibility": "instance" }))).await;
+    let (_, answer) = send(&app, Method::POST, "/api/librarian", Some(&a), Some(json!({ "question": "ice" }))).await;
+    assert_eq!(answer["books"].as_array().unwrap().len(), 1);
+    assert_eq!(answer["shared"][0]["title"], "Labyrinth of Ice");
+    assert_eq!((answer["shared"][0]["owner"].as_str(), answer["shared"][0]["shelf_name"].as_str()), (Some("bob"), Some("Polar")));
+    assert_eq!(answer["looked_through"], 3);
+    {
+        let seen = seen.lock().unwrap();
+        let catalogue = seen[1].1["messages"][0]["content"].as_str().unwrap();
+        let line = catalogue.lines().find(|l| l.contains("Labyrinth of Ice")).unwrap();
+        assert!(line.contains("not the user's own: on the shared shelf Polar"), "{line}");
+        assert!(!catalogue.contains("bob"), "no user names are sent");
+    }
+    // Bob's own question does not show him his own book as someone else's.
+    let (_, answer) = send(&app, Method::POST, "/api/librarian", Some(&b), Some(json!({ "question": "ice" }))).await;
+    assert_eq!((answer["books"].as_array().unwrap().len(), answer["shared"].as_array().unwrap().len()), (1, 0));
+
     // The operator sees the use; the key is nowhere in it.
     sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'alice'").execute(&db).await.unwrap();
     let (_, settings) = send(&app, Method::GET, "/api/admin/settings", Some(&a), None).await;
     assert_eq!(
         settings["librarian"],
-        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 1, "prompt_tokens": 1000, "completion_tokens": 10 })
+        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 3, "prompt_tokens": 3000, "completion_tokens": 30 })
     );
     assert!(!settings.to_string().contains("secret-key"));
 
@@ -125,7 +148,7 @@ async fn the_librarian_picks_from_the_users_own_books() {
     }
     let (status, v) = send(&app, Method::POST, "/api/librarian", Some(&b), Some(json!({ "question": "ice" }))).await;
     assert_eq!((status, v["error"].as_str()), (StatusCode::TOO_MANY_REQUESTS, Some("too-many")));
-    assert_eq!(seen.lock().unwrap().len(), 1);
+    assert_eq!(seen.lock().unwrap().len(), 3);
 }
 
 #[tokio::test]

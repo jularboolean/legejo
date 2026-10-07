@@ -1,10 +1,11 @@
 //! The librarian: a language model picks books from the user's own library
-//! for a question asked in plain words. Off unless the operator sets
+//! and from the shelves others share with them, for a question asked in plain
+//! words. Off unless the operator sets
 //! LEGEJO_AI_API_KEY; the operator's account pays for the requests.
 //!
-//! The model is given the question and the catalogue of the user's books
-//! (title, author, shelves, tags, the beginning of the description), never a
-//! book's text, and no tools. Its answer is a list of book ids and nothing
+//! The model is given the question and a catalogue (title, author, shelves,
+//! tags, the beginning of the description) of the user's books and of the
+//! books on shelves shared with the user, never a book's text, and no tools. Its answer is a list of book ids and nothing
 //! else: ids that are not in the catalogue are dropped, so whatever a
 //! question or a book's description tries to talk the model into, the worst
 //! outcome is an odd choice of books for the one who asked.
@@ -59,9 +60,11 @@ fn cell(text: &str, max: usize) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ").replace('|', "/").chars().take(max).collect()
 }
 
-/// A book as a line of the catalogue.
-fn line(book: &Book, shelves: &[String], tags: &[String]) -> String {
+/// A book as a line of the catalogue. `shared` names whose shelf a book the
+/// user does not have stands on.
+fn line(book: &Book, shelves: &[String], tags: &[String], shared: Option<&str>) -> String {
     let mut labels: Vec<&str> = shelves.iter().map(String::as_str).collect();
+    labels.extend(shared);
     labels.extend(book.category.as_deref());
     labels.extend(tags.iter().take(5).map(String::as_str));
     let status = match book.progress_percent {
@@ -165,8 +168,10 @@ pub struct Question {
 
 #[derive(Serialize)]
 pub struct Answer {
-    /// The books the librarian picked, the best first.
+    /// The user's own books the librarian picked, the best first.
     books: Vec<Book>,
+    /// Books it picked from the shelves others share with the user.
+    shared: Vec<crate::search::PublicHit>,
     /// How many books were looked through, and whether that was all of them.
     looked_through: usize,
     all: bool,
@@ -198,8 +203,8 @@ pub async fn ask(
         return Err(fail(StatusCode::TOO_MANY_REQUESTS, "too-many"));
     }
 
-    // The user's own books only: what others share is theirs to describe.
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM books WHERE owner_id = $1")
+    // The user's own books first.
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM books WHERE owner_id = $1") // own books; shared ones are counted below
         .bind(id)
         .fetch_one(&state.db)
         .await
@@ -217,11 +222,15 @@ pub async fn ask(
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    if books.is_empty() {
-        return Ok(Json(Answer { books, looked_through: 0, all: true, prompt_tokens: 0, completion_tokens: 0 }));
+    // What is left of the limit goes to the books on shelves shared with the
+    // user, which the user can borrow a copy of.
+    let mut shared = crate::search::all_shared_books(&state, id, MAX_BOOKS - books.len()).await?;
+    if books.is_empty() && shared.is_empty() {
+        return Ok(Json(Answer { books, shared, looked_through: 0, all: true, prompt_tokens: 0, completion_tokens: 0 }));
     }
     // By id, so that the catalogue reads the same from question to question.
     books.sort_by_key(|b| b.id);
+    shared.sort_by_key(|h| h.book.id);
     let tags: Vec<(i64, String)> = sqlx::query_as(
         "SELECT t.book_id, t.tag FROM book_tags t JOIN books b ON b.id = t.book_id WHERE b.owner_id = $1 ORDER BY LOWER(t.tag)",
     )
@@ -239,11 +248,14 @@ pub async fn ask(
     let of = |pairs: &[(i64, String)], book: i64| -> Vec<String> {
         pairs.iter().filter(|(b, _)| *b == book).map(|(_, name)| name.clone()).collect()
     };
-    let known: Vec<i64> = books.iter().map(|b| b.id).collect();
-    let catalogues: Vec<String> = books
-        .chunks(PART)
-        .map(|part| part.iter().map(|b| line(b, &of(&shelves, b.id), &of(&tags, b.id))).collect::<Vec<_>>().join("\n"))
-        .collect();
+    let known: Vec<i64> = books.iter().map(|b| b.id).chain(shared.iter().map(|h| h.book.id)).collect();
+    let mut lines: Vec<String> = books.iter().map(|b| line(b, &of(&shelves, b.id), &of(&tags, b.id), None)).collect();
+    lines.extend(shared.iter().map(|h| {
+        // Whose shelf it is stays here: the model has no use for a name.
+        let whose = format!("not the user's own: on the shared shelf {}", h.shelf_name);
+        line(&h.book, &[], &[], Some(&whose))
+    }));
+    let catalogues: Vec<String> = lines.chunks(PART).map(|part| part.join("\n")).collect();
 
     // The parts are asked side by side; their answers are taken in order.
     let tasks: Vec<_> = catalogues
@@ -286,16 +298,19 @@ pub async fn ask(
         return Err(fail(StatusCode::BAD_GATEWAY, "model"));
     }
     let picked = merge(answers, &known);
-    let mut chosen: Vec<Book> = Vec::with_capacity(picked.len());
+    let (mut chosen, mut borrowed) = (Vec::new(), Vec::new());
     for id in picked {
         if let Some(i) = books.iter().position(|b| b.id == id) {
             chosen.push(books.swap_remove(i));
+        } else if let Some(i) = shared.iter().position(|h| h.book.id == id) {
+            borrowed.push(shared.swap_remove(i));
         }
     }
     Ok(Json(Answer {
         books: chosen,
+        shared: borrowed,
         looked_through: known.len(),
-        all: total as usize <= known.len() && failed == 0,
+        all: total as usize <= known.len() && known.len() < MAX_BOOKS && failed == 0,
         prompt_tokens,
         completion_tokens,
     }))
