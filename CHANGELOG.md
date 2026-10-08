@@ -4,6 +4,26 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.10.0 (2026-10-08)
+
+- **Import folder for audiobooks:** set `LEGEJO_AUDIOBOOK_IMPORT_DIR` to a
+  folder on the server, and what is dropped into it becomes audiobooks of
+  `LEGEJO_AUDIOBOOK_IMPORT_USER` (default: the oldest admin). Each entry at
+  the top of the folder is one audiobook: a folder with its mp3, m4a or m4b
+  files, or a single audio file.
+  - Subfolders such as `CD 1` are included, and the parts come in the order
+    of their names, numbers by their value.
+  - Title and author come from the files' tags, otherwise from the name of
+    the folder. An image beside the files becomes the cover.
+  - The audio is never held in memory, and nothing is copied when the
+    folder is on the same disk as `/data`, so audiobooks of several
+    gigabytes are fine.
+  - Afterwards an entry is moved to `imported/`, `duplicates/` or
+    `failed/` in the folder, or deleted with
+    `LEGEJO_AUDIOBOOK_IMPORT_DELETE`. Audiobooks must be turned on at the
+    admin page.
+- **The librarian** has a larger portrait, to the right of the question.
+
 ## 1.9.0 (2026-10-07)
 
 - **The librarian (optional):** ask for something to read in your own
