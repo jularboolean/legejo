@@ -90,28 +90,27 @@
 	}
 </script>
 
-<div class="head">
-	<img class="portrait" src={portrait} alt="" />
-	<div>
+<div class="top">
+	<div class="words">
 		<h1>{t('librarian.heading')}</h1>
 		<p class="intro">{t('librarian.intro')}</p>
+		<form class="ask" onsubmit={ask}>
+			<input
+				type="text"
+				bind:value={question}
+				placeholder={t('librarian.placeholder')}
+				aria-label={t('librarian.heading')}
+				maxlength="300"
+				autocomplete="off"
+			/>
+			<button type="submit" disabled={asking || question.trim() === ''}>
+				{asking ? t('librarian.asking') : t('librarian.ask')}
+			</button>
+		</form>
+		<p class="privacy">{t('librarian.privacy')}</p>
 	</div>
+	<img class="portrait" src={portrait} alt="" />
 </div>
-
-<form class="ask" onsubmit={ask}>
-	<input
-		type="text"
-		bind:value={question}
-		placeholder={t('librarian.placeholder')}
-		aria-label={t('librarian.heading')}
-		maxlength="300"
-		autocomplete="off"
-	/>
-	<button type="submit" disabled={asking || question.trim() === ''}>
-		{asking ? t('librarian.asking') : t('librarian.ask')}
-	</button>
-</form>
-<p class="privacy">{t('librarian.privacy')}</p>
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
@@ -148,16 +147,21 @@
 {/if}
 
 <style>
-	.head {
+	.top {
 		display: flex;
 		align-items: center;
-		gap: 1.1rem;
-		margin-bottom: 1.25rem;
+		gap: 2rem;
+		margin-bottom: 1.75rem;
+	}
+	.words {
+		flex: 1;
+		min-width: 0;
+		max-width: 44rem;
 	}
 	/* The head stands free on the page, without a frame. */
 	.portrait {
-		width: 9rem;
-		height: 9rem;
+		width: 18rem;
+		height: 18rem;
 		flex-shrink: 0;
 		object-fit: contain;
 	}
@@ -172,7 +176,7 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.intro {
-		margin: 0;
+		margin: 0 0 1.25rem;
 		color: var(--muted);
 		max-width: 36rem;
 	}
@@ -180,7 +184,6 @@
 		display: flex;
 		flex-direction: row;
 		gap: 0.6rem;
-		max-width: 44rem;
 	}
 	.ask input {
 		flex: 1;
@@ -191,10 +194,9 @@
 		flex-shrink: 0;
 	}
 	.privacy {
-		margin: 0.5rem 0 1.75rem;
+		margin: 0.5rem 0 0;
 		font-size: 0.8rem;
 		color: var(--muted);
-		max-width: 44rem;
 	}
 	.result {
 		display: flex;
@@ -215,6 +217,17 @@
 		font-size: 0.8rem;
 		color: var(--muted);
 		font-variant-numeric: tabular-nums;
+	}
+	@media (max-width: 56rem) {
+		.top {
+			flex-direction: column-reverse;
+			align-items: flex-start;
+			gap: 0.75rem;
+		}
+		.portrait {
+			width: 11rem;
+			height: 11rem;
+		}
 	}
 	@media (max-width: 40rem) {
 		.ask {

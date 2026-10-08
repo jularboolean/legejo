@@ -701,7 +701,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Ningún audiolibro coincide con los filtros.',
 	'librarian.heading': "La bibliotecaria",
 	'librarian.intro': "Pide algo para leer, con tus propias palabras, y la bibliotecaria revisa tus libros.",
-	'librarian.placeholder': "Algo corto y divertido que no haya leído…",
+	'librarian.placeholder': "Algo trepidante que no haya leído…",
 	'librarian.ask': "Preguntar",
 	'librarian.asking': "Mirando por las estanterías…",
 	'librarian.privacy': "La bibliotecaria es un modelo de lenguaje. Tu pregunta y lo que el catálogo dice de tus libros y de los de las estanterías compartidas contigo (título, autor, estanterías, etiquetas y el comienzo de la descripción) se le envían; los libros en sí no.",

@@ -701,7 +701,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Aucun livre audio ne correspond aux filtres.',
 	'librarian.heading': "La bibliothécaire",
 	'librarian.intro': "Demandez quelque chose à lire, avec vos propres mots, et la bibliothécaire parcourt vos livres.",
-	'librarian.placeholder': "Quelque chose de court et drôle que je n’ai pas lu…",
+	'librarian.placeholder': "Quelque chose de palpitant que je n’ai pas lu…",
 	'librarian.ask': "Demander",
 	'librarian.asking': "Elle parcourt les étagères…",
 	'librarian.privacy': "La bibliothécaire est un modèle de langage. Votre question et ce que le catalogue dit de vos livres et de ceux des étagères partagées avec vous (titre, auteur, étagères, étiquettes et début de la description) lui sont envoyés ; les livres eux-mêmes ne le sont pas.",

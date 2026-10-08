@@ -701,7 +701,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Yksikään äänikirja ei vastaa suodattimia.',
 	'librarian.heading': "Kirjastonhoitaja",
 	'librarian.intro': "Pyydä jotain luettavaa omin sanoin, niin kirjastonhoitaja käy kirjasi läpi.",
-	'librarian.placeholder': "Jotain lyhyttä ja hauskaa, jota en ole lukenut…",
+	'librarian.placeholder': "Jotain jännittävää, jota en ole lukenut…",
 	'librarian.ask': "Kysy",
 	'librarian.asking': "Katselee hyllyjä…",
 	'librarian.privacy': "Kirjastonhoitaja on kielimalli. Kysymyksesi ja se, mitä luettelo kertoo kirjoistasi ja sinulle jaettujen hyllyjen kirjoista (nimi, tekijä, hyllyt, tunnisteet ja kuvauksen alku), lähetetään sille; itse kirjoja ei lähetetä.",

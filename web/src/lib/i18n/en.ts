@@ -699,7 +699,7 @@ export const en = {
 	'audio.noMatch': 'No audiobooks match the filters.',
 	'librarian.heading': "The librarian",
 	'librarian.intro': "Ask for something to read, in your own words, and the librarian looks through your books.",
-	'librarian.placeholder': "Something short and funny I have not read…",
+	'librarian.placeholder': "Something thrilling I have not read…",
 	'librarian.ask': "Ask",
 	'librarian.asking': "Looking along the shelves…",
 	'librarian.privacy': "The librarian is a language model. Your question and what the catalogue says about your books and those on shelves shared with you (title, author, shelves, tags and the beginning of the description) are sent to it; the books themselves are not.",

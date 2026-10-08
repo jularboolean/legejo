@@ -701,7 +701,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Inga ljudböcker matchar filtren.',
 	'librarian.heading': "Bibliotekarien",
 	'librarian.intro': "Be om något att läsa, med egna ord, så letar bibliotekarien bland dina böcker.",
-	'librarian.placeholder': "Något kort och roligt som jag inte har läst…",
+	'librarian.placeholder': "Något rafflande som jag inte har läst…",
 	'librarian.ask': "Fråga",
 	'librarian.asking': "Letar längs hyllorna…",
 	'librarian.privacy': "Bibliotekarien är en språkmodell. Din fråga och det katalogen säger om dina böcker och om böckerna på hyllor som delas med dig (titel, författare, hyllor, taggar och början av beskrivningen) skickas till den; själva böckerna skickas inte.",

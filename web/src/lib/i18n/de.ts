@@ -701,7 +701,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Kein Hörbuch entspricht den Filtern.',
 	'librarian.heading': "Die Bibliothekarin",
 	'librarian.intro': "Bitte mit eigenen Worten um etwas zu lesen, und die Bibliothekarin sieht deine Bücher durch.",
-	'librarian.placeholder': "Etwas Kurzes und Lustiges, das ich nicht gelesen habe …",
+	'librarian.placeholder': "Etwas Spannendes, das ich nicht gelesen habe …",
 	'librarian.ask': "Fragen",
 	'librarian.asking': "Sie sieht die Regale durch …",
 	'librarian.privacy': "Die Bibliothekarin ist ein Sprachmodell. Deine Frage und was der Katalog über deine Bücher und die in mit dir geteilten Regalen sagt (Titel, Autor, Regale, Schlagwörter und der Anfang der Beschreibung) werden an sie gesendet; die Bücher selbst nicht.",

@@ -701,7 +701,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'audio.noMatch': 'Neniu aŭdlibro kongruas kun la filtriloj.',
 	'librarian.heading': "La bibliotekisto",
 	'librarian.intro': "Petu ion por legi, per viaj propraj vortoj, kaj la bibliotekisto trarigardos viajn librojn.",
-	'librarian.placeholder': "Ion mallongan kaj amuzan, kion mi ne legis…",
+	'librarian.placeholder': "Ion streĉan, kion mi ne legis…",
 	'librarian.ask': "Demandi",
 	'librarian.asking': "Rigardante laŭ la bretoj…",
 	'librarian.privacy': "La bibliotekisto estas lingvomodelo. Via demando kaj tio, kion la katalogo diras pri viaj libroj kaj pri tiuj sur bretoj kunhavigitaj kun vi (titolo, aŭtoro, bretoj, etikedoj kaj la komenco de la priskribo), estas sendataj al ĝi; la libroj mem ne.",
