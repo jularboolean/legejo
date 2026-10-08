@@ -196,6 +196,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "esti tilapäisesti kirjautumisen käyttäjänä {username} liian monen väärän salasanan jälkeen",
 	'log.book.folder_imported': "toi kirjan {title} tuontikansiosta käyttäjälle {owner}",
 	'log.book.import_failed': "ei voinut tuoda tiedostoa {file} tuontikansiosta: {error}",
+	'log.audiobook.folder_imported': "toi äänikirjan {title} tuontikansiosta käyttäjälle {owner}",
+	'log.audiobook.import_failed': "ei voinut tuoda äänikirjaa {file} tuontikansiosta: {error}",
 	'login.or': "tai",
 	'login.sso': "Kirjaudu palvelulla {name}",
 	'login.oidc.failed': "Kirjautuminen keskeytyi tai epäonnistui. Yritä uudelleen.",

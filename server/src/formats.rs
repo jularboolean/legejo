@@ -170,7 +170,7 @@ fn image_type(name: &str) -> Option<&'static str> {
 
 /// Order names the way their pages are read: runs of digits by their value,
 /// so that "page2" comes before "page10".
-fn natural_key(name: &str) -> Vec<(u64, String)> {
+pub(crate) fn natural_key(name: &str) -> Vec<(u64, String)> {
     let mut key = Vec::new();
     let mut chars = name.to_lowercase().chars().collect::<Vec<_>>().into_iter().peekable();
     while chars.peek().is_some() {

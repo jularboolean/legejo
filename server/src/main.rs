@@ -12,6 +12,7 @@ mod ratelimit;
 mod settings;
 mod librarian;
 mod audiobooks;
+mod audioimport;
 mod audit;
 mod auth;
 mod books;
@@ -50,6 +51,8 @@ mod oidc_tests;
 mod selfhost_tests;
 #[cfg(test)]
 mod mcp_tests;
+#[cfg(test)]
+mod audioimport_tests;
 #[cfg(test)]
 mod audiobook_tests;
 #[cfg(test)]
@@ -372,6 +375,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
     tokio::spawn(importdir::worker(state.clone()));
+    tokio::spawn(audioimport::worker(state.clone()));
 
     let mut app = router(state);
 

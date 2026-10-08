@@ -196,6 +196,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "provizore blokis ensalutojn kiel {username} post tro da malĝustaj pasvortoj",
 	'log.book.folder_imported': "importis {title} el la importa dosierujo por {owner}",
 	'log.book.import_failed': "ne povis importi {file} el la importa dosierujo: {error}",
+	'log.audiobook.folder_imported': "importis la aŭdlibron {title} el la importa dosierujo por {owner}",
+	'log.audiobook.import_failed': "ne povis importi la aŭdlibron {file} el la importa dosierujo: {error}",
 	'login.or': "aŭ",
 	'login.sso': "Ensaluti per {name}",
 	'login.oidc.failed': "La ensaluto estis nuligita aŭ malsukcesis. Bonvolu reprovi.",

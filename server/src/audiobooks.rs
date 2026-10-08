@@ -48,7 +48,7 @@ async fn on(state: &AppState) -> Result<(), Response> {
 
 /// The audio formats taken in, by file extension: (extension, media type).
 /// These are the two that every podcast app plays.
-fn audio_type(filename: &str) -> Option<(&'static str, &'static str)> {
+pub(crate) fn audio_type(filename: &str) -> Option<(&'static str, &'static str)> {
     let ext = filename.rsplit('.').next()?.to_ascii_lowercase();
     match ext.as_str() {
         "mp3" => Some(("mp3", "audio/mpeg")),
@@ -505,6 +505,157 @@ fn title_from_filename(filename: &str) -> String {
     }
 }
 
+/// Take a file that is already in the audiobook's folder into the catalogue,
+/// as its last part. Its tags fill in what the audiobook does not have yet;
+/// `fallback_title` names an audiobook whose first file has no album tag.
+#[allow(clippy::too_many_arguments)]
+async fn register_part(
+    state: &AppState,
+    book_id: i64,
+    book_uuid: &str,
+    uuid: &str,
+    path: &std::path::Path,
+    filename: &str,
+    mime: &str,
+    bytes: i64,
+    fallback_title: &str,
+) -> Result<(), Response> {
+    let probe = path.to_path_buf();
+    let tags = tokio::task::spawn_blocking(move || read_tags(&probe)).await.unwrap_or_default();
+    let position: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 1 FROM audiobook_files WHERE audiobook_id = $1")
+            .bind(book_id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
+    sqlx::query(
+        "INSERT INTO audiobook_files (audiobook_id, uuid, position, title, filename, mime, seconds, bytes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+    )
+    .bind(book_id)
+    .bind(uuid)
+    .bind(position)
+    .bind(&tags.title)
+    .bind(filename)
+    .bind(mime)
+    .bind(tags.seconds)
+    .bind(bytes)
+    .execute(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+
+    // Fill in what is missing; never replace what is there.
+    sqlx::query(
+        "UPDATE audiobooks SET
+             title = CASE WHEN title = '' THEN $1 ELSE title END,
+             author = COALESCE(author, $2),
+             updated_at = $3
+         WHERE id = $4",
+    )
+    .bind(tags.album.clone().unwrap_or_else(|| fallback_title.to_string()))
+    .bind(&tags.artist)
+    .bind(now_ts())
+    .bind(book_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    if let Some((data, cover_mime)) = tags.cover {
+        let has: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM audiobooks WHERE id = $1")
+            .bind(book_id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        if has.is_none() {
+            store_cover(state, book_id, book_uuid, &data, &cover_mime).await?;
+        }
+    }
+    Ok(())
+}
+
+/// What an audiobook from the import folder is made of.
+pub(crate) struct FolderBook {
+    /// The folder's name, or the file's when it is a single file.
+    pub name: String,
+    /// The audio files, in the order they are to be heard.
+    pub files: Vec<std::path::PathBuf>,
+    /// An image lying beside them.
+    pub cover: Option<std::path::PathBuf>,
+    /// A single file rather than a folder; `name` is then the file's name.
+    pub single: bool,
+}
+
+pub(crate) enum FolderOutcome {
+    Added { id: i64, title: String },
+    /// The owner already has an audiobook with these files.
+    Duplicate,
+}
+
+/// Make an audiobook of files on the server's disk. They are linked into
+/// place when the folder is on the same disk as the data, so that nothing
+/// is copied, and copied otherwise; the originals are left where they are.
+pub(crate) async fn import_folder(state: &AppState, owner_id: i64, found: &FolderBook) -> anyhow::Result<FolderOutcome> {
+    let mut sizes = Vec::new();
+    for file in &found.files {
+        sizes.push(tokio::fs::metadata(file).await?.len() as i64);
+    }
+    // The same number of files with the same sizes in the same order: the
+    // same audiobook, without reading gigabytes to be sure.
+    let own: Vec<(i64,)> = sqlx::query_as("SELECT id FROM audiobooks WHERE owner_id = $1").bind(owner_id).fetch_all(&state.db).await?;
+    for (id,) in own {
+        let have: Vec<i64> =
+            sqlx::query_scalar("SELECT bytes FROM audiobook_files WHERE audiobook_id = $1 ORDER BY position").bind(id).fetch_all(&state.db).await?;
+        if have == sizes {
+            return Ok(FolderOutcome::Duplicate);
+        }
+    }
+
+    let book_uuid = new_uuid();
+    let id: i64 = sqlx::query_scalar("INSERT INTO audiobooks (uuid, owner_id, title, feed_key) VALUES ($1, $2, '', $3) RETURNING id")
+        .bind(&book_uuid)
+        .bind(owner_id)
+        .bind(new_uuid())
+        .fetch_one(&state.db)
+        .await?;
+    let dir = audio_dir(state, &book_uuid);
+    // A folder's name says more than the name of its first file.
+    let fallback = if found.single { title_from_filename(&found.name) } else { found.name.trim().to_string() };
+    let stored: anyhow::Result<()> = async {
+        tokio::fs::create_dir_all(&dir).await?;
+        for (file, bytes) in found.files.iter().zip(&sizes) {
+            let filename = if found.single { found.name.clone() } else { file.file_name().and_then(|n| n.to_str()).unwrap_or("audio").to_string() };
+            let (ext, mime) = audio_type(&filename).ok_or_else(|| anyhow::anyhow!("{filename}: not mp3, m4a or m4b"))?;
+            let uuid = new_uuid();
+            let path = dir.join(format!("{uuid}.{ext}"));
+            if tokio::fs::hard_link(file, &path).await.is_err() {
+                tokio::fs::copy(file, &path).await?;
+            }
+            register_part(state, id, &book_uuid, &uuid, &path, &filename, mime, *bytes, &fallback)
+                .await
+                .map_err(|_| anyhow::anyhow!("{filename}: could not be added"))?;
+        }
+        Ok(())
+    }
+    .await;
+    if let Err(e) = stored {
+        // Nothing half-made is left behind.
+        let _ = sqlx::query("DELETE FROM audiobooks WHERE id = $1").bind(id).execute(&state.db).await;
+        remove_files(state, &book_uuid).await;
+        return Err(e);
+    }
+
+    let title: String = sqlx::query_scalar("SELECT title FROM audiobooks WHERE id = $1").bind(id).fetch_one(&state.db).await?;
+    if let Some(cover) = &found.cover {
+        let mime = if cover.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("png")) { "image/png" } else { "image/jpeg" };
+        match tokio::fs::read(cover).await {
+            Ok(data) if !data.is_empty() && data.len() <= MAX_COVER_BYTES => {
+                store_cover(state, id, &book_uuid, &data, mime).await.map_err(|_| anyhow::anyhow!("the cover could not be stored"))?;
+            }
+            _ => {}
+        }
+    }
+    Ok(FolderOutcome::Added { id, title })
+}
+
 #[derive(Serialize)]
 pub struct Added {
     #[serde(flatten)]
@@ -564,55 +715,7 @@ pub async fn add_files(
             continue;
         }
 
-        let probe = path.clone();
-        let tags = tokio::task::spawn_blocking(move || read_tags(&probe)).await.unwrap_or_default();
-        let position: i64 =
-            sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 1 FROM audiobook_files WHERE audiobook_id = $1")
-                .bind(book.id)
-                .fetch_one(&state.db)
-                .await
-                .map_err(|e| internal(e.into()))?;
-        sqlx::query(
-            "INSERT INTO audiobook_files (audiobook_id, uuid, position, title, filename, mime, seconds, bytes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-        )
-        .bind(book.id)
-        .bind(&uuid)
-        .bind(position)
-        .bind(&tags.title)
-        .bind(&filename)
-        .bind(mime)
-        .bind(tags.seconds)
-        .bind(bytes)
-        .execute(&state.db)
-        .await
-        .map_err(|e| internal(e.into()))?;
-
-        // Fill in what is missing; never replace what is there.
-        sqlx::query(
-            "UPDATE audiobooks SET
-                 title = CASE WHEN title = '' THEN $1 ELSE title END,
-                 author = COALESCE(author, $2),
-                 updated_at = $3
-             WHERE id = $4",
-        )
-        .bind(tags.album.clone().unwrap_or_else(|| title_from_filename(&filename)))
-        .bind(&tags.artist)
-        .bind(now_ts())
-        .bind(book.id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| internal(e.into()))?;
-        if let Some((data, cover_mime)) = tags.cover {
-            let has: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM audiobooks WHERE id = $1")
-                .bind(book.id)
-                .fetch_one(&state.db)
-                .await
-                .map_err(|e| internal(e.into()))?;
-            if has.is_none() {
-                store_cover(&state, book.id, &book.uuid, &data, &cover_mime).await?;
-            }
-        }
+        register_part(&state, book.id, &book.uuid, &uuid, &path, &filename, mime, bytes, &title_from_filename(&filename)).await?;
     }
 
     if book.parts == 0 {

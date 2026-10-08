@@ -194,6 +194,8 @@ export const en = {
 	'log.user.login_blocked': "temporarily blocked logins as {username} after too many wrong passwords",
 	'log.book.folder_imported': "imported {title} from the import folder for {owner}",
 	'log.book.import_failed': "could not import {file} from the import folder: {error}",
+	'log.audiobook.folder_imported': "imported the audiobook {title} from the import folder for {owner}",
+	'log.audiobook.import_failed': "could not import the audiobook {file} from the import folder: {error}",
 	'login.or': "or",
 	'login.sso': "Log in with {name}",
 	'login.oidc.failed': "The login was cancelled or failed. Please try again.",

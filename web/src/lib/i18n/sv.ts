@@ -196,6 +196,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "spärrade tillfälligt inloggning som {username} efter för många felaktiga lösenord",
 	'log.book.folder_imported': "importerade {title} från importmappen till {owner}",
 	'log.book.import_failed': "kunde inte importera {file} från importmappen: {error}",
+	'log.audiobook.folder_imported': "importerade ljudboken {title} från importmappen åt {owner}",
+	'log.audiobook.import_failed': "kunde inte importera ljudboken {file} från importmappen: {error}",
 	'login.or': "eller",
 	'login.sso': "Logga in med {name}",
 	'login.oidc.failed': "Inloggningen avbröts eller misslyckades. Försök igen.",

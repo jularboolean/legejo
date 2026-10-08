@@ -196,6 +196,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "bloqueó temporalmente los inicios de sesión como {username} tras demasiadas contraseñas incorrectas",
 	'log.book.folder_imported': "importó {title} desde la carpeta de importación para {owner}",
 	'log.book.import_failed': "no pudo importar {file} desde la carpeta de importación: {error}",
+	'log.audiobook.folder_imported': "importó el audiolibro {title} de la carpeta de importación para {owner}",
+	'log.audiobook.import_failed': "no pudo importar el audiolibro {file} de la carpeta de importación: {error}",
 	'login.or': "o",
 	'login.sso': "Iniciar sesión con {name}",
 	'login.oidc.failed': "El inicio de sesión se canceló o falló. Inténtalo de nuevo.",

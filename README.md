@@ -278,6 +278,21 @@ moved to `imported/`, `duplicates/` or `failed/` inside the folder.
 | `LEGEJO_IMPORT_INTERVAL` | `60` | Seconds between scans |
 | `LEGEJO_IMPORT_DELETE` | `false` | Delete imported files instead of moving them |
 
+**Import folder for audiobooks.** Each entry at the top of the folder becomes one
+audiobook: a folder with its mp3, m4a or m4b files (subfolders such as `CD 1` included,
+in the order of their names), or a single audio file. An image beside the files becomes
+the cover. An entry is taken once nothing in it has changed for a minute, and is then
+moved to `imported/`, `duplicates/` or `failed/`. The audio is never held in memory, and
+when the folder is on the same disk as `/data` nothing is copied, so audiobooks of
+several gigabytes are fine. Audiobooks must be turned on at the admin page.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LEGEJO_AUDIOBOOK_IMPORT_DIR` | | The folder; must be writable |
+| `LEGEJO_AUDIOBOOK_IMPORT_USER` | oldest admin | Who gets the audiobooks |
+| `LEGEJO_AUDIOBOOK_IMPORT_INTERVAL` | `60` | Seconds between scans |
+| `LEGEJO_AUDIOBOOK_IMPORT_DELETE` | `false` | Delete imported entries instead of moving them |
+
 **Metrics.** Prometheus metrics at `/metrics`: users, books, storage, shelves,
 federation queue, exports, failed logins and activity per event type.
 

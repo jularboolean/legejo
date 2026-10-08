@@ -16,10 +16,10 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-const WORK: &str = ".legejo";
-const IMPORTED: &str = "imported";
-const DUPLICATES: &str = "duplicates";
-const FAILED: &str = "failed";
+pub(crate) const WORK: &str = ".legejo";
+pub(crate) const IMPORTED: &str = "imported";
+pub(crate) const DUPLICATES: &str = "duplicates";
+pub(crate) const FAILED: &str = "failed";
 /// A file must have been left alone this long before it is imported.
 const SETTLE: Duration = Duration::from_secs(30);
 /// A claimed file still in .legejo after this long belongs to a process
@@ -45,7 +45,7 @@ pub async fn worker(state: AppState) {
     }
 }
 
-fn skip_dir(name: &str) -> bool {
+pub(crate) fn skip_dir(name: &str) -> bool {
     name.starts_with('.') || [IMPORTED, DUPLICATES, FAILED].contains(&name)
 }
 
@@ -82,7 +82,7 @@ pub fn pending(root: &Path) -> usize {
 }
 
 /// `name` in `dir`, or `name (2)` … when taken.
-fn free_name(dir: &Path, name: &str) -> PathBuf {
+pub(crate) fn free_name(dir: &Path, name: &str) -> PathBuf {
     let first = dir.join(name);
     if !first.exists() {
         return first;
@@ -97,7 +97,7 @@ fn free_name(dir: &Path, name: &str) -> PathBuf {
         .unwrap_or(first)
 }
 
-fn move_to(root: &Path, from: &Path, sub: &str, name: &str) -> std::io::Result<()> {
+pub(crate) fn move_to(root: &Path, from: &Path, sub: &str, name: &str) -> std::io::Result<()> {
     let dir = root.join(sub);
     std::fs::create_dir_all(&dir)?;
     std::fs::rename(from, free_name(&dir, name))

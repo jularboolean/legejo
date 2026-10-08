@@ -196,6 +196,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "a bloqué temporairement les connexions en tant que {username} après trop de mots de passe erronés",
 	'log.book.folder_imported': "a importé {title} depuis le dossier d’import pour {owner}",
 	'log.book.import_failed': "n’a pas pu importer {file} depuis le dossier d’import : {error}",
+	'log.audiobook.folder_imported': "a importé le livre audio {title} du dossier d'import pour {owner}",
+	'log.audiobook.import_failed': "n'a pas pu importer le livre audio {file} du dossier d'import : {error}",
 	'login.or': "ou",
 	'login.sso': "Se connecter avec {name}",
 	'login.oidc.failed': "La connexion a été annulée ou a échoué. Réessayez.",

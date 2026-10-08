@@ -105,6 +105,9 @@ pub async fn metrics(State(state): State<AppState>, headers: HeaderMap) -> Respo
     if let Some(import) = &state.settings.import {
         gauge(&mut out, "legejo_import_pending", "EPUB files waiting in the import folder.", crate::importdir::pending(&import.dir) as i64);
     }
+    if let Some(import) = &state.settings.audio_import {
+        gauge(&mut out, "legejo_audiobook_import_pending", "Audiobooks waiting in the audiobook import folder.", crate::audioimport::pending(&import.dir) as i64);
+    }
 
     ([(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")], out).into_response()
 }

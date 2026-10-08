@@ -90,6 +90,9 @@ pub struct Settings {
     /// /metrics: off, open, or behind a bearer token.
     pub metrics: Metrics,
     pub import: Option<ImportDir>,
+    /// The same for audiobooks (audioimport.rs). None unless
+    /// LEGEJO_AUDIOBOOK_IMPORT_DIR is set.
+    pub audio_import: Option<ImportDir>,
     /// Mark cookies Secure. On by default when LEGEJO_PUBLIC_URL is https.
     pub secure_cookies: bool,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
@@ -130,6 +133,7 @@ impl Default for Settings {
             max_upload_bytes: 200 * 1024 * 1024,
             metrics: Metrics::Off,
             import: None,
+            audio_import: None,
             secure_cookies: false,
             mcp: false,
             ai: None,
@@ -161,6 +165,15 @@ impl Settings {
                 delete: flag("LEGEJO_IMPORT_DELETE")?,
             }),
         };
+        let audio_import = match var("LEGEJO_AUDIOBOOK_IMPORT_DIR")? {
+            None => None,
+            Some(dir) => Some(ImportDir {
+                dir: PathBuf::from(dir),
+                user: var("LEGEJO_AUDIOBOOK_IMPORT_USER")?,
+                interval_secs: number("LEGEJO_AUDIOBOOK_IMPORT_INTERVAL", 60)?.max(5) as u64,
+                delete: flag("LEGEJO_AUDIOBOOK_IMPORT_DELETE")?,
+            }),
+        };
         let secure_cookies = match var("LEGEJO_SECURE_COOKIES")? {
             Some(_) => flag("LEGEJO_SECURE_COOKIES")?,
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
@@ -176,7 +189,7 @@ impl Settings {
                 model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, secure_cookies, mcp, ai })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, ai })
     }
 }
 

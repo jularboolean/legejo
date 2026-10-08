@@ -196,6 +196,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'log.user.login_blocked': "hat Anmeldungen als {username} nach zu vielen falschen Passwörtern vorübergehend gesperrt",
 	'log.book.folder_imported': "hat {title} aus dem Importordner für {owner} importiert",
 	'log.book.import_failed': "konnte {file} aus dem Importordner nicht importieren: {error}",
+	'log.audiobook.folder_imported': "hat das Hörbuch {title} aus dem Importordner für {owner} importiert",
+	'log.audiobook.import_failed': "konnte das Hörbuch {file} nicht aus dem Importordner importieren: {error}",
 	'login.or': "oder",
 	'login.sso': "Mit {name} anmelden",
 	'login.oidc.failed': "Die Anmeldung wurde abgebrochen oder ist fehlgeschlagen. Bitte versuche es erneut.",
