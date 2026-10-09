@@ -9,6 +9,9 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'nav.admin': 'Ylläpito',
 
 	'admin.heading': 'Ylläpito',
+	'tabs.profile': "Profiili",
+	'tabs.options': "Lisävalinnat",
+	'tabs.settings': "Asetukset",
 	'admin.features': 'Toiminnot',
 	'admin.librisToggle': 'Libris-haku kirjan muokkaussivulla',
 	'admin.librisHint': 'Pois päältä: Libris-paneeli piilotetaan ja haku-API poistetaan käytöstä kaikilta.',

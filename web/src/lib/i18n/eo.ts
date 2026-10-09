@@ -9,6 +9,9 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'nav.admin': 'Administrado',
 
 	'admin.heading': 'Administrado',
+	'tabs.profile': "Profilo",
+	'tabs.options': "Elektoj",
+	'tabs.settings': "Agordoj",
 	'admin.features': 'Funkcioj',
 	'admin.librisToggle': 'Libris-serĉo sur la redaktopaĝo de libro',
 	'admin.librisHint': 'Malŝaltite: la Libris-panelo kaŝiĝas kaj la serĉo-API malaktiviĝas por ĉiuj.',

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { ArrowLeft } from '@lucide/svelte';
+	import Tabs from '#lib/Tabs.svelte';
 	import { getLocale, t, type MessageKey } from '#lib/i18n';
 	import { LOG_GROUPS, logActor, logText, type LogEntry, type LogPage } from '#lib/logText';
 	import type { PageData } from './$types';
@@ -56,8 +56,16 @@
 	}
 </script>
 
-<a class="back" href="/admin"><ArrowLeft size={13} /> {t('admin.heading')}</a>
-<h1>{t('log.heading')}</h1>
+<h1>{t('admin.heading')}</h1>
+<Tabs
+	label={t('admin.heading')}
+	tabs={[
+		{ href: '/admin', label: t('tabs.settings'), active: false },
+		{ href: '/admin?tab=users', label: t('admin.users'), active: false },
+		{ href: '/admin?tab=federation', label: t('fedAdmin.heading'), active: false, dot: (data.fed.pending_instances ?? 0) > 0 },
+		{ href: '/admin/log', label: t('log.heading'), active: true }
+	]}
+/>
 <p class="intro">{t('log.intro')}</p>
 
 <div class="filters" role="group" aria-label={t('log.filter')}>
@@ -94,16 +102,9 @@
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
 <style>
-	.back {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		margin-bottom: 1rem;
-		color: var(--muted);
-	}
 	h1 {
 		font-size: 1.4rem;
-		margin: 0 0 0.4rem;
+		margin: 0 0 0.6rem;
 	}
 	.intro {
 		margin: 0 0 1.25rem;

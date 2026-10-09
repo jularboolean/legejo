@@ -169,7 +169,7 @@
 {#if !data.fed.available}
 	<p class="muted">{t('fed.unavailable')}</p>
 {:else if !data.fed.enabled}
-	<p class="muted">{t('fed.turnedOff')} <a href="/account">{t('nav.account')}</a></p>
+	<p class="muted">{t('fed.turnedOff')} <a href="/account?tab=options">{t('nav.account')}</a></p>
 {:else}
 	<div class="layout" class:has-selection={data.actor != null}>
 		<section class="follows">

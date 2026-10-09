@@ -172,7 +172,7 @@
 				{#if data.user.is_admin}
 					<a
 						class="gear"
-						href="/admin"
+						href={data.fed.pending_instances ? '/admin?tab=federation' : '/admin'}
 						title={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
 						aria-label={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
 					>

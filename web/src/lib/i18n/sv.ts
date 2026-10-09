@@ -9,6 +9,9 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'nav.admin': 'Admin',
 
 	'admin.heading': 'Admin',
+	'tabs.profile': "Profil",
+	'tabs.options': "Tillval",
+	'tabs.settings': "Inställningar",
 	'admin.features': 'Funktioner',
 	'admin.librisToggle': 'Libris-uppslag på bokredigeringssidan',
 	'admin.librisHint': 'Avstängt: Libris-panelen döljs och uppslags-API:t stängs av för alla.',

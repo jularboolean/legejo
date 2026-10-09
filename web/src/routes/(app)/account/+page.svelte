@@ -8,6 +8,7 @@
 	import KosyncSetup from '#lib/KosyncSetup.svelte';
 	import McpSetup from '#lib/McpSetup.svelte';
 	import Avatar from '#lib/Avatar.svelte';
+	import Tabs from '#lib/Tabs.svelte';
 	import { getLocale, LANGUAGES, setLocale, t } from '#lib/i18n';
 	import type { Account } from '#lib/types';
 	import type { PageData } from './$types';
@@ -15,6 +16,16 @@
 	let { data }: { data: PageData } = $props();
 
 	let account = $state<Account>({ ...data.account });
+
+	// The page in parts, the part in the address: /account?tab=devices.
+	const hasOptions = $derived(account.librarian_available || account.fediverse_available || data.mcpEnabled);
+	const wanted = $derived(page.url.searchParams.get('tab'));
+	const tab = $derived(wanted === 'devices' || (wanted === 'options' && hasOptions) ? wanted : 'profile');
+	const tabs = $derived([
+		{ href: '/account', label: t('tabs.profile'), active: tab === 'profile' },
+		{ href: '/account?tab=devices', label: t('devices.heading'), active: tab === 'devices' },
+		...(hasOptions ? [{ href: '/account?tab=options', label: t('tabs.options'), active: tab === 'options' }] : [])
+	]);
 	let form = $state({
 		username: data.account.username,
 		new_password: '',
@@ -241,6 +252,9 @@
 </script>
 
 <h1>{t('account.heading')}</h1>
+<Tabs {tabs} label={t('account.heading')} />
+
+{#if tab === 'profile'}
 
 <form onsubmit={save}>
 	<label>
@@ -322,8 +336,9 @@
 
 <OidcLink />
 
+<AccountLeave />
+{:else if tab === 'devices'}
 <section class="devices">
-	<h2>{t('devices.heading')}</h2>
 	<p class="intro">{t('devices.intro')}</p>
 </section>
 
@@ -392,6 +407,9 @@
 	</section>
 {/if}
 
+<KosyncSetup username={account.username} />
+{:else}
+<div class="options">
 {#if account.librarian_available}
 	<section class="kobo">
 		<h3>{t('librarian.heading')}</h3>
@@ -416,16 +434,18 @@
 	</section>
 {/if}
 
-<KosyncSetup username={account.username} />
 {#if data.mcpEnabled}<McpSetup />{/if}
-
-<AccountLeave />
+</div>
+{/if}
 
 <style>
+	/* The first part stands right under the tabs, without a line of its own. */
+	.options > :global(section:first-child) {
+		margin-top: 0;
+		padding-top: 0;
+		border-top: none;
+	}
 	.devices {
-		margin-top: 2.5rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid var(--border);
 		max-width: 32rem;
 	}
 	.devices + .kobo {
@@ -439,7 +459,7 @@
 	}
 	h1 {
 		font-size: 1.4rem;
-		margin: 0 0 1.25rem;
+		margin: 0 0 0.6rem;
 	}
 	form {
 		display: flex;

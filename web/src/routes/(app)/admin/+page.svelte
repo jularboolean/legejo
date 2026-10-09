@@ -1,12 +1,25 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { ScrollText } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import Tabs from '#lib/Tabs.svelte';
 	import { t } from '#lib/i18n';
 	import Federation from './Federation.svelte';
 	import Users from './Users.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// The page in parts, the part in the address: /admin?tab=users.
+	const wanted = $derived(page.url.searchParams.get('tab'));
+	const tab = $derived(wanted === 'users' || (wanted === 'federation' && data.federation) ? wanted : 'settings');
+	const tabs = $derived([
+		{ href: '/admin', label: t('tabs.settings'), active: tab === 'settings' },
+		{ href: '/admin?tab=users', label: t('admin.users'), active: tab === 'users' },
+		...(data.federation
+			? [{ href: '/admin?tab=federation', label: t('fedAdmin.heading'), active: tab === 'federation', dot: (data.fed.pending_instances ?? 0) > 0 }]
+			: []),
+		{ href: '/admin/log', label: t('log.heading'), active: false }
+	]);
 
 	let librisEnabled = $state(data.settings.libris_enabled);
 	let openLibraryEnabled = $state(data.settings.openlibrary_enabled ?? false);
@@ -102,11 +115,10 @@
 	}
 </script>
 
-<div class="head">
-	<h1>{t('admin.heading')}</h1>
-	<a class="loglink" href="/admin/log"><ScrollText size={14} /> {t('log.heading')}</a>
-</div>
+<h1>{t('admin.heading')}</h1>
+<Tabs {tabs} label={t('admin.heading')} />
 
+{#if tab === 'settings'}
 <section>
 	<h2>{t('admin.features')}</h2>
 	<label class="toggle">
@@ -180,33 +192,16 @@
 	{/if}
 </section>
 
-{#if data.federation}
+{:else if tab === 'federation' && data.federation}
 	<Federation settings={data.federation} instances={data.instances} overview={data.overview} />
+{:else}
+	<Users users={data.users} me={data.user?.id ?? 0} {mailConfigured} />
 {/if}
 
-<Users users={data.users} me={data.user?.id ?? 0} {mailConfigured} />
-
 <style>
-	.head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 1rem;
-		max-width: 40rem;
-		margin-bottom: 1.5rem;
-	}
-	.head h1 {
-		margin: 0;
-	}
-	.loglink {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.9rem;
-	}
 	h1 {
 		font-size: 1.4rem;
-		margin: 0 0 1.5rem;
+		margin: 0 0 0.6rem;
 	}
 	section {
 		max-width: 34rem;

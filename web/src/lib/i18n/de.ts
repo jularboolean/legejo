@@ -9,6 +9,9 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'nav.admin': 'Verwaltung',
 
 	'admin.heading': 'Verwaltung',
+	'tabs.profile': "Profil",
+	'tabs.options': "Optionen",
+	'tabs.settings': "Einstellungen",
 	'admin.features': 'Funktionen',
 	'admin.librisToggle': 'Libris-Suche auf der Seite zum Bearbeiten von Büchern',
 	'admin.librisHint': 'Wenn ausgeschaltet, ist der Libris-Bereich ausgeblendet und die Such-API für alle deaktiviert.',
