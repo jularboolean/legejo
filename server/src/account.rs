@@ -30,6 +30,13 @@ pub struct Account {
     /// Whether there is a fediverse to turn on: the instance federates.
     #[sqlx(skip)]
     pub fediverse_available: bool,
+    /// Whether the user has turned on the catalogs of other libraries
+    /// (catalogs.rs).
+    pub catalogs: crate::db::DbFlag,
+    /// Whether there are catalogs to turn on: an admin has turned them on
+    /// for the instance.
+    #[sqlx(skip)]
+    pub catalogs_available: bool,
 }
 
 fn internal(e: anyhow::Error) -> Response {
@@ -42,7 +49,7 @@ fn unprocessable(msg: &str) -> Response {
 }
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
-    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian, fediverse FROM users WHERE id = $1")
+    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian, fediverse, catalogs FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
         .await
@@ -50,6 +57,7 @@ async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Respon
     account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
     account.librarian_available = state.settings.ai.is_some();
     account.fediverse_available = crate::fed::active(state).await.is_some();
+    account.catalogs_available = crate::catalogs::enabled(state).await;
     Ok(account)
 }
 
@@ -67,6 +75,28 @@ pub async fn set_fediverse(
     Json(req): Json<UpdateFediverse>,
 ) -> Result<Json<Account>, Response> {
     sqlx::query("UPDATE users SET fediverse = $1 WHERE id = $2")
+        .bind(crate::db::DbFlag::from(req.enabled))
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(Json(fetch_account(&state, user.0.id).await?))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateCatalogs {
+    enabled: bool,
+}
+
+/// Turn the catalogs of other libraries on or off for oneself. Off takes
+/// the page out of the way; the catalogs one has added are kept, and so are
+/// the books fetched from them.
+pub async fn set_catalogs(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<UpdateCatalogs>,
+) -> Result<Json<Account>, Response> {
+    sqlx::query("UPDATE users SET catalogs = $1 WHERE id = $2")
         .bind(crate::db::DbFlag::from(req.enabled))
         .bind(user.0.id)
         .execute(&state.db)

@@ -24,6 +24,7 @@
 	let librisEnabled = $state(data.settings.libris_enabled);
 	let openLibraryEnabled = $state(data.settings.openlibrary_enabled ?? false);
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
+	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -43,6 +44,7 @@
 					libris_enabled: librisEnabled,
 					openlibrary_enabled: openLibraryEnabled,
 					audiobooks_enabled: audiobooksEnabled,
+					catalogs_enabled: catalogsEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -54,9 +56,11 @@
 				libris_enabled: boolean;
 				openlibrary_enabled: boolean;
 				audiobooks_enabled: boolean;
+				catalogs_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
 			audiobooksEnabled = settings.audiobooks_enabled;
+			catalogsEnabled = settings.catalogs_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -86,6 +90,12 @@
 		const previous = audiobooksEnabled;
 		audiobooksEnabled = enabled;
 		if (!(await saveSettings())) audiobooksEnabled = previous;
+	}
+
+	async function toggleCatalogs(enabled: boolean) {
+		const previous = catalogsEnabled;
+		catalogsEnabled = enabled;
+		if (!(await saveSettings())) catalogsEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -151,6 +161,16 @@
 		{t('admin.audiobooksToggle')}
 	</label>
 	<p class="hint">{t('admin.audiobooksHint')}</p>
+	<label class="toggle reg">
+		<input
+			type="checkbox"
+			checked={catalogsEnabled}
+			disabled={saving}
+			onchange={(e) => toggleCatalogs(e.currentTarget.checked)}
+		/>
+		{t('admin.catalogsToggle')}
+	</label>
+	<p class="hint">{t('admin.catalogsHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"

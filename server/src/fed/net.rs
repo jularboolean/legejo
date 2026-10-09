@@ -173,17 +173,52 @@ async fn signed_get(state: &AppState, url: &str, accept: &str) -> Result<reqwest
     for (name, value) in super::sig::sign("GET", &url, None, &format!("{actor}#main-key"), &key) {
         req = req.header(name, value);
     }
-    let resp = req.send().await.map_err(|e| {
-        if format!("{e:?}").contains("SSRF") {
-            FetchError::Blocked(e.to_string())
-        } else {
-            FetchError::Network(e.to_string())
-        }
-    })?;
+    let resp = req.send().await.map_err(send_error)?;
     if !resp.status().is_success() {
         return Err(FetchError::Status(resp.status().as_u16()));
     }
     Ok(resp)
+}
+
+/// The resolver and the redirect policy report a blocked address as a
+/// request error; tell it apart from a network failure.
+fn send_error(e: reqwest::Error) -> FetchError {
+    if format!("{e:?}").contains("SSRF") {
+        FetchError::Blocked(e.to_string())
+    } else {
+        FetchError::Network(e.to_string())
+    }
+}
+
+/// What an unsigned fetch brought back.
+pub struct Fetched {
+    pub bytes: Vec<u8>,
+    /// Where the response came from, after redirects: relative links in it
+    /// are resolved against this.
+    pub url: Url,
+    pub content_type: Option<String>,
+}
+
+/// A public document fetched without a signature (an OPDS catalog, a book
+/// or a cover in one). The address checks are the same as for every other
+/// fetch, and federation does not have to be on.
+pub async fn get_public(
+    state: &AppState,
+    url: &str,
+    accept: &str,
+    limit: usize,
+    timeout: std::time::Duration,
+) -> Result<Fetched, FetchError> {
+    let allow_private = state.fed.config.as_ref().is_some_and(|c| c.allow_private);
+    let url = parse(url, allow_private)?;
+    let resp = state.fed.http.get(url).header("accept", accept).timeout(timeout).send().await.map_err(send_error)?;
+    if !resp.status().is_success() {
+        return Err(FetchError::Status(resp.status().as_u16()));
+    }
+    let url = resp.url().clone();
+    let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let bytes = read_limited(resp, limit).await?;
+    Ok(Fetched { bytes, url, content_type })
 }
 
 /// An ActivityPub document (actor, object, collection).

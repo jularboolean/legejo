@@ -45,6 +45,7 @@ pub struct Settings {
     libris_enabled: bool,
     openlibrary_enabled: bool,
     audiobooks_enabled: bool,
+    catalogs_enabled: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -59,6 +60,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         libris_enabled: libris_enabled(state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(state).await,
         audiobooks_enabled: crate::audiobooks::enabled(state).await,
+        catalogs_enabled: crate::catalogs::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -81,6 +83,8 @@ pub struct UpdateSettings {
     openlibrary_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     audiobooks_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    catalogs_enabled: Option<bool>,
     registration_enabled: bool,
 }
 
@@ -102,6 +106,11 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.catalogs_enabled {
+        set_setting(&state, "catalogs_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
     set_setting(
         &state,
         "registration_enabled",
@@ -117,6 +126,7 @@ pub async fn update_settings(
             "libris_enabled": req.libris_enabled,
             "openlibrary_enabled": req.openlibrary_enabled,
             "audiobooks_enabled": req.audiobooks_enabled,
+            "catalogs_enabled": req.catalogs_enabled,
             "registration_enabled": req.registration_enabled,
         }),
     )
@@ -249,6 +259,11 @@ pub struct Config {
     /// Whether the user has a librarian to ask: the operator has set a
     /// language model up, and the user has turned the librarian on.
     librarian: bool,
+    /// Whether the user browses other libraries' catalogs: an admin has
+    /// turned them on for the instance, and the user for themselves.
+    catalogs: bool,
+    /// Whether an admin has turned catalogs on for the instance.
+    catalogs_available: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -262,6 +277,8 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
     Ok(Json(Config {
         send_to_kindle: state.mail.is_some() && kindle.is_some(),
         librarian,
+        catalogs: crate::catalogs::allowed(&state, user.0.id).await,
+        catalogs_available: crate::catalogs::enabled(&state).await,
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

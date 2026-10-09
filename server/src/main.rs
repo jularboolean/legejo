@@ -17,6 +17,7 @@ mod audit;
 mod auth;
 mod books;
 mod booktext;
+mod catalogs;
 mod epubfix;
 mod db;
 mod export;
@@ -61,6 +62,8 @@ mod kindle_tests;
 mod format_tests;
 #[cfg(test)]
 mod librarian_tests;
+#[cfg(test)]
+mod catalog_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -157,6 +160,7 @@ fn router(state: AppState) -> Router {
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
+        .route("/account/catalogs", axum::routing::put(account::set_catalogs))
         .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar))
         .route("/users/{id}/avatar", get(account::avatar))
         .route("/users/search", get(shelves::search_users))
@@ -200,6 +204,11 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
         .route("/search", get(search::search))
         .route("/librarian", post(librarian::ask))
+        .route("/catalogs", get(catalogs::list).post(catalogs::create))
+        .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
+        .route("/catalogs/{id}/feed", get(catalogs::feed))
+        .route("/catalogs/{id}/image", get(catalogs::image))
+        .route("/catalogs/{id}/import", post(catalogs::import))
         .route("/fed/status", get(fed::remote::status))
         .route("/fed/follows", get(fed::remote::list_follows).post(fed::remote::follow).delete(fed::remote::unfollow))
         .route("/fed/books", get(fed::remote::books))

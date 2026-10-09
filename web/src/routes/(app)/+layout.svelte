@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import {
+		BookDown,
 		BookMarked,
 		BookOpenCheck,
 		Earth,
@@ -154,6 +155,12 @@
 					<a class="nav-item" href="/fediverse">
 						<Earth size={15} strokeWidth={1.75} />
 						{t('sidebar.fediverse')}
+					</a>
+				{/if}
+				{#if data.catalogs}
+					<a class="nav-item" href="/catalogs">
+						<BookDown size={15} strokeWidth={1.75} />
+						{t('sidebar.catalogs')}
 					</a>
 				{/if}
 				{#if data.audiobooksEnabled}

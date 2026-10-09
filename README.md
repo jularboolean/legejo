@@ -33,6 +33,10 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 - **Audiobooks without another app.** Turn it on, and each audiobook gets a
   private podcast feed. Listen in Apple Podcasts, Pocket Casts, Overcast or any
   other podcast app, which keeps your place the way it does for any show.
+- **Other libraries within reach.** Add the OPDS catalog of another library,
+  such as Project Gutenberg, look through it from Legejo and fetch a book
+  into your own library with one click. Optional, and off until you turn it
+  on.
 - **Fediverse ready.** Connect your instance to the fediverse: shelves of free
   books can be followed from other Legejo instances and from Mastodon, over
   ActivityPub.
@@ -109,6 +113,13 @@ only by what the catalogue says about them.
 - The admin page shows how many questions were asked and how many tokens they took.
 
 ![The reading page](docs/screenshots/reading.jpg)
+
+**Catalogs of other libraries (optional)**
+- Add the OPDS catalog of another library by its address, look through it and search it from Legejo, and fetch a book into your library. A handful of catalogs of free books, in English, French, German and Spanish, are suggested to begin with.
+- Off until an admin turns it on for the instance, and then for each user until they turn it on from their account page.
+- A fetched book is an ordinary book in the library: checked and repaired like an uploaded one, and not added again when you already have the file. Legejo sets no licence on it; what the catalog says about the rights is shown with each book.
+- Legejo reads OPDS 1 catalogs that are open to everyone. Catalogs that ask for a login, and OPDS 2, are not read.
+- The server fetches only from public `https` addresses, never from addresses inside its own network, and covers reach the browser by way of the server, so the browser never talks to the catalog itself.
 
 **Federation**
 - Shelves of free books (public domain or Creative Commons, with a source) can be federated over ActivityPub. Other Legejo instances, and Mastodon users, can follow them and import the books.

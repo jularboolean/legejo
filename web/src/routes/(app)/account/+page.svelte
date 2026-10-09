@@ -18,7 +18,7 @@
 	let account = $state<Account>({ ...data.account });
 
 	// The page in parts, the part in the address: /account?tab=devices.
-	const hasOptions = $derived(account.librarian_available || account.fediverse_available || data.mcpEnabled);
+	const hasOptions = $derived(account.librarian_available || account.fediverse_available || account.catalogs_available || data.mcpEnabled);
 	const wanted = $derived(page.url.searchParams.get('tab'));
 	const tab = $derived(wanted === 'devices' || (wanted === 'options' && hasOptions) ? wanted : 'profile');
 	const tabs = $derived([
@@ -39,6 +39,7 @@
 	let kindleSaved = $state(false);
 	let kindleErrorMsg = $state('');
 	let librarianErrorMsg = $state('');
+	let catalogsErrorMsg = $state('');
 	let fediverseErrorMsg = $state('');
 	let copied = $state(false);
 
@@ -135,6 +136,26 @@
 			locale = previous;
 			setLocale(previous);
 			localeError = t('common.network');
+		}
+	}
+
+	async function setCatalogs(enabled: boolean) {
+		catalogsErrorMsg = '';
+		try {
+			const res = await fetch('/api/account/catalogs', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ enabled })
+			});
+			if (res.ok) {
+				account = await res.json();
+				// Catalogs appear in the menu, or leave it.
+				await invalidateAll();
+			} else {
+				catalogsErrorMsg = t('edit.saveFailed');
+			}
+		} catch {
+			catalogsErrorMsg = t('common.network');
 		}
 	}
 
@@ -431,6 +452,18 @@
 			{t('fed.turnOn')}
 		</label>
 		{#if fediverseErrorMsg}<p class="error">{fediverseErrorMsg}</p>{/if}
+	</section>
+{/if}
+
+{#if account.catalogs_available}
+	<section class="kobo">
+		<h3>{t('catalogs.heading')}</h3>
+		<p class="intro">{t('catalogs.accountIntro')}</p>
+		<label class="choice">
+			<input type="checkbox" checked={account.catalogs} onchange={(e) => setCatalogs(e.currentTarget.checked)} />
+			{t('catalogs.turnOn')}
+		</label>
+		{#if catalogsErrorMsg}<p class="error">{catalogsErrorMsg}</p>{/if}
 	</section>
 {/if}
 

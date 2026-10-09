@@ -177,6 +177,10 @@ export type Account = {
 	fediverse: boolean;
 	/** Whether the instance federates. */
 	fediverse_available: boolean;
+	/** Whether the user has turned on the catalogs of other libraries. */
+	catalogs: boolean;
+	/** Whether an admin has turned catalogs on for the instance. */
+	catalogs_available: boolean;
 };
 
 /* ---- Federation ---- */
@@ -307,4 +311,40 @@ export type AudiobookDetail = Audiobook & {
 	feed_url: string;
 	/** The users a restricted audiobook is shared with; empty unless it is the user's own. */
 	members: ShelfMember[];
+};
+
+/** An OPDS catalog of another library that the user has added. */
+export type Catalog = {
+	id: number;
+	title: string;
+	url: string;
+	searchable: boolean;
+};
+
+export type CatalogFile = {
+	href: string;
+	format: 'epub' | 'pdf' | 'cbz';
+	title: string | null;
+	size: number | null;
+};
+
+/** A book, when it has files; otherwise a way further into the catalog. */
+export type CatalogEntry = {
+	title: string;
+	authors: string[];
+	summary: string | null;
+	language: string | null;
+	rights: string | null;
+	cover: string | null;
+	href: string | null;
+	files: CatalogFile[];
+};
+
+export type CatalogPage = {
+	catalog: Catalog;
+	url: string;
+	title: string;
+	entries: CatalogEntry[];
+	next: string | null;
+	previous: string | null;
 };

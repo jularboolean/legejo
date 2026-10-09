@@ -20,6 +20,14 @@ pub async fn test_app_fed() -> (Router, AnyPool, AppState) {
     test_app_with(crate::fed::Fed::new(Some(config)).unwrap()).await
 }
 
+/// As test_app, but allowed to fetch from this machine over plain http, the
+/// way LEGEJO_FED_ALLOW_PRIVATE=1 sets it up: for tests that run a server of
+/// their own to fetch from.
+pub async fn test_app_private() -> (Router, AnyPool, AppState) {
+    let config = crate::fed::FedConfig { base: "http://127.0.0.1".into(), host: "127.0.0.1".into(), allow_private: true };
+    test_app_with(crate::fed::Fed::new(Some(config)).unwrap()).await
+}
+
 async fn test_app_with(fed: std::sync::Arc<crate::fed::Fed>) -> (Router, AnyPool, AppState) {
     sqlx::any::install_default_drivers();
     // One connection that never retires: every query must see the same
