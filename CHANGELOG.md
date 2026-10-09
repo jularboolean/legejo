@@ -4,6 +4,18 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.13.0 (2026-10-09)
+
+- **Legejo as an app on your phone.** Add Legejo to the home screen of an
+  iPhone, iPad or Android device (in Safari: Share, then Add to Home Screen),
+  and it opens as an app of its own, without the browser's address bar, with
+  the pigeon as its icon. Desktop browsers offer to install it too. The
+  status bar takes the library's colour, light or dark, and the reader's own
+  colour while you read. This is the first step; opening the app without a
+  network connection is not part of it yet.
+- **Upgrading:** nothing to do. The old home-screen bookmark, if you had one,
+  keeps the old icon; add it again to get the new one.
+
 ## 1.12.0 (2026-10-09)
 
 - **Catalogs of other libraries (optional):** add the OPDS catalog of
