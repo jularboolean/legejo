@@ -222,18 +222,22 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
+	/* The covers lie fanned out, each a little over the one before. */
 	.glimpse {
 		display: flex;
-		gap: 0.3rem;
+		padding-right: 0.25rem;
 	}
 	.glimpse img {
-		width: 2rem;
+		width: 2.4rem;
 		aspect-ratio: 2 / 3;
 		object-fit: cover;
 		border-radius: 2px 3px 3px 2px;
 		border: 1px solid var(--border);
 		background: var(--card);
-		box-shadow: var(--shadow);
+		box-shadow: -2px 2px 6px rgb(0 0 0 / 0.25);
+	}
+	.glimpse img + img {
+		margin-left: -1rem;
 	}
 	@media (max-width: 36rem) {
 		.row {
