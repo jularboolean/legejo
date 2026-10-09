@@ -173,6 +173,10 @@ export type Account = {
 	librarian: boolean;
 	/** Whether the server has a librarian to turn on. */
 	librarian_available: boolean;
+	/** Whether the user has turned the fediverse on. */
+	fediverse: boolean;
+	/** Whether the instance federates. */
+	fediverse_available: boolean;
 };
 
 /* ---- Federation ---- */
@@ -181,6 +185,8 @@ export type FedMode = 'off' | 'allowlist' | 'open';
 
 export type FedStatus = {
 	available: boolean;
+	/** The user has turned the fediverse on for themselves. */
+	enabled: boolean;
 	mode: FedMode;
 	host: string | null;
 	/** Instances awaiting an admin decision; 0 for non-admins. */

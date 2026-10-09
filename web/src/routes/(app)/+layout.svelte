@@ -150,7 +150,7 @@
 					<Globe size={15} strokeWidth={1.75} />
 					{t('sidebar.public')}
 				</a>
-				{#if data.fed.available}
+				{#if data.fed.available && data.fed.enabled}
 					<a class="nav-item" href="/fediverse">
 						<Earth size={15} strokeWidth={1.75} />
 						{t('sidebar.fediverse')}

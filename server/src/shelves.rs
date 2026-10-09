@@ -323,6 +323,12 @@ pub async fn update(
             return Err(not_federable(blocking));
         }
         new_slug = Some(slug);
+        // Federating a shelf is taking part in the fediverse.
+        sqlx::query("UPDATE users SET fediverse = 1 WHERE id = $1 AND fediverse = 0")
+            .bind(user.0.id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
     }
 
     let restricted = visibility == Visibility::Restricted;

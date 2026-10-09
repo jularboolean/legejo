@@ -156,6 +156,7 @@ fn router(state: AppState) -> Router {
         .route("/account/locale", axum::routing::put(account::set_locale))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
+        .route("/account/fediverse", axum::routing::put(account::set_fediverse))
         .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar))
         .route("/users/{id}/avatar", get(account::avatar))
         .route("/users/search", get(shelves::search_users))

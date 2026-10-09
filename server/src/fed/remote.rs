@@ -297,6 +297,8 @@ async fn ingest_items(state: &AppState, shelf_actor: &str, items: &[Value]) {
 #[derive(Serialize)]
 pub struct FedStatus {
     available: bool,
+    /// The user has turned the fediverse on for themselves.
+    enabled: bool,
     mode: super::Mode,
     host: Option<String>,
     /// Instances awaiting an admin decision; only reported to admins.
@@ -311,7 +313,8 @@ pub async fn status(State(state): State<AppState>, user: AuthUser) -> Json<FedSt
     } else {
         0
     };
-    Json(FedStatus { available: host.is_some() && mode != super::Mode::Off, mode, host, pending_instances })
+    let enabled: i64 = sqlx::query_scalar("SELECT fediverse FROM users WHERE id = $1").bind(user.0.id).fetch_one(&state.db).await.unwrap_or(0);
+    Json(FedStatus { available: host.is_some() && mode != super::Mode::Off, enabled: enabled != 0, mode, host, pending_instances })
 }
 
 #[derive(Serialize, sqlx::FromRow)]

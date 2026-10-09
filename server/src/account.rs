@@ -24,6 +24,12 @@ pub struct Account {
     /// language model up.
     #[sqlx(skip)]
     pub librarian_available: bool,
+    /// Whether the user has turned the fediverse on: following shelves on
+    /// other instances.
+    pub fediverse: crate::db::DbFlag,
+    /// Whether there is a fediverse to turn on: the instance federates.
+    #[sqlx(skip)]
+    pub fediverse_available: bool,
 }
 
 fn internal(e: anyhow::Error) -> Response {
@@ -36,14 +42,37 @@ fn unprocessable(msg: &str) -> Response {
 }
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
-    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian FROM users WHERE id = $1")
+    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian, fediverse FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
     account.librarian_available = state.settings.ai.is_some();
+    account.fediverse_available = crate::fed::active(state).await.is_some();
     Ok(account)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateFediverse {
+    enabled: bool,
+}
+
+/// Turn the fediverse on or off for oneself. Off only takes the page for
+/// following shelves out of the way: shelves one already federates stay
+/// federated, and what one follows stays followed.
+pub async fn set_fediverse(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(req): Json<UpdateFediverse>,
+) -> Result<Json<Account>, Response> {
+    sqlx::query("UPDATE users SET fediverse = $1 WHERE id = $2")
+        .bind(crate::db::DbFlag::from(req.enabled))
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
 #[derive(Deserialize)]

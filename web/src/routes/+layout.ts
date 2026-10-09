@@ -27,7 +27,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	let sendToKindle = false;
 	let librarian = false;
 	// Federation UI stays hidden unless the server says it is available.
-	let fed: FedStatus = { available: false, mode: 'off', host: null };
+	let fed: FedStatus = { available: false, enabled: false, mode: 'off', host: null };
 	if (user) {
 		const [shelvesRes, configRes, fedRes] = await Promise.all([
 			fetch('/api/shelves'),

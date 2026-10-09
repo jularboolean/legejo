@@ -28,6 +28,7 @@
 	let kindleSaved = $state(false);
 	let kindleErrorMsg = $state('');
 	let librarianErrorMsg = $state('');
+	let fediverseErrorMsg = $state('');
 	let copied = $state(false);
 
 	const koboUrl = $derived(
@@ -143,6 +144,26 @@
 			}
 		} catch {
 			librarianErrorMsg = t('common.network');
+		}
+	}
+
+	async function setFediverse(enabled: boolean) {
+		fediverseErrorMsg = '';
+		try {
+			const res = await fetch('/api/account/fediverse', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ enabled })
+			});
+			if (res.ok) {
+				account = await res.json();
+				// The fediverse appears in the menu, or leaves it.
+				await invalidateAll();
+			} else {
+				fediverseErrorMsg = t('edit.saveFailed');
+			}
+		} catch {
+			fediverseErrorMsg = t('common.network');
 		}
 	}
 
@@ -380,6 +401,18 @@
 			{t('librarian.turnOn')}
 		</label>
 		{#if librarianErrorMsg}<p class="error">{librarianErrorMsg}</p>{/if}
+	</section>
+{/if}
+
+{#if account.fediverse_available}
+	<section class="kobo">
+		<h3>{t('fed.heading')}</h3>
+		<p class="intro">{t('fed.accountIntro')}</p>
+		<label class="choice">
+			<input type="checkbox" checked={account.fediverse} onchange={(e) => setFediverse(e.currentTarget.checked)} />
+			{t('fed.turnOn')}
+		</label>
+		{#if fediverseErrorMsg}<p class="error">{fediverseErrorMsg}</p>{/if}
 	</section>
 {/if}
 

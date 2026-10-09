@@ -375,3 +375,42 @@ mod requests {
         assert_eq!(follow_state(&db, &r.shelf()).await.0, "gone");
     }
 }
+
+#[tokio::test]
+async fn the_fediverse_is_off_for_a_user_until_they_take_part() {
+    let (app, db, _) = test_app_fed().await;
+    set_mode(&db, "allowlist").await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let on = |v: &serde_json::Value| (v["available"].clone(), v["enabled"].clone());
+
+    // The instance federates, but the user has not asked for it.
+    let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&cookie), None).await;
+    assert_eq!(on(&status), (json!(true), json!(false)));
+    let (_, account) = send(&app, Method::GET, "/api/account", Some(&cookie), None).await;
+    assert_eq!((account["fediverse"].clone(), account["fediverse_available"].clone()), (json!(false), json!(true)));
+
+    // Turned on and off from the account.
+    let (code, account) = send(&app, Method::PUT, "/api/account/fediverse", Some(&cookie), Some(json!({ "enabled": true }))).await;
+    assert_eq!((code, account["fediverse"].clone()), (StatusCode::OK, json!(true)));
+    let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&cookie), None).await;
+    assert_eq!(on(&status), (json!(true), json!(true)));
+    send(&app, Method::PUT, "/api/account/fediverse", Some(&cookie), Some(json!({ "enabled": false }))).await;
+    let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&cookie), None).await;
+    assert_eq!(status["enabled"], false);
+
+    // Federating a shelf turns it on, for that user only.
+    let (bob, bob_cookie) = add_user(&db, "bob").await;
+    let _ = bob;
+    let (book, _) = add_book(&db, alice, "Röda rummet").await;
+    free(&db, book).await;
+    let (_, v) = send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": "Klassiker" }))).await;
+    let shelf = v["id"].as_i64().unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(book).execute(&db).await.unwrap();
+    let fed = json!({ "name": "Klassiker", "visibility": "federated", "ap_slug": "alice-klassiker" });
+    let (code, _) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&cookie), Some(fed)).await;
+    assert_eq!(code, StatusCode::OK);
+    let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&cookie), None).await;
+    assert_eq!(status["enabled"], true);
+    let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&bob_cookie), None).await;
+    assert_eq!(status["enabled"], false);
+}
