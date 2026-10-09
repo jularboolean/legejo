@@ -4,6 +4,12 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<!-- Installable as an app: the manifest, and what iOS reads instead of it. -->
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Legejo" />
+		<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

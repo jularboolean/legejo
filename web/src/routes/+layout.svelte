@@ -14,6 +14,10 @@
 	// The one place the tab title is set (see pageTitle.ts).
 	const title = $derived(pageTitle(page.route.id, page.data));
 
+	// The colour of the browser chrome, and of the status bar when Legejo is
+	// installed as an app. The reader sets its own, after the page's theme.
+	const reading = $derived(page.route.id === '/books/[id]/read');
+
 	// Screen readers and hyphenation follow the chosen UI language.
 	$effect(() => {
 		document.documentElement.lang = getLocale();
@@ -23,7 +27,10 @@
 <svelte:head>
 	<title>{title}</title>
 	<link rel="icon" type="image/png" href={icon} />
-	<link rel="apple-touch-icon" href={icon} />
+	{#if !reading}
+		<meta name="theme-color" content="#f3f5f5" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#15181a" media="(prefers-color-scheme: dark)" />
+	{/if}
 </svelte:head>
 
 {@render children()}

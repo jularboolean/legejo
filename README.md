@@ -97,6 +97,7 @@ own, and each file is one part.
 
 **Reading**
 - A web reader with themes, font settings and saved position.
+- Legejo can be added to the home screen of a phone or tablet, where it opens as an app of its own.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly. Comics (CBZ) are made into fixed-layout books for the device, one page per image.
