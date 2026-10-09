@@ -4,6 +4,17 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.11.0 (2026-10-09)
+
+- **The fediverse is something each user turns on.** On an instance that
+  federates, the Fediverse page stays out of the menu until a user turns it
+  on from their account page, under Options. Federating one of your shelves
+  turns it on by itself. Users who already follow a shelf or federate one
+  keep it on after the upgrade.
+- **Account and admin pages in tabs.** The account page is split into
+  Profile, Devices and apps, and Options; the admin page into Settings,
+  Users, Federation and System log. Each tab has an address of its own.
+
 ## 1.10.0 (2026-10-08)
 
 - **Import folder for audiobooks:** set `LEGEJO_AUDIOBOOK_IMPORT_DIR` to a
