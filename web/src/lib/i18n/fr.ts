@@ -475,6 +475,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'book.isbn': 'ISBN',
 	'book.libris': 'Libris',
 	'book.series': 'Série',
+	'book.nextInSeries': "Suivant dans la série",
+	'book.previousInSeries': "Précédent dans la série",
 	'book.rating': 'Note',
 	'book.koboRemoved': 'Supprimé de votre Kobo. Le livre reste ici mais n’est plus synchronisé.',
 	'book.koboRestore': 'Renvoyer vers la Kobo',

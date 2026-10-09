@@ -475,6 +475,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'book.isbn': 'ISBN',
 	'book.libris': 'Libris',
 	'book.series': 'Sarja',
+	'book.nextInSeries': "Seuraava sarjassa",
+	'book.previousInSeries': "Edellinen sarjassa",
 	'book.rating': 'Arvio',
 	'book.koboRemoved': 'Poistettu Kobostasi. Kirja on yhä täällä, mutta sitä ei synkronoida.',
 	'book.koboRestore': 'Lähetä Koboon uudelleen',

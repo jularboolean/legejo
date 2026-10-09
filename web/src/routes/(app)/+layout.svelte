@@ -20,6 +20,7 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
+	import { swipeAction, swipeMayStart, type Point } from '#lib/drawerSwipe';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: any } = $props();
@@ -39,6 +40,24 @@
 		goto('/login');
 	}
 
+	// On a phone, a swipe to the right across the page opens the menu and one
+	// to the left closes it (drawerSwipe.ts). Wide screens have no drawer.
+	let swipe: Point | null = null;
+	function ontouchstart(e: TouchEvent) {
+		swipe = null;
+		if (e.touches.length !== 1 || !matchMedia('(max-width: 48rem)').matches) return;
+		const point = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+		if (swipeMayStart(point, e.target as Element | null)) swipe = point;
+	}
+	function ontouchend(e: TouchEvent) {
+		const start = swipe;
+		swipe = null;
+		const touch = e.changedTouches[0];
+		if (!start || !touch) return;
+		const action = swipeAction(start, { x: touch.clientX, y: touch.clientY, time: Date.now() }, menuOpen);
+		if (action) menuOpen = action === 'open';
+	}
+
 	// "/" anywhere outside a text field jumps to the search page.
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && menuOpen) {
@@ -53,7 +72,7 @@
 	}
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} {ontouchstart} {ontouchend} ontouchcancel={() => (swipe = null)} />
 
 {#if data.user}
 	<header class="topbar">

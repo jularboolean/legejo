@@ -95,6 +95,15 @@ textarea {
 	padding: 0.45rem 0.7rem;
 	width: 100%;
 }
+/* A phone zooms in on a text field whose text is smaller than 16 px, and
+   often stays zoomed in afterwards. On touch screens the fields take that size. */
+@media (pointer: coarse) {
+	input:not([type='checkbox']):not([type='radio']):not([type='range']),
+	textarea,
+	select {
+		font-size: max(16px, 1em);
+	}
+}
 input::placeholder,
 textarea::placeholder {
 	color: var(--muted);

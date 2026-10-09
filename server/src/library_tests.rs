@@ -659,3 +659,82 @@ async fn copy_protected_files_are_refused_and_copyright_is_read_from_the_file() 
     assert_eq!(license(unset).await.as_deref(), Some("copyright"));
     assert_eq!(license(chosen).await.as_deref(), Some("cc-by"));
 }
+
+/// A book taken from a shared shelf is the same bytes under a second name,
+/// and the two part when either owner changes theirs.
+#[tokio::test]
+async fn a_shared_book_takes_space_once_until_one_owner_changes_it() {
+    use std::os::unix::fs::MetadataExt;
+    let (app, db, state) = test_app().await;
+    let (_, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    let v = upload(&app, &a, &[("rr.epub", epub("Röda rummet", "urn:isbn:9789100000001"))], "").await;
+    let book = v["added"][0]["id"].as_i64().unwrap();
+    let alice_uuid = v["added"][0]["uuid"].as_str().unwrap().to_string();
+    let (_, shelf) = send(&app, Method::POST, "/api/shelves", Some(&a), Some(json!({ "name": "Huset" }))).await;
+    let shelf = shelf["id"].as_i64().unwrap();
+    send(&app, Method::POST, "/api/books/bulk", Some(&a), Some(json!({ "ids": [book], "action": "add_to_shelf", "shelf_id": shelf }))).await;
+    send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a), Some(json!({ "name": "Huset", "visibility": "instance" }))).await;
+
+    let (status, copy) = send(&app, Method::POST, &format!("/api/public/books/{book}/import"), Some(&b), None).await;
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    let bob_uuid = copy["uuid"].as_str().unwrap().to_string();
+    let path = |uuid: &str| state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let inode = |uuid: &str| std::fs::metadata(path(uuid)).unwrap().ino();
+    assert_eq!(inode(&alice_uuid), inode(&bob_uuid), "one file, two names");
+    let before = std::fs::read(path(&bob_uuid)).unwrap();
+
+    // Alice corrects her title: her file is written anew, Bob's is as it was.
+    let (status, v) = send(&app, Method::PUT, &format!("/api/books/{book}"), Some(&a), Some(json!({ "title": "Röda rummet (rättad)" }))).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_ne!(inode(&alice_uuid), inode(&bob_uuid), "the copies have parted");
+    assert_eq!(std::fs::read(path(&bob_uuid)).unwrap(), before, "Bob's bytes are untouched");
+    assert!(std::fs::read(path(&alice_uuid)).unwrap() != before, "Alice's file carries the new title");
+
+    // Deleting one name leaves the other.
+    send(&app, Method::DELETE, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert!(!path(&alice_uuid).exists());
+    assert!(path(&bob_uuid).exists());
+}
+
+/// The book page points at the books before and after in the series.
+#[tokio::test]
+async fn the_book_page_knows_its_neighbours_in_the_series() {
+    let (app, db, _) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (bob, _) = add_user(&db, "bob").await;
+    let mut ids = Vec::new();
+    for (title, series, index) in [
+        ("Sommarboken", "Mumin", Some(1.0)),
+        ("Farlig midsommar", "Mumin", Some(2.5)),
+        ("Trollvinter", "mumin", Some(3.0)),
+        ("Utan nummer", "Mumin", None),
+        ("Annan serie", "Pippi", Some(2.0)),
+    ] {
+        let (id, _) = add_book(&db, alice, title).await;
+        sqlx::query("UPDATE books SET series = ?, series_index = ? WHERE id = ?").bind(series).bind(index).bind(id).execute(&db).await.unwrap();
+        ids.push(id);
+    }
+    // Bob's book in the same series is not Alice's neighbour.
+    let (other, _) = add_book(&db, bob, "Pappan och havet").await;
+    sqlx::query("UPDATE books SET series = 'Mumin', series_index = 2.7 WHERE id = ?").bind(other).execute(&db).await.unwrap();
+
+    let detail = |id: i64| {
+        let (app, a) = (app.clone(), a.clone());
+        async move { send(&app, Method::GET, &format!("/api/books/{id}"), Some(&a), None).await.1 }
+    };
+    let v = detail(ids[1]).await;
+    assert_eq!(v["previous_in_series"]["title"], "Sommarboken");
+    assert_eq!(v["next_in_series"]["title"], "Trollvinter", "the series name is matched without regard to case");
+    assert_eq!(v["next_in_series"]["series_index"], 3.0);
+    let v = detail(ids[0]).await;
+    assert!(v["previous_in_series"].is_null());
+    assert_eq!(v["next_in_series"]["id"], ids[1]);
+    let v = detail(ids[2]).await;
+    assert!(v["next_in_series"].is_null(), "a book without an index is nobody's neighbour");
+    let v = detail(ids[3]).await;
+    assert!(v["previous_in_series"].is_null() && v["next_in_series"].is_null());
+    let v = detail(ids[4]).await;
+    assert!(v["previous_in_series"].is_null() && v["next_in_series"].is_null());
+}
+

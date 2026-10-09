@@ -473,6 +473,8 @@ export const en = {
 	'book.isbn': 'ISBN',
 	'book.libris': 'Libris',
 	'book.series': 'Series',
+	'book.nextInSeries': "Next in the series",
+	'book.previousInSeries': "Previous in the series",
 	'book.rating': 'Rating',
 	'book.koboRemoved': 'Removed from your Kobo. The book is still here but is not synced.',
 	'book.koboRestore': 'Send to Kobo again',

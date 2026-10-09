@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Download, FileWarning, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, Download, FileWarning, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
@@ -198,6 +198,22 @@
 							{seriesLabel(book.series, book.series_index)}
 						</a>
 					</p>
+					{#if book.previous_in_series || book.next_in_series}
+						<p class="series-nav">
+							{#if book.previous_in_series}
+								<a href={`/books/${book.previous_in_series.id}`} title={t('book.previousInSeries')}>
+									<ChevronLeft size={13} />
+									{book.previous_in_series.title}
+								</a>
+							{/if}
+							{#if book.next_in_series}
+								<a href={`/books/${book.next_in_series.id}`} title={t('book.nextInSeries')}>
+									{t('book.nextInSeries')}: {book.next_in_series.title}
+									<ChevronRight size={13} />
+								</a>
+							{/if}
+						</p>
+					{/if}
 				{/if}
 				<div class="rating"><Rating value={rating} onchange={rate} /></div>
 			</div>
@@ -519,6 +535,22 @@
 		align-items: center;
 		gap: 0.35rem;
 		color: var(--gold);
+	}
+	.series-nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem 1.25rem;
+		margin: 0.3rem 0 0;
+		font-size: 0.85rem;
+	}
+	.series-nav a {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		color: var(--muted);
+	}
+	.series-nav a:hover {
+		color: var(--accent);
 	}
 	.kobo-removed {
 		display: flex;

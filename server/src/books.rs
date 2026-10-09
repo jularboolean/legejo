@@ -99,6 +99,36 @@ pub struct BookDetail {
     pub kobo_removed: bool,
     /// What the health check says about the file; absent until it has run.
     pub health: Option<Health>,
+    /// The owner's books just before and after this one in its series, by
+    /// series index; absent when there is none, or the book has no index.
+    pub previous_in_series: Option<SeriesNeighbour>,
+    pub next_in_series: Option<SeriesNeighbour>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct SeriesNeighbour {
+    pub id: i64,
+    pub title: String,
+    pub series_index: Option<f64>,
+}
+
+/// The owner's nearest book on one side of `book` in its series.
+async fn series_neighbour(state: &AppState, owner_id: i64, book: &Book, after: bool) -> Result<Option<SeriesNeighbour>, Response> {
+    let (Some(series), Some(index)) = (&book.series, book.series_index) else { return Ok(None) };
+    let (cmp, order) = if after { (">", "ASC") } else { ("<", "DESC") };
+    sqlx::query_as(&format!(
+        "SELECT id, title, series_index FROM books
+         WHERE owner_id = $1 AND id <> $2 AND series IS NOT NULL AND LOWER(series) = LOWER($3)
+           AND series_index IS NOT NULL AND series_index {cmp} CAST($4 AS DOUBLE PRECISION)
+         ORDER BY series_index {order}, LOWER(title) LIMIT 1"
+    ))
+    .bind(owner_id)
+    .bind(book.id)
+    .bind(series)
+    .bind(float_param(Some(index)))
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))
 }
 
 /// `{"ok": true}` or `{"ok": false, "code": "missing_source", …}`.
@@ -351,7 +381,9 @@ pub async fn get_one(
     let federable = book.federable_status();
     let kobo_removed = kobo_removed(&state, book.id).await?;
     let health = stored_health(&state, book.id).await;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health }))
+    let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
+    let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series }))
 }
 
 #[derive(serde::Deserialize)]
@@ -684,7 +716,9 @@ pub async fn update(
     let federable = book.federable_status();
     let kobo_removed = kobo_removed(&state, book.id).await?;
     let health = stored_health(&state, book.id).await;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health }))
+    let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
+    let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series }))
 }
 
 #[derive(serde::Deserialize)]

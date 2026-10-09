@@ -271,7 +271,14 @@ pub async fn import_book(
     let uuid = new_uuid();
     let (src_file, format) = crate::books::book_file(&state, &source.uuid).await;
     let dst_file = crate::books::book_path(&state, &uuid, format);
-    tokio::fs::copy(&src_file, &dst_file).await.map_err(|e| internal(e.into()))?;
+    // A second name for the same bytes, where the file system allows it: a
+    // book the whole house reads takes space once. Every change to a book
+    // file is written as a new file and renamed into place (books.rs), so
+    // the two part the moment one owner changes theirs. The cover is copied:
+    // it is small, and a new cover is written over the old one.
+    if tokio::fs::hard_link(&src_file, &dst_file).await.is_err() {
+        tokio::fs::copy(&src_file, &dst_file).await.map_err(|e| internal(e.into()))?;
+    }
 
     let cover_mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1")
         .bind(source.id)

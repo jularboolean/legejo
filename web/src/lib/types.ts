@@ -75,6 +75,15 @@ export type BookDetail = Book & {
 	tags: string[];
 	/** Whether the book could go on a federated shelf, and if not, why. */
 	federable: FederableStatus;
+	/** The books just before and after in the series, when you have them. */
+	previous_in_series: SeriesNeighbour | null;
+	next_in_series: SeriesNeighbour | null;
+};
+
+export type SeriesNeighbour = {
+	id: number;
+	title: string;
+	series_index: number | null;
 };
 
 /** Who sees a shelf: the owner, chosen users, every user here, or the fediverse. */
