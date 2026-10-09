@@ -4,6 +4,35 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.12.0 (2026-10-09)
+
+- **Catalogs of other libraries (optional):** add the OPDS catalog of
+  another library, such as Project Gutenberg, by its address. Look through
+  it and search it from Legejo, and fetch a book into your library with one
+  click.
+  - Off until an admin turns it on (Admin, Settings), and then for each user
+    until they turn it on from their account page, under Options. With it
+    on, the server fetches from addresses its users give it; only public
+    `https` addresses are fetched from, never ones inside the server's own
+    network.
+  - Six catalogs of free books are suggested to begin with: Project
+    Gutenberg and Unglue.it (English), Ebooks libres et gratuits and
+    Bibliothèque numérique romande (French), Izzy’s freie Bibliothek
+    (German and English) and textos.info (Spanish). Any other OPDS catalog
+    is added by its address.
+  - A fetched book is an ordinary book: checked and repaired like an
+    uploaded one, and not added again when you already have the file. No
+    licence is set on it; what the catalog says about the rights is shown
+    with each book.
+  - A book with several files, such as an EPUB with and without images, has
+    a button for each.
+  - Covers reach your browser by way of the server, so the browser never
+    talks to the catalog itself.
+  - Legejo reads OPDS 1 catalogs that are open to everyone. Catalogs that
+    ask for a login, and OPDS 2, are not read. When a catalog refuses a
+    page, has none at the address or is slow to answer, Legejo says which.
+- **Upgrading:** nothing to do.
+
 ## 1.11.0 (2026-10-09)
 
 - **The fediverse is something each user turns on.** On an instance that
