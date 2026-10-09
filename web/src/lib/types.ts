@@ -136,6 +136,8 @@ export type PublicShelf = {
 	owner_has_avatar: boolean;
 	/** Shared with the viewer by name rather than with everyone. */
 	restricted: boolean;
+	/** A few of the shelf's books with covers, newest on the shelf first. */
+	cover_books: number[];
 };
 
 export type PublicBook = Book & { owned: boolean };

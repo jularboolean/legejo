@@ -738,3 +738,40 @@ async fn the_book_page_knows_its_neighbours_in_the_series() {
     assert!(v["previous_in_series"].is_null() && v["next_in_series"].is_null());
 }
 
+/// The list of shared shelves carries a glimpse of each: a few of its books
+/// that have a cover, the newest on the shelf first.
+#[tokio::test]
+async fn the_shared_shelf_list_shows_a_few_covers() {
+    let (app, db, _) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    let (_, shelf) = send(&app, Method::POST, "/api/shelves", Some(&a), Some(json!({ "name": "Skyltfönster", "description": "Det bästa i huset." }))).await;
+    let shelf = shelf["id"].as_i64().unwrap();
+    let mut ids = Vec::new();
+    for n in 1..=6 {
+        let (id, _) = add_book(&db, alice, &format!("Bok {n}")).await;
+        // Every book but the second has a cover.
+        if n != 2 {
+            sqlx::query("UPDATE books SET cover_mime = 'image/jpeg' WHERE id = ?").bind(id).execute(&db).await.unwrap();
+        }
+        ids.push(id);
+    }
+    send(&app, Method::POST, "/api/books/bulk", Some(&a), Some(json!({ "ids": ids, "action": "add_to_shelf", "shelf_id": shelf }))).await;
+    send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&a), Some(json!({ "name": "Skyltfönster", "description": "Det bästa i huset.", "visibility": "instance" }))).await;
+
+    let (status, list) = send(&app, Method::GET, "/api/public/shelves", Some(&b), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let shelf = &list[0];
+    assert_eq!(shelf["book_count"], 6);
+    assert_eq!(shelf["description"], "Det bästa i huset.");
+    let glimpse: Vec<i64> = shelf["cover_books"].as_array().unwrap().iter().map(|v| v.as_i64().unwrap()).collect();
+    // Four at most, newest first, and only books with a cover.
+    assert_eq!(glimpse, vec![ids[5], ids[4], ids[3], ids[2]]);
+    // Each of them can be fetched as a cover by the viewer (the file is
+    // missing here, so the answer is 404 rather than 403 or 500).
+    for id in &glimpse {
+        let (status, _) = send(&app, Method::GET, &format!("/api/public/books/{id}/cover"), Some(&b), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}
+

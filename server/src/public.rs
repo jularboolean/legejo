@@ -36,6 +36,26 @@ pub struct PublicShelf {
     pub owner_has_avatar: DbFlag,
     /// Shared with the caller by name rather than with everyone.
     pub restricted: DbFlag,
+    /// A few of the shelf's books that have a cover, newest on the shelf
+    /// first, for a glimpse of the shelf in the list. Filled in by `shelves`.
+    #[sqlx(skip)]
+    pub cover_books: Vec<i64>,
+}
+
+const GLIMPSE: i64 = 4;
+
+async fn glimpse(state: &AppState, shelf_id: i64) -> Result<Vec<i64>, Response> {
+    sqlx::query_scalar(
+        "SELECT b.id FROM books b
+         JOIN shelf_books sb ON sb.book_id = b.id
+         WHERE sb.shelf_id = $1 AND b.cover_mime IS NOT NULL
+         ORDER BY sb.added_at DESC, b.id DESC LIMIT $2",
+    )
+    .bind(shelf_id)
+    .bind(GLIMPSE)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))
 }
 
 pub(crate) const PUBLIC_SHELF_COLUMNS: &str = "s.id, s.name, s.description,
@@ -50,7 +70,7 @@ pub async fn shelves(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Json<Vec<PublicShelf>>, Response> {
-    let shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
+    let mut shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
         "SELECT {PUBLIC_SHELF_COLUMNS}
          FROM shelves s
          JOIN users u ON u.id = s.owner_id
@@ -64,6 +84,9 @@ pub async fn shelves(
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
+    for shelf in &mut shelves {
+        shelf.cover_books = glimpse(&state, shelf.id).await?;
+    }
     Ok(Json(shelves))
 }
 
