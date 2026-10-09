@@ -4,6 +4,23 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.0 (2026-10-10)
+
+- **Shared shelves as a gallery or a list.** The list shows each shelf's
+  description, how many books it holds, and a glimpse of its covers, fanned
+  out over each other. The choice is remembered on the device, as in the
+  library.
+- **Next in the series.** The book page points at the books just before and
+  after in the series, when you have them.
+- **A shared book takes space once.** Fetching a book from a shared shelf
+  into your library no longer copies the file: on the same disk, the two
+  libraries share it until one owner changes their copy. Books fetched
+  before this release stay as they are.
+- **On a phone:** a swipe to the right across the page opens the menu, and
+  one to the left closes it. Text fields no longer make the page zoom in
+  when you tap them.
+- **Upgrading:** nothing to do.
+
 ## 1.13.0 (2026-10-09)
 
 - **Legejo as an app on your phone.** Add Legejo to the home screen of an
