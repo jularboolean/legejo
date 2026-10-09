@@ -56,6 +56,11 @@ Legejo is built around EPUB. That is the format it opens in the browser, checks
 and repairs, writes your corrections back into, converts for Kobo and reads
 aloud.
 
+Legejo keeps its own copy of every book, so that it can repair the file and
+write your corrections back into it. It does not read an existing folder of
+books in place or follow changes made there. If your folder structure should
+stay the source of truth, Legejo is not the right tool.
+
 PDF and CBZ files are welcome, but only looked after: Legejo stores them,
 describes them and hands them out. It does not open them and does not change
 them. A comic does reach a Kobo through Kobo sync, as a book made for the
@@ -65,10 +70,6 @@ another tool will serve you better.
 Audiobooks are an optional extra, and deliberately a small one. Legejo stores
 the files and serves them as a podcast feed; it has no listening app of its
 own, and each file is one part.
-
-The librarian is a convenience, not a search engine. It suggests a handful of
-books and will sometimes miss one or pick an odd one, and it knows your books
-only by what the catalogue says about them.
 
 ## Features
 
