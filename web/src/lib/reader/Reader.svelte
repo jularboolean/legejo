@@ -455,6 +455,12 @@
 		area: () => host.getBoundingClientRect(),
 		onTap(zone, point) {
 			if (hint) return dismissHint();
+			// A tap on a highlight opens it, whatever else lies under the point.
+			const markId = engine?.markAt(point.x, point.y) ?? null;
+			if (markId !== null) {
+				openMark(markId);
+				return;
+			}
 			if (shield && linkAt(host, point.x, point.y)) {
 				leaving();
 				if (!followLinkAt(host, point.x, point.y)) forgetReturn();

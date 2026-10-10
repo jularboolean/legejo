@@ -1449,6 +1449,20 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 				return null;
 			}
 		},
+		markAt(x, y): number | null {
+			// The highlights are drawn as SVG in this document, over the chapter
+			// frames, each with the id it was given; a point in one of its
+			// rectangles is on it.
+			for (const g of host.querySelectorAll<SVGGElement>('g.legejo-mark')) {
+				const id = Number(g.dataset.id);
+				if (!Number.isFinite(id)) continue;
+				for (const rect of g.querySelectorAll('rect')) {
+					const r = rect.getBoundingClientRect();
+					if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+				}
+			}
+			return null;
+		},
 		setMarks(next) {
 			const keep = new Set(next.map((m) => m.id));
 			for (const m of marks) if (!keep.has(m.id)) eraseMark(m);

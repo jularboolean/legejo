@@ -210,6 +210,8 @@ export interface ReaderEngine {
 	passageBetween(from: { x: number; y: number }, to: { x: number; y: number }): Passage | null;
 	/** The highlights to show; those already shown are kept, the rest redrawn. */
 	setMarks(marks: Mark[]): void;
+	/** The id of the highlight drawn under a point of the top window, if any. */
+	markAt(x: number, y: number): number | null;
 	/**
 	 * The sentences of the chapter on screen, for reading aloud. `first` is
 	 * the first one on screen (the count when none is left). Null when no
