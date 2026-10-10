@@ -93,6 +93,14 @@ fn dashed(uuid: &str) -> String {
 /// set: behind a reverse proxy the request may claim http, and every URL
 /// handed to the device would then redirect to https, which a PUT or POST
 /// does not survive. Otherwise derived from the request (development).
+/// Where this server is, with nothing after the host: what a key that names
+/// a host alone (readingservices_host) gets. A host with a path in it is
+/// not honoured by the device for that key: it sent nothing when tried.
+fn origin_url(state: &AppState, headers: &HeaderMap) -> String {
+    let token_base = base_url(state, headers, "");
+    token_base.trim_end_matches("/api/kobo/").to_string()
+}
+
 fn base_url(state: &AppState, headers: &HeaderMap, token: &str) -> String {
     if let Some(config) = &state.fed.config {
         return format!("{}/api/kobo/{token}", config.base);
@@ -215,8 +223,9 @@ pub async fn initialization(
     if state.settings.kobo_annotations_log {
         // The device sends its highlights and notes to its "reading
         // services"; with this key they come here, where annotations_probe
-        // logs them. Without the key they go to Kobo as before.
-        resources["readingservices_host"] = json!(base);
+        // logs them. Without the key they go to Kobo as before. The host
+        // alone: given the token-prefixed base, the device sent nothing.
+        resources["readingservices_host"] = json!(origin_url(&state, &headers));
     }
 
     Ok((

@@ -38,9 +38,11 @@ async fn with_the_flag_the_device_is_pointed_here_and_everything_it_sends_is_ans
     let (app, db, _) = test_app_settings(settings).await;
     let (token, _) = kobo_token(&app, &db).await;
     let (_, v) = send(&app, Method::GET, &format!("/api/kobo/{token}/v1/initialization"), None, None).await;
+    // The host alone, without the token path: the device honours nothing else.
     let host = v["Resources"]["readingservices_host"].as_str().unwrap();
-    assert!(host.ends_with(&format!("/api/kobo/{token}")), "{host}");
-    assert_eq!(host, v["Resources"]["image_host"].as_str().unwrap());
+    let image_host = v["Resources"]["image_host"].as_str().unwrap();
+    assert_eq!(image_host, format!("{host}/api/kobo/{token}"), "{host}");
+    assert!(!host.ends_with('/'));
 
     let body = json!({ "updatedAnnotations": [{ "id": "x", "type": "highlight", "highlightedText": "Röda rummet" }] });
     for (method, uri) in [
