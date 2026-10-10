@@ -64,6 +64,8 @@ mod format_tests;
 mod librarian_tests;
 #[cfg(test)]
 mod catalog_tests;
+#[cfg(test)]
+mod kobo_annotations_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -204,6 +206,10 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
         .route("/search", get(search::search))
         .route("/librarian", post(librarian::ask))
+        // A Kobo's annotation traffic, when the device uses the host alone
+        // (kobo::annotations_probe); the same routes exist under the token.
+        .route("/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
+        .route("/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
         .route("/catalogs", get(catalogs::list).post(catalogs::create))
         .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
         .route("/catalogs/{id}/feed", get(catalogs::feed))
@@ -275,6 +281,8 @@ fn router(state: AppState) -> Router {
         .route("/v1/download/{filename}", get(kobo::download))
         .route("/{image_id}/{width}/{height}/{grey}/image.jpg", get(kobo::image))
         .route("/{image_id}/{width}/{height}/{quality}/{grey}/image.jpg", get(kobo::image_quality))
+        .route("/api/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
+        .route("/api/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
         .fallback(kobo::dummy)
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
 

@@ -151,7 +151,7 @@ pub async fn initialization(
     let base = base_url(&state, &headers, &token);
     let host = base_url(&state, &headers, &token);
 
-    let resources = json!({
+    let mut resources = json!({
         "device_auth": format!("{base}/v1/auth/device"),
         "device_refresh": format!("{base}/v1/auth/refresh"),
         "image_host": host,
@@ -212,11 +212,76 @@ pub async fn initialization(
         "kobo_wishlist_enabled": "False",
     });
 
+    if state.settings.kobo_annotations_log {
+        // The device sends its highlights and notes to its "reading
+        // services"; with this key they come here, where annotations_probe
+        // logs them. Without the key they go to Kobo as before.
+        resources["readingservices_host"] = json!(base);
+    }
+
     Ok((
         [("x-kobo-apitoken", "e30=")],
         Json(json!({ "Resources": resources })),
     )
         .into_response())
+}
+
+// ---------------------------------------------------------------------------
+// Annotations, step 0: a probe that logs what the device sends.
+
+/// Headers whose values are secrets: logged by length only.
+const SECRET_HEADERS: [&str; 4] = ["authorization", "cookie", "x-kobo-userkey", "x-kobo-devicetoken"];
+
+/// The path with the sync token taken out: /api/kobo/<token>/… → /api/kobo/…/….
+fn without_token(path: &str) -> String {
+    match path.strip_prefix("/api/kobo/") {
+        Some(rest) => match rest.split_once('/') {
+            Some((_, after)) => format!("/api/kobo/…/{after}"),
+            None => "/api/kobo/…".to_string(),
+        },
+        None => path.to_string(),
+    }
+}
+
+/// Everything a Kobo sends to the reading-services address it was given in
+/// `initialization`, logged in full (secrets by length) and answered with an
+/// empty object, so the shape of the traffic can be read off a real device
+/// before any of it is stored. Reached both with the sync token in the path
+/// and without (the device may use the host alone). 404 unless
+/// LEGEJO_KOBO_ANNOTATIONS_LOG is on.
+pub async fn annotations_probe(
+    State(state): State<AppState>,
+    method: axum::http::Method,
+    original: axum::extract::OriginalUri,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    if !state.settings.kobo_annotations_log {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = without_token(original.0.path());
+    let query = original.0.query().unwrap_or("");
+    let mut shown: Vec<String> = headers
+        .iter()
+        .map(|(name, value)| {
+            let name = name.as_str();
+            if SECRET_HEADERS.contains(&name) {
+                format!("{name}=<{} bytes>", value.len())
+            } else {
+                format!("{name}={}", value.to_str().unwrap_or("<binary>"))
+            }
+        })
+        .collect();
+    shown.sort();
+    const BODY_LIMIT: usize = 64 * 1024;
+    let text = String::from_utf8_lossy(&body[..body.len().min(BODY_LIMIT)]);
+    tracing::info!(
+        target: "legejo::kobo_annotations",
+        "kobo annotations probe: {method} {path} query=\"{query}\" headers=[{}] body({} bytes)={text}",
+        shown.join(" "),
+        body.len()
+    );
+    (StatusCode::OK, Json(json!({}))).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1175,6 +1240,18 @@ pub async fn access_log(
         );
     }
     response
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::without_token;
+
+    #[test]
+    fn the_sync_token_never_reaches_the_log() {
+        assert_eq!(without_token("/api/kobo/abc123/api/v3/content/x/annotations"), "/api/kobo/…/api/v3/content/x/annotations");
+        assert_eq!(without_token("/api/kobo/abc123"), "/api/kobo/…");
+        assert_eq!(without_token("/api/v3/content/x/annotations"), "/api/v3/content/x/annotations");
+    }
 }
 
 #[cfg(test)]

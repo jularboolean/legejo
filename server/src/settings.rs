@@ -97,6 +97,11 @@ pub struct Settings {
     pub secure_cookies: bool,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
     pub mcp: bool,
+    /// Point a Kobo's "reading services" (its annotation sync) at this
+    /// server and log what the device sends, answering with nothing
+    /// (kobo::annotations_probe). The first step towards syncing
+    /// highlights; off unless LEGEJO_KOBO_ANNOTATIONS_LOG=true.
+    pub kobo_annotations_log: bool,
     /// The language model behind the librarian (librarian.rs). None unless
     /// LEGEJO_AI_API_KEY is set.
     pub ai: Option<Ai>,
@@ -136,6 +141,7 @@ impl Default for Settings {
             audio_import: None,
             secure_cookies: false,
             mcp: false,
+            kobo_annotations_log: false,
             ai: None,
         }
     }
@@ -179,6 +185,7 @@ impl Settings {
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
         };
         let mcp = flag("LEGEJO_MCP")?;
+        let kobo_annotations_log = flag("LEGEJO_KOBO_ANNOTATIONS_LOG")?;
         let ai = match var("LEGEJO_AI_API_KEY")? {
             None => None,
             Some(key) => Some(Ai {
@@ -189,7 +196,7 @@ impl Settings {
                 model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, ai })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, kobo_annotations_log, ai })
     }
 }
 
