@@ -336,13 +336,26 @@
 		}
 	}
 
+	/** A passage picked without a selection to show for it: mark it meanwhile. */
+	function offer(passage: Passage) {
+		editing = null;
+		pending = passage;
+		clearHighlight();
+		engine?.highlight(passage.cfi);
+		showChrome();
+	}
+
 	function offerSentence(point: { x: number; y: number }) {
 		if (!engine || panel) return;
 		const passage = engine.sentenceAt(point.x, point.y);
-		if (!passage) return;
-		editing = null;
-		pending = passage;
-		showChrome();
+		if (passage) offer(passage);
+	}
+
+	/** With the shield up a drag cannot select; the text between its ends is the passage. */
+	function offerDrag(from: { x: number; y: number }, to: { x: number; y: number }) {
+		if (!engine || panel || !shield) return;
+		const passage = engine.passageBetween(from, to);
+		if (passage) offer(passage);
 	}
 
 	function openMark(id: number) {
@@ -355,6 +368,7 @@
 	}
 
 	function dismissAnnotate() {
+		if (pending && searchCurrent === null) engine?.highlight(null);
 		pending = null;
 		editing = null;
 		annotateError = null;
@@ -460,6 +474,7 @@
 		onPointer: pointerAt,
 		onSelect: offerSelection,
 		onLongPress: offerSentence,
+		onDragSelect: offerDrag,
 		onWheel(deltaY) {
 			// One page per wheel gesture; trackpads keep sending events while coasting.
 			if (!paginated || Math.abs(deltaY) < 20 || Date.now() - wheelAt < 450) return;

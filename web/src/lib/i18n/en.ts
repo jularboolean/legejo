@@ -813,7 +813,7 @@ export const en = {
 	'reader.notes.saved': "Highlighted",
 	'reader.notes.nothingHere': "Nothing to highlight here.",
 	'reader.help.notes': "Highlights and notes",
-	'reader.help.select': "Select a passage to highlight it. On a touch screen, or where the book cannot be selected in, hold a finger or the mouse button on a sentence.",
+	'reader.help.select': "Select a passage to highlight it. Where the book cannot be selected in (Safari, touch screens), drag across the passage, or hold a finger or the mouse button on a sentence.",
 	'book.annotations': "{count} highlights and notes",
 	'book.annotationsOne': "1 highlight",
 	'book.annotationsExport': "Export as Markdown",

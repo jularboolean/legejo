@@ -202,6 +202,12 @@ export interface ReaderEngine {
 	 * cannot be selected in (touch screens, WebKit). Null off the page.
 	 */
 	sentenceAt(x: number, y: number): Passage | null;
+	/**
+	 * The text between two points of the top window, in either order, for a
+	 * drag where the chapter cannot be selected in. Null when the points are
+	 * not both on one chapter, or nothing lies between them.
+	 */
+	passageBetween(from: { x: number; y: number }, to: { x: number; y: number }): Passage | null;
 	/** The highlights to show; those already shown are kept, the rest redrawn. */
 	setMarks(marks: Mark[]): void;
 	/**

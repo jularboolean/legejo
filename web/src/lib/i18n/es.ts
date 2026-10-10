@@ -815,7 +815,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Subrayado",
 	'reader.notes.nothingHere': "Aquí no hay nada que subrayar.",
 	'reader.help.notes': "Subrayados y notas",
-	'reader.help.select': "Selecciona un pasaje para subrayarlo. En una pantalla táctil, o donde el libro no se deje seleccionar, mantén un dedo o el botón del ratón sobre una frase.",
+	'reader.help.select': "Selecciona un pasaje para subrayarlo. Donde el libro no se deje seleccionar (Safari, pantallas táctiles), arrastra sobre el pasaje, o mantén un dedo o el botón del ratón sobre una frase.",
 	'book.annotations': "{count} subrayados y notas",
 	'book.annotationsOne': "1 subrayado",
 	'book.annotationsExport': "Exportar como Markdown",

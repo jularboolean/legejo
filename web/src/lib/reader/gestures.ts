@@ -32,6 +32,8 @@ export type GestureHandlers = {
 	onSelect?: () => void;
 	/** A finger or button held still on a point of the top window. */
 	onLongPress?: (point: { x: number; y: number }) => void;
+	/** The mouse was dragged from one point of the top window to another. */
+	onDragSelect?: (from: { x: number; y: number }, to: { x: number; y: number }) => void;
 };
 
 const LONG_PRESS_MS = 550;
@@ -149,11 +151,28 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		pressEnd();
 		touch = null;
 	});
+	// A mouse drag: from where the button went down to where it came up. The
+	// click that follows it is not a tap.
+	let drag: { x: number; y: number } | null = null;
 	on('mousedown', (event) => {
-		if (event.button === 0 && handlers.onLongPress) pressStart(event.clientX, event.clientY);
+		if (event.button !== 0) return;
+		if (handlers.onLongPress) pressStart(event.clientX, event.clientY);
+		drag = handlers.onDragSelect ? { x: event.clientX, y: event.clientY } : null;
 	});
 	on('mousemove', (event) => pressMove(event.clientX, event.clientY));
-	on('mouseup', () => pressEnd());
+	on('mouseup', (event) => {
+		pressEnd();
+		const from = drag;
+		drag = null;
+		if (!from || event.button !== 0) return;
+		if (Math.abs(event.clientX - from.x) < LONG_PRESS_SLOP_PX && Math.abs(event.clientY - from.y) < LONG_PRESS_SLOP_PX) return;
+		lastSwipe = Date.now();
+		const offset = frameOffset(doc);
+		handlers.onDragSelect?.(
+			{ x: from.x + offset.x, y: from.y + offset.y },
+			{ x: event.clientX + offset.x, y: event.clientY + offset.y }
+		);
+	});
 
 	// A selection is made with the pointer or the keyboard; the reader asks
 	// what it is once the event has settled.

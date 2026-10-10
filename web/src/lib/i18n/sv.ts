@@ -815,7 +815,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Understruket",
 	'reader.notes.nothingHere': "Inget att stryka under här.",
 	'reader.help.notes': "Understrykningar och anteckningar",
-	'reader.help.select': "Markera ett stycke för att stryka under det. På en pekskärm, eller där boken inte går att markera i, håll fingret eller musknappen på en mening.",
+	'reader.help.select': "Markera ett stycke för att stryka under det. Där boken inte går att markera i (Safari, pekskärmar), dra över stycket, eller håll fingret eller musknappen på en mening.",
 	'book.annotations': "{count} understrykningar och anteckningar",
 	'book.annotationsOne': "1 understrykning",
 	'book.annotationsExport': "Exportera som Markdown",

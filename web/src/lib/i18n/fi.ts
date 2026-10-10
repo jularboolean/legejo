@@ -815,7 +815,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Korostettu",
 	'reader.notes.nothingHere': "Täällä ei ole mitään korostettavaa.",
 	'reader.help.notes': "Korostukset ja muistiinpanot",
-	'reader.help.select': "Valitse kohta korostaaksesi sen. Kosketusnäytöllä, tai missä kirjasta ei voi valita tekstiä, pidä sormea tai hiiren painiketta virkkeen päällä.",
+	'reader.help.select': "Valitse kohta korostaaksesi sen. Missä kirjasta ei voi valita tekstiä (Safari, kosketusnäytöt), vedä kohdan yli tai pidä sormea tai hiiren painiketta virkkeen päällä.",
 	'book.annotations': "{count} korostusta ja muistiinpanoa",
 	'book.annotationsOne': "1 korostus",
 	'book.annotationsExport': "Vie Markdownina",

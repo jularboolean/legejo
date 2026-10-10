@@ -815,7 +815,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Markita",
 	'reader.notes.nothingHere': "Nenio markebla ĉi tie.",
 	'reader.help.notes': "Markoj kaj notoj",
-	'reader.help.select': "Elektu tekston por marki ĝin. Sur tuŝekrano, aŭ kie la libro ne elekteblas, tenu fingron aŭ la musbutonon sur frazo.",
+	'reader.help.select': "Elektu tekston por marki ĝin. Kie la libro ne elekteblas (Safari, tuŝekranoj), trenu trans la tekston, aŭ tenu fingron aŭ la musbutonon sur frazo.",
 	'book.annotations': "{count} markoj kaj notoj",
 	'book.annotationsOne': "1 marko",
 	'book.annotationsExport': "Eksporti kiel Markdown",

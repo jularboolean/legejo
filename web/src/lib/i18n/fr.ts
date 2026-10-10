@@ -815,7 +815,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Surligné",
 	'reader.notes.nothingHere': "Rien à surligner ici.",
 	'reader.help.notes': "Surlignages et notes",
-	'reader.help.select': "Sélectionnez un passage pour le surligner. Sur un écran tactile, ou là où le livre ne se laisse pas sélectionner, maintenez un doigt ou le bouton de la souris sur une phrase.",
+	'reader.help.select': "Sélectionnez un passage pour le surligner. Là où le livre ne se laisse pas sélectionner (Safari, écrans tactiles), faites glisser sur le passage, ou maintenez un doigt ou le bouton de la souris sur une phrase.",
 	'book.annotations': "{count} surlignages et notes",
 	'book.annotationsOne': "1 surlignage",
 	'book.annotationsExport': "Exporter en Markdown",

@@ -1421,6 +1421,34 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 			return null;
 		},
+		passageBetween(from, to): Passage | null {
+			const a = contentsAt(from.x, from.y);
+			const b = contentsAt(to.x, to.y);
+			if (!a || !b || a.contents !== b.contents) return null;
+			const doc = a.contents.document;
+			const start = caretAt(doc, a.x, a.y);
+			const end = caretAt(doc, b.x, b.y);
+			if (!start || !end || !doc.body?.contains(start.node) || !doc.body.contains(end.node)) return null;
+			const range = doc.createRange();
+			try {
+				range.setStart(start.node, start.offset);
+				range.setEnd(end.node, end.offset);
+				// Dragged backwards: the same stretch, the other way round.
+				if (range.collapsed) {
+					range.setStart(end.node, end.offset);
+					range.setEnd(start.node, start.offset);
+				}
+			} catch {
+				return null;
+			}
+			const text = range.toString().replace(/\s+/g, ' ').trim();
+			if (!text) return null;
+			try {
+				return { cfi: a.contents.cfiFromRange(range), text };
+			} catch {
+				return null;
+			}
+		},
 		setMarks(next) {
 			const keep = new Set(next.map((m) => m.id));
 			for (const m of marks) if (!keep.has(m.id)) eraseMark(m);

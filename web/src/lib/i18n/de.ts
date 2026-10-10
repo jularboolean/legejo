@@ -815,7 +815,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.saved': "Markiert",
 	'reader.notes.nothingHere': "Hier gibt es nichts zu markieren.",
 	'reader.help.notes': "Markierungen und Notizen",
-	'reader.help.select': "Wähle eine Stelle aus, um sie zu markieren. Auf einem Touchscreen, oder wo sich im Buch nichts auswählen lässt, halte einen Finger oder die Maustaste auf einen Satz.",
+	'reader.help.select': "Wähle eine Stelle aus, um sie zu markieren. Wo sich im Buch nichts auswählen lässt (Safari, Touchscreens), ziehe über die Stelle, oder halte einen Finger oder die Maustaste auf einen Satz.",
 	'book.annotations': "{count} Markierungen und Notizen",
 	'book.annotationsOne': "1 Markierung",
 	'book.annotationsExport': "Als Markdown exportieren",
