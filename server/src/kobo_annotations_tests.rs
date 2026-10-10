@@ -20,12 +20,13 @@ async fn without_the_flag_the_device_is_not_told_about_us_and_the_probe_is_not_t
     let (status, v) = send(&app, Method::GET, &format!("/api/kobo/{token}/v1/initialization"), None, None).await;
     assert_eq!(status, StatusCode::OK, "{v}");
     assert!(v["Resources"]["image_host"].is_string());
-    assert!(v["Resources"]["readingservices_host"].is_null());
+    assert!(v["Resources"]["reading_services_host"].is_null());
     let body = json!({ "updatedAnnotations": [] });
     for uri in [
         "/api/v3/content/abc/annotations".to_string(),
         format!("/api/kobo/{token}/api/v3/content/abc/annotations"),
         "/api/UserStorage/Metadata".to_string(),
+        "/api/internal/notebooks".to_string(),
     ] {
         let (status, _) = send(&app, Method::PATCH, &uri, None, Some(body.clone())).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
@@ -39,23 +40,28 @@ async fn with_the_flag_the_device_is_pointed_here_and_everything_it_sends_is_ans
     let (token, _) = kobo_token(&app, &db).await;
     let (_, v) = send(&app, Method::GET, &format!("/api/kobo/{token}/v1/initialization"), None, None).await;
     // The host alone, without the token path: the device honours nothing else.
-    let host = v["Resources"]["readingservices_host"].as_str().unwrap();
+    let host = v["Resources"]["reading_services_host"].as_str().unwrap();
     let image_host = v["Resources"]["image_host"].as_str().unwrap();
     assert_eq!(image_host, format!("{host}/api/kobo/{token}"), "{host}");
     assert!(!host.ends_with('/'));
 
+    // Each path is answered with the empty shape the device expects there;
+    // anything else makes it abort the whole sync.
     let body = json!({ "updatedAnnotations": [{ "id": "x", "type": "highlight", "highlightedText": "Röda rummet" }] });
-    for (method, uri) in [
-        (Method::PATCH, "/api/v3/content/abc/annotations".to_string()),
-        (Method::GET, "/api/v3/content/abc/annotations".to_string()),
-        (Method::POST, "/api/v3/content/checkforchanges".to_string()),
-        (Method::PATCH, format!("/api/kobo/{token}/api/v3/content/abc/annotations")),
-        (Method::GET, format!("/api/kobo/{token}/api/UserStorage/Metadata")),
-        (Method::GET, "/api/UserStorage/Metadata".to_string()),
+    let none = json!({ "data": [], "totalResults": 0 });
+    for (method, uri, expected) in [
+        (Method::PATCH, "/api/v3/content/abc/annotations".to_string(), none.clone()),
+        (Method::GET, "/api/v3/content/abc/annotations".to_string(), none.clone()),
+        (Method::POST, "/api/v3/content/checkforchanges".to_string(), json!([])),
+        (Method::GET, "/api/internal/notebooks".to_string(), none.clone()),
+        (Method::PATCH, format!("/api/kobo/{token}/api/v3/content/abc/annotations"), none.clone()),
+        (Method::POST, format!("/api/kobo/{token}/api/v3/content/checkforchanges"), json!([])),
+        (Method::GET, format!("/api/kobo/{token}/api/UserStorage/Metadata"), json!({})),
+        (Method::GET, "/api/UserStorage/Metadata".to_string(), json!({})),
     ] {
         let with_body = matches!(method, Method::PATCH | Method::POST).then(|| body.clone());
         let (status, v) = send(&app, method.clone(), &uri, None, with_body).await;
         assert_eq!(status, StatusCode::OK, "{method} {uri}");
-        assert_eq!(v, json!({}), "{method} {uri}");
+        assert_eq!(v, expected, "{method} {uri}");
     }
 }

@@ -210,6 +210,7 @@ fn router(state: AppState) -> Router {
         // (kobo::annotations_probe); the same routes exist under the token.
         .route("/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
         .route("/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
+        .route("/internal/{*rest}", axum::routing::any(kobo::annotations_probe))
         .route("/catalogs", get(catalogs::list).post(catalogs::create))
         .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
         .route("/catalogs/{id}/feed", get(catalogs::feed))
@@ -283,6 +284,7 @@ fn router(state: AppState) -> Router {
         .route("/{image_id}/{width}/{height}/{quality}/{grey}/image.jpg", get(kobo::image_quality))
         .route("/api/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
         .route("/api/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
+        .route("/api/internal/{*rest}", axum::routing::any(kobo::annotations_probe))
         .fallback(kobo::dummy)
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
 

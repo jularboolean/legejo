@@ -224,8 +224,9 @@ pub async fn initialization(
         // The device sends its highlights and notes to its "reading
         // services"; with this key they come here, where annotations_probe
         // logs them. Without the key they go to Kobo as before. The host
-        // alone: given the token-prefixed base, the device sent nothing.
-        resources["readingservices_host"] = json!(origin_url(&state, &headers));
+        // alone: the device strips any path from this key. The key name is
+        // the stock one (with the underscore); a misspelt key is ignored.
+        resources["reading_services_host"] = json!(origin_url(&state, &headers));
     }
 
     Ok((
@@ -253,10 +254,12 @@ fn without_token(path: &str) -> String {
 }
 
 /// Everything a Kobo sends to the reading-services address it was given in
-/// `initialization`, logged in full (secrets by length) and answered with an
-/// empty object, so the shape of the traffic can be read off a real device
-/// before any of it is stored. Reached both with the sync token in the path
-/// and without (the device may use the host alone). 404 unless
+/// `initialization`, logged in full (secrets by length) and answered with
+/// the empty shape each call expects, so the shape of the traffic can be
+/// read off a real device before any of it is stored. The device strips the
+/// path from the address and calls the site root, but the routes exist
+/// under the token too. An error here makes the device abort the whole
+/// sync, shelves included, so every answer is benign. 404 unless
 /// LEGEJO_KOBO_ANNOTATIONS_LOG is on.
 pub async fn annotations_probe(
     State(state): State<AppState>,
@@ -290,7 +293,15 @@ pub async fn annotations_probe(
         shown.join(" "),
         body.len()
     );
-    (StatusCode::OK, Json(json!({}))).into_response()
+    // What a device takes as "nothing here" on each of its paths.
+    let empty = if path.ends_with("/content/checkforchanges") {
+        json!([])
+    } else if path.ends_with("/annotations") || path.contains("/internal/notebooks") {
+        json!({ "data": [], "totalResults": 0 })
+    } else {
+        json!({})
+    };
+    (StatusCode::OK, Json(empty)).into_response()
 }
 
 // ---------------------------------------------------------------------------
