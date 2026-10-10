@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import Tabs from '#lib/Tabs.svelte';
 	import { t } from '#lib/i18n';
+	import { isNewer, latestRelease, type Release } from '#lib/version';
 	import Federation from './Federation.svelte';
 	import Users from './Users.svelte';
 	import type { PageData } from './$types';
@@ -32,6 +33,26 @@
 	let testTo = $state('');
 	let testMsg = $state('');
 	let testError = $state('');
+
+	// Is there a newer Legejo? Asked of GitHub from this browser, on request.
+	let versionState = $state<'idle' | 'checking' | 'latest' | 'newer' | 'failed'>('idle');
+	let newerRelease = $state<Release | null>(null);
+
+	async function checkVersion() {
+		versionState = 'checking';
+		newerRelease = null;
+		try {
+			const release = await latestRelease();
+			if (isNewer(release.version, __APP_VERSION__)) {
+				newerRelease = release;
+				versionState = 'newer';
+			} else {
+				versionState = 'latest';
+			}
+		} catch {
+			versionState = 'failed';
+		}
+	}
 
 	async function saveSettings() {
 		saving = true;
@@ -210,6 +231,27 @@
 		{#if testMsg}<p class="ok">{testMsg}</p>{/if}
 		{#if testError}<p class="error">{testError}</p>{/if}
 	{/if}
+</section>
+
+<section>
+	<h2>{t('admin.version')}</h2>
+	<p class="hint">{t('admin.versionRunning', { version: __APP_VERSION__ })}</p>
+	<div class="mailtest">
+		<button type="button" class="ghost" onclick={checkVersion} disabled={versionState === 'checking'}>
+			{versionState === 'checking' ? t('admin.versionChecking') : t('admin.versionCheck')}
+		</button>
+	</div>
+	{#if versionState === 'latest'}
+		<p class="ok">{t('admin.versionLatest')}</p>
+	{:else if versionState === 'newer' && newerRelease}
+		<p class="ok">
+			{t('admin.versionNewer', { version: newerRelease.version })}
+			<a href={newerRelease.url} target="_blank" rel="noreferrer">{t('admin.versionSeeRelease')}</a>
+		</p>
+	{:else if versionState === 'failed'}
+		<p class="error">{t('admin.versionFailed')}</p>
+	{/if}
+	<p class="hint">{t('admin.versionHint')}</p>
 </section>
 
 {:else if tab === 'federation' && data.federation}
