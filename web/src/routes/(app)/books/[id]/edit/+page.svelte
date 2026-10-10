@@ -224,8 +224,9 @@
 		deleteOpen = false;
 		const res = await fetch(`/api/books/${data.book.id}`, { method: 'DELETE' });
 		if (res.ok) {
-			await invalidateAll();
-			goto('/');
+			// Away first: refreshing this page's data would only find the
+			// book gone and show an error on the way out.
+			await goto('/', { invalidateAll: true });
 		} else {
 			errorMsg = t('edit.saveFailed');
 		}

@@ -113,8 +113,8 @@
 		deleteOpen = false;
 		const res = await fetch(`/api/shelves/${data.shelf.id}`, { method: 'DELETE' });
 		if (res.ok) {
-			await invalidateAll();
-			goto('/');
+			// Away first: this page's data would only find the shelf gone.
+			await goto('/', { invalidateAll: true });
 		} else {
 			errorMsg = t('edit.saveFailed');
 		}

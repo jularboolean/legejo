@@ -686,6 +686,8 @@ export const en = {
 	'reader.speech.noVoice': 'This device has no voice for {language}; another voice reads.',
 	'reader.speech.failed': 'The browser could not read the text aloud.',
 	'reader.help.speech': 'Read aloud, pause',
+	'update.available': "A new version of Legejo is ready.",
+	'update.reload': "Reload",
 	'sidebar.audiobooks': 'Audiobooks',
 	'admin.audiobooksToggle': 'Audiobook support',
 	'admin.audiobooksHint': 'Lets users keep audiobooks (MP3, M4A, M4B) and listen to them as a podcast feed in any podcast app. Audio files take far more space than EPUB files.',

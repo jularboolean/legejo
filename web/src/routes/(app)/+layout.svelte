@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { updated } from '$app/state';
 	import {
 		BookDown,
 		BookMarked,
@@ -27,6 +28,15 @@
 
 	let menuOpen = $state(false);
 	afterNavigate(() => (menuOpen = false));
+
+	// Once a new version has been published (SvelteKit polls for it), the next
+	// navigation is a full page load, so the old code does not reach for
+	// files that are no longer there. The banner lets the user do it at once.
+	beforeNavigate(({ willUnload, to }) => {
+		if (updated.current && !willUnload && to?.url) {
+			location.href = to.url.href;
+		}
+	});
 
 	// While the mobile drawer is open the page behind it must not scroll.
 	$effect(() => {
@@ -220,7 +230,44 @@
 	{@render children()}
 {/if}
 
+{#if updated.current}
+	<div class="update" role="status">
+		<span>{t('update.available')}</span>
+		<button type="button" onclick={() => location.reload()}>{t('update.reload')}</button>
+	</div>
+{/if}
+
 <style>
+	/* "A new version is ready": a small note above everything, in the way of nothing. */
+	.update {
+		/* Centred by auto margins: a fixed box at left: 50% would only get half
+		   the viewport to lay itself out in, and wrap its text on a phone. */
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: calc(1rem + env(safe-area-inset-bottom));
+		margin: 0 auto;
+		width: fit-content;
+		z-index: 70;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		max-width: calc(100vw - 2rem);
+		padding: 0.6rem 0.6rem 0.6rem 1rem;
+		border-radius: 8px;
+		background: var(--fg);
+		color: var(--bg);
+		font-size: 0.9rem;
+		box-shadow: 0 6px 24px rgb(0 0 0 / 0.3);
+	}
+	.update button {
+		flex-shrink: 0;
+		background: var(--bg);
+		color: var(--fg);
+		font-size: 0.85rem;
+		padding: 0.35rem 0.7rem;
+	}
+
 	/* Mobile only: on desktop the sidebar carries the logo and navigation. */
 	.topbar {
 		display: none;

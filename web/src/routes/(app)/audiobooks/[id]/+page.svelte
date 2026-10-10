@@ -124,8 +124,8 @@
 		confirmDelete = false;
 		const res = await fetch(`/api/audiobooks/${book.id}`, { method: 'DELETE' });
 		if (res.ok) {
-			await invalidateAll();
-			goto('/audiobooks');
+			// Away first: this page's data would only find the audiobook gone.
+			await goto('/audiobooks', { invalidateAll: true });
 		}
 	}
 

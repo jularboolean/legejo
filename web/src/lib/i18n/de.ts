@@ -688,6 +688,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'reader.speech.noVoice': 'Dieses Gerät hat keine Stimme für {language}; eine andere Stimme liest.',
 	'reader.speech.failed': 'Der Browser konnte den Text nicht vorlesen.',
 	'reader.help.speech': 'Vorlesen, Pause',
+	'update.available': "Eine neue Version von Legejo ist bereit.",
+	'update.reload': "Neu laden",
 	'sidebar.audiobooks': 'Hörbücher',
 	'admin.audiobooksToggle': 'Hörbuch-Unterstützung',
 	'admin.audiobooksHint': 'Nutzer können Hörbücher (MP3, M4A, M4B) ablegen und sie als Podcast-Feed in jeder Podcast-App hören. Audiodateien brauchen weit mehr Platz als EPUB-Dateien.',
