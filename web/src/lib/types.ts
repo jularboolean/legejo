@@ -92,6 +92,8 @@ export type Annotation = {
 	text: string;
 	note: string | null;
 	color: string | null;
+	/** Where a device put it, as the device said (JSON); null for the reader's own. */
+	location: string | null;
 	created_at: string;
 	updated_at: string;
 };

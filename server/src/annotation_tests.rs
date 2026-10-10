@@ -111,6 +111,7 @@ fn a_passage_of_several_lines_is_quoted_line_by_line() {
         text: "En rad.\nEn till.".into(),
         note: Some("  ok  ".into()),
         color: None,
+        location: None,
         created_at: String::new(),
         updated_at: String::new(),
     };

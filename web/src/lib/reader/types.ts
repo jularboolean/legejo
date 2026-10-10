@@ -213,6 +213,12 @@ export interface ReaderEngine {
 	/** The id of the highlight drawn under a point of the top window, if any. */
 	markAt(x: number, y: number): number | null;
 	/**
+	 * Where a passage is, as a range CFI: the first place its text occurs,
+	 * in the chapter named (a file path inside the EPUB, matched from the
+	 * end) or anywhere in the book. Null when it is not found.
+	 */
+	locate(text: string, chapter: string | null): Promise<string | null>;
+	/**
 	 * The sentences of the chapter on screen, for reading aloud. `first` is
 	 * the first one on screen (the count when none is left). Null when no
 	 * chapter is shown.

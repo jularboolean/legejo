@@ -46,6 +46,7 @@ pub struct Settings {
     openlibrary_enabled: bool,
     audiobooks_enabled: bool,
     catalogs_enabled: bool,
+    kobo_annotations_enabled: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -61,6 +62,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         openlibrary_enabled: crate::openlibrary::enabled(state).await,
         audiobooks_enabled: crate::audiobooks::enabled(state).await,
         catalogs_enabled: crate::catalogs::enabled(state).await,
+        kobo_annotations_enabled: crate::kobo::annotations_enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -85,6 +87,8 @@ pub struct UpdateSettings {
     audiobooks_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     catalogs_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    kobo_annotations_enabled: Option<bool>,
     registration_enabled: bool,
 }
 
@@ -111,6 +115,11 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.kobo_annotations_enabled {
+        set_setting(&state, "kobo_annotations_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
     set_setting(
         &state,
         "registration_enabled",
@@ -127,6 +136,7 @@ pub async fn update_settings(
             "openlibrary_enabled": req.openlibrary_enabled,
             "audiobooks_enabled": req.audiobooks_enabled,
             "catalogs_enabled": req.catalogs_enabled,
+            "kobo_annotations_enabled": req.kobo_annotations_enabled,
             "registration_enabled": req.registration_enabled,
         }),
     )

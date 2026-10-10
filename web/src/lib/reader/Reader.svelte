@@ -323,6 +323,40 @@
 			if (res.ok) annotations = await res.json();
 		} catch {
 			// The highlights wait for the next visit.
+			return;
+		}
+		placeFromDevice();
+	}
+
+	/**
+	 * A highlight from a Kobo comes with the text and the chapter it is in,
+	 * not with a place in the EPUB. The first time the book is opened here,
+	 * each is looked up by its text and given its place, once and for all.
+	 */
+	async function placeFromDevice() {
+		const unplaced = annotations.filter((a) => a.source === 'kobo' && !a.cfi).slice(0, 50);
+		for (const a of unplaced) {
+			if (closed || !engine) return;
+			let chapter: string | null = null;
+			try {
+				chapter = JSON.parse(a.location ?? 'null')?.span?.chapterFilename ?? null;
+			} catch {
+				// A location in a shape not understood: search the whole book.
+			}
+			const cfi = await engine.locate(a.text, chapter).catch(() => null);
+			if (!cfi) continue;
+			try {
+				const res = await fetch(`/api/annotations/${a.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ cfi })
+				});
+				if (!res.ok) continue;
+				const placed: Annotation = await res.json();
+				annotations = annotations.map((x) => (x.id === placed.id ? placed : x));
+			} catch {
+				// Next time.
+			}
 		}
 	}
 

@@ -212,11 +212,11 @@ fn router(state: AppState) -> Router {
         .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))
         .route("/search", get(search::search))
         .route("/librarian", post(librarian::ask))
-        // A Kobo's annotation traffic, when the device uses the host alone
-        // (kobo::annotations_probe); the same routes exist under the token.
-        .route("/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
-        .route("/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
-        .route("/internal/{*rest}", axum::routing::any(kobo::annotations_probe))
+        // A Kobo's highlights and notes, which the device sends to the site
+        // root (kobo::reading_services); the same routes exist under the token.
+        .route("/v3/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/UserStorage/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/internal/{*rest}", axum::routing::any(kobo::reading_services))
         .route("/catalogs", get(catalogs::list).post(catalogs::create))
         .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
         .route("/catalogs/{id}/feed", get(catalogs::feed))
@@ -288,9 +288,9 @@ fn router(state: AppState) -> Router {
         .route("/v1/download/{filename}", get(kobo::download))
         .route("/{image_id}/{width}/{height}/{grey}/image.jpg", get(kobo::image))
         .route("/{image_id}/{width}/{height}/{quality}/{grey}/image.jpg", get(kobo::image_quality))
-        .route("/api/v3/{*rest}", axum::routing::any(kobo::annotations_probe))
-        .route("/api/UserStorage/{*rest}", axum::routing::any(kobo::annotations_probe))
-        .route("/api/internal/{*rest}", axum::routing::any(kobo::annotations_probe))
+        .route("/api/v3/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/api/UserStorage/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/api/internal/{*rest}", axum::routing::any(kobo::reading_services))
         .fallback(kobo::dummy)
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
 

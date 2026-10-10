@@ -26,6 +26,7 @@
 	let openLibraryEnabled = $state(data.settings.openlibrary_enabled ?? false);
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
+	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -66,6 +67,7 @@
 					openlibrary_enabled: openLibraryEnabled,
 					audiobooks_enabled: audiobooksEnabled,
 					catalogs_enabled: catalogsEnabled,
+					kobo_annotations_enabled: koboAnnotationsEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -78,10 +80,12 @@
 				openlibrary_enabled: boolean;
 				audiobooks_enabled: boolean;
 				catalogs_enabled?: boolean;
+				kobo_annotations_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
 			audiobooksEnabled = settings.audiobooks_enabled;
 			catalogsEnabled = settings.catalogs_enabled ?? false;
+			koboAnnotationsEnabled = settings.kobo_annotations_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -117,6 +121,12 @@
 		const previous = catalogsEnabled;
 		catalogsEnabled = enabled;
 		if (!(await saveSettings())) catalogsEnabled = previous;
+	}
+
+	async function toggleKoboAnnotations(enabled: boolean) {
+		const previous = koboAnnotationsEnabled;
+		koboAnnotationsEnabled = enabled;
+		if (!(await saveSettings())) koboAnnotationsEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -192,6 +202,16 @@
 		{t('admin.catalogsToggle')}
 	</label>
 	<p class="hint">{t('admin.catalogsHint')}</p>
+	<label class="toggle reg">
+		<input
+			type="checkbox"
+			checked={koboAnnotationsEnabled}
+			disabled={saving}
+			onchange={(e) => toggleKoboAnnotations(e.currentTarget.checked)}
+		/>
+		{t('admin.koboAnnotationsToggle')}
+	</label>
+	<p class="hint">{t('admin.koboAnnotationsHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"

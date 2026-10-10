@@ -32,9 +32,10 @@
 		<ol>
 			{#each annotations as a (a.id)}
 				<li>
-					<button class="passage" onclick={() => onselect(a)}>
+					<button class="passage" onclick={() => onselect(a)} disabled={!a.cfi}>
 						<q>{a.text}</q>
 						{#if a.note}<span class="note">{a.note}</span>{/if}
+						{#if a.source === 'kobo'}<span class="from">{t('reader.notes.fromKobo')}</span>{/if}
 					</button>
 					<button class="r-icon edit" onclick={() => onedit(a)} aria-label={t('reader.notes.edit')} title={t('reader.notes.edit')}>
 						<Pencil size={16} />
@@ -93,6 +94,20 @@
 	.note {
 		color: var(--r-muted);
 		white-space: pre-wrap;
+	}
+	.from {
+		align-self: flex-start;
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--r-muted);
+		border: 1px solid var(--r-border);
+		border-radius: 99px;
+		padding: 0 0.45rem;
+	}
+	.passage:disabled {
+		opacity: 1;
+		cursor: default;
 	}
 	.edit {
 		margin-top: 0.45rem;

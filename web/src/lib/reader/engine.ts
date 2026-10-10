@@ -1463,6 +1463,64 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 			return null;
 		},
+		async locate(text, chapter): Promise<string | null> {
+			const wanted = text.replace(/\s+/g, ' ').trim();
+			if (!wanted) return null;
+			const file = chapter?.split('#')[0].replace(/^\/+/, '') ?? null;
+			const named = file ? sections.filter((s) => s.href.endsWith(file) || file.endsWith(s.href.replace(/^\/+/, ''))) : [];
+			const order = named.length > 0 ? named : sections;
+			for (const section of order) {
+				if (destroyed) return null;
+				const wasLoaded = !!section.contents;
+				try {
+					const root = await section.load(book.load.bind(book));
+					const doc = root.ownerDocument;
+					const body = root.querySelector('body') ?? root;
+					// The chapter's text as one string, whitespace squeezed, with a
+					// map back to the node and offset each character came from.
+					const at: { node: Text; offset: number }[] = [];
+					let squeezed = '';
+					let block: Node | null = null;
+					let pendingSpace = false;
+					const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+					for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+						const value = node.nodeValue ?? '';
+						if (!value) continue;
+						const parent = blockOf(node);
+						if (block && parent !== block) pendingSpace = true;
+						block = parent;
+						for (let i = 0; i < value.length; i++) {
+							const ch = value[i];
+							if (/\s/.test(ch)) {
+								pendingSpace = true;
+								continue;
+							}
+							if (pendingSpace && squeezed.length > 0) {
+								squeezed += ' ';
+								at.push({ node: node as Text, offset: i });
+							}
+							pendingSpace = false;
+							squeezed += ch;
+							at.push({ node: node as Text, offset: i });
+						}
+					}
+					let index = squeezed.indexOf(wanted);
+					if (index < 0) index = squeezed.toLowerCase().indexOf(wanted.toLowerCase());
+					if (index < 0) continue;
+					const from = at[index];
+					const last = at[index + wanted.length - 1];
+					const range = doc.createRange();
+					range.setStart(from.node, from.offset);
+					range.setEnd(last.node, last.offset + 1);
+					return section.cfiFromRange(range);
+				} catch {
+					// A chapter that can't be read is skipped.
+				} finally {
+					if (!wasLoaded) section.unload();
+				}
+			}
+			return null;
+		},
 		setMarks(next) {
 			const keep = new Set(next.map((m) => m.id));
 			for (const m of marks) if (!keep.has(m.id)) eraseMark(m);

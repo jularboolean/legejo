@@ -28,11 +28,6 @@ pub async fn test_app_private() -> (Router, AnyPool, AppState) {
     test_app_with(crate::fed::Fed::new(Some(config)).unwrap()).await
 }
 
-/// As test_app, with the operator settings given instead of the defaults.
-pub async fn test_app_settings(settings: crate::settings::Settings) -> (Router, AnyPool, AppState) {
-    build(crate::fed::Fed::disabled(), settings).await
-}
-
 async fn test_app_with(fed: std::sync::Arc<crate::fed::Fed>) -> (Router, AnyPool, AppState) {
     build(fed, crate::settings::Settings::default()).await
 }

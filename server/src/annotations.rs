@@ -43,11 +43,13 @@ pub struct Annotation {
     pub text: String,
     pub note: Option<String>,
     pub color: Option<String>,
+    /// Where a device put it, as the device said (JSON); for placing it.
+    pub location: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-const COLUMNS: &str = "id, book_id, source, cfi, text, note, color, created_at, updated_at";
+const COLUMNS: &str = "id, book_id, source, cfi, text, note, color, location, created_at, updated_at";
 
 fn clean_note(note: Option<String>) -> Result<Option<String>, Response> {
     let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
@@ -146,9 +148,12 @@ pub struct Update {
     /// Absent: unchanged. Empty or null: the note goes.
     #[serde(default, deserialize_with = "crate::books::deserialize_some")]
     note: Option<Option<String>>,
+    /// Where the reader found a passage that came without a place (from a
+    /// device). Absent: unchanged.
+    cfi: Option<String>,
 }
 
-/// PUT /api/annotations/{id}: the note.
+/// PUT /api/annotations/{id}: the note, or the place.
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
@@ -160,10 +165,16 @@ pub async fn update(
         Some(note) => clean_note(note)?,
         None => current.note,
     };
-    sqlx::query("UPDATE annotations SET note = $1, updated_at = $2 WHERE id = $3")
+    let cfi = match req.cfi.map(|c| c.trim().to_string()) {
+        Some(c) if c.is_empty() || c.chars().count() > MAX_CFI_CHARS => return Err(unprocessable("cfi missing or too long")),
+        Some(c) => Some(c),
+        None => current.cfi,
+    };
+    sqlx::query("UPDATE annotations SET note = $1, cfi = $4, updated_at = $2 WHERE id = $3")
         .bind(&note)
         .bind(now_ts())
         .bind(id)
+        .bind(&cfi)
         .execute(&state.db)
         .await
         .map_err(internal)?;
