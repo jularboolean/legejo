@@ -78,6 +78,22 @@ export type BookDetail = Book & {
 	/** The books just before and after in the series, when you have them. */
 	previous_in_series: SeriesNeighbour | null;
 	next_in_series: SeriesNeighbour | null;
+	/** Highlights and notes the owner has made in the book. */
+	annotation_count: number;
+};
+
+/** A highlight in a book, with a note when it has one. */
+export type Annotation = {
+	id: number;
+	book_id: number;
+	source: 'web' | 'kobo';
+	/** Range CFI; null for a passage the reader has not placed. */
+	cfi: string | null;
+	text: string;
+	note: string | null;
+	color: string | null;
+	created_at: string;
+	updated_at: string;
 };
 
 export type SeriesNeighbour = {

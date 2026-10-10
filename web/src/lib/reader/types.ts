@@ -115,6 +115,21 @@ export type ReaderEngineOptions = {
 	 * iframes, so input handlers have to be attached here, per document.
 	 */
 	onContent?: (doc: Document) => void;
+	/** A highlight (see `ReaderEngine.setMarks`) was clicked or tapped. */
+	onMark?: (id: number) => void;
+};
+
+/** A passage of the book: where it is, and what it says. */
+export type Passage = {
+	/** Range CFI, to pass to `ReaderEngine.goTo` and to store. */
+	cfi: string;
+	text: string;
+};
+
+/** A highlight to draw on the page. */
+export type Mark = {
+	id: number;
+	cfi: string;
 };
 
 export type SearchHit = {
@@ -179,6 +194,16 @@ export interface ReaderEngine {
 	search(query: string, options: SearchOptions): Promise<boolean>;
 	/** Mark a passage (a search hit) on the page; null removes the mark. */
 	highlight(cfi: string | null): void;
+	/** The text selected in the chapter on screen, if any. */
+	selection(): Passage | null;
+	clearSelection(): void;
+	/**
+	 * The sentence under a point of the top window, for where the chapter
+	 * cannot be selected in (touch screens, WebKit). Null off the page.
+	 */
+	sentenceAt(x: number, y: number): Passage | null;
+	/** The highlights to show; those already shown are kept, the rest redrawn. */
+	setMarks(marks: Mark[]): void;
 	/**
 	 * The sentences of the chapter on screen, for reading aloud. `first` is
 	 * the first one on screen (the count when none is left). Null when no

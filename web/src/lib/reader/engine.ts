@@ -7,6 +7,8 @@ import type { Book, Contents, Location, NavItem, Rendition } from 'epubjs';
 import { ALIGN_MARK, contentCss, palettes } from './themes';
 import {
 	ReaderError,
+	type Mark,
+	type Passage,
 	type ReaderEngine,
 	type ReaderEngineOptions,
 	type ReaderLocation,
@@ -741,6 +743,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		});
 		rendition = created;
 		if (highlighted) mark(highlighted);
+		for (const m of marks) drawMark(m);
 	}
 
 	/**
@@ -775,6 +778,66 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 			el.setAttribute(ALIGN_MARK, '');
 		}
+	}
+
+	// ---- Highlights and notes -----------------------------------------------
+
+	/** What is drawn: the reader's highlights, by id. */
+	let marks: Mark[] = [];
+
+	function markStyle() {
+		return {
+			fill: '#f2c94c',
+			'fill-opacity': settings.theme === 'dark' ? '0.3' : '0.4',
+			'mix-blend-mode': settings.theme === 'dark' ? 'screen' : 'multiply'
+		};
+	}
+
+	function drawMark(m: Mark) {
+		try {
+			rendition?.annotations.highlight(m.cfi, { id: m.id }, () => options.onMark?.(m.id), 'legejo-mark', markStyle());
+		} catch {
+			// A passage the chapter no longer has; nothing to draw.
+		}
+	}
+
+	function eraseMark(m: Mark) {
+		try {
+			rendition?.annotations.remove(m.cfi, 'highlight');
+		} catch {
+			// Already gone with its page.
+		}
+	}
+
+	/** All chapters on screen (two in a spread). */
+	function allContents(): Contents[] {
+		return (rendition?.getContents() as unknown as Contents[]) ?? [];
+	}
+
+	/** The chapter whose frame is under a point of the top window, and the point in it. */
+	function contentsAt(x: number, y: number): { contents: Contents; x: number; y: number } | null {
+		for (const contents of allContents()) {
+			const frame = contents.document.defaultView?.frameElement;
+			if (!frame) continue;
+			const rect = frame.getBoundingClientRect();
+			if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
+			return { contents, x: x - rect.left, y: y - rect.top };
+		}
+		return null;
+	}
+
+	/** Where a point of a document falls in its text, in either browser dialect. */
+	function caretAt(doc: Document, x: number, y: number): { node: Node; offset: number } | null {
+		const d = doc as Document & {
+			caretRangeFromPoint?: (x: number, y: number) => Range | null;
+			caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+		};
+		if (d.caretPositionFromPoint) {
+			const at = d.caretPositionFromPoint(x, y);
+			return at ? { node: at.offsetNode, offset: at.offset } : null;
+		}
+		const range = d.caretRangeFromPoint?.(x, y);
+		return range ? { node: range.startContainer, offset: range.startOffset } : null;
 	}
 
 	// ---- Search highlight ---------------------------------------------------
@@ -1320,6 +1383,50 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			if (highlighted) unmark(highlighted);
 			highlighted = cfi;
 			if (cfi) mark(cfi);
+		},
+		selection(): Passage | null {
+			for (const contents of allContents()) {
+				const doc = contents.document;
+				const sel = doc.getSelection();
+				if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !doc.body) continue;
+				const range = sel.getRangeAt(0);
+				if (!doc.body.contains(range.commonAncestorContainer)) continue;
+				const text = range.toString().replace(/\s+/g, ' ').trim();
+				if (!text) continue;
+				try {
+					return { cfi: contents.cfiFromRange(range), text };
+				} catch {
+					return null;
+				}
+			}
+			return null;
+		},
+		clearSelection() {
+			for (const contents of allContents()) contents.document.getSelection()?.removeAllRanges();
+		},
+		sentenceAt(x, y): Passage | null {
+			const hit = contentsAt(x, y);
+			if (!hit) return null;
+			const doc = hit.contents.document;
+			const caret = caretAt(doc, hit.x, hit.y);
+			if (!caret || !doc.body?.contains(caret.node)) return null;
+			const language = doc.documentElement.lang || metadata.language || '';
+			for (const sentence of collectSpoken(doc, language)) {
+				try {
+					if (sentence.range.comparePoint(caret.node, caret.offset) !== 0) continue;
+					return { cfi: hit.contents.cfiFromRange(sentence.range), text: sentence.text };
+				} catch {
+					// A point outside this sentence's nodes.
+				}
+			}
+			return null;
+		},
+		setMarks(next) {
+			const keep = new Set(next.map((m) => m.id));
+			for (const m of marks) if (!keep.has(m.id)) eraseMark(m);
+			const shown = new Set(marks.map((m) => m.id));
+			for (const m of next) if (!shown.has(m.id)) drawMark(m);
+			marks = next.map((m) => ({ ...m }));
 		},
 		speechText(): SpeechText | null {
 			const contents = shownContents();

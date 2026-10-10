@@ -3,6 +3,7 @@
 
 mod account;
 mod admin;
+mod annotations;
 mod app_passwords;
 mod oidc;
 mod importdir;
@@ -66,6 +67,8 @@ mod librarian_tests;
 mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
+#[cfg(test)]
+mod annotation_tests;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
@@ -204,6 +207,9 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/want", axum::routing::put(books::set_want))
         .route("/books/{id}/kobo-restore", post(books::kobo_restore))
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
+        .route("/books/{id}/annotations", get(annotations::list).post(annotations::create))
+        .route("/books/{id}/annotations/export", get(annotations::export))
+        .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))
         .route("/search", get(search::search))
         .route("/librarian", post(librarian::ask))
         // A Kobo's annotation traffic, when the device uses the host alone

@@ -28,7 +28,14 @@ export type GestureHandlers = {
 	onPointer?: (point: { x: number; y: number }) => void;
 	/** The reader touched the content in a way that may scroll it. */
 	onActivity?: () => void;
+	/** The selection in a chapter document may have changed (it may be empty). */
+	onSelect?: () => void;
+	/** A finger or button held still on a point of the top window. */
+	onLongPress?: (point: { x: number; y: number }) => void;
 };
+
+const LONG_PRESS_MS = 550;
+const LONG_PRESS_SLOP_PX = 10;
 
 const SWIPE_MIN_PX = 45;
 const SWIPE_MAX_MS = 700;
@@ -55,6 +62,31 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 
 	let touch: { x: number; y: number; time: number } | null = null;
 	let lastSwipe = 0;
+	let press: { x: number; y: number; timer: number } | null = null;
+
+	// A long press: held still for a moment, on a touch screen or with a
+	// mouse button. The tap or swipe that would follow is then not one.
+	const pressEnd = () => {
+		if (press) window.clearTimeout(press.timer);
+		press = null;
+	};
+	const pressStart = (x: number, y: number) => {
+		pressEnd();
+		press = {
+			x,
+			y,
+			timer: window.setTimeout(() => {
+				press = null;
+				touch = null;
+				lastSwipe = Date.now();
+				const offset = frameOffset(doc);
+				handlers.onLongPress?.({ x: x + offset.x, y: y + offset.y });
+			}, LONG_PRESS_MS)
+		};
+	};
+	const pressMove = (x: number, y: number) => {
+		if (press && (Math.abs(x - press.x) > LONG_PRESS_SLOP_PX || Math.abs(y - press.y) > LONG_PRESS_SLOP_PX)) pressEnd();
+	};
 
 	const on = <K extends keyof DocumentEventMap>(
 		type: K,
@@ -90,9 +122,16 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	on('touchstart', (event) => {
 		const t = event.touches.length === 1 ? event.touches[0] : null;
 		touch = t ? { x: t.screenX, y: t.screenY, time: Date.now() } : null;
+		if (t && handlers.onLongPress) pressStart(t.clientX, t.clientY);
+		else pressEnd();
 	});
-	on('touchmove', () => handlers.onActivity?.());
+	on('touchmove', (event) => {
+		handlers.onActivity?.();
+		const t = event.touches[0];
+		if (t) pressMove(t.clientX, t.clientY);
+	});
 	on('touchend', (event) => {
+		pressEnd();
 		const start = touch;
 		touch = null;
 		const t = event.changedTouches[0];
@@ -106,7 +145,27 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		lastSwipe = Date.now();
 		handlers.onSwipe(dx < 0);
 	});
-	on('touchcancel', () => (touch = null));
+	on('touchcancel', () => {
+		pressEnd();
+		touch = null;
+	});
+	on('mousedown', (event) => {
+		if (event.button === 0 && handlers.onLongPress) pressStart(event.clientX, event.clientY);
+	});
+	on('mousemove', (event) => pressMove(event.clientX, event.clientY));
+	on('mouseup', () => pressEnd());
+
+	// A selection is made with the pointer or the keyboard; the reader asks
+	// what it is once the event has settled.
+	if (isDocument && handlers.onSelect) {
+		const settle = () => window.setTimeout(() => handlers.onSelect?.(), 0);
+		on('mouseup', settle);
+		on('touchend', settle);
+		on('keyup', (event) => {
+			if (event.shiftKey) settle();
+		});
+		on('selectionchange', settle);
+	}
 
 	// Mouse movement over the reader's own elements reaches its window anyway;
 	// only chapter documents need to pass it on.

@@ -103,6 +103,8 @@ pub struct BookDetail {
     /// series index; absent when there is none, or the book has no index.
     pub previous_in_series: Option<SeriesNeighbour>,
     pub next_in_series: Option<SeriesNeighbour>,
+    /// Highlights and notes the owner has made in the book.
+    pub annotation_count: i64,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -383,7 +385,8 @@ pub async fn get_one(
     let health = stored_health(&state, book.id).await;
     let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series }))
+    let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series, annotation_count }))
 }
 
 #[derive(serde::Deserialize)]
@@ -444,7 +447,7 @@ fn check_license(req: LicenseUpdate) -> Result<CheckedLicense, &'static str> {
 }
 
 /// Tells an absent field (None) from an explicit null (Some(None)).
-fn deserialize_some<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
+pub(crate) fn deserialize_some<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: serde::Deserialize<'de>,
@@ -718,7 +721,8 @@ pub async fn update(
     let health = stored_health(&state, book.id).await;
     let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series }))
+    let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
+    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series, annotation_count }))
 }
 
 #[derive(serde::Deserialize)]

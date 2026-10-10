@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ALargeSmall, ArrowLeft, Keyboard, List, Maximize, Minimize, Search, Volume2 } from '@lucide/svelte';
+	import { ALargeSmall, ArrowLeft, Highlighter, Keyboard, List, Maximize, Minimize, Search, Volume2 } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 
 	type Props = {
@@ -17,6 +17,9 @@
 		fullscreen: boolean | null;
 		onsearch: () => void;
 		ontoc: () => void;
+		onnotes: () => void;
+		/** How many highlights the book has; shown on the button. */
+		notes: number;
 		onsettings: () => void;
 		onfullscreen: () => void;
 		onhelp: () => void;
@@ -34,6 +37,8 @@
 		fullscreen,
 		onsearch,
 		ontoc,
+		onnotes,
+		notes,
 		onsettings,
 		onfullscreen,
 		onhelp,
@@ -67,6 +72,16 @@
 		title={`${t('reader.toc')} (T)`}
 	>
 		<List size={20} />
+	</button>
+	<button
+		class="r-icon notes"
+		onclick={onnotes}
+		disabled={!ready}
+		aria-label={t('reader.notes')}
+		title={`${t('reader.notes')} (N)`}
+	>
+		<Highlighter size={19} />
+		{#if notes > 0}<span class="count">{notes}</span>{/if}
 	</button>
 	{#if speaking !== null}
 		<button
@@ -150,6 +165,22 @@
 	p {
 		font-size: 0.78rem;
 		color: var(--r-muted);
+	}
+	.notes {
+		position: relative;
+	}
+	.count {
+		position: absolute;
+		top: 0.15rem;
+		right: 0.1rem;
+		min-width: 1rem;
+		padding: 0 0.25rem;
+		border-radius: 99px;
+		background: var(--r-link);
+		color: var(--r-surface);
+		font-size: 0.62rem;
+		line-height: 1rem;
+		text-align: center;
 	}
 	.keys {
 		display: none;

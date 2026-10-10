@@ -4,7 +4,8 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ChevronLeft, ChevronRight, ChevronsRight, TriangleAlert } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
-	import type { BookDetail } from '#lib/types';
+	import type { Annotation, BookDetail } from '#lib/types';
+	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { openReader } from './engine';
 	import {
 		attachGestures,
@@ -21,6 +22,7 @@
 		type ReaderEngine,
 		type ReaderErrorCode,
 		type ReaderLocation,
+		type Passage,
 		type ReaderSettings,
 		type SearchHit,
 		type TocItem
@@ -37,7 +39,9 @@
 		type SpeechPrefs,
 		type SpeechState
 	} from './speech';
+	import AnnotateBar from './AnnotateBar.svelte';
 	import HelpPanel from './HelpPanel.svelte';
+	import NotesPanel from './NotesPanel.svelte';
 	import SpeechBar from './SpeechBar.svelte';
 	import ProgressBar from './ProgressBar.svelte';
 	import ReaderToolbar from './ReaderToolbar.svelte';
@@ -51,7 +55,7 @@
 	const bookId = book.id;
 	const backHref = `/books/${bookId}`;
 
-	type Panel = 'toc' | 'settings' | 'search' | 'help';
+	type Panel = 'toc' | 'settings' | 'search' | 'help' | 'notes';
 
 	/** How long the toolbars stay after the book opens, in ms. */
 	const CHROME_INTRO_MS = 3500;
@@ -211,6 +215,7 @@
 		moved = true;
 		hideChrome();
 		clearHighlight();
+		if (pending || editing) dismissAnnotate();
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
 		(forward ? engine.next() : engine.prev()).then(() => slide(forward)).catch(() => {});
@@ -294,6 +299,141 @@
 		engine?.nextChapter().catch(() => {});
 	}
 
+	// ---- Highlights and notes -----------------------------------------------------
+
+	let annotations = $state.raw<Annotation[]>([]);
+	/** A passage waiting for an action: selected, or the sentence under a long press. */
+	let pending = $state<Passage | null>(null);
+	/** A highlight opened for its note, or for removal. */
+	let editing = $state<Annotation | null>(null);
+	let annotating = $state(false);
+	let annotateError = $state<string | null>(null);
+	let confirmDelete = $state(false);
+	const exportHref = `/api/books/${bookId}/annotations/export`;
+
+	async function loadAnnotations() {
+		try {
+			const res = await fetch(`/api/books/${bookId}/annotations`);
+			if (res.ok) annotations = await res.json();
+		} catch {
+			// The highlights wait for the next visit.
+		}
+	}
+
+	// What the page shows follows the list.
+	$effect(() => {
+		engine?.setMarks(annotations.filter((a) => a.cfi).map((a) => ({ id: a.id, cfi: a.cfi as string })));
+	});
+
+	function offerSelection() {
+		if (!engine || panel) return;
+		const passage = engine.selection();
+		if (passage) {
+			editing = null;
+			pending = passage;
+		} else if (pending && !editing) {
+			pending = null;
+		}
+	}
+
+	function offerSentence(point: { x: number; y: number }) {
+		if (!engine || panel) return;
+		const passage = engine.sentenceAt(point.x, point.y);
+		if (!passage) return;
+		editing = null;
+		pending = passage;
+		showChrome();
+	}
+
+	function openMark(id: number) {
+		const found = annotations.find((a) => a.id === id);
+		if (!found) return;
+		pending = null;
+		editing = found;
+		annotateError = null;
+		showChrome();
+	}
+
+	function dismissAnnotate() {
+		pending = null;
+		editing = null;
+		annotateError = null;
+		engine?.clearSelection();
+	}
+
+	async function saveHighlight(note: string | null) {
+		if (!pending || annotating) return;
+		annotating = true;
+		annotateError = null;
+		try {
+			const res = await fetch(`/api/books/${bookId}/annotations`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ cfi: pending.cfi, text: pending.text, note })
+			});
+			if (!res.ok) throw new Error(String(res.status));
+			const made: Annotation = await res.json();
+			annotations = [...annotations, made];
+			dismissAnnotate();
+			showToast(t('reader.notes.saved'));
+		} catch {
+			annotateError = t('edit.saveFailed');
+		} finally {
+			annotating = false;
+		}
+	}
+
+	async function saveNote(note: string | null) {
+		if (!editing || annotating) return;
+		annotating = true;
+		annotateError = null;
+		try {
+			const res = await fetch(`/api/annotations/${editing.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ note })
+			});
+			if (!res.ok) throw new Error(String(res.status));
+			const changed: Annotation = await res.json();
+			annotations = annotations.map((a) => (a.id === changed.id ? changed : a));
+			dismissAnnotate();
+		} catch {
+			annotateError = t('edit.saveFailed');
+		} finally {
+			annotating = false;
+		}
+	}
+
+	async function deleteAnnotation() {
+		confirmDelete = false;
+		if (!editing || annotating) return;
+		const target = editing;
+		annotating = true;
+		try {
+			const res = await fetch(`/api/annotations/${target.id}`, { method: 'DELETE' });
+			if (!res.ok && res.status !== 404) throw new Error(String(res.status));
+			annotations = annotations.filter((a) => a.id !== target.id);
+			dismissAnnotate();
+		} catch {
+			annotateError = t('edit.saveFailed');
+		} finally {
+			annotating = false;
+		}
+	}
+
+	async function goToAnnotation(a: Annotation) {
+		if (!a.cfi) return;
+		leaving();
+		clearHighlight();
+		engine?.goTo(a.cfi).catch(() => {});
+		await closePanel();
+	}
+
+	async function editAnnotation(a: Annotation) {
+		await closePanel();
+		openMark(a.id);
+	}
+
 	// ---- Input ------------------------------------------------------------------
 
 	let wheelAt = 0;
@@ -318,6 +458,8 @@
 		onKey: handleKey,
 		onLink: leaving,
 		onPointer: pointerAt,
+		onSelect: offerSelection,
+		onLongPress: offerSentence,
 		onWheel(deltaY) {
 			// One page per wheel gesture; trackpads keep sending events while coasting.
 			if (!paginated || Math.abs(deltaY) < 20 || Date.now() - wheelAt < 450) return;
@@ -377,6 +519,10 @@
 			case 's':
 			case 'S':
 				togglePanel('settings');
+				return true;
+			case 'n':
+			case 'N':
+				togglePanel('notes');
 				return true;
 			case '/':
 				togglePanel('search');
@@ -472,7 +618,8 @@
 	// ---- Panels, settings, fullscreen ---------------------------------------------
 
 	function openPanel(next: Panel) {
-		if ((next === 'toc' || next === 'search') && !engine) return;
+		if ((next === 'toc' || next === 'search' || next === 'notes') && !engine) return;
+		if (next === 'notes') dismissAnnotate();
 		panel = next;
 	}
 
@@ -605,13 +752,15 @@
 					if (shield) return;
 					if (forceShield || !frameEventsWork(doc)) shield = true;
 					else attachGestures(doc, gestures);
-				}
+				},
+				onMark: openMark
 			});
 			if (closed) {
 				opened.destroy();
 				return;
 			}
 			engine = opened;
+			loadAnnotations();
 			toc = opened.toc;
 			location = opened.location;
 			locationsReady = opened.locationsReady;
@@ -745,6 +894,8 @@
 		{fullscreen}
 		onsearch={() => openPanel('search')}
 		ontoc={() => openPanel('toc')}
+		onnotes={() => openPanel('notes')}
+		notes={annotations.length}
 		onsettings={() => openPanel('settings')}
 		onfullscreen={toggleFullscreen}
 		onhelp={() => openPanel('help')}
@@ -790,6 +941,21 @@
 
 	{#if toast}
 		<div class="pill toast" class:lifted={speechState !== 'off'} role="status">{toast}</div>
+	{/if}
+
+	{#if (pending || editing) && speechState === 'off'}
+		<AnnotateBar
+			text={editing ? editing.text : (pending?.text ?? '')}
+			note={editing ? editing.note : null}
+			editing={editing !== null}
+			saving={annotating}
+			error={annotateError}
+			raised={chromeVisible}
+			onhighlight={saveHighlight}
+			onsave={saveNote}
+			ondelete={() => (confirmDelete = true)}
+			oncancel={dismissAnnotate}
+		/>
 	{/if}
 
 	{#if speechState !== 'off'}
@@ -880,6 +1046,24 @@
 		onclose={closePanel}
 	/>
 	<HelpPanel open={panel === 'help'} fullscreen={fullscreen !== null} speech={canSpeak} onclose={closePanel} />
+	<NotesPanel
+		open={panel === 'notes'}
+		{annotations}
+		{exportHref}
+		onselect={goToAnnotation}
+		onedit={editAnnotation}
+		onclose={closePanel}
+	/>
+	<ConfirmDialog
+		open={confirmDelete}
+		title={t('reader.notes.delete')}
+		message={t('reader.notes.deleteConfirm')}
+		confirmLabel={t('reader.notes.delete')}
+		cancelLabel={t('common.cancel')}
+		danger
+		onconfirm={deleteAnnotation}
+		oncancel={() => (confirmDelete = false)}
+	/>
 </div>
 
 <style>

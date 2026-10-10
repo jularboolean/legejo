@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, Download, FileWarning, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, Download, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
@@ -214,6 +214,14 @@
 							{/if}
 						</p>
 					{/if}
+				{/if}
+				{#if book.annotation_count > 0}
+					<p class="notes">
+						<Highlighter size={13} />
+						{book.annotation_count === 1 ? t('book.annotationsOne') : t('book.annotations', { count: book.annotation_count })}
+						·
+						<a href={`/api/books/${book.id}/annotations/export`} download>{t('book.annotationsExport')}</a>
+					</p>
 				{/if}
 				<div class="rating"><Rating value={rating} onchange={rate} /></div>
 			</div>
@@ -535,6 +543,14 @@
 		align-items: center;
 		gap: 0.35rem;
 		color: var(--gold);
+	}
+	.notes {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin: 0.3rem 0 0;
+		font-size: 0.85rem;
+		color: var(--muted);
 	}
 	.series-nav {
 		display: flex;

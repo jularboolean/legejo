@@ -21,6 +21,7 @@
 		{ keys: ['T'], label: 'reader.help.toc' },
 		{ keys: ['/'], label: 'reader.help.search' },
 		{ keys: ['S'], label: 'reader.help.settings' },
+		{ keys: ['N'], label: 'reader.help.notes' },
 		...(speech ? [{ keys: ['L'], label: 'reader.help.speech' } as Shortcut] : []),
 		{ keys: ['+', '−'], label: 'reader.help.size' },
 		...(fullscreen ? [{ keys: ['F'], label: 'reader.help.fullscreen' } as Shortcut] : []),
@@ -41,6 +42,7 @@
 		{/each}
 	</dl>
 	<p>{t('reader.help.pointer')}</p>
+	<p>{t('reader.help.select')}</p>
 </Sheet>
 
 <style>
