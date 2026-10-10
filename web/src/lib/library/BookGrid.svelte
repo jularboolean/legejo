@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, Download } from '@lucide/svelte';
+	import { Check } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { languageName } from '#lib/library';
 	import type { Book } from '#lib/types';
@@ -58,14 +58,6 @@
 					<span class="author">{languageName(book.language, getLocale())}</span>
 				{/if}
 			</div>
-			<a
-				class="download"
-				href={`/api/books/${book.id}/file`}
-				title={t('home.download')}
-				aria-label={t('home.download')}
-			>
-				<Download size={13} />
-			</a>
 		</div>
 	{/each}
 </div>
@@ -181,26 +173,5 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-	.download {
-		position: absolute;
-		top: 0.35rem;
-		right: 0.35rem;
-		display: inline-flex;
-		padding: 0.3rem;
-		border-radius: 6px;
-		border: 1px solid var(--border);
-		background: var(--bg);
-		color: var(--muted);
-		opacity: 0;
-		transition: opacity 0.15s;
-	}
-	.download:hover {
-		color: var(--fg);
-		border-color: var(--muted);
-	}
-	.card:hover .download,
-	.download:focus-visible {
-		opacity: 1;
 	}
 </style>

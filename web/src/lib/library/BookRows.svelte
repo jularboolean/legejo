@@ -320,16 +320,23 @@
 		padding: 0.3rem;
 		border-radius: 6px;
 		color: var(--muted);
-		opacity: 0;
-		transition: opacity 0.12s;
 	}
-	.download:hover {
-		color: var(--fg);
-		background: var(--bg);
-	}
-	.row:hover .download,
-	.download:focus-visible {
-		opacity: 1;
+	/* Hidden until the row is hovered, but only where hovering exists: on a
+	   touch screen the first tap would reveal the icon instead of opening
+	   the book, so there it is simply always there. */
+	@media (hover: hover) {
+		.download {
+			opacity: 0;
+			transition: opacity 0.12s;
+		}
+		.download:hover {
+			color: var(--fg);
+			background: var(--bg);
+		}
+		.row:hover .download,
+		.download:focus-visible {
+			opacity: 1;
+		}
 	}
 	@media (max-width: 40rem) {
 		.row {
