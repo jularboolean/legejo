@@ -1,0 +1,46 @@
+name: Preview image
+
+# A throwaway image of any branch, for trying a change on an instance of
+# one's own without a release: no version bump, no changelog entry, no
+# release on GitHub and nothing on Docker Hub. Started by hand, from the
+# Actions tab or with `gh workflow run preview.yml --ref <branch>`, it
+# builds linux/amd64 and pushes to a private registry named in the
+# repository's secrets, tagged preview-<branch> and preview-<branch>-<sha>.
+#
+# Secrets: PREVIEW_REGISTRY (the host to log in to), PREVIEW_IMAGE (the
+# image name with the host, e.g. registry.example.org/me/legejo),
+# PREVIEW_REGISTRY_USER and PREVIEW_REGISTRY_TOKEN.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.PREVIEW_REGISTRY }}
+          username: ${{ secrets.PREVIEW_REGISTRY_USER }}
+          password: ${{ secrets.PREVIEW_REGISTRY_TOKEN }}
+      # The branch as a tag: lower case, slashes to dashes.
+      - id: names
+        run: |
+          branch="${GITHUB_REF_NAME//\//-}"
+          echo "branch=${branch,,}" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.PREVIEW_IMAGE }}:preview-${{ steps.names.outputs.branch }}
+            ${{ secrets.PREVIEW_IMAGE }}:preview-${{ steps.names.outputs.branch }}-${{ steps.names.outputs.sha }}
+          # The same cache as the release build, so a preview of a branch
+          # that differs little from the last release is quick.
+          cache-from: type=gha,scope=linux/amd64
+          cache-to: type=gha,scope=linux/amd64,mode=max
+      - run: echo "Pushed preview-${{ steps.names.outputs.branch }}-${{ steps.names.outputs.sha }}"
