@@ -4,6 +4,18 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.3 (2026-10-10)
+
+- **Groundwork for syncing highlights from a Kobo.** With
+  `LEGEJO_KOBO_ANNOTATIONS_LOG=true`, a Kobo is told to send its highlights
+  and notes to Legejo, which logs what arrives and stores none of it. This
+  is for finding out what the device sends; it does nothing unless the
+  variable is set, and nothing is kept either way.
+- The web app's dependency `@xmldom/xmldom` is held at a version without
+  known vulnerabilities. It is only used by the reader in a browser without
+  `DOMParser`, which none is.
+- **Upgrading:** nothing to do.
+
 ## 1.14.2 (2026-10-10)
 
 - **Is there a newer Legejo?** The admin page has a button that asks
