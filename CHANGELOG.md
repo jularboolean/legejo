@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.5 (2026-10-10)
+
+- The Kobo groundwork from 1.14.3 names its key the way the device spells
+  it (`reading_services_host`); the earlier spelling was ignored. Each call
+  is answered with the empty shape the device expects, so a sync is never
+  aborted by it. Still off unless `LEGEJO_KOBO_ANNOTATIONS_LOG` is set.
+
 ## 1.14.4 (2026-10-10)
 
 - The Kobo groundwork from 1.14.3 names the server by its host alone, which
