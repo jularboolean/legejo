@@ -32,7 +32,7 @@
 		"@fontsource/fraunces": "^5.3.0",
 		"@lucide/svelte": "^1.49.0",
 		"dompurify": "^3.4.16",
-		"epubjs": "^0.3.93",
+		"epubjs": "^0.4.2",
 		"marked": "^18.0.14"
 	}
 }
