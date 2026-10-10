@@ -97,6 +97,7 @@ own, and each file is one part.
 
 **Reading**
 - A web reader with themes, font settings and saved position.
+- Highlights and notes in the web reader, listed in a panel and exported as Markdown. With a Kobo they sync both ways, once an admin turns that on.
 - Legejo can be added to the home screen of a phone or tablet, where it opens as an app of its own.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics.

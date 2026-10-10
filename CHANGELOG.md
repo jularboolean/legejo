@@ -4,6 +4,36 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.15.0 (2026-10-10)
+
+- **Highlights and notes in the reader.** Select a passage and keep it,
+  with a note if you like. A panel (key `N`) lists them, jumps to each and
+  exports them as Markdown; the book page says how many a book has. Where
+  text cannot be selected (Safari, and the app on iPhone, iPad and Mac),
+  drag with the mouse or hold a finger on a sentence. A tap on a highlight
+  opens it, and with a mouse its note shows beside the pointer.
+- **Highlights sync with a Kobo, both ways.** An admin turns it on under
+  Settings ("Highlights from Kobo e-readers"); it is off by default. What
+  you highlight and note on the device then lands in Legejo, placed in the
+  book; what you highlight in the web reader, and notes you change there,
+  reach the device at its next sync. Removing one removes it on the other
+  side too. Good to know:
+  - It has been tried on one device, a Kobo Clara 2E with firmware 4.38.
+  - With the setting on, the device sends its highlights to Legejo instead
+    of to Kobo, for all its books. Those of books bought from Kobo are not
+    taken in and no longer reach Kobo, and a device that holds such books
+    has not been tried: leave the setting off if yours does.
+  - Highlights already on the device before the setting was turned on are
+    not sent, unless they are changed on the device.
+  - The device must sync once after the setting is turned on before its
+    highlights are taken in.
+- The panel with keyboard shortcuts in the reader opens in Safari, where it
+  had no height.
+- `LEGEJO_KOBO_ANNOTATIONS_LOG`, the groundwork in 1.14.3 to 1.14.5, is
+  gone; the setting above replaces it.
+- **Upgrading:** nothing to do. The database gains three tables and a
+  column on first start.
+
 ## 1.14.5 (2026-10-10)
 
 - The Kobo groundwork from 1.14.3 names its key the way the device spells
