@@ -34,5 +34,8 @@
 		"dompurify": "^3.4.16",
 		"epubjs": "^0.3.93",
 		"marked": "^18.0.14"
+	},
+	"overrides": {
+		"@xmldom/xmldom": "0.8.15"
 	}
 }
