@@ -272,3 +272,90 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), OTHER_DEVICE, None).await;
     assert_eq!(v["annotations"].as_array().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn a_highlight_made_in_the_web_reader_goes_to_the_device_placed_by_kepub_spans() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    turn_on(&app, &db, &a).await;
+    let token = kobo_token(&app, &a).await;
+    let (book, content) = add_kobo_book(&db, alice, "Alice", "5f1c2a9d3b4e4c6f8a7b9c0d1e2f3a4b").await;
+    // The KEPUB the device reads, as kepubify leaves it in the cache.
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join("5f1c2a9d3b4e4c6f8a7b9c0d1e2f3a4b.kepub.epub"), crate::kobospan::sample_kepub()).await.unwrap();
+    let uri = format!("/api/v3/content/{content}/annotations");
+    let asks = json!([{ "ContentId": content, "etag": "W/\"0\"" }]);
+    from_device(&app, Method::GET, &format!("/api/kobo/{token}/v1/user/profile"), DEVICE, None).await;
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert_eq!(v["annotations"].as_array().unwrap().len(), 0);
+
+    // A note made in the web reader: the device is told the book changed, and finds it placed by spans.
+    let made = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/2,/1:15,/1:25)", "text": "said  Alice", "note": "Hon svarar" });
+    let (status, v) = send(&app, Method::POST, &format!("/api/books/{book}/annotations"), Some(&a), Some(made.clone())).await;
+    assert!(status.is_success(), "{status} {v}");
+    let web_id = v["id"].as_i64().unwrap();
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]));
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    let served = v["annotations"][0].clone();
+    assert_eq!(v["annotations"].as_array().unwrap().len(), 1, "{v}");
+    assert_eq!(served["highlightedText"], "said Alice");
+    assert_eq!(served["noteText"], "Hon svarar");
+    assert_eq!(served["type"], "note");
+    assert_eq!(served["location"]["span"]["chapterFilename"], "OEBPS/xhtml/ch1.xhtml");
+    assert_eq!(served["location"]["span"]["startPath"], "span#kobo\\.4\\.1");
+    assert_eq!(served["location"]["span"]["startChar"], 15);
+    assert_eq!(served["location"]["span"]["endPath"], "span#kobo\\.4\\.1");
+    assert_eq!(served["location"]["span"]["endChar"], 25);
+    assert_eq!(served["location"]["span"]["chapterTitle"], "Chapter X: The Lobster Quadrille");
+    let kobo_id = served["id"].as_str().unwrap().to_string();
+    assert_eq!((kobo_id.len(), kobo_id.matches('-').count()), (36, 4), "{kobo_id}");
+    assert_eq!(served["clientLastModifiedUtc"].as_str().unwrap().len(), "2026-10-10T17:22:10Z".len());
+    assert_eq!(served["attachments"], json!({}));
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([]));
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list[0]["source"], "web", "still the web's own");
+    assert_eq!(list[0]["cfi"], made["cfi"]);
+
+    // The device hands it back as served: nothing changes.
+    let (status, _) = from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([served]), json!([])))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([]));
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!((list.as_array().unwrap().len(), list[0]["note"].as_str()), (1, Some("Hon svarar")));
+
+    // Removed on the device: removed here.
+    from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([]), json!([kobo_id])))).await;
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 0);
+    let (status, _) = send(&app, Method::GET, &format!("/api/annotations/{web_id}"), Some(&a), None).await;
+    assert_ne!(status, StatusCode::OK);
+
+    // Made again, then removed in the web: the device is told, and finds none.
+    let (_, v) = send(&app, Method::POST, &format!("/api/books/{book}/annotations"), Some(&a), Some(made)).await;
+    let web_id = v["id"].as_i64().unwrap();
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]));
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert_eq!(v["annotations"].as_array().unwrap().len(), 1);
+    let (status, _) = send(&app, Method::DELETE, &format!("/api/annotations/{web_id}"), Some(&a), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]));
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert_eq!(v["annotations"].as_array().unwrap().len(), 0);
+
+    // One whose text is not in the KEPUB stays with the web alone.
+    let elsewhere = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/2,/1:0,/1:5)", "text": "not in the book" });
+    let (status, _) = send(&app, Method::POST, &format!("/api/books/{book}/annotations"), Some(&a), Some(elsewhere)).await;
+    assert!(status.is_success());
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks)).await;
+    assert_eq!(changed, json!([]));
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert_eq!(v["annotations"].as_array().unwrap().len(), 0);
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+}

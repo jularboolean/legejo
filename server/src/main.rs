@@ -67,6 +67,7 @@ mod librarian_tests;
 mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
+mod kobospan;
 #[cfg(test)]
 mod annotation_tests;
 

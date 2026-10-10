@@ -149,6 +149,13 @@ fn attribute(tag: &str, name: &str) -> Option<String> {
     None
 }
 
+/// Text with its character references decoded.
+pub(crate) fn decode_entities(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    push_text(&mut out, text);
+    out
+}
+
 /// Append text with character references decoded.
 fn push_text(out: &mut String, text: &str) {
     let mut rest = text;

@@ -464,7 +464,7 @@ fn served(kobo_json: &str, note: Option<&str>, updated_at: &str) -> Option<Value
     let obj = v.as_object_mut()?;
     let sent_note = obj.get("noteText").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty()).map(str::to_string);
     if sent_note.as_deref() != note {
-        obj.insert("clientLastModifiedUtc".into(), json!(updated_at));
+        obj.insert("clientLastModifiedUtc".into(), json!(device_dated(updated_at)));
     }
     match note {
         Some(n) => {
@@ -482,6 +482,78 @@ fn served(kobo_json: &str, note: Option<&str>, updated_at: &str) -> Option<Value
     obj.entry("attachments").or_insert_with(|| json!({}));
     obj.entry("context").or_insert(Value::Null);
     Some(v)
+}
+
+/// A time of ours as the device writes its own: to the second.
+fn device_dated(ts: &str) -> String {
+    match ts.split_once('.') {
+        Some((whole, _)) => format!("{whole}Z"),
+        None => ts.to_string(),
+    }
+}
+
+/// Highlights made in the web reader, placed in the KEPUB the device reads,
+/// so that the device gets them too. Each gets an id of its own and the
+/// shape the device uses, kept the way the device's own are (`kobo_json`).
+/// One that cannot be found in the KEPUB stays as it is, and is tried again.
+async fn place_web_highlights(state: &AppState, user_id: i64, book_id: i64) {
+    let waiting: Vec<(i64, String, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT id, cfi, text, note, updated_at FROM annotations
+         WHERE book_id = $1 AND user_id = $2 AND kobo_json IS NULL AND cfi IS NOT NULL ORDER BY id",
+    )
+    .bind(book_id)
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+    if waiting.is_empty() {
+        return;
+    }
+    let uuid: Option<String> = sqlx::query_scalar("SELECT uuid FROM books WHERE id = $1").bind(book_id).fetch_optional(&state.db).await.ok().flatten();
+    let Some(uuid) = uuid else { return };
+    let Some(kepub) = ensure_kepub(state, &uuid).await else { return };
+    let Ok(bytes) = tokio::fs::read(&kepub).await else { return };
+    let bytes = std::sync::Arc::new(bytes);
+    let mut placed = 0;
+    for (id, cfi, text, note, updated_at) in waiting {
+        let (bytes, cfi, text) = (bytes.clone(), cfi, text);
+        let found = tokio::task::spawn_blocking(move || crate::kobospan::place(&bytes, &cfi, &text)).await;
+        let found = match found {
+            Ok(Ok(Some(found))) => found,
+            Ok(Ok(None)) => continue,
+            Ok(Err(e)) => {
+                tracing::warn!("kobo: could not read the kepub of book {book_id} to place highlights: {e:#}");
+                return;
+            }
+            Err(_) => return,
+        };
+        let kobo_id = dashed(&random_hex());
+        let mut a = json!({
+            "id": kobo_id,
+            "type": if note.is_some() { "note" } else { "highlight" },
+            "clientLastModifiedUtc": device_dated(&updated_at),
+            "highlightedText": found.text,
+            "location": found.location(),
+            "attachments": {},
+            "context": null,
+        });
+        if let Some(note) = &note {
+            a["noteText"] = json!(note);
+        }
+        let done = sqlx::query("UPDATE annotations SET kobo_id = $1, kobo_json = $2 WHERE id = $3 AND kobo_json IS NULL")
+            .bind(&kobo_id)
+            .bind(a.to_string())
+            .bind(id)
+            .execute(&state.db)
+            .await;
+        match done {
+            Ok(_) => placed += 1,
+            Err(e) => tracing::warn!("kobo: could not keep the place of highlight {id}: {e}"),
+        }
+    }
+    if placed > 0 {
+        tracing::info!("kobo: {placed} highlights from the web placed in the kepub of book {book_id} for the device");
+    }
 }
 
 /// When the device last changed a highlight, by its own clock, as it wrote it.
@@ -519,6 +591,7 @@ async fn highlights_body(state: &AppState, user_id: i64, book_id: i64) -> Result
 /// The book's highlights and notes that came from a device, for the device,
 /// which is noted as having been handed this answer.
 async fn serve_highlights(state: &AppState, device_id: &str, user_id: i64, book_id: i64) -> Response {
+    place_web_highlights(state, user_id, book_id).await;
     let (body, etag, _) = match highlights_body(state, user_id, book_id).await {
         Ok(answer) => answer,
         Err(e) => {
@@ -560,6 +633,7 @@ async fn changed_books(state: &AppState, device_id: &str, user_id: i64, body: &[
     let mut changed = Vec::new();
     for content in asked.iter().take(1000) {
         let Some(book_id) = book_of(state, user_id, content).await else { continue };
+        place_web_highlights(state, user_id, book_id).await;
         let Ok((_, etag, count)) = highlights_body(state, user_id, book_id).await else { continue };
         let handed: Option<String> = sqlx::query_scalar("SELECT etag FROM kobo_served WHERE device_id = $1 AND book_id = $2")
             .bind(device_id)
@@ -1463,12 +1537,12 @@ async fn ensure_comic(state: &AppState, book: &Book) -> Option<std::path::PathBu
 /// Convert to kepub with the external `kepubify` binary, caching the result.
 /// Returns None (fall back to plain epub) when conversion is unavailable or fails.
 async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
-    let bin = state.kepubify.as_ref()?;
     let out_dir = state.data_dir.join("kepub");
     let out = out_dir.join(format!("{uuid}.kepub.epub"));
     if tokio::fs::try_exists(&out).await.unwrap_or(false) {
         return Some(out);
     }
+    let bin = state.kepubify.as_ref()?;
     tokio::fs::create_dir_all(&out_dir).await.ok()?;
     let src = state.data_dir.join("books").join(format!("{uuid}.epub"));
     let result = tokio::process::Command::new(bin)
