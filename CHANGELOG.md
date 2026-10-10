@@ -4,6 +4,12 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.4 (2026-10-10)
+
+- The Kobo groundwork from 1.14.3 names the server by its host alone, which
+  is the form the device accepts. Still off unless
+  `LEGEJO_KOBO_ANNOTATIONS_LOG` is set, and still nothing is stored.
+
 ## 1.14.3 (2026-10-10)
 
 - **Groundwork for syncing highlights from a Kobo.** With
