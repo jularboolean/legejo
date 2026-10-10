@@ -126,14 +126,15 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     assert_eq!(status, StatusCode::OK);
     assert_eq!(known().await.unwrap(), Some((alice, Some("Kobo Clara 2E".into()))));
 
-    // Nothing yet: an empty list in the device's shape, with an ETag.
+    // Nothing yet: nothing has changed, and an empty list in the device's shape, with an ETag.
+    let asks = json!([{ "ContentId": content, "etag": "W/\"0\"" }, { "ContentId": bobs_content, "etag": "W/\"0\"" }]);
+    let (status, v) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!((status, v), (StatusCode::OK, json!([])));
     let (status, headers, v) = from_device_full(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert_eq!((status, &v), (StatusCode::OK, &json!({ "annotations": [], "nextPageOffsetToken": null })));
     let etag_of_none = headers.get(header::ETAG).unwrap().to_str().unwrap().to_string();
     assert!(etag_of_none.starts_with('"'), "{etag_of_none}");
     // The other paths answer with what the device takes as "nothing here".
-    let (status, v) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(json!([{ "ContentId": content, "etag": "W/\"0\"" }]))).await;
-    assert_eq!((status, v), (StatusCode::OK, json!([])));
     let (status, v) = from_device(&app, Method::GET, "/api/internal/notebooks", DEVICE, None).await;
     assert_eq!((status, v), (StatusCode::OK, json!({ "data": [], "totalResults": 0 })));
     let (status, v) = from_device(&app, Method::GET, "/api/UserStorage/Metadata", DEVICE, None).await;
@@ -152,9 +153,14 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     assert_eq!(list[1]["note"], "Mo0s");
     assert_eq!(list[1]["text"], "Smooth");
 
+    // The book has changed since the device was last handed its list; once handed, no longer.
+    let (_, v) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(v, json!([content]));
     // Asked for, they come back as sent: the device then keeps them.
     let (status, headers, v) = from_device_full(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert_eq!(status, StatusCode::OK);
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([]));
     assert_ne!(headers.get(header::ETAG).unwrap().to_str().unwrap(), etag_of_none);
     let back = v["annotations"].as_array().unwrap();
     assert_eq!(back.len(), 2, "{v}");
@@ -171,30 +177,53 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     assert_eq!(back[1]["type"], "note");
     assert!(v["nextPageOffsetToken"].is_null());
 
-    // A note written here goes back with a later time; one removed here goes back without.
+    // A note written here: the book is reported as changed, and the note goes back with a later time.
     let web_id = list[0]["id"].as_i64().unwrap();
     let (status, v) = send(&app, Method::PUT, &format!("/api/annotations/{web_id}"), Some(&a), Some(json!({ "note": "Blinkar" }))).await;
     assert_eq!(status, StatusCode::OK, "{v}");
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]));
     let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert_eq!(v["annotations"][0]["noteText"], "Blinkar");
     assert_eq!(v["annotations"][0]["type"], "note");
-    assert_ne!(v["annotations"][0]["clientLastModifiedUtc"], "2026-10-10T15:43:14Z");
+    let served_time = v["annotations"][0]["clientLastModifiedUtc"].as_str().unwrap().to_string();
+    assert_ne!(served_time, "2026-10-10T15:43:14Z");
+    // The device hands back its old copy, not yet brought up to date: the note here stands.
+    let (status, _) = from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([highlight()]), json!([])))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list[0]["note"], "Blinkar");
+    // The device hands back what it was served: nothing changes, and the exchange settles.
+    let mut echo = highlight();
+    echo["noteText"] = json!("Blinkar");
+    echo["type"] = json!("note");
+    echo["clientLastModifiedUtc"] = json!(served_time);
+    from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([echo]), json!([])))).await;
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([]));
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert_eq!(v["annotations"][0]["noteText"], "Blinkar");
+    assert_eq!(v["annotations"][0]["clientLastModifiedUtc"], served_time);
+    // One removed here goes back without.
     let (status, v) = send(&app, Method::PUT, &format!("/api/annotations/{web_id}"), Some(&a), Some(json!({ "note": null }))).await;
     assert_eq!(status, StatusCode::OK, "{v}");
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]));
     let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert!(v["annotations"][0].get("noteText").is_none(), "{v}");
     assert_eq!(v["annotations"][0]["type"], "highlight");
 
-    // The same note again, changed on the device: one row, updated.
+    // The same note again, changed on the device, dated anew by it: one row, updated.
     let mut changed = note();
     changed["noteText"] = json!("Moose");
+    changed["clientLastModifiedUtc"] = json!("2026-10-10T15:50:00Z");
     from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([changed.clone()]), json!([])))).await;
     let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
     assert_eq!(list.as_array().unwrap().len(), 2);
     assert_eq!(list[1]["note"], "Moose");
     let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert_eq!(v["annotations"][1]["noteText"], "Moose");
-    assert_eq!(v["annotations"][1]["clientLastModifiedUtc"], "2026-10-10T15:43:26Z", "as the device dated it");
+    assert_eq!(v["annotations"][1]["clientLastModifiedUtc"], "2026-10-10T15:50:00Z", "as the device dated it");
 
     // The reader places it; the place stays through the next update from the device.
     let placed = list[1]["id"].as_i64().unwrap();
@@ -213,8 +242,12 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     assert_eq!(list[0]["text"], "Smooth");
     let (status, _) = send(&app, Method::DELETE, &format!("/api/annotations/{placed}"), Some(&a), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([content]), "gone here: the device is to fetch and find none");
     let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
     assert_eq!(v, json!({ "annotations": [], "nextPageOffsetToken": null }));
+    let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;
+    assert_eq!(changed, json!([]));
 
     // A device nobody has synced with is told to come back, so that it keeps what it has.
     let (status, _) = from_device(&app, Method::PATCH, &uri, "unknown-device", Some(patch(json!([highlight()]), json!([])))).await;

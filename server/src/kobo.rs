@@ -392,15 +392,16 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
             l.to_string()
         });
         let kobo_json = raw.to_string();
-        let existing: Option<(i64, String, Option<String>)> = sqlx::query_as("SELECT id, text, note FROM annotations WHERE user_id = $1 AND kobo_id = $2")
-            .bind(user_id)
-            .bind(&a.id)
-            .fetch_optional(&state.db)
-            .await?;
+        let existing: Option<(i64, String, Option<String>, Option<String>)> =
+            sqlx::query_as("SELECT id, text, note, kobo_json FROM annotations WHERE user_id = $1 AND kobo_id = $2")
+                .bind(user_id)
+                .bind(&a.id)
+                .fetch_optional(&state.db)
+                .await?;
         match existing {
             // The same again (the device hands back what it was served) is
             // no change: the time stays, and the exchange settles.
-            Some((id, old_text, old_note)) if old_text == text && old_note == note => {
+            Some((id, old_text, old_note, _)) if old_text == text && old_note == note => {
                 sqlx::query("UPDATE annotations SET location = COALESCE($1, location), kobo_json = $2 WHERE id = $3")
                     .bind(&location)
                     .bind(&kobo_json)
@@ -408,7 +409,12 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
                     .execute(&state.db)
                     .await?;
             }
-            Some((id, _, _)) => {
+            // Dated by the device as before, while it differs here: a copy
+            // the device has not yet brought up to date. What is here stands.
+            Some((id, _, _, Some(before))) if device_time(&before).is_some() && device_time(&before) == device_time(&kobo_json) => {
+                tracing::info!("kobo: highlight {id} came back as it was before; the newer note here stands");
+            }
+            Some((id, _, _, _)) => {
                 sqlx::query("UPDATE annotations SET text = $1, note = $2, location = COALESCE($3, location), kobo_json = $4, updated_at = $5 WHERE id = $6")
                     .bind(&text)
                     .bind(&note)
@@ -478,26 +484,102 @@ fn served(kobo_json: &str, note: Option<&str>, updated_at: &str) -> Option<Value
     Some(v)
 }
 
-/// The book's highlights and notes that came from a device, for the device.
-async fn serve_highlights(state: &AppState, user_id: i64, book_id: i64) -> Response {
-    let rows: Result<Vec<(String, Option<String>, String)>, sqlx::Error> =
+/// When the device last changed a highlight, by its own clock, as it wrote it.
+fn device_time(kobo_json: &str) -> Option<String> {
+    serde_json::from_str::<Value>(kobo_json).ok()?.get("clientLastModifiedUtc")?.as_str().map(str::to_string)
+}
+
+/// The user's book with this uuid, as the device writes it (with dashes).
+async fn book_of(state: &AppState, user_id: i64, content: &str) -> Option<i64> {
+    sqlx::query_scalar("SELECT id FROM books WHERE uuid = $1 AND owner_id = $2")
+        .bind(content.replace('-', ""))
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// The answer for a book's highlights: the body, its ETag, and how many.
+async fn highlights_body(state: &AppState, user_id: i64, book_id: i64) -> Result<(String, String, usize), sqlx::Error> {
+    let rows: Vec<(String, Option<String>, String)> =
         sqlx::query_as("SELECT kobo_json, note, updated_at FROM annotations WHERE book_id = $1 AND user_id = $2 AND kobo_json IS NOT NULL ORDER BY id")
             .bind(book_id)
             .bind(user_id)
             .fetch_all(&state.db)
-            .await;
-    let rows = match rows {
-        Ok(rows) => rows,
+            .await?;
+    let list: Vec<Value> = rows.iter().filter_map(|(j, note, at)| served(j, note.as_deref(), at)).collect();
+    let count = list.len();
+    let body = json!({ "annotations": list, "nextPageOffsetToken": null }).to_string();
+    let digest = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes());
+    let etag = format!("\"{}\"", digest.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    Ok((body, etag, count))
+}
+
+/// The book's highlights and notes that came from a device, for the device,
+/// which is noted as having been handed this answer.
+async fn serve_highlights(state: &AppState, device_id: &str, user_id: i64, book_id: i64) -> Response {
+    let (body, etag, _) = match highlights_body(state, user_id, book_id).await {
+        Ok(answer) => answer,
         Err(e) => {
             tracing::warn!("kobo: could not read the highlights of book {book_id}: {e}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let list: Vec<Value> = rows.iter().filter_map(|(j, note, at)| served(j, note.as_deref(), at)).collect();
-    let body = json!({ "annotations": list, "nextPageOffsetToken": null }).to_string();
-    let digest = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes());
-    let etag = format!("\"{}\"", digest.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    let noted = sqlx::query(
+        "INSERT INTO kobo_served (device_id, book_id, etag, served_at) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (device_id, book_id) DO UPDATE SET etag = excluded.etag, served_at = excluded.served_at",
+    )
+    .bind(device_id)
+    .bind(book_id)
+    .bind(&etag)
+    .bind(crate::db::now_ts())
+    .execute(&state.db)
+    .await;
+    if let Err(e) = noted {
+        tracing::warn!("kobo: could not note what was handed to the device for book {book_id}: {e}");
+    }
     ([(header::CONTENT_TYPE, "application/json".to_string()), (header::ETAG, etag)], body).into_response()
+}
+
+/// POST …/checkforchanges: of the books the device asks about, those whose
+/// highlights here differ from what this device was last handed. The device
+/// fetches those again and takes the changes; told nothing, it keeps its own
+/// copy and may hand that back.
+async fn changed_books(state: &AppState, device_id: &str, user_id: i64, body: &[u8]) -> Response {
+    let asked: Vec<String> = serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|v| v.as_array().cloned())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|i| i.as_str().or_else(|| i.get("ContentId").and_then(Value::as_str)).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut changed = Vec::new();
+    for content in asked.iter().take(1000) {
+        let Some(book_id) = book_of(state, user_id, content).await else { continue };
+        let Ok((_, etag, count)) = highlights_body(state, user_id, book_id).await else { continue };
+        let handed: Option<String> = sqlx::query_scalar("SELECT etag FROM kobo_served WHERE device_id = $1 AND book_id = $2")
+            .bind(device_id)
+            .bind(book_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+        let differs = match handed {
+            Some(handed) => handed != etag,
+            None => count > 0,
+        };
+        if differs {
+            changed.push(content.clone());
+        }
+    }
+    if !changed.is_empty() {
+        tracing::info!("kobo: {} of {} books have changed highlights for user {user_id}", changed.len(), asked.len());
+    }
+    Json(changed).into_response()
 }
 
 /// Everything a Kobo sends to its "reading services" once they point here.
@@ -540,20 +622,14 @@ pub async fn reading_services(
         String::from_utf8_lossy(&body[..body.len().min(64 * 1024)])
     );
 
+    let device = device_of(&headers);
+    let user = user_of_device(&state, &headers).await;
     if let Some(content) = highlights {
-        let Some(user_id) = user_of_device(&state, &headers).await else {
+        let (Some(device_id), Some(user_id)) = (device, user) else {
             tracing::warn!("kobo: highlights {method} from a device that has not synced here ({}): told to come back", device_label(&headers));
             return StatusCode::UNAUTHORIZED.into_response();
         };
-        let uuid = content.replace('-', "");
-        let book: Option<i64> = sqlx::query_scalar("SELECT id FROM books WHERE uuid = $1 AND owner_id = $2")
-            .bind(&uuid)
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
-        let Some(book_id) = book else {
+        let Some(book_id) = book_of(&state, user_id, &content).await else {
             tracing::warn!("kobo: highlights for a book the device's user does not have ({content})");
             return StatusCode::NOT_FOUND.into_response();
         };
@@ -576,7 +652,13 @@ pub async fn reading_services(
                 }
             };
         }
-        return serve_highlights(&state, user_id, book_id).await;
+        return serve_highlights(&state, &device_id, user_id, book_id).await;
+    }
+    if path.ends_with("/content/checkforchanges") && method == axum::http::Method::POST {
+        return match (device, user) {
+            (Some(device_id), Some(user_id)) => changed_books(&state, &device_id, user_id, &body).await,
+            _ => Json(json!([])).into_response(),
+        };
     }
 
     // What a device takes as "nothing here" on each of its other paths.
