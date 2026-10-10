@@ -93,6 +93,15 @@
 		border: 1px solid var(--r-border);
 		border-radius: 16px;
 	}
+	/* Sized by its content: a height taken from the dialog would be a share of
+	   a height that itself comes from the content, which WebKit resolves to
+	   nothing. */
+	.sheet.center .inner {
+		height: auto;
+	}
+	.sheet.center .body {
+		flex: 0 1 auto;
+	}
 	.sheet::backdrop {
 		background: rgba(0, 0, 0, 0.35);
 	}
