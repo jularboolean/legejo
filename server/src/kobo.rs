@@ -155,8 +155,7 @@ pub async fn initialization(
     Path(token): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, Response> {
-    let user_id = user_from_token(&state, &token).await?;
-    remember_device(&state, user_id, &headers).await;
+    user_from_token(&state, &token).await?;
     let base = base_url(&state, &headers, &token);
     let host = base_url(&state, &headers, &token);
 
@@ -243,9 +242,14 @@ pub async fn initialization(
 // device's "reading services" (`reading_services_host`). The device then
 // sends its highlights and notes here instead of to Kobo: to the site root,
 // without the sync token, naming itself in `x-kobo-deviceid`. That id is
-// learnt from the token-carrying requests (`remember_device`), which is how
-// the user is known. On every sync the device also asks for the highlights
-// of each book; for now the answer is that there are none.
+// learnt from whichever token-carrying request names it (`access_log`),
+// which is how the user is known.
+//
+// For each book the device also asks what the server has, and takes the
+// answer as the whole truth: whatever is not in it is removed on the device.
+// So the answer is what the device itself has sent, in its own shape, with
+// the notes as they are here. A device not known yet gets 401, which it
+// takes as "later" and keeps what it has; an empty answer would wipe it.
 
 /// Whether an admin has turned the sync of highlights on for the instance.
 pub async fn annotations_enabled(state: &AppState) -> bool {
@@ -257,9 +261,27 @@ fn device_of(headers: &HeaderMap) -> Option<String> {
     (!id.is_empty() && id.len() <= 128).then(|| id.to_string())
 }
 
-/// Note which user a device belongs to, from a request that carries the token.
+/// The device for the log: the start of its id.
+fn device_label(headers: &HeaderMap) -> String {
+    device_of(headers).map(|d| d.chars().take(8).collect()).unwrap_or_else(|| "no x-kobo-deviceid".into())
+}
+
+/// Note which user a device belongs to, from a request that carries both the
+/// token and the device id. Written once an hour per device; a device that
+/// is new, or has changed hands, is logged.
 async fn remember_device(state: &AppState, user_id: i64, headers: &HeaderMap) {
     let Some(device_id) = device_of(headers) else { return };
+    let known: Option<(i64, String)> = sqlx::query_as("SELECT user_id, last_seen_at FROM kobo_devices WHERE device_id = $1")
+        .bind(&device_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+    if let Some((owner, seen)) = &known {
+        if *owner == user_id && *seen > crate::db::ts_in_hours(-1) {
+            return;
+        }
+    }
     let model = headers.get("x-kobo-devicemodel").and_then(|v| v.to_str().ok()).map(|m| m.trim().chars().take(80).collect::<String>());
     let result = sqlx::query(
         "INSERT INTO kobo_devices (device_id, user_id, model, last_seen_at) VALUES ($1, $2, $3, $4)
@@ -271,8 +293,12 @@ async fn remember_device(state: &AppState, user_id: i64, headers: &HeaderMap) {
     .bind(crate::db::now_ts())
     .execute(&state.db)
     .await;
-    if let Err(e) = result {
-        tracing::warn!("kobo: could not note device: {e}");
+    match result {
+        Ok(_) if known.as_ref().map(|(owner, _)| *owner) != Some(user_id) => {
+            tracing::info!("kobo: device {} ({}) belongs to user {user_id}", device_label(headers), model.as_deref().unwrap_or("model unknown"))
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!("kobo: could not note device: {e}"),
     }
 }
 
@@ -308,6 +334,14 @@ fn content_id(path: &str) -> Option<&str> {
     (!id.is_empty() && id != "checkforchanges").then_some(id)
 }
 
+/// The book whose highlights a request is about, when it is one of those.
+fn highlights_of(method: &axum::http::Method, path: &str) -> Option<String> {
+    if !path.ends_with("/annotations") || !(method == axum::http::Method::GET || method == axum::http::Method::PATCH) {
+        return None;
+    }
+    content_id(path).map(str::to_string)
+}
+
 /// One highlight or note as the device sends it.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -325,8 +359,9 @@ struct DeviceAnnotation {
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct DevicePatch {
+    /// Each kept whole as well (`kobo_json`), to be handed back as sent.
     #[serde(default)]
-    updated_annotations: Vec<DeviceAnnotation>,
+    updated_annotations: Vec<Value>,
     #[serde(default)]
     deleted_annotation_ids: Vec<String>,
 }
@@ -337,7 +372,14 @@ struct DevicePatch {
 async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatch) -> anyhow::Result<(usize, usize)> {
     let now = crate::db::now_ts();
     let mut taken = 0;
-    for a in patch.updated_annotations {
+    for raw in patch.updated_annotations {
+        let a: DeviceAnnotation = match serde_json::from_value(raw.clone()) {
+            Ok(a) => a,
+            Err(e) => {
+                tracing::warn!("kobo: a highlight in a shape not understood: {e}");
+                continue;
+            }
+        };
         let text: String = a.highlighted_text.as_deref().unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
         let note = a.note_text.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
         if text.is_empty() && note.is_none() {
@@ -349,17 +391,29 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
             }
             l.to_string()
         });
-        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM annotations WHERE user_id = $1 AND kobo_id = $2")
+        let kobo_json = raw.to_string();
+        let existing: Option<(i64, String, Option<String>)> = sqlx::query_as("SELECT id, text, note FROM annotations WHERE user_id = $1 AND kobo_id = $2")
             .bind(user_id)
             .bind(&a.id)
             .fetch_optional(&state.db)
             .await?;
         match existing {
-            Some(id) => {
-                sqlx::query("UPDATE annotations SET text = $1, note = $2, location = COALESCE($3, location), updated_at = $4 WHERE id = $5")
+            // The same again (the device hands back what it was served) is
+            // no change: the time stays, and the exchange settles.
+            Some((id, old_text, old_note)) if old_text == text && old_note == note => {
+                sqlx::query("UPDATE annotations SET location = COALESCE($1, location), kobo_json = $2 WHERE id = $3")
+                    .bind(&location)
+                    .bind(&kobo_json)
+                    .bind(id)
+                    .execute(&state.db)
+                    .await?;
+            }
+            Some((id, _, _)) => {
+                sqlx::query("UPDATE annotations SET text = $1, note = $2, location = COALESCE($3, location), kobo_json = $4, updated_at = $5 WHERE id = $6")
                     .bind(&text)
                     .bind(&note)
                     .bind(&location)
+                    .bind(&kobo_json)
                     .bind(&now)
                     .bind(id)
                     .execute(&state.db)
@@ -367,8 +421,8 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
             }
             None => {
                 sqlx::query(
-                    "INSERT INTO annotations (book_id, user_id, source, cfi, text, note, kobo_id, location, created_at, updated_at)
-                     VALUES ($1, $2, 'kobo', NULL, $3, $4, $5, $6, $7, $7)",
+                    "INSERT INTO annotations (book_id, user_id, source, cfi, text, note, kobo_id, location, kobo_json, created_at, updated_at)
+                     VALUES ($1, $2, 'kobo', NULL, $3, $4, $5, $6, $7, $8, $8)",
                 )
                 .bind(book_id)
                 .bind(user_id)
@@ -376,6 +430,7 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
                 .bind(&note)
                 .bind(&a.id)
                 .bind(&location)
+                .bind(&kobo_json)
                 .bind(&now)
                 .execute(&state.db)
                 .await?;
@@ -396,11 +451,61 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
     Ok((taken, gone))
 }
 
+/// An annotation as the device takes it back: what it sent, with the note
+/// as it is here, dated later when the note has changed here.
+fn served(kobo_json: &str, note: Option<&str>, updated_at: &str) -> Option<Value> {
+    let mut v: Value = serde_json::from_str(kobo_json).ok()?;
+    let obj = v.as_object_mut()?;
+    let sent_note = obj.get("noteText").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty()).map(str::to_string);
+    if sent_note.as_deref() != note {
+        obj.insert("clientLastModifiedUtc".into(), json!(updated_at));
+    }
+    match note {
+        Some(n) => {
+            obj.insert("noteText".into(), json!(n));
+            obj.insert("type".into(), json!("note"));
+        }
+        None => {
+            obj.remove("noteText");
+            if obj.get("type").and_then(Value::as_str) == Some("note") {
+                obj.insert("type".into(), json!("highlight"));
+            }
+        }
+    }
+    obj.entry("type").or_insert_with(|| json!("highlight"));
+    obj.entry("attachments").or_insert_with(|| json!({}));
+    obj.entry("context").or_insert(Value::Null);
+    Some(v)
+}
+
+/// The book's highlights and notes that came from a device, for the device.
+async fn serve_highlights(state: &AppState, user_id: i64, book_id: i64) -> Response {
+    let rows: Result<Vec<(String, Option<String>, String)>, sqlx::Error> =
+        sqlx::query_as("SELECT kobo_json, note, updated_at FROM annotations WHERE book_id = $1 AND user_id = $2 AND kobo_json IS NOT NULL ORDER BY id")
+            .bind(book_id)
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await;
+    let rows = match rows {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!("kobo: could not read the highlights of book {book_id}: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let list: Vec<Value> = rows.iter().filter_map(|(j, note, at)| served(j, note.as_deref(), at)).collect();
+    let body = json!({ "annotations": list, "nextPageOffsetToken": null }).to_string();
+    let digest = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes());
+    let etag = format!("\"{}\"", digest.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    ([(header::CONTENT_TYPE, "application/json".to_string()), (header::ETAG, etag)], body).into_response()
+}
+
 /// Everything a Kobo sends to its "reading services" once they point here.
-/// Highlights and notes (PATCH) are taken in; the rest is answered with the
-/// empty shape each call expects, since an error makes the device abort the
-/// whole sync. Reached at the site root and under the token. 404 unless the
-/// admin setting is on.
+/// Highlights and notes (PATCH) are taken in and handed back (GET); the rest
+/// is answered with the empty shape each call expects, since an error makes
+/// the device abort the whole sync. Reached at the site root and under the
+/// token. With the admin setting off: 401 for the highlights (the device
+/// keeps them) and 404 for the rest.
 pub async fn reading_services(
     State(state): State<AppState>,
     method: axum::http::Method,
@@ -408,10 +513,14 @@ pub async fn reading_services(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    if !annotations_enabled(&state).await {
-        return StatusCode::NOT_FOUND.into_response();
-    }
     let path = without_token(original.0.path());
+    let highlights = highlights_of(&method, &path);
+    if !annotations_enabled(&state).await {
+        return match highlights {
+            Some(_) => StatusCode::UNAUTHORIZED.into_response(),
+            None => StatusCode::NOT_FOUND.into_response(),
+        };
+    }
     let shown: Vec<String> = headers
         .iter()
         .map(|(name, value)| {
@@ -431,35 +540,51 @@ pub async fn reading_services(
         String::from_utf8_lossy(&body[..body.len().min(64 * 1024)])
     );
 
-    if method == axum::http::Method::PATCH && path.ends_with("/annotations") {
-        match (user_of_device(&state, &headers).await, content_id(&path)) {
-            (Some(user_id), Some(content)) => {
-                let uuid = content.replace('-', "");
-                let book: Option<i64> = sqlx::query_scalar("SELECT id FROM books WHERE uuid = $1 AND owner_id = $2")
-                    .bind(&uuid)
-                    .bind(user_id)
-                    .fetch_optional(&state.db)
-                    .await
-                    .ok()
-                    .flatten();
-                match (book, serde_json::from_slice::<DevicePatch>(&body)) {
-                    (Some(book_id), Ok(patch)) => match take_in(&state, user_id, book_id, patch).await {
-                        Ok((taken, gone)) => tracing::info!("kobo: {taken} highlights taken in and {gone} removed for book {book_id} of user {user_id}"),
-                        Err(e) => tracing::warn!("kobo: could not take in highlights for book {book_id}: {e:#}"),
-                    },
-                    (None, _) => tracing::warn!("kobo: highlights for a book the device's user does not have ({content})"),
-                    (_, Err(e)) => tracing::warn!("kobo: highlights in a shape not understood: {e}"),
+    if let Some(content) = highlights {
+        let Some(user_id) = user_of_device(&state, &headers).await else {
+            tracing::warn!("kobo: highlights {method} from a device that has not synced here ({}): told to come back", device_label(&headers));
+            return StatusCode::UNAUTHORIZED.into_response();
+        };
+        let uuid = content.replace('-', "");
+        let book: Option<i64> = sqlx::query_scalar("SELECT id FROM books WHERE uuid = $1 AND owner_id = $2")
+            .bind(&uuid)
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+        let Some(book_id) = book else {
+            tracing::warn!("kobo: highlights for a book the device's user does not have ({content})");
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        if method == axum::http::Method::PATCH {
+            let patch: DevicePatch = match serde_json::from_slice(&body) {
+                Ok(patch) => patch,
+                Err(e) => {
+                    tracing::warn!("kobo: highlights in a shape not understood: {e}");
+                    return StatusCode::BAD_REQUEST.into_response();
                 }
-            }
-            (None, _) => tracing::warn!("kobo: highlights from a device that has not synced here (no x-kobo-deviceid known)"),
-            (_, None) => tracing::warn!("kobo: highlights without a book id in the path ({path})"),
+            };
+            return match take_in(&state, user_id, book_id, patch).await {
+                Ok((taken, gone)) => {
+                    tracing::info!("kobo: {taken} highlights taken in and {gone} removed for book {book_id} of user {user_id}");
+                    StatusCode::NO_CONTENT.into_response()
+                }
+                Err(e) => {
+                    tracing::warn!("kobo: could not take in highlights for book {book_id}: {e:#}");
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+            };
         }
+        return serve_highlights(&state, user_id, book_id).await;
     }
 
-    // What a device takes as "nothing here" on each of its paths.
+    // What a device takes as "nothing here" on each of its other paths.
     let empty = if path.ends_with("/content/checkforchanges") {
         json!([])
-    } else if path.ends_with("/annotations") || path.contains("/internal/notebooks") {
+    } else if path.ends_with("/UserStorage/Metadata") {
+        json!({ "continuationToken": null, "metadata": [] })
+    } else if path.contains("/internal/notebooks") {
         json!({ "data": [], "totalResults": 0 })
     } else {
         json!({})
@@ -1411,11 +1536,18 @@ pub async fn access_log(
         .and_then(|v| v.to_str().ok())
         .and_then(|ua| ua.rsplit_once('(').map(|(_, device)| device.trim_end_matches(')').to_string()))
         .unwrap_or_else(|| "-".into());
+    let token = original.0.path().strip_prefix("/api/kobo/").and_then(|rest| rest.split('/').next()).unwrap_or("").to_string();
+    let names_device = device_of(request.headers()).is_some();
+    let actor = if names_device || !path.ends_with("/image.jpg") { actor_for_token(&state, &token).await } else { None };
+    // A request that names the device ties it to the token's user: that is
+    // how its requests without the token (reading services) are known.
+    if let (true, Some((user_id, _))) = (names_device, &actor) {
+        remember_device(&state, *user_id, request.headers()).await;
+    }
     let started = std::time::Instant::now();
     let response = next.run(request).await;
     if !path.ends_with("/image.jpg") {
-        let token = original.0.path().strip_prefix("/api/kobo/").and_then(|rest| rest.split('/').next()).unwrap_or("");
-        let user = actor_for_token(&state, token).await.map(|(_, name)| name).unwrap_or_else(|| "?".into());
+        let user = actor.map(|(_, name)| name).unwrap_or_else(|| "?".into());
         tracing::info!(
             "kobo {user} {method} {path}: {} in {} ms ({agent})",
             response.status().as_u16(),
