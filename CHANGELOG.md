@@ -4,6 +4,17 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.1 (2026-10-10)
+
+- **A note when a new version is ready.** When a newer Legejo has been
+  published, a small note at the bottom of the page says so, with a button
+  that reloads. It appears within a minute while the page is open, and at
+  once when you come back to it. Until then, the next page change loads
+  the new version by itself. This is how an installed home-screen app gets
+  a new version too: there is nothing to pull down.
+- **Fixed:** deleting a book, an audiobook or a shelf flashed "not found"
+  for a moment before the library appeared.
+
 ## 1.14.0 (2026-10-10)
 
 - **Shared shelves as a gallery or a list.** The list shows each shelf's
