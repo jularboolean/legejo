@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.14.2 (2026-10-10)
+
+- **Is there a newer Legejo?** The admin page has a button that asks
+  GitHub for the latest release and says whether this instance is behind,
+  with a link to what is new. It asks only when the button is pressed, from
+  the admin's browser; the server never asks anyone anything.
+- **One tap opens a book on a touch screen.** The download icon that
+  appeared on a gallery card when hovered made the first tap on a phone a
+  hover instead of a tap. The gallery no longer has it (the book page has
+  the download), and the list's icon hides until hovered only where
+  hovering exists.
+- **SECURITY.md:** how to report a vulnerability, privately, and what counts
+  as one.
+
 ## 1.14.1 (2026-10-10)
 
 - **A note when a new version is ready.** When a newer Legejo has been
