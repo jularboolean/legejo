@@ -215,6 +215,7 @@
 		moved = true;
 		hideChrome();
 		clearHighlight();
+		hoverNote = null;
 		if (pending || editing) dismissAnnotate();
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
@@ -309,6 +310,11 @@
 	let annotating = $state(false);
 	let annotateError = $state<string | null>(null);
 	let confirmDelete = $state(false);
+	/** With a mouse, the note of the highlight under the pointer is shown beside it. */
+	let hoverNote = $state<Annotation | null>(null);
+	let hoverAt = $state({ x: 0, y: 0 });
+	const noteTipAbove = $derived(hoverAt.y > window.innerHeight - 200);
+	const noteTipLeft = $derived(Math.max(8, Math.min(hoverAt.x + 14, window.innerWidth - 360)));
 	const exportHref = `/api/books/${bookId}/annotations/export`;
 
 	async function loadAnnotations() {
@@ -520,8 +526,13 @@
 			const ratio = rect.width > 0 ? (point.x - rect.left) / rect.width : 0.5;
 			const inPage = point.y > rect.top && point.y < rect.bottom;
 			edge = !paginated || atEdge || !inPage ? null : ratio < 1 / 3 ? 'start' : ratio > 2 / 3 ? 'end' : null;
+			// A highlight under the pointer: its note beside the pointer, and a hand.
+			const markId = inPage ? (engine?.markAt(point.x, point.y) ?? null) : null;
+			const mark = markId === null ? null : (annotations.find((a) => a.id === markId) ?? null);
+			hoverNote = mark?.note ? mark : null;
+			if (hoverNote) hoverAt = point;
 			// With the shield up the browser no longer shows what is a link.
-			if (shield) stage.style.cursor = inPage && linkAt(host, point.x, point.y) ? 'pointer' : '';
+			if (shield) stage.style.cursor = inPage && (mark || linkAt(host, point.x, point.y)) ? 'pointer' : '';
 		});
 	}
 
@@ -964,6 +975,12 @@
 		<div class="pill toast" class:lifted={speechState !== 'off'} role="status">{toast}</div>
 	{/if}
 
+	{#if hoverNote?.note && !pending && !editing && panel === null}
+		<div class="note-tip" class:above={noteTipAbove} style:left={`${noteTipLeft}px`} style:top={`${hoverAt.y + 18}px`} role="tooltip">
+			{hoverNote.note}
+		</div>
+	{/if}
+
 	{#if (pending || editing) && speechState === 'off'}
 		<AnnotateBar
 			text={editing ? editing.text : (pending?.text ?? '')}
@@ -1186,6 +1203,25 @@
 		opacity: 1;
 	}
 
+	/* The note of the highlight under the mouse. */
+	.note-tip {
+		position: fixed;
+		z-index: 5;
+		max-width: min(22rem, calc(100vw - 2rem));
+		padding: 0.5rem 0.7rem;
+		border-radius: 8px;
+		background: var(--r-surface);
+		color: var(--r-fg);
+		border: 1px solid var(--r-border);
+		box-shadow: 0 2px 14px rgba(0, 0, 0, 0.16);
+		font-size: 0.86rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		pointer-events: none;
+	}
+	.note-tip.above {
+		transform: translateY(calc(-100% - 2rem));
+	}
 	.pill {
 		position: absolute;
 		z-index: 3;
