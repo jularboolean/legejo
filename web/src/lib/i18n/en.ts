@@ -1052,8 +1052,8 @@ export const en = {
 	'shelfLinks.removeConfirm': "Take back the link for {name}? It stops working at once. Books already fetched with it stay where they are.",
 	'shelfLinks.failed': "Could not make the link.",
 	'shelfLinks.tooMany': "This shelf has as many links as it can have.",
-	'linked.heading': "Shelves by link",
-	'linked.intro': "Has someone sent you a link to a shelf of theirs? Paste it here to have the shelf among yours.",
+	'linked.heading': "Shelves from other Legejo instances",
+	'linked.intro': "Has someone on another Legejo sent you a link to a shelf of theirs? Paste it here to have the shelf among these.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Follow",
 	'linked.following': "Fetching…",
@@ -1076,7 +1076,8 @@ export const en = {
 	'log.shelf.link_followed': "followed the shelf {shelf} from {host} by link",
 	'log.book.link_imported': "fetched “{title}” from the shelf {shelf}",
 	'linked.state.unreachable': "not answering",
-	'linked.state.gone': "link no longer works"
+	'linked.state.gone': "link no longer works",
+	'linked.add': "Follow a shelf from another Legejo instance"
 };
 
 export type MessageKey = keyof typeof en;

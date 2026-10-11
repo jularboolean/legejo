@@ -1054,8 +1054,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "Perutaanko linkki, jonka sai {name}? Se lakkaa toimimasta heti. Sillä jo haetut kirjat pysyvät paikoillaan.",
 	'shelfLinks.failed': "Linkkiä ei voitu luoda.",
 	'shelfLinks.tooMany': "Tällä hyllyllä on niin monta linkkiä kuin sillä voi olla.",
-	'linked.heading': "Hyllyt linkillä",
-	'linked.intro': "Onko joku lähettänyt sinulle linkin hyllyynsä? Liitä se tähän, niin saat hyllyn omiesi joukkoon.",
+	'linked.heading': "Hyllyt muista Legejo-instansseista",
+	'linked.intro': "Onko joku toisesta Legejosta lähettänyt sinulle linkin hyllyynsä? Liitä se tähän, niin saat hyllyn näiden joukkoon.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Seuraa",
 	'linked.following': "Haetaan…",
@@ -1078,5 +1078,6 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "seurasi hyllyä {shelf} instanssista {host} linkillä",
 	'log.book.link_imported': "haki kirjan ”{title}” hyllystä {shelf}",
 	'linked.state.unreachable': "ei vastaa",
-	'linked.state.gone': "linkki ei enää toimi"
+	'linked.state.gone': "linkki ei enää toimi",
+	'linked.add': "Seuraa hyllyä toisesta Legejo-instanssista"
 };

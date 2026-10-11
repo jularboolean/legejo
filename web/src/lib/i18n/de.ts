@@ -1054,8 +1054,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "Den Link für {name} zurücknehmen? Er funktioniert sofort nicht mehr. Bücher, die schon damit geholt wurden, bleiben, wo sie sind.",
 	'shelfLinks.failed': "Der Link konnte nicht angelegt werden.",
 	'shelfLinks.tooMany': "Dieses Regal hat so viele Links, wie es haben kann.",
-	'linked.heading': "Regale per Link",
-	'linked.intro': "Hat dir jemand einen Link zu einem Regal geschickt? Füge ihn hier ein, dann steht das Regal bei deinen.",
+	'linked.heading': "Regale von anderen Legejo-Instanzen",
+	'linked.intro': "Hat dir jemand von einem anderen Legejo einen Link zu einem Regal geschickt? Füge ihn hier ein, dann steht das Regal bei diesen.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Folgen",
 	'linked.following': "Wird geholt …",
@@ -1078,5 +1078,6 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "folgte dem Regal {shelf} von {host} per Link",
 	'log.book.link_imported': "holte „{title}“ aus dem Regal {shelf}",
 	'linked.state.unreachable': "antwortet nicht",
-	'linked.state.gone': "Link gilt nicht mehr"
+	'linked.state.gone': "Link gilt nicht mehr",
+	'linked.add': "Einem Regal von einer anderen Legejo-Instanz folgen"
 };

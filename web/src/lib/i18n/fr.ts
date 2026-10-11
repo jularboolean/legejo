@@ -1054,8 +1054,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "Reprendre le lien de {name} ? Il cesse de fonctionner aussitôt. Les livres déjà récupérés grâce à lui restent où ils sont.",
 	'shelfLinks.failed': "Impossible de créer le lien.",
 	'shelfLinks.tooMany': "Cette étagère a autant de liens qu’elle peut en avoir.",
-	'linked.heading': "Étagères par lien",
-	'linked.intro': "Quelqu’un vous a envoyé un lien vers une de ses étagères ? Collez-le ici pour l’avoir parmi les vôtres.",
+	'linked.heading': "Étagères d’autres instances Legejo",
+	'linked.intro': "Quelqu’un d’un autre Legejo vous a envoyé un lien vers une de ses étagères ? Collez-le ici pour l’avoir parmi celles-ci.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Suivre",
 	'linked.following': "Récupération…",
@@ -1078,5 +1078,6 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "a suivi l’étagère {shelf} de {host} par lien",
 	'log.book.link_imported': "a récupéré « {title} » depuis l’étagère {shelf}",
 	'linked.state.unreachable': "ne répond pas",
-	'linked.state.gone': "le lien ne fonctionne plus"
+	'linked.state.gone': "le lien ne fonctionne plus",
+	'linked.add': "Suivre une étagère d’une autre instance Legejo"
 };

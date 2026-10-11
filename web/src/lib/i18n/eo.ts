@@ -1054,8 +1054,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "Ĉu repreni la ligilon por {name}? Ĝi tuj ĉesas funkcii. Libroj jam prenitaj per ĝi restas, kie ili estas.",
 	'shelfLinks.failed': "Ne eblis fari la ligilon.",
 	'shelfLinks.tooMany': "Ĉi tiu breto havas tiom da ligiloj, kiom ĝi povas havi.",
-	'linked.heading': "Bretoj per ligilo",
-	'linked.intro': "Ĉu iu sendis al vi ligilon al sia breto? Algluu ĝin ĉi tie por havi la breton inter la viaj.",
+	'linked.heading': "Bretoj el aliaj Legejo-instancoj",
+	'linked.intro': "Ĉu iu en alia Legejo sendis al vi ligilon al sia breto? Algluu ĝin ĉi tie por havi la breton inter ĉi tiuj.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Sekvi",
 	'linked.following': "Prenante…",
@@ -1078,5 +1078,6 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "sekvis la breton {shelf} el {host} per ligilo",
 	'log.book.link_imported': "prenis „{title}“ el la breto {shelf}",
 	'linked.state.unreachable': "ne respondas",
-	'linked.state.gone': "la ligilo ne plu funkcias"
+	'linked.state.gone': "la ligilo ne plu funkcias",
+	'linked.add': "Sekvi breton el alia Legejo-instanco"
 };

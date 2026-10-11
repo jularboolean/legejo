@@ -1054,8 +1054,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "Dra in länken för {name}? Den slutar fungera direkt. Böcker som redan hämtats med den ligger kvar där de är.",
 	'shelfLinks.failed': "Kunde inte skapa länken.",
 	'shelfLinks.tooMany': "Hyllan har så många länkar den kan ha.",
-	'linked.heading': "Hyllor via länk",
-	'linked.intro': "Har någon skickat dig en länk till en hylla? Klistra in den här så får du hyllan bland dina.",
+	'linked.heading': "Hyllor från andra Legejo-instanser",
+	'linked.intro': "Har någon på en annan Legejo skickat dig en länk till en hylla? Klistra in den här så får du hyllan bland de här.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Följ",
 	'linked.following': "Hämtar …",
@@ -1078,5 +1078,6 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "följde hyllan {shelf} från {host} via länk",
 	'log.book.link_imported': "hämtade ”{title}” från hyllan {shelf}",
 	'linked.state.unreachable': "svarar inte",
-	'linked.state.gone': "länken gäller inte längre"
+	'linked.state.gone': "länken gäller inte längre",
+	'linked.add': "Följ en hylla från en annan Legejo-instans"
 };

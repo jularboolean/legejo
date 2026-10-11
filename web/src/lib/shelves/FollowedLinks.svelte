@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Shelves that someone has sent a private link to, from this instance or
 	// another: the list of them, and the field a new link is pasted into.
+	import { tick } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { CloudOff, Link, Unlink, X } from '@lucide/svelte';
+	import { CloudOff, Link, Plus, Unlink, X } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { plainSnippet } from '#lib/library';
 	import { defaultShelfCover } from '#lib/shelfCovers';
@@ -27,6 +28,14 @@
 	});
 
 	let url = $state('');
+	// The field for a new link is brought out when asked for: most days nobody has a link to paste.
+	let adding = $state(false);
+	let field = $state<HTMLInputElement | null>(null);
+	async function bringOut() {
+		adding = true;
+		await tick();
+		field?.focus();
+	}
 	let busy = $state(false);
 	let errorMsg = $state('');
 	let removing = $state<LinkedShelf | null>(null);
@@ -74,10 +83,11 @@
 	}
 </script>
 
-<section class="linked">
-	<h2><Link size={16} strokeWidth={1.75} /> {t('linked.heading')}</h2>
-
+<!-- Kept out of the way: a line to bring the field out with, and no more,
+     until there is a shelf to show. -->
+<section class="linked" class:quiet={shelves.length === 0}>
 	{#if shelves.length > 0}
+		<h2><Link size={16} strokeWidth={1.75} /> {t('linked.heading')}</h2>
 		<ul>
 			{#each shelves as shelf (shelf.id)}
 				<li>
@@ -104,14 +114,19 @@
 		</ul>
 	{/if}
 
-	<form onsubmit={follow}>
-		<label for="linked-url">{t('linked.intro')}</label>
-		<div class="field">
-			<input id="linked-url" type="url" bind:value={url} placeholder={t('linked.placeholder')} autocomplete="off" spellcheck="false" />
-			<button type="submit" disabled={busy || !url.trim()}>{busy ? t('linked.following') : t('linked.follow')}</button>
-		</div>
-		{#if errorMsg}<p class="error" role="alert">{errorMsg}</p>{/if}
-	</form>
+	{#if adding}
+		<form onsubmit={follow}>
+			<label for="linked-url">{t('linked.intro')}</label>
+			<div class="field">
+				<input id="linked-url" type="url" bind:this={field} bind:value={url} placeholder={t('linked.placeholder')} autocomplete="off" spellcheck="false" />
+				<button type="submit" disabled={busy || !url.trim()}>{busy ? t('linked.following') : t('linked.follow')}</button>
+				<button type="button" class="ghost" onclick={() => ((adding = false), (errorMsg = ''))}>{t('common.cancel')}</button>
+			</div>
+			{#if errorMsg}<p class="error" role="alert">{errorMsg}</p>{/if}
+		</form>
+	{:else}
+		<button type="button" class="bring" onclick={bringOut}><Plus size={13} /> {t('linked.add')}</button>
+	{/if}
 </section>
 
 <ConfirmDialog
@@ -131,6 +146,25 @@
 		border-top: 1px solid var(--border);
 		max-width: 44rem;
 	}
+	.linked.quiet {
+		border-top: none;
+		padding-top: 0;
+	}
+	/* A line of text more than a button: there to be found, not to be seen. */
+	.bring {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--muted);
+		font-size: 0.85rem;
+		font-weight: 400;
+		letter-spacing: 0;
+	}
+	.bring:hover {
+		filter: none;
+		color: var(--fg);
+		text-decoration: underline;
+	}
 	h2 {
 		display: flex;
 		align-items: center;
@@ -140,7 +174,7 @@
 	}
 	ul {
 		list-style: none;
-		margin: 0 0 1.25rem;
+		margin: 0 0 1rem;
 		padding: 0;
 	}
 	li {

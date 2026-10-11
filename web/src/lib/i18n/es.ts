@@ -1054,8 +1054,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'shelfLinks.removeConfirm': "¿Retirar el enlace de {name}? Deja de funcionar al instante. Los libros ya obtenidos con él se quedan donde están.",
 	'shelfLinks.failed': "No se pudo crear el enlace.",
 	'shelfLinks.tooMany': "Este estante tiene tantos enlaces como puede tener.",
-	'linked.heading': "Estantes por enlace",
-	'linked.intro': "¿Alguien te ha enviado un enlace a un estante suyo? Pégalo aquí para tenerlo entre los tuyos.",
+	'linked.heading': "Estantes de otras instancias de Legejo",
+	'linked.intro': "¿Alguien de otro Legejo te ha enviado un enlace a un estante suyo? Pégalo aquí para tenerlo entre estos.",
 	'linked.placeholder': "https://…/api/opds/shared/…",
 	'linked.follow': "Seguir",
 	'linked.following': "Obteniendo…",
@@ -1078,5 +1078,6 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_followed': "siguió el estante {shelf} de {host} por enlace",
 	'log.book.link_imported': "obtuvo «{title}» del estante {shelf}",
 	'linked.state.unreachable': "no responde",
-	'linked.state.gone': "el enlace ya no funciona"
+	'linked.state.gone': "el enlace ya no funciona",
+	'linked.add': "Seguir un estante de otra instancia de Legejo"
 };

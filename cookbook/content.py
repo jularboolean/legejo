@@ -323,13 +323,14 @@ apps, added as a catalog there. Your ratings do not travel with the books.</p>
  ("Following a Shelf You Were Sent a Link To",
   "<p>Someone has sent you a link to a shelf of theirs.</p>",
   """<p><em>Optional: the same admin setting as in the recipe before.</em></p>
-<p>Open <strong>Shared shelves</strong>, and under <strong>Shelves by link</strong> paste the
-link and press <strong>Follow</strong>. The shelf opens with its books; press
+<p>Open <strong>Shared shelves</strong>, and at the bottom of the page press <strong>Follow a
+shelf from another Legejo instance</strong>. Paste the link and press <strong>Follow</strong>. The shelf opens with its books; press
 <strong>Add to my library</strong> on the ones you want.</p>""",
   """<p>The shelf is read from its link each time you open it, so it is as its owner has it
 now. A book you add is a copy of your own, checked and repaired like an uploaded one, and it
 stays yours whatever happens to the link.</p>
-<p>The list marks a shelf whose instance is not answering, and one whose link no longer works,
+<p>From then on the shelf is listed there, under <strong>Shelves from other Legejo
+instances</strong>. The list marks a shelf whose instance is not answering, and one whose link no longer works,
 which is what you see when the owner has taken it back. Nothing is removed for you:
 <strong>Stop following</strong> takes a shelf off your list when you have had enough of it.</p>
 <p>Your Legejo keeps the link's address to itself: it is not shown again, and covers and books
