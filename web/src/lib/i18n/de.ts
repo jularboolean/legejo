@@ -1016,5 +1016,22 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "Die Datei ist kopiergeschützt.",
 	'catalogs.noFile': "Kein EPUB, PDF oder Comic zum Holen",
 	'catalogs.rightsHint': "Legejo weiß nicht, was du mit einem Buch aus einem Katalog tun darfst. Was der Katalog über die Rechte sagt, steht bei jedem Buch.",
-	'log.book.catalog_imported': "hat „{title}“ aus dem Katalog {catalog} geholt"
+	'log.book.catalog_imported': "hat „{title}“ aus dem Katalog {catalog} geholt",
+	'sidebar.offline': "Auf diesem Gerät",
+	'offline.title': "Auf diesem Gerät",
+	'offline.intro': "Hier gespeicherte Bücher lassen sich ohne Netz lesen. Deine Lesestelle wird an den Server gesendet, sobald das Netz wieder da ist.",
+	'offline.empty': "Auf diesem Gerät sind keine Bücher gespeichert. Öffne ein Buch und wähle „Auf dem Gerät speichern“.",
+	'offline.save': "Auf dem Gerät speichern",
+	'offline.saving': "Wird gespeichert … {percent} %",
+	'offline.saved': "Auf dem Gerät",
+	'offline.remove': "Vom Gerät entfernen",
+	'offline.saveFailed': "Das Buch konnte nicht auf dem Gerät gespeichert werden.",
+	'offline.noRoom': "Auf dem Gerät ist nicht genug Platz.",
+	'offline.installHint': "Zum Lesen ohne Netz: Füge Legejo zum Home-Bildschirm hinzu und speichere das Buch dort.",
+	'offline.unsupported': "Dieser Browser kann keine Bücher zum Lesen ohne Netz speichern.",
+	'offline.banner': "Der Server ist nicht erreichbar. Die Bücher auf diesem Gerät lassen sich weiterhin lesen.",
+	'offline.retry': "Erneut versuchen",
+	'offline.room': "{used} Bücher auf diesem Gerät",
+	'offline.unreachable': "Der Server ist nicht erreichbar, und diese Seite ist nicht auf dem Gerät.",
+	'offline.toSaved': "Bücher auf diesem Gerät"
 };

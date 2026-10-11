@@ -1014,7 +1014,24 @@ export const en = {
 	'catalogs.protected': "The file is copy-protected.",
 	'catalogs.noFile': "No EPUB, PDF or comic to fetch",
 	'catalogs.rightsHint': "Legejo does not know what you may do with a book from a catalog. What the catalog says about the rights is shown with each book.",
-	'log.book.catalog_imported': "fetched “{title}” from the catalog {catalog}"
+	'log.book.catalog_imported': "fetched “{title}” from the catalog {catalog}",
+	'sidebar.offline': "On this device",
+	'offline.title': "On this device",
+	'offline.intro': "Books saved here can be read without the network. Your place in them is sent to the server when the network is back.",
+	'offline.empty': "No books are saved on this device. Open a book and choose “Save on this device”.",
+	'offline.save': "Save on this device",
+	'offline.saving': "Saving… {percent} %",
+	'offline.saved': "On this device",
+	'offline.remove': "Remove from this device",
+	'offline.saveFailed': "Could not save the book on this device.",
+	'offline.noRoom': "There is not enough room on this device.",
+	'offline.installHint': "To read without the network, add Legejo to your home screen and save the book there.",
+	'offline.unsupported': "This browser cannot save books for reading without the network.",
+	'offline.banner': "The server cannot be reached. The books on this device can still be read.",
+	'offline.retry': "Try again",
+	'offline.room': "{used} of books on this device",
+	'offline.unreachable': "The server cannot be reached, and this page is not on the device.",
+	'offline.toSaved': "Books on this device"
 };
 
 export type MessageKey = keyof typeof en;

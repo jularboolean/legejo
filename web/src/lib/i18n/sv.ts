@@ -1016,5 +1016,22 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "Filen är kopieringsskyddad.",
 	'catalogs.noFile': "Ingen EPUB, PDF eller serie att hämta",
 	'catalogs.rightsHint': "Legejo vet inte vad du får göra med en bok från en katalog. Det katalogen säger om rättigheterna visas vid varje bok.",
-	'log.book.catalog_imported': "hämtade ”{title}” från katalogen {catalog}"
+	'log.book.catalog_imported': "hämtade ”{title}” från katalogen {catalog}",
+	'sidebar.offline': "På enheten",
+	'offline.title': "På enheten",
+	'offline.intro': "Böcker som sparats här går att läsa utan nät. Var du är i dem skickas till servern när nätet är tillbaka.",
+	'offline.empty': "Inga böcker är sparade på den här enheten. Öppna en bok och välj ”Spara på enheten”.",
+	'offline.save': "Spara på enheten",
+	'offline.saving': "Sparar … {percent} %",
+	'offline.saved': "På enheten",
+	'offline.remove': "Ta bort från enheten",
+	'offline.saveFailed': "Kunde inte spara boken på enheten.",
+	'offline.noRoom': "Det finns inte plats nog på enheten.",
+	'offline.installHint': "För att läsa utan nät: lägg till Legejo på hemskärmen och spara boken där.",
+	'offline.unsupported': "Den här webbläsaren kan inte spara böcker för läsning utan nät.",
+	'offline.banner': "Servern går inte att nå. Böckerna på enheten går fortfarande att läsa.",
+	'offline.retry': "Försök igen",
+	'offline.room': "{used} böcker på enheten",
+	'offline.unreachable': "Servern går inte att nå, och den här sidan finns inte på enheten.",
+	'offline.toSaved': "Böcker på enheten"
 };

@@ -1016,5 +1016,22 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "Le fichier est protégé contre la copie.",
 	'catalogs.noFile': "Pas d’EPUB, de PDF ni de bande dessinée à récupérer",
 	'catalogs.rightsHint': "Legejo ne sait pas ce que vous avez le droit de faire d’un livre venu d’un catalogue. Ce que le catalogue dit des droits est indiqué pour chaque livre.",
-	'log.book.catalog_imported': "a récupéré « {title} » depuis le catalogue {catalog}"
+	'log.book.catalog_imported': "a récupéré « {title} » depuis le catalogue {catalog}",
+	'sidebar.offline': "Sur cet appareil",
+	'offline.title': "Sur cet appareil",
+	'offline.intro': "Les livres enregistrés ici se lisent sans réseau. Votre position de lecture est envoyée au serveur au retour du réseau.",
+	'offline.empty': "Aucun livre n’est enregistré sur cet appareil. Ouvrez un livre et choisissez « Enregistrer sur l’appareil ».",
+	'offline.save': "Enregistrer sur l’appareil",
+	'offline.saving': "Enregistrement… {percent} %",
+	'offline.saved': "Sur l’appareil",
+	'offline.remove': "Retirer de l’appareil",
+	'offline.saveFailed': "Impossible d’enregistrer le livre sur l’appareil.",
+	'offline.noRoom': "Il n’y a pas assez de place sur l’appareil.",
+	'offline.installHint': "Pour lire sans réseau, ajoutez Legejo à l’écran d’accueil et enregistrez-y le livre.",
+	'offline.unsupported': "Ce navigateur ne peut pas enregistrer de livres pour la lecture sans réseau.",
+	'offline.banner': "Le serveur est injoignable. Les livres sur cet appareil restent lisibles.",
+	'offline.retry': "Réessayer",
+	'offline.room': "{used} de livres sur cet appareil",
+	'offline.unreachable': "Le serveur est injoignable, et cette page n’est pas sur l’appareil.",
+	'offline.toSaved': "Livres sur cet appareil"
 };

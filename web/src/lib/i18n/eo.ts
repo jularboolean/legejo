@@ -1016,5 +1016,22 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "La dosiero estas kopiprotektita.",
 	'catalogs.noFile': "Neniu EPUB, PDF aŭ bildstrio por elŝuti",
 	'catalogs.rightsHint': "Legejo ne scias, kion vi rajtas fari per libro el katalogo. Kion la katalogo diras pri la rajtoj, tio montriĝas ĉe ĉiu libro.",
-	'log.book.catalog_imported': "prenis “{title}” el la katalogo {catalog}"
+	'log.book.catalog_imported': "prenis “{title}” el la katalogo {catalog}",
+	'sidebar.offline': "En ĉi tiu aparato",
+	'offline.title': "En ĉi tiu aparato",
+	'offline.intro': "Libroj konservitaj ĉi tie legeblas sen reto. Via legoloko estas sendata al la servilo, kiam la reto revenas.",
+	'offline.empty': "Neniu libro estas konservita en ĉi tiu aparato. Malfermu libron kaj elektu „Konservi en la aparato“.",
+	'offline.save': "Konservi en la aparato",
+	'offline.saving': "Konservante… {percent} %",
+	'offline.saved': "En la aparato",
+	'offline.remove': "Forigi el la aparato",
+	'offline.saveFailed': "Ne eblis konservi la libron en la aparato.",
+	'offline.noRoom': "Ne estas sufiĉe da loko en la aparato.",
+	'offline.installHint': "Por legi sen reto, aldonu Legejon al la hejmekrano kaj konservu la libron tie.",
+	'offline.unsupported': "Ĉi tiu retumilo ne povas konservi librojn por legado sen reto.",
+	'offline.banner': "La servilo ne atingeblas. La libroj en ĉi tiu aparato plu legeblas.",
+	'offline.retry': "Reprovi",
+	'offline.room': "{used} da libroj en ĉi tiu aparato",
+	'offline.unreachable': "La servilo ne atingeblas, kaj ĉi tiu paĝo ne estas en la aparato.",
+	'offline.toSaved': "Libroj en ĉi tiu aparato"
 };

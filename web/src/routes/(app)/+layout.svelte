@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { dev } from '$app/env';
 	import { updated } from '$app/state';
+	import { onMount } from 'svelte';
 	import {
 		BookDown,
 		BookMarked,
@@ -8,6 +10,7 @@
 		Earth,
 		Feather,
 		Globe,
+		HardDriveDownload,
 		Headphones,
 		LibraryBig,
 		LogOut,
@@ -21,6 +24,8 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
+	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
+	import { sendUnsent } from '#lib/reader/progress';
 	import { swipeAction, swipeMayStart, type Point } from '#lib/drawerSwipe';
 	import type { LayoutData } from './$types';
 
@@ -44,8 +49,42 @@
 		return () => (document.body.style.overflow = '');
 	});
 
+	// Reading without the network (lib/offline): the service worker keeps the
+	// app and the saved books at hand. Only in a built app: in development
+	// it would stand between the editor and the page.
+	let hasSaved = $state(false);
+	onMount(() => {
+		const online = () => {
+			sendUnsent();
+			invalidateAll();
+		};
+		const recount = () => savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
+		window.addEventListener('online', online);
+		window.addEventListener(CHANGED_EVENT, recount);
+		if (data.user && availability() !== 'unsupported') {
+			savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
+			if (!dev) {
+				navigator.serviceWorker
+					.register('/service-worker.js')
+					.then(() => navigator.serviceWorker.ready)
+					.then(() => warmSession())
+					.catch(() => {});
+			}
+			if (!data.offline) sendUnsent();
+		}
+		return () => {
+			window.removeEventListener('online', online);
+			window.removeEventListener(CHANGED_EVENT, recount);
+		};
+	});
+	afterNavigate(() => {
+		if (data.user && availability() !== 'unsupported') savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
+	});
+
 	async function logout() {
 		await fetch('/api/auth/logout', { method: 'POST' });
+		// What was kept on the device for reading without the network goes with the session.
+		await forgetEverything().catch(() => {});
 		await invalidateAll();
 		goto('/login');
 	}
@@ -141,6 +180,12 @@
 					<BookOpenCheck size={15} strokeWidth={1.75} />
 					{t('sidebar.reading')}
 				</a>
+				{#if hasSaved || data.offline}
+					<a class="nav-item" href="/offline">
+						<HardDriveDownload size={15} strokeWidth={1.75} />
+						{t('sidebar.offline')}
+					</a>
+				{/if}
 				<a class="nav-item" href="/authors">
 					<Feather size={15} strokeWidth={1.75} />
 					{t('sidebar.authors')}

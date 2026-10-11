@@ -1016,5 +1016,22 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "Tiedosto on kopiosuojattu.",
 	'catalogs.noFile': "Ei haettavaa EPUB- tai PDF-tiedostoa eikä sarjakuvaa",
 	'catalogs.rightsHint': "Legejo ei tiedä, mitä luettelosta haetulla kirjalla saa tehdä. Luettelon tiedot oikeuksista näkyvät kunkin kirjan kohdalla.",
-	'log.book.catalog_imported': "haki kirjan ”{title}” luettelosta {catalog}"
+	'log.book.catalog_imported': "haki kirjan ”{title}” luettelosta {catalog}",
+	'sidebar.offline': "Tällä laitteella",
+	'offline.title': "Tällä laitteella",
+	'offline.intro': "Tänne tallennettuja kirjoja voi lukea ilman verkkoa. Lukukohtasi lähetetään palvelimelle, kun verkko on taas käytössä.",
+	'offline.empty': "Tälle laitteelle ei ole tallennettu kirjoja. Avaa kirja ja valitse ”Tallenna laitteelle”.",
+	'offline.save': "Tallenna laitteelle",
+	'offline.saving': "Tallennetaan… {percent} %",
+	'offline.saved': "Laitteella",
+	'offline.remove': "Poista laitteelta",
+	'offline.saveFailed': "Kirjaa ei voitu tallentaa laitteelle.",
+	'offline.noRoom': "Laitteella ei ole tarpeeksi tilaa.",
+	'offline.installHint': "Lukeaksesi ilman verkkoa lisää Legejo Koti-valikkoon ja tallenna kirja siellä.",
+	'offline.unsupported': "Tämä selain ei voi tallentaa kirjoja luettavaksi ilman verkkoa.",
+	'offline.banner': "Palvelimeen ei saada yhteyttä. Laitteella olevia kirjoja voi silti lukea.",
+	'offline.retry': "Yritä uudelleen",
+	'offline.room': "{used} kirjoja tällä laitteella",
+	'offline.unreachable': "Palvelimeen ei saada yhteyttä, eikä tätä sivua ole laitteella.",
+	'offline.toSaved': "Laitteella olevat kirjat"
 };

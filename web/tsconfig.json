@@ -3,9 +3,19 @@
 	"compilerOptions": {
 		"strict": true,
 		"paths": {
-			"#lib": ["./src/lib/index.ts"],
-			"#lib/*": ["./src/lib/*"]
+			"#lib": [
+				"./src/lib/index.ts"
+			],
+			"#lib/*": [
+				"./src/lib/*"
+			]
 		}
 	},
-	"include": ["src", "vite.config.ts"]
+	"include": [
+		"src",
+		"vite.config.ts"
+	],
+	"exclude": [
+		"src/service-worker"
+	]
 }

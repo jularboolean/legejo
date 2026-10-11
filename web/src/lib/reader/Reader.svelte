@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import './reader.css';
 	import { onMount, tick } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -53,7 +54,8 @@
 	let { book }: { book: BookDetail } = $props();
 	// svelte-ignore state_referenced_locally
 	const bookId = book.id;
-	const backHref = `/books/${bookId}`;
+	// Without the network the book's own page is out of reach: back is to the books on the device.
+	const backHref = $derived(page.data.offline ? '/offline' : `/books/${bookId}`);
 
 	type Panel = 'toc' | 'settings' | 'search' | 'help' | 'notes';
 

@@ -1016,5 +1016,22 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.protected': "El archivo está protegido contra copia.",
 	'catalogs.noFile': "No hay EPUB, PDF ni cómic que traer",
 	'catalogs.rightsHint': "Legejo no sabe qué puedes hacer con un libro de un catálogo. Lo que el catálogo dice de los derechos se muestra con cada libro.",
-	'log.book.catalog_imported': "trajo «{title}» del catálogo {catalog}"
+	'log.book.catalog_imported': "trajo «{title}» del catálogo {catalog}",
+	'sidebar.offline': "En este dispositivo",
+	'offline.title': "En este dispositivo",
+	'offline.intro': "Los libros guardados aquí se pueden leer sin red. Tu punto de lectura se envía al servidor cuando vuelve la red.",
+	'offline.empty': "No hay libros guardados en este dispositivo. Abre un libro y elige «Guardar en el dispositivo».",
+	'offline.save': "Guardar en el dispositivo",
+	'offline.saving': "Guardando… {percent} %",
+	'offline.saved': "En el dispositivo",
+	'offline.remove': "Quitar del dispositivo",
+	'offline.saveFailed': "No se pudo guardar el libro en el dispositivo.",
+	'offline.noRoom': "No hay espacio suficiente en el dispositivo.",
+	'offline.installHint': "Para leer sin red, añade Legejo a la pantalla de inicio y guarda el libro allí.",
+	'offline.unsupported': "Este navegador no puede guardar libros para leer sin red.",
+	'offline.banner': "No se puede contactar con el servidor. Los libros de este dispositivo se pueden seguir leyendo.",
+	'offline.retry': "Reintentar",
+	'offline.room': "{used} de libros en este dispositivo",
+	'offline.unreachable': "No se puede contactar con el servidor, y esta página no está en el dispositivo.",
+	'offline.toSaved': "Libros en este dispositivo"
 };

@@ -1,6 +1,8 @@
 // Reading position: the server when it has the progress API, otherwise (and
 // always as a backup) localStorage. Nothing here surfaces errors to the reader.
 
+import { CACHED_HEADER } from '#lib/offline/keys';
+
 export type Progress = {
 	cfi: string;
 	/** Overall progress, 0–1. */
@@ -16,7 +18,7 @@ export type SavedProgress = {
 	percent: number;
 };
 
-type Stored = Progress & { updatedAt: number };
+type Stored = Progress & { updatedAt: number; unsent?: boolean };
 
 /** The server rejects longer CFIs with 422. */
 const MAX_CFI_LENGTH = 2000;
@@ -85,7 +87,8 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 			return {
 				cfi: v.cfi,
 				percent: typeof v.percent === 'number' ? v.percent : 0,
-				updatedAt: typeof v.updatedAt === 'number' ? v.updatedAt : 0
+				updatedAt: typeof v.updatedAt === 'number' ? v.updatedAt : 0,
+				unsent: v.unsent === true
 			};
 		} catch {
 			return null;
@@ -94,9 +97,22 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 
 	function writeLocal(progress: Progress) {
 		try {
-			localStorage.setItem(key, JSON.stringify({ ...progress, updatedAt: Date.now() }));
+			// Marked as not sent until the server has it: what was read without
+			// the network is sent once it is back (sendUnsent).
+			localStorage.setItem(key, JSON.stringify({ ...progress, updatedAt: Date.now(), unsent: true }));
 		} catch {
 			// Storage unavailable; the server copy (if any) still works.
+		}
+	}
+
+	/** The server has this position: no longer waiting to be sent, unless a later one is. */
+	function markSent(progress: Progress) {
+		const local = readLocal();
+		if (!local || local.cfi !== progress.cfi) return;
+		try {
+			localStorage.setItem(key, JSON.stringify({ cfi: local.cfi, percent: local.percent, updatedAt: local.updatedAt }));
+		} catch {
+			// Sent again next time; the server takes the same position twice.
 		}
 	}
 
@@ -111,6 +127,7 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 		})
 			.then((res) => {
 				if (res.status === 404) remote = false;
+				if (res.ok) markSent(progress);
 			})
 			.catch(() => {
 				// Offline or the server is down: the local copy is the fallback.
@@ -163,4 +180,55 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 			return last ? send(last, true) : Promise.resolve();
 		}
 	};
+}
+
+/**
+ * Send the positions that never reached the server, as after reading without
+ * the network. One the server has a later position for (the book was read
+ * elsewhere meanwhile) is dropped instead. Safe to call at any time.
+ */
+export async function sendUnsent(): Promise<void> {
+	const prefix = storageKey('');
+	const keys: string[] = [];
+	try {
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key?.startsWith(prefix)) keys.push(key);
+		}
+	} catch {
+		return;
+	}
+	for (const key of keys) {
+		let local: Stored | null = null;
+		try {
+			local = JSON.parse(localStorage.getItem(key) ?? 'null');
+		} catch {
+			continue;
+		}
+		if (!local?.unsent || typeof local.cfi !== 'string' || local.cfi.length > MAX_CFI_LENGTH) continue;
+		const url = `/api/books/${key.slice(prefix.length)}/progress`;
+		const settled = { cfi: local.cfi, percent: local.percent, updatedAt: local.updatedAt };
+		try {
+			const res = await fetch(url);
+			// An answer out of the device's own cache says nothing about the server.
+			if (res.headers.get(CACHED_HEADER)) return;
+			if (res.ok) {
+				const server: RemoteProgress = await res.json();
+				if (parseTimestamp(server.updated_at) < local.updatedAt) {
+					const put = await fetch(url, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ cfi: local.cfi, percent: Math.min(1, Math.max(0, local.percent)) })
+					});
+					if (!put.ok && put.status !== 404 && put.status !== 422) continue;
+				}
+			} else if (res.status !== 404) {
+				continue;
+			}
+			localStorage.setItem(key, JSON.stringify(settled));
+		} catch {
+			// Still no network: left for the next time.
+			return;
+		}
+	}
 }

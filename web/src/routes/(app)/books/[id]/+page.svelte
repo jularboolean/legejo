@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, Download, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
@@ -10,11 +10,49 @@
 	import { formatPublished } from '#lib/pubdate';
 	import Rating from '#lib/Rating.svelte';
 	import { localPercent } from '#lib/reader/progress';
+	import { availability, fileVersion, removeBook, saveBook, savedVersion } from '#lib/offline/store';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const book = $derived(data.book);
+
+	// Saved on the device, for reading without the network (lib/offline).
+	const offline = availability();
+	let onDevice = $state<boolean | null>(null);
+	let saving = $state<number | null>(null);
+	let offlineError = $state('');
+	$effect(() => {
+		const current = book;
+		onDevice = null;
+		offlineError = '';
+		if (current.format !== 'epub' || offline === 'unsupported') return;
+		savedVersion(current.id)
+			.then((version) => {
+				if (book.id !== current.id) return;
+				onDevice = version !== null;
+				// The file has changed since it was saved: bring the device's copy up to date.
+				if (version !== null && version !== fileVersion(current) && saving === null) keepOnDevice(true);
+			})
+			.catch(() => (onDevice = false));
+	});
+	async function keepOnDevice(quiet = false) {
+		const current = book;
+		if (!data.user) return;
+		if (!quiet) saving = 0;
+		offlineError = '';
+		try {
+			await saveBook(current, data.user.id, quiet ? undefined : (fraction) => (saving = fraction));
+			if (book.id === current.id) onDevice = true;
+		} catch (err) {
+			if (!quiet) offlineError = (err as Error)?.name === 'QuotaExceededError' ? t('offline.noRoom') : t('offline.saveFailed');
+		}
+		if (!quiet) saving = null;
+	}
+	async function dropFromDevice() {
+		await removeBook(book.id).catch(() => {});
+		onDevice = false;
+	}
 
 	let kindleState = $state<'idle' | 'sending' | 'sent'>('idle');
 	let kindleError = $state('');
@@ -161,6 +199,27 @@
 			<Download size={14} />
 			{t('book.download', { format: book.format.toUpperCase() })}
 		</a>
+		{#if book.format === 'epub' && offline === 'ready' && onDevice !== null}
+			{#if saving !== null}
+				<button type="button" class="want" disabled>
+					<HardDriveDownload size={14} />
+					{t('offline.saving', { percent: Math.round(saving * 100) })}
+				</button>
+			{:else if onDevice}
+				<button type="button" class="want on" aria-pressed="true" title={t('offline.remove')} onclick={dropFromDevice}>
+					<CircleCheck size={14} />
+					{t('offline.saved')}
+				</button>
+			{:else}
+				<button type="button" class="want" aria-pressed="false" onclick={() => keepOnDevice()}>
+					<HardDriveDownload size={14} />
+					{t('offline.save')}
+				</button>
+			{/if}
+			{#if offlineError}<p class="kindle-error" role="alert">{offlineError}</p>{/if}
+		{:else if book.format === 'epub' && offline === 'install'}
+			<p class="elsewhere">{t('offline.installHint')}</p>
+		{/if}
 		{#if data.sendToKindle && book.format !== 'cbz'}
 			<button type="button" class="want" disabled={kindleState === 'sending'} onclick={sendToKindle}>
 				<Send size={14} />

@@ -28,7 +28,11 @@ export default defineConfig(({ mode }) => ({
 			// Open tabs survive a deploy: when the app version changes, failed
 			// client-side navigations fall back to a full-page load instead of
 			// failing dynamic imports of chunks that no longer exist.
-			version: { pollInterval: 60_000 }
+			version: { pollInterval: 60_000 },
+
+			// The service worker (src/service-worker) is registered by the app
+			// itself, for a logged-in user and only in a built app.
+			serviceWorker: { register: false }
 		})
 	],
 	test: { include: ['src/**/*.test.ts'] },
