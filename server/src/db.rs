@@ -132,12 +132,13 @@ pub fn hash_password(password: &str) -> anyhow::Result<String> {
 /// If no users exist, create the initial admin account.
 /// Username/password come from LEGEJO_ADMIN_USER / LEGEJO_ADMIN_PASSWORD;
 /// if no password is set, a random one is generated and printed once.
-pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<()> {
+/// Returns the new admin's id when one was created: the instance is new.
+pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<Option<i64>> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
         .await?;
     if count > 0 {
-        return Ok(());
+        return Ok(None);
     }
 
     let username = crate::settings::var("LEGEJO_ADMIN_USER")?.unwrap_or_else(|| "admin".into());
@@ -147,10 +148,10 @@ pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<()> {
     };
 
     let hash = hash_password(&password)?;
-    sqlx::query("INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, 1)")
+    let id: i64 = sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, 1) RETURNING id")
         .bind(&username)
         .bind(&hash)
-        .execute(pool)
+        .fetch_one(pool)
         .await?;
 
     if generated {
@@ -163,7 +164,7 @@ pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<()> {
     } else {
         tracing::info!("bootstrap: admin account '{username}' created from env");
     }
-    Ok(())
+    Ok(Some(id))
 }
 
 fn random_password(len: usize) -> String {

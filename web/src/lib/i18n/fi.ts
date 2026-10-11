@@ -1033,5 +1033,6 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'offline.retry': "Yritä uudelleen",
 	'offline.room': "{used} kirjoja tällä laitteella",
 	'offline.unreachable': "Palvelimeen ei saada yhteyttä, eikä tätä sivua ole laitteella.",
-	'offline.toSaved': "Laitteella olevat kirjat"
+	'offline.toSaved': "Laitteella olevat kirjat",
+	'log.book.welcome': "lisäsi käsikirjan ”{title}” uuteen kirjastoon"
 };

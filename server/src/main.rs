@@ -68,6 +68,7 @@ mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
 mod kobospan;
+mod welcome;
 #[cfg(test)]
 mod annotation_tests;
 
@@ -350,7 +351,7 @@ async fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(&data_dir)?;
 
     let (db, backend) = db::connect(&data_dir).await?;
-    db::bootstrap_admin(&db).await?;
+    let first_admin = db::bootstrap_admin(&db).await?;
 
     let kepubify = find_kepubify();
     match &kepubify {
@@ -401,6 +402,10 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(fed::deliver::worker(state.clone()));
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
+    // A new instance: its library begins with the manual.
+    if let Some(admin) = first_admin {
+        welcome::shelve(&state, admin).await;
+    }
     tokio::spawn(importdir::worker(state.clone()));
     tokio::spawn(audioimport::worker(state.clone()));
 

@@ -1033,5 +1033,6 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'offline.retry': "Reintentar",
 	'offline.room': "{used} de libros en este dispositivo",
 	'offline.unreachable': "No se puede contactar con el servidor, y esta página no está en el dispositivo.",
-	'offline.toSaved': "Libros en este dispositivo"
+	'offline.toSaved': "Libros en este dispositivo",
+	'log.book.welcome': "puso el manual «{title}» en la nueva biblioteca"
 };

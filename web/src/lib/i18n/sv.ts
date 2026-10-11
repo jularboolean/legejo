@@ -1033,5 +1033,6 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'offline.retry': "Försök igen",
 	'offline.room': "{used} böcker på enheten",
 	'offline.unreachable': "Servern går inte att nå, och den här sidan finns inte på enheten.",
-	'offline.toSaved': "Böcker på enheten"
+	'offline.toSaved': "Böcker på enheten",
+	'log.book.welcome': "ställde handboken ”{title}” i det nya biblioteket"
 };

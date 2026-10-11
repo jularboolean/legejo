@@ -137,6 +137,7 @@ own, and each file is one part.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
 
 **For self-hosters**
+- A new instance begins with one book in its library: *The Legejo Cookbook*, the user manual, in the public domain. Delete it when you no longer need it.
 - SQLite with zero configuration, or PostgreSQL.
 - A watched import folder for EPUB, PDF and CBZ files.
 - Prometheus metrics, JSON logs, throttling of password guessing, and secrets from files.

@@ -1031,7 +1031,8 @@ export const en = {
 	'offline.retry': "Try again",
 	'offline.room': "{used} of books on this device",
 	'offline.unreachable': "The server cannot be reached, and this page is not on the device.",
-	'offline.toSaved': "Books on this device"
+	'offline.toSaved': "Books on this device",
+	'log.book.welcome': "put “{title}”, the manual, in the new library"
 };
 
 export type MessageKey = keyof typeof en;
