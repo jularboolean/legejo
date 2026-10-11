@@ -69,6 +69,8 @@ mod catalog_tests;
 mod kobo_annotations_tests;
 mod kobospan;
 mod welcome;
+mod shelflinks;
+mod shelflink_tests;
 #[cfg(test)]
 mod annotation_tests;
 
@@ -219,6 +221,12 @@ fn router(state: AppState) -> Router {
         .route("/v3/{*rest}", axum::routing::any(kobo::reading_services))
         .route("/UserStorage/{*rest}", axum::routing::any(kobo::reading_services))
         .route("/internal/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/shelves/{id}/links", get(shelflinks::list).post(shelflinks::create))
+        .route("/shelves/{id}/links/{link}", axum::routing::delete(shelflinks::remove))
+        .route("/linked-shelves", get(shelflinks::linked_list).post(shelflinks::follow))
+        .route("/linked-shelves/{id}", get(shelflinks::linked_shelf).delete(shelflinks::unfollow))
+        .route("/linked-shelves/{id}/image", get(shelflinks::linked_image))
+        .route("/linked-shelves/{id}/import", post(shelflinks::linked_import))
         .route("/catalogs", get(catalogs::list).post(catalogs::create))
         .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
         .route("/catalogs/{id}/feed", get(catalogs::feed))
@@ -268,6 +276,10 @@ fn router(state: AppState) -> Router {
         .route("/shelves/{id}", get(opds::shelf))
         .route("/series", get(opds::series_list))
         .route("/series/{name}", get(opds::series))
+        // A shelf by its private link: no login, the token is the key.
+        .route("/shared/{token}", get(shelflinks::feed))
+        .route("/shared/{token}/books/{id}/cover", get(shelflinks::cover))
+        .route("/shared/{token}/books/{id}/file", get(shelflinks::file))
         .layer(axum::middleware::from_fn_with_state(state.clone(), ratelimit::basic));
 
     let kobo = Router::new()

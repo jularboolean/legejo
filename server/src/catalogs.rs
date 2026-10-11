@@ -24,9 +24,9 @@ use serde_json::json;
 use std::time::Duration;
 
 const FEED_LIMIT: usize = 5 * 1024 * 1024;
-const IMAGE_LIMIT: usize = 3 * 1024 * 1024;
-const FEED_TIMEOUT: Duration = Duration::from_secs(15);
-const FILE_TIMEOUT: Duration = Duration::from_secs(120);
+pub(crate) const IMAGE_LIMIT: usize = 3 * 1024 * 1024;
+pub(crate) const FEED_TIMEOUT: Duration = Duration::from_secs(15);
+pub(crate) const FILE_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_CATALOGS: i64 = 30;
 const MAX_ENTRIES: usize = 500;
 const SUMMARY_CHARS: usize = 600;
@@ -43,7 +43,7 @@ fn internal(e: impl std::fmt::Display) -> Response {
 
 /// A fetch that failed, as the answer to the user: an address Legejo will
 /// not go to is the user's to correct, the rest is the other server's.
-fn fetch_failed(url: &str, e: FetchError) -> Response {
+pub(crate) fn fetch_failed(url: &str, e: FetchError) -> Response {
     tracing::info!("catalog: fetching {url} failed: {e}");
     match e {
         FetchError::Blocked(_) => err(StatusCode::UNPROCESSABLE_ENTITY, "address not allowed"),
@@ -194,6 +194,9 @@ fn parse_xml(bytes: &[u8]) -> Result<El, String> {
 #[derive(Serialize, Debug, PartialEq)]
 pub struct Feed {
     pub title: String,
+    /// What the feed says about itself, under its title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
     pub entries: Vec<Entry>,
     pub next: Option<String>,
     pub previous: Option<String>,
@@ -364,13 +367,14 @@ pub fn parse_feed(bytes: &[u8], base: &Url) -> Result<Feed, String> {
     let root = parse_xml(bytes)?;
     if root.name == "entry" {
         let entry = parse_entry(&root, base);
-        return Ok(Feed { title: entry.title.clone(), entries: vec![entry], next: None, previous: None, search: None });
+        return Ok(Feed { title: entry.title.clone(), subtitle: None, entries: vec![entry], next: None, previous: None, search: None });
     }
     if root.name != "feed" {
         return Err(format!("a <{}> document, not a feed", root.name));
     }
     let mut feed = Feed {
         title: squeeze(&root.child("title").map(El::text).unwrap_or_default()),
+        subtitle: root.child("subtitle").map(|s| shorten(squeeze(&s.text()))).filter(|s| !s.is_empty()),
         entries: root.children("entry").take(MAX_ENTRIES).map(|e| parse_entry(e, base)).collect(),
         next: None,
         previous: None,
@@ -455,7 +459,7 @@ fn upgrade(url: String, base: &Url) -> String {
     }
 }
 
-async fn fetch_feed(state: &AppState, url: &str) -> Result<(Feed, Url), Response> {
+pub(crate) async fn fetch_feed(state: &AppState, url: &str) -> Result<(Feed, Url), Response> {
     let mut got = net::get_public(state, url, ATOM, FEED_LIMIT, FEED_TIMEOUT).await;
     // A catalog whose own back end timed out (a search it had not made
     // before) often answers the second time.

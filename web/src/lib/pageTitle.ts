@@ -41,6 +41,8 @@ function part(route: string | null, d: Data): string | null {
 			return d.seriesName ?? null;
 		case '/(app)/public/[owner]/[shelf]':
 			return d.publicShelf?.name ?? null;
+		case '/(app)/linked/[id]':
+			return d.linked?.shelf?.title ?? null;
 		case '/(app)/public/[owner]/[shelf]/[uuid]':
 			return d.publicBook?.title ?? null;
 	}

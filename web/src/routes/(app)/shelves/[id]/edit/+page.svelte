@@ -6,6 +6,7 @@
 	import { SLUG_RE } from '#lib/fed';
 	import { t } from '#lib/i18n';
 	import { reasonText } from '#lib/license';
+	import ShelfLinks from '#lib/shelves/ShelfLinks.svelte';
 	import { defaultShelfCoverIndex, shelfCovers } from '#lib/shelfCovers';
 	import type { BlockingBook, ShelfMember } from '#lib/types';
 	import type { PageData } from './$types';
@@ -411,6 +412,10 @@
 		<a class="cancel" href={`/shelves/${data.shelf.id}`}>{t('common.cancel')}</a>
 	</div>
 </form>
+
+{#if data.shelfLinks}
+	<ShelfLinks shelfId={data.shelf.id} />
+{/if}
 
 <div class="danger-zone">
 	<button type="button" class="ghost danger" onclick={() => (deleteOpen = true)}>

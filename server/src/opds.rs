@@ -68,7 +68,7 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "not found").into_response()
 }
 
-fn esc(s: &str) -> String {
+pub(crate) fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -77,13 +77,13 @@ fn esc(s: &str) -> String {
 }
 
 const NAV_TYPE: &str = "application/atom+xml;profile=opds-catalog;kind=navigation";
-const ACQ_TYPE: &str = "application/atom+xml;profile=opds-catalog;kind=acquisition";
+pub(crate) const ACQ_TYPE: &str = "application/atom+xml;profile=opds-catalog;kind=acquisition";
 
-fn feed_response(kind: &str, xml: String) -> Response {
+pub(crate) fn feed_response(kind: &str, xml: String) -> Response {
     ([(header::CONTENT_TYPE, kind.to_string())], xml).into_response()
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     time::OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default()
@@ -128,6 +128,12 @@ fn nav_entry(title: &str, content: &str, href: &str, kind: &str) -> String {
 }
 
 fn book_entry(book: &Book) -> String {
+    book_entry_under(book, "/api/opds", true)
+}
+
+/// A book as an entry whose cover and file are fetched under `base`. The
+/// link to its series is left out where the reader has no way to the series.
+pub(crate) fn book_entry_under(book: &Book, base: &str, with_series: bool) -> String {
     let mut entry = format!(
         r#"<entry>
 <title>{title}</title>
@@ -173,7 +179,7 @@ fn book_entry(book: &Book) -> String {
     if let Some(summary) = summary {
         entry.push_str(&format!("<summary type=\"text\">{}</summary>\n", esc(&summary)));
     }
-    if let Some(name) = book.series.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(name) = book.series.as_deref().filter(|s| !s.trim().is_empty()).filter(|_| with_series) {
         entry.push_str(&format!(
             "<link rel=\"related\" href=\"{}\" type=\"{ACQ_TYPE}\" title=\"{}\"/>\n",
             esc(&series_href(name)),
@@ -182,12 +188,12 @@ fn book_entry(book: &Book) -> String {
     }
     if book.has_cover.as_bool() {
         entry.push_str(&format!(
-            "<link rel=\"http://opds-spec.org/image\" href=\"/api/opds/books/{id}/cover\" type=\"image/jpeg\"/>\n",
+            "<link rel=\"http://opds-spec.org/image\" href=\"{base}/books/{id}/cover\" type=\"image/jpeg\"/>\n",
             id = book.id
         ));
     }
     entry.push_str(&format!(
-        "<link rel=\"http://opds-spec.org/acquisition\" href=\"/api/opds/books/{id}/file\" type=\"{mime}\"/>\n</entry>\n",
+        "<link rel=\"http://opds-spec.org/acquisition\" href=\"{base}/books/{id}/file\" type=\"{mime}\"/>\n</entry>\n",
         id = book.id,
         mime = crate::formats::Format::parse(&book.format).mime(),
     ));

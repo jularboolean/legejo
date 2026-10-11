@@ -2,6 +2,7 @@
 	import { Users } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
+	import FollowedLinks from '#lib/shelves/FollowedLinks.svelte';
 	import { plainSnippet, type ViewMode } from '#lib/library';
 	import { defaultShelfCover } from '#lib/shelfCovers';
 	import { t } from '#lib/i18n';
@@ -97,6 +98,10 @@
 			</a>
 		{/each}
 	</div>
+{/if}
+
+{#if data.shelfLinks}
+	<FollowedLinks shelves={data.linkedShelves} />
 {/if}
 
 <style>

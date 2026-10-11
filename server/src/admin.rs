@@ -47,6 +47,7 @@ pub struct Settings {
     audiobooks_enabled: bool,
     catalogs_enabled: bool,
     kobo_annotations_enabled: bool,
+    shelf_links_enabled: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -63,6 +64,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         audiobooks_enabled: crate::audiobooks::enabled(state).await,
         catalogs_enabled: crate::catalogs::enabled(state).await,
         kobo_annotations_enabled: crate::kobo::annotations_enabled(state).await,
+        shelf_links_enabled: crate::shelflinks::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -89,6 +91,8 @@ pub struct UpdateSettings {
     catalogs_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     kobo_annotations_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    shelf_links_enabled: Option<bool>,
     registration_enabled: bool,
 }
 
@@ -120,6 +124,11 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.shelf_links_enabled {
+        set_setting(&state, "shelf_links_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
     set_setting(
         &state,
         "registration_enabled",
@@ -137,6 +146,7 @@ pub async fn update_settings(
             "audiobooks_enabled": req.audiobooks_enabled,
             "catalogs_enabled": req.catalogs_enabled,
             "kobo_annotations_enabled": req.kobo_annotations_enabled,
+            "shelf_links_enabled": req.shelf_links_enabled,
             "registration_enabled": req.registration_enabled,
         }),
     )
@@ -274,6 +284,8 @@ pub struct Config {
     catalogs: bool,
     /// Whether an admin has turned catalogs on for the instance.
     catalogs_available: bool,
+    /// Whether shelves can be shared by, and followed from, a private link.
+    shelf_links: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -289,6 +301,7 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         librarian,
         catalogs: crate::catalogs::allowed(&state, user.0.id).await,
         catalogs_available: crate::catalogs::enabled(&state).await,
+        shelf_links: crate::shelflinks::enabled(&state).await,
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

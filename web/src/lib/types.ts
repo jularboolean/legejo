@@ -377,3 +377,34 @@ export type CatalogPage = {
 	next: string | null;
 	previous: string | null;
 };
+
+/** A link to a shelf, as its owner sees it (Private links on the shelf's edit page). */
+export type ShelfLink = {
+	id: number;
+	name: string;
+	/** The secret part of the link's address. */
+	token: string;
+	created_at: string;
+	expires_at: string | null;
+	last_used_at: string | null;
+};
+
+/** A shelf followed by a private link. Its address is kept by the server alone. */
+export type LinkedShelf = {
+	id: number;
+	title: string;
+	description: string | null;
+	/** The instance the shelf is on. */
+	host: string;
+	created_at: string;
+};
+
+/** A book on a shelf followed by link, as its feed gives it. */
+export type LinkedBook = {
+	title: string;
+	authors: string[];
+	summary: string | null;
+	language: string | null;
+	cover: string | null;
+	files: { href: string; format: 'epub' | 'pdf' | 'cbz'; title: string | null; size: number | null }[];
+};

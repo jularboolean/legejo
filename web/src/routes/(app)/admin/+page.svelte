@@ -27,6 +27,7 @@
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
+	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -68,6 +69,7 @@
 					audiobooks_enabled: audiobooksEnabled,
 					catalogs_enabled: catalogsEnabled,
 					kobo_annotations_enabled: koboAnnotationsEnabled,
+					shelf_links_enabled: shelfLinksEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -81,11 +83,13 @@
 				audiobooks_enabled: boolean;
 				catalogs_enabled?: boolean;
 				kobo_annotations_enabled?: boolean;
+				shelf_links_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
 			audiobooksEnabled = settings.audiobooks_enabled;
 			catalogsEnabled = settings.catalogs_enabled ?? false;
 			koboAnnotationsEnabled = settings.kobo_annotations_enabled ?? false;
+			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -127,6 +131,12 @@
 		const previous = koboAnnotationsEnabled;
 		koboAnnotationsEnabled = enabled;
 		if (!(await saveSettings())) koboAnnotationsEnabled = previous;
+	}
+
+	async function toggleShelfLinks(enabled: boolean) {
+		const previous = shelfLinksEnabled;
+		shelfLinksEnabled = enabled;
+		if (!(await saveSettings())) shelfLinksEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -212,6 +222,16 @@
 		{t('admin.koboAnnotationsToggle')}
 	</label>
 	<p class="hint">{t('admin.koboAnnotationsHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={shelfLinksEnabled}
+			disabled={saving}
+			onchange={(e) => toggleShelfLinks(e.currentTarget.checked)}
+		/>
+		{t('admin.shelfLinksToggle')}
+	</label>
+	<p class="hint">{t('admin.shelfLinksHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"
