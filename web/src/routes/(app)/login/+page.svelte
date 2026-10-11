@@ -52,7 +52,10 @@
 
 <div class="wrap">
 	<form onsubmit={submit}>
-		<h1 aria-label={t('app.name')}><Logo size={104} /></h1>
+		<h1>
+			<Logo size={124} variant="pair" />
+			<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
+		</h1>
 		<label>
 			{t('login.username')}
 			<input bind:value={username} autocomplete="username" required />
@@ -95,10 +98,23 @@
 		border-radius: 10px;
 		padding: 2rem;
 	}
+	/* The mark and the name under it, as at the top of the menu once logged in. */
 	h1 {
 		margin: 0 0 0.5rem;
 		display: flex;
-		justify-content: center;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+		font: inherit;
+	}
+	.wordmark {
+		font-size: 0.8rem;
+		font-weight: 500;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+	}
+	.version {
+		font-variant-numeric: tabular-nums;
 	}
 
 	label {
