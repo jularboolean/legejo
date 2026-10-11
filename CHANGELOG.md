@@ -4,6 +4,30 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.17.0 (2026-10-11)
+
+- **A shelf for someone on another Legejo.** The owner of a shelf can make
+  private links to it, on the shelf's edit page under **Private links**: an
+  address that opens the shelf without a login, one for each person it is
+  given to. Each can be given a last day, shows when it was last used, and
+  can be taken back on its own, at which it stops working at once.
+  - Pasted into another Legejo, at the foot of **Shared shelves**, the link
+    becomes a shelf there, under **Shelves from other Legejo instances**,
+    with its books to be added to that library. The list marks a shelf whose
+    instance is not answering, and one whose link no longer works.
+  - The link is an ordinary OPDS catalog, so it also works in KOReader,
+    Thorium and other reading apps.
+  - Off until an admin turns on **Shelves by private link**. With it on, the
+    server hands out the books on a shelf to whoever holds a link to it, and
+    fetches shelves from the addresses its users follow. It is meant for
+    people you know.
+- The login page shows the pair of pigeons, the name and the version.
+- *The Legejo Cookbook* has two new recipes, for giving a shelf away by link
+  and for following one. A new instance gets the new edition; the file is in
+  the repository as `server/assets/the-legejo-cookbook.epub`.
+- **Upgrading:** nothing to do. The database gains two tables on first
+  start.
+
 ## 1.16.0 (2026-10-11)
 
 - **Reading without the network.** With Legejo on your home screen (or in
