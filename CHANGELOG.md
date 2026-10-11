@@ -4,6 +4,28 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.16.0 (2026-10-11)
+
+- **Reading without the network.** With Legejo on your home screen (or in
+  the Dock), a book can be saved on the device: **Save on this device** on
+  the book's page. The app then opens without the network and shows the
+  books that are there, under **On this device**. Your place in them is
+  kept and sent when the server can be reached again; if you read further
+  on another device meanwhile, the later place wins. Good to know:
+  - On iPhone, iPad and in Safari on a Mac the button is offered only in
+    the installed app. In a tab, Safari empties what a site has stored
+    after a week unvisited; the page says so instead.
+  - Without the network, highlights can be read but not made, and the rest
+    of the library cannot be browsed.
+  - Logging out removes what was saved on the device.
+- **A new instance begins with its manual.** *The Legejo Cookbook*, the user
+  manual as a book of recipes, is put in the first admin's library when an
+  instance is first started. It is in the public domain, and can be deleted
+  like any book. Existing instances do not get it; it is in the repository
+  as `server/assets/the-legejo-cookbook.epub` for anyone who wants it.
+- **Upgrading:** nothing to do. The web app now installs a service worker,
+  which is what keeps the app's own files on the device.
+
 ## 1.15.0 (2026-10-10)
 
 - **Highlights and notes in the reader.** Select a passage and keep it,
