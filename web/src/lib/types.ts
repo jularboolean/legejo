@@ -396,6 +396,9 @@ export type LinkedShelf = {
 	description: string | null;
 	/** The instance the shelf is on. */
 	host: string;
+	/** Whether it answered when last asked: its instance may be down, or the link taken back. */
+	state: 'ok' | 'unreachable' | 'gone';
+	state_since: string | null;
 	created_at: string;
 };
 

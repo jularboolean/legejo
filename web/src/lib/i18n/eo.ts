@@ -1076,5 +1076,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_created': "faris ligilon al la breto {shelf} por {name}",
 	'log.shelf.link_removed': "reprenis la ligilon al la breto {shelf} de {name}",
 	'log.shelf.link_followed': "sekvis la breton {shelf} el {host} per ligilo",
-	'log.book.link_imported': "prenis „{title}“ el la breto {shelf}"
+	'log.book.link_imported': "prenis „{title}“ el la breto {shelf}",
+	'linked.state.unreachable': "ne respondas",
+	'linked.state.gone': "la ligilo ne plu funkcias"
 };

@@ -1076,5 +1076,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_created': "loi linkin hyllyyn {shelf} käyttäjälle {name}",
 	'log.shelf.link_removed': "perui linkin hyllyyn {shelf} käyttäjältä {name}",
 	'log.shelf.link_followed': "seurasi hyllyä {shelf} instanssista {host} linkillä",
-	'log.book.link_imported': "haki kirjan ”{title}” hyllystä {shelf}"
+	'log.book.link_imported': "haki kirjan ”{title}” hyllystä {shelf}",
+	'linked.state.unreachable': "ei vastaa",
+	'linked.state.gone': "linkki ei enää toimi"
 };

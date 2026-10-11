@@ -19,6 +19,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use reqwest::Url;
+use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -304,7 +305,54 @@ pub struct Linked {
     host: String,
     #[serde(skip)]
     url: String,
+    /// "ok", "unreachable" (its instance did not answer) or "gone" (the
+    /// link no longer works), as of the last time the shelf was asked for.
+    state: String,
+    state_since: Option<String>,
+    #[serde(skip)]
+    checked_at: Option<String>,
     created_at: String,
+}
+
+const LINKED_COLUMNS: &str = "id, title, description, url, state, state_since, checked_at, created_at";
+/// How long what is known about a shelf holds before the list asks again.
+const CHECK_EVERY_MINUTES: i64 = 5;
+/// The list's own asking is done in the background, and does not wait long.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(8);
+
+/// A shelf read from its link, or why not: the link is gone (taken back,
+/// past its last day), or its instance cannot be reached just now.
+enum Unread {
+    Gone(Response),
+    Unreachable(Response),
+}
+
+async fn read(state: &AppState, url: &str, timeout: Duration) -> Result<catalogs::Feed, Unread> {
+    const ATOM: &str = "application/atom+xml;profile=opds-catalog, application/atom+xml, application/xml;q=0.8";
+    match net::get_public(state, url, ATOM, 5 * 1024 * 1024, timeout).await {
+        Ok(got) => catalogs::parse_feed(&got.bytes, &got.url).map_err(|_| Unread::Gone(err(StatusCode::BAD_GATEWAY, "not a catalog"))),
+        Err(e) => {
+            let gone = matches!(e, net::FetchError::Status(401 | 403 | 404 | 410));
+            let response = catalogs::fetch_failed(&host_of(url), e);
+            Err(if gone { Unread::Gone(response) } else { Unread::Unreachable(response) })
+        }
+    }
+}
+
+/// Keep what the last asking said. The time a state began is kept while the state lasts.
+async fn remember(state: &AppState, id: i64, now_state: &str) {
+    let now = crate::db::now_ts();
+    let _ = sqlx::query(
+        "UPDATE linked_shelves SET checked_at = $1,
+            state_since = CASE WHEN state = $2 THEN state_since WHEN $2 = 'ok' THEN NULL ELSE $1 END,
+            state = $2
+         WHERE id = $3",
+    )
+    .bind(&now)
+    .bind(now_state)
+    .bind(id)
+    .execute(&state.db)
+    .await;
 }
 
 fn host_of(url: &str) -> String {
@@ -328,7 +376,7 @@ fn link_address(raw: &str) -> Option<String> {
 }
 
 async fn followed(state: &AppState, user_id: i64, id: i64) -> Result<Linked, Response> {
-    let row: Option<Linked> = sqlx::query_as("SELECT id, title, description, url, created_at FROM linked_shelves WHERE id = $1 AND user_id = $2")
+    let row: Option<Linked> = sqlx::query_as(&format!("SELECT {LINKED_COLUMNS} FROM linked_shelves WHERE id = $1 AND user_id = $2"))
         .bind(id)
         .bind(user_id)
         .fetch_optional(&state.db)
@@ -339,14 +387,44 @@ async fn followed(state: &AppState, user_id: i64, id: i64) -> Result<Linked, Res
     Ok(linked)
 }
 
+/// The time before which a shelf was last asked for too long ago.
+fn stale_cutoff() -> String {
+    (time::OffsetDateTime::now_utc() - time::Duration::minutes(CHECK_EVERY_MINUTES)).format(&crate::db::TS_FORMAT).unwrap_or_default()
+}
+
 /// GET /api/linked-shelves
 pub async fn linked_list(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Linked>>, Response> {
     require(&state).await?;
-    let mut rows: Vec<Linked> = sqlx::query_as("SELECT id, title, description, url, created_at FROM linked_shelves WHERE user_id = $1 ORDER BY title, id")
+    let mut rows: Vec<Linked> = sqlx::query_as(&format!("SELECT {LINKED_COLUMNS} FROM linked_shelves WHERE user_id = $1 ORDER BY title, id"))
         .bind(user.0.id)
         .fetch_all(&state.db)
         .await
         .map_err(internal)?;
+    // The list answers at once with what is known. Shelves not asked for a
+    // while are asked in the background, one after the other, so that the
+    // page never waits for an instance that does not answer; it finds what
+    // came of it the next time it asks.
+    let cutoff = crate::db::now_ts();
+    let stale_before = stale_cutoff();
+    let due: Vec<(i64, String)> =
+        rows.iter().filter(|r| r.checked_at.as_deref().is_none_or(|at| at < stale_before.as_str())).map(|r| (r.id, r.url.clone())).collect();
+    if !due.is_empty() {
+        // Marked as asked first: a second list meanwhile does not ask again.
+        for (id, _) in &due {
+            let _ = sqlx::query("UPDATE linked_shelves SET checked_at = $1 WHERE id = $2").bind(&cutoff).bind(id).execute(&state.db).await;
+        }
+        let state = state.clone();
+        tokio::spawn(async move {
+            for (id, url) in due {
+                let found = match read(&state, &url, CHECK_TIMEOUT).await {
+                    Ok(_) => "ok",
+                    Err(Unread::Gone(_)) => "gone",
+                    Err(Unread::Unreachable(_)) => "unreachable",
+                };
+                remember(&state, id, found).await;
+            }
+        });
+    }
     for row in &mut rows {
         row.host = host_of(&row.url);
     }
@@ -382,13 +460,16 @@ pub async fn follow(State(state): State<AppState>, user: AuthUser, Json(req): Js
     if count >= MAX_FOLLOWED {
         return Err(err(StatusCode::UNPROCESSABLE_ENTITY, "too many shelves"));
     }
-    let (feed, _) = catalogs::fetch_feed(&state, &url).await?;
+    let feed = match read(&state, &url, catalogs::FEED_TIMEOUT).await {
+        Ok(feed) => feed,
+        Err(Unread::Gone(response) | Unread::Unreachable(response)) => return Err(response),
+    };
     let title = match feed.title.chars().take(120).collect::<String>() {
         t if t.is_empty() => host_of(&url),
         t => t,
     };
     let now = crate::db::now_ts();
-    let id: i64 = sqlx::query_scalar("INSERT INTO linked_shelves (user_id, url, title, description, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id")
+    let id: i64 = sqlx::query_scalar("INSERT INTO linked_shelves (user_id, url, title, description, created_at, checked_at) VALUES ($1, $2, $3, $4, $5, $5) RETURNING id")
         .bind(user.0.id)
         .bind(&url)
         .bind(&title)
@@ -398,7 +479,7 @@ pub async fn follow(State(state): State<AppState>, user: AuthUser, Json(req): Js
         .await
         .map_err(internal)?;
     crate::audit::log(&state, crate::audit::by(&user.0), "shelf.link_followed", json!({ "shelf": title, "host": host_of(&url) })).await;
-    Ok((StatusCode::CREATED, Json(Linked { id, title, description: feed.subtitle, host: host_of(&url), url, created_at: now })))
+    Ok((StatusCode::CREATED, Json(Linked { id, title, description: feed.subtitle, host: host_of(&url), url, state: "ok".into(), state_since: None, checked_at: Some(now.clone()), created_at: now })))
 }
 
 /// DELETE /api/linked-shelves/{id}
@@ -427,7 +508,20 @@ pub struct LinkedPage {
 pub async fn linked_shelf(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<Json<LinkedPage>, Response> {
     require(&state).await?;
     let mut shelf = followed(&state, user.0.id, id).await?;
-    let (feed, _) = catalogs::fetch_feed(&state, &shelf.url).await?;
+    let feed = match read(&state, &shelf.url, catalogs::FEED_TIMEOUT).await {
+        Ok(feed) => feed,
+        Err(Unread::Gone(response)) => {
+            remember(&state, id, "gone").await;
+            return Err(response);
+        }
+        Err(Unread::Unreachable(response)) => {
+            remember(&state, id, "unreachable").await;
+            return Err(response);
+        }
+    };
+    remember(&state, id, "ok").await;
+    shelf.state = "ok".into();
+    shelf.state_since = None;
     let title: String = feed.title.chars().take(120).collect();
     if !title.is_empty() && (title != shelf.title || feed.subtitle != shelf.description) {
         let _ = sqlx::query("UPDATE linked_shelves SET title = $1, description = $2 WHERE id = $3")

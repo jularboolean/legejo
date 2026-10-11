@@ -241,12 +241,53 @@ async fn a_followed_link_is_a_shelf_among_those_shared_with_you() {
     let (status, _) = send(&app, Method::POST, &format!("/api/linked-shelves/{id}/import"), Some(&c), Some(take)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
-    // The owner takes the link back: the shelf no longer opens, and says why.
+    // While it answers, the list says nothing is the matter.
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["state"], "ok");
+    assert!(v[0]["state_since"].is_null());
+
+    // Its instance stops answering: opening it says so, and the list marks it, with since when.
+    let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let nowhere = format!("http://{}/api/opds/shared/{}", closed.local_addr().unwrap(), link["token"].as_str().unwrap());
+    drop(closed);
+    sqlx::query("UPDATE linked_shelves SET url = ? WHERE id = ?").bind(&nowhere).bind(id).execute(&db).await.unwrap();
+    let (status, v) = send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(v["error"], "fetch failed");
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["state"], "unreachable");
+    let since = v[0]["state_since"].as_str().unwrap().to_string();
+    // Still not answering: the time it began stays.
+    send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["state_since"], since.as_str());
+
+    // It answers again. The list finds out by itself, in the background, once
+    // what it knew has grown old: it answers at once with the old, then with the new.
+    sqlx::query("UPDATE linked_shelves SET url = ?, checked_at = '2020-01-01T00:00:00.000Z' WHERE id = ?").bind(&address).bind(id).execute(&db).await.unwrap();
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["state"], "unreachable", "not waited for");
+    let mut state_now = String::new();
+    for _ in 0..50 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+        state_now = v[0]["state"].as_str().unwrap().to_string();
+        if state_now == "ok" {
+            assert!(v[0]["state_since"].is_null());
+            break;
+        }
+    }
+    assert_eq!(state_now, "ok");
+
+    // The owner takes the link back: the shelf no longer opens, and says why. The list says so too.
     let (status, _) = send(&app, Method::DELETE, &format!("/api/shelves/{shelf}/links/{}", link["id"]), Some(&a), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (status, v) = send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
     assert_eq!(v["error"], "missing");
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["state"], "gone");
+    assert!(v[0]["state_since"].is_string());
     // The book Bob took stays his.
     let (status, _) = send(&app, Method::GET, &format!("/api/books/{mine}"), Some(&b), None).await;
     assert_eq!(status, StatusCode::OK);

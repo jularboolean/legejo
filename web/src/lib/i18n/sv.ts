@@ -1076,5 +1076,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_created': "skapade en länk till hyllan {shelf} för {name}",
 	'log.shelf.link_removed': "drog in länken till hyllan {shelf} för {name}",
 	'log.shelf.link_followed': "följde hyllan {shelf} från {host} via länk",
-	'log.book.link_imported': "hämtade ”{title}” från hyllan {shelf}"
+	'log.book.link_imported': "hämtade ”{title}” från hyllan {shelf}",
+	'linked.state.unreachable': "svarar inte",
+	'linked.state.gone': "länken gäller inte längre"
 };

@@ -1074,7 +1074,9 @@ export const en = {
 	'log.shelf.link_created': "made a link to the shelf {shelf} for {name}",
 	'log.shelf.link_removed': "took back the link to the shelf {shelf} for {name}",
 	'log.shelf.link_followed': "followed the shelf {shelf} from {host} by link",
-	'log.book.link_imported': "fetched “{title}” from the shelf {shelf}"
+	'log.book.link_imported': "fetched “{title}” from the shelf {shelf}",
+	'linked.state.unreachable': "not answering",
+	'linked.state.gone': "link no longer works"
 };
 
 export type MessageKey = keyof typeof en;

@@ -329,8 +329,9 @@ link and press <strong>Follow</strong>. The shelf opens with its books; press
   """<p>The shelf is read from its link each time you open it, so it is as its owner has it
 now. A book you add is a copy of your own, checked and repaired like an uploaded one, and it
 stays yours whatever happens to the link.</p>
-<p>If the owner takes the link back, the shelf says that the link no longer works.
-<strong>Stop following</strong> removes it from your list.</p>
+<p>The list marks a shelf whose instance is not answering, and one whose link no longer works,
+which is what you see when the owner has taken it back. Nothing is removed for you:
+<strong>Stop following</strong> takes a shelf off your list when you have had enough of it.</p>
 <p>Your Legejo keeps the link's address to itself: it is not shown again, and covers and books
 are fetched by the server, never by your browser.</p>"""),
 

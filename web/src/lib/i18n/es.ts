@@ -1076,5 +1076,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'log.shelf.link_created': "creó un enlace al estante {shelf} para {name}",
 	'log.shelf.link_removed': "retiró el enlace al estante {shelf} de {name}",
 	'log.shelf.link_followed': "siguió el estante {shelf} de {host} por enlace",
-	'log.book.link_imported': "obtuvo «{title}» del estante {shelf}"
+	'log.book.link_imported': "obtuvo «{title}» del estante {shelf}",
+	'linked.state.unreachable': "no responde",
+	'linked.state.gone': "el enlace ya no funciona"
 };

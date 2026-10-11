@@ -2,14 +2,29 @@
 	// Shelves that someone has sent a private link to, from this instance or
 	// another: the list of them, and the field a new link is pasted into.
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Link, X } from '@lucide/svelte';
+	import { CloudOff, Link, Unlink, X } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { plainSnippet } from '#lib/library';
 	import { defaultShelfCover } from '#lib/shelfCovers';
 	import { t } from '#lib/i18n';
 	import type { LinkedShelf } from '#lib/types';
 
-	let { shelves }: { shelves: LinkedShelf[] } = $props();
+	let { shelves: loaded }: { shelves: LinkedShelf[] } = $props();
+
+	// The list comes at once with what the server knew, and the server then
+	// asks the shelves it has not asked for a while. Asking the list once
+	// more, a little later, shows what came of that.
+	let fresh = $state<LinkedShelf[] | null>(null);
+	const shelves = $derived(fresh ?? loaded);
+	$effect(() => {
+		void loaded;
+		fresh = null;
+		const timer = setTimeout(async () => {
+			const res = await fetch('/api/linked-shelves').catch(() => null);
+			if (res?.ok) fresh = await res.json();
+		}, 4000);
+		return () => clearTimeout(timer);
+	});
 
 	let url = $state('');
 	let busy = $state(false);
@@ -70,7 +85,14 @@
 						<img class="thumb" src={defaultShelfCover(shelf.id)} alt="" loading="lazy" />
 						<span class="info">
 							<span class="name">{shelf.title}</span>
-							<span class="from">{t('linked.from', { host: shelf.host })}</span>
+							<span class="from">
+								{t('linked.from', { host: shelf.host })}
+								{#if shelf.state === 'unreachable'}
+									<span class="state"><CloudOff size={12} strokeWidth={1.75} /> {t('linked.state.unreachable')}</span>
+								{:else if shelf.state === 'gone'}
+									<span class="state"><Unlink size={12} strokeWidth={1.75} /> {t('linked.state.gone')}</span>
+								{/if}
+							</span>
 							{#if shelf.description}<span class="description">{plainSnippet(shelf.description)}</span>{/if}
 						</span>
 					</a>
@@ -160,6 +182,22 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.from {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.state {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.05rem 0.45rem;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		font-size: 0.75rem;
+		color: var(--danger);
 	}
 	label {
 		display: block;
