@@ -37,6 +37,9 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   such as Project Gutenberg, look through it from Legejo and fetch a book
   into your own library with one click. Optional, and off until you turn it
   on.
+- **A shelf for a friend.** Give one of your shelves to someone on another
+  Legejo, or with a reading app, by a private link that you can take back.
+  Optional, and off until an admin turns it on.
 - **Fediverse ready.** Connect your instance to the fediverse: shelves of free
   books can be followed from other Legejo instances and from Mastodon, over
   ActivityPub.
@@ -87,6 +90,7 @@ own, and each file is one part.
 **Shelves**
 - Private shelves, shelves shared with the users you choose, and shelves shared with everyone on the instance.
 - Users can copy books from shared shelves into their own library.
+- A shelf can be given to someone outside the instance by a private link (optional): an address that opens the shelf as an OPDS catalog without a login, one per person, each to be taken back on its own. Pasted into another Legejo it becomes a shelf there, with its books to be added to that library; it works in reading apps too. Off until an admin turns it on.
 
 **Audiobooks (optional)**
 - Off until an admin turns it on.

@@ -28,7 +28,7 @@ buttons are given in English; Legejo itself also speaks Swedish, Finnish, German
 and Esperanto, and Recipe 11.1 says how to change it.</p>
 <p class="note"><strong>Optional features.</strong> Several parts of Legejo are off until
 someone turns them on: audiobooks, catalogs of other libraries, the librarian, federation,
-highlights from a Kobo. A recipe says so when it concerns one of them. If a button described here
+shelves by private link, highlights from a Kobo. A recipe says so when it concerns one of them. If a button described here
 is missing on your screen, that is the likely reason, and the person who runs your instance is the
 one to ask.</p>
 
@@ -301,6 +301,38 @@ inside.</p>"""),
   "<p>Open the book on the shared shelf and copy it into your own library.</p>",
   """<p>The copy is yours: your place in it, your tags, your shelves. It takes no extra room on
 the disk, since both copies point at the same file until one of them is changed.</p>"""),
+
+ ("Giving a Shelf to Someone on Another Instance",
+  "<p>A friend has a Legejo of their own, or reads in an app, and you want them to have one of your shelves. Not the whole fediverse; just them.</p>",
+  """<p><em>Optional: an admin turns on <strong>Shelves by private link</strong> on the Admin
+page.</em></p>
+<p>Open the shelf, press <strong>Edit</strong>, and go to <strong>Private links</strong>. Say
+who the link is for, choose how long it works, and press <strong>Make a link</strong>. It is
+copied for you; send it to them.</p>""",
+  """<p>The link is an address with a long secret in it. Whoever holds it gets the shelf, its
+covers and its books without an account on your instance and without a password, so send it the
+way you would hand over a key, and make one for each person. Then one can be taken back without
+disturbing the others: press the cross beside it, and it stops working at once. Books already
+fetched with it stay where they are.</p>
+<p>The list shows when each link was last used, which is how you notice one that has ended up
+somewhere it should not. A link can be given a last day: a week, a month or a year.</p>
+<p>The link is an ordinary OPDS catalog, so it also works in KOReader, Thorium and other reading
+apps, added as a catalog there. Your ratings do not travel with the books.</p>
+<p>This is for people you know. What you may share with them is yours to judge.</p>"""),
+
+ ("Following a Shelf You Were Sent a Link To",
+  "<p>Someone has sent you a link to a shelf of theirs.</p>",
+  """<p><em>Optional: the same admin setting as in the recipe before.</em></p>
+<p>Open <strong>Shared shelves</strong>, and under <strong>Shelves by link</strong> paste the
+link and press <strong>Follow</strong>. The shelf opens with its books; press
+<strong>Add to my library</strong> on the ones you want.</p>""",
+  """<p>The shelf is read from its link each time you open it, so it is as its owner has it
+now. A book you add is a copy of your own, checked and repaired like an uploaded one, and it
+stays yours whatever happens to the link.</p>
+<p>If the owner takes the link back, the shelf says that the link no longer works.
+<strong>Stop following</strong> removes it from your list.</p>
+<p>Your Legejo keeps the link's address to itself: it is not shown again, and covers and books
+are fetched by the server, never by your browser.</p>"""),
 
  ("Federating a Shelf of Free Books",
   "<p>You have made a fine shelf of public-domain classics and want people on other instances to enjoy it.</p>",
@@ -652,8 +684,8 @@ verified email address.</p>"""),
  ("Choosing What the Instance Offers",
   "<p>You want to know what can be switched on and off.</p>",
   """<p>On the Admin page: the Libris and Open Library lookups, self-registration, audiobook
-support, catalogs of other libraries, highlights from Kobo e-readers, and federation with its
-list of allowed and blocked instances.</p>
+support, catalogs of other libraries, highlights from Kobo e-readers, shelves by private link,
+and federation with its list of allowed and blocked instances.</p>
 <p>By environment variable: the librarian (<code>LEGEJO_AI_API_KEY</code>, with
 <code>LEGEJO_AI_BASE_URL</code> and <code>LEGEJO_AI_MODEL</code>) and the server for AI
 assistants (<code>LEGEJO_MCP</code>).</p>""",
