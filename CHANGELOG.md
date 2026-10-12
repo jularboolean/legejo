@@ -4,6 +4,40 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.18.0 (2026-10-12)
+
+- **Where you are in the browser, the Kobo opens.** A book read in the web
+  reader opens on a Kobo at the same sentence after the device's next sync,
+  as it already did the other way round. The web reader sends a few words
+  from its position along with the place; the server finds them in the copy
+  the device reads. The Kobo's own later position, and its reading time,
+  stay its own. A book the device has not downloaded yet gets the place with
+  the download.
+- **Read, or started over, by hand.** A book's page has **Mark as read**,
+  whatever the position says, and for a book begun, **Start over**, which
+  forgets the place in it here, in KOReader and on a Kobo. **Mark as unread**
+  takes back a mark. The reading page and the statistics count a book marked
+  read as finished. A book marked unread on the Kobo counts as not begun here
+  too.
+- **Back to the page you asked for.** A link that needs a login leads to its
+  page once you are logged in, with single sign-on as well.
+- **What is new.** After an upgrade, the library says so once, with a link to
+  what changed; the Admin page shows the same list on demand.
+- **Your Kobo devices.** The Account page lists the devices that have synced,
+  when each was last seen, and how the last sync went: how many books,
+  collections and reading states it got, or what failed.
+- **KOReader on a Kobo.** The file Kobo sync hands the device is noted under
+  the book, so KOReader on that device finds the book by the file and syncs
+  its progress with Legejo too. A comic made into a book for the device
+  likewise. The conversion for the device has a time limit and runs two at a
+  time at most.
+- Highlights made in the web reader are found in the device's copy of the
+  book whatever its line breaks; a few that were not placed before are now.
+- *The Legejo Cookbook* has a new recipe, for marking a book as read or
+  starting over, and says how a place read in the browser reaches a Kobo.
+- **Upgrading:** nothing to do. Two columns are added to the tables for
+  books and reading positions.
+
 ## 1.17.1 (2026-10-12)
 
 - **Improved eyes on pigeons.** Both birds now see the library through
