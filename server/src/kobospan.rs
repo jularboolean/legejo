@@ -14,6 +14,8 @@ pub struct Placed {
     /// The chapter file, by its path in the archive.
     pub chapter: String,
     pub title: Option<String>,
+    /// The id of the span it starts in, `kobo.<paragraph>.<sentence>`.
+    pub start_id: String,
     pub start_path: String,
     pub start_char: usize,
     pub end_path: String,
@@ -70,6 +72,7 @@ pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Place
     Ok(find_in_chapter(&html, text).map(|found| Placed {
         chapter: path,
         title: title_of(&html),
+        start_id: found.start_id,
         start_path: found.start_path,
         start_char: found.start_char,
         end_path: found.end_path,
@@ -85,6 +88,7 @@ struct Span {
 }
 
 struct Found {
+    start_id: String,
     start_path: String,
     start_char: usize,
     end_path: String,
@@ -194,44 +198,38 @@ fn find_chars(hay: &[char], needle: &[char], fold: bool) -> Option<usize> {
     (0..=hay.len() - needle.len()).find(|&i| hay[i..i + needle.len()].iter().zip(needle).all(|(a, b)| same(a, b)))
 }
 
-/// `needle`, with its whitespace squeezed, among the chapter's spans, which
-/// are read with their whitespace squeezed the same way. Exact first, then
-/// regardless of case.
+/// `needle` among the chapter's spans, both read without their whitespace:
+/// kepubify breaks lines where the web reader's copy has none (after a
+/// `<br/>`, between the cells of a table), and the web reader squeezes
+/// what it sends. Exact first, then regardless of case.
 fn find_in_chapter(html: &str, needle: &str) -> Option<Found> {
     let spans = spans_of(html);
-    // Every character of the squeezed text knows its span and where it is in
+    // Every character of the solid text knows its span and where it is in
     // it, counted the way the device counts (UTF-16 units).
-    let mut squeezed: Vec<char> = Vec::new();
+    let mut solid: Vec<char> = Vec::new();
     let mut origin: Vec<(usize, usize, usize)> = Vec::new();
     let mut span_starts: Vec<usize> = Vec::with_capacity(spans.len());
     let mut total = 0usize;
-    let mut pending_space = false;
     for (si, span) in spans.iter().enumerate() {
         span_starts.push(total);
         let mut at = 0usize;
         for c in span.text.chars() {
             let width = c.len_utf16();
-            if c.is_whitespace() {
-                pending_space = true;
-            } else {
-                if pending_space && !squeezed.is_empty() {
-                    squeezed.push(' ');
-                    origin.push((si, at, at));
-                }
-                pending_space = false;
-                squeezed.push(c);
+            if !c.is_whitespace() {
+                solid.push(c);
                 origin.push((si, at, at + width));
             }
             at += width;
         }
         total += at;
     }
-    let needle: Vec<char> = needle.split_whitespace().collect::<Vec<_>>().join(" ").chars().collect();
-    let start = find_chars(&squeezed, &needle, false).or_else(|| find_chars(&squeezed, &needle, true))?;
+    let needle: Vec<char> = needle.chars().filter(|c| !c.is_whitespace()).collect();
+    let start = find_chars(&solid, &needle, false).or_else(|| find_chars(&solid, &needle, true))?;
     let (first_span, first_at, _) = origin[start];
     let (last_span, _, last_end) = origin[start + needle.len() - 1];
     let progress = if total == 0 { 0.0 } else { (span_starts[first_span] + first_at) as f64 / total as f64 };
     Some(Found {
+        start_id: spans[first_span].id.clone(),
         start_path: selector(&spans[first_span].id),
         start_char: first_at,
         end_path: selector(&spans[last_span].id),
@@ -307,6 +305,7 @@ mod tests {
         let placed = place(&kepub, "epubcfi(/6/4[ch1]!/4/2,/1:15,/1:25)", "said Alice").unwrap().unwrap();
         assert_eq!(placed.chapter, "OEBPS/xhtml/ch1.xhtml");
         assert_eq!(placed.title.as_deref(), Some("Chapter X: The Lobster Quadrille"));
+        assert_eq!(placed.start_id, "kobo.4.1");
         assert_eq!(placed.start_path, "span#kobo\\.4\\.1");
         assert_eq!(placed.end_path, "span#kobo\\.4\\.1");
         let span = "\n“No, indeed,” said Alice. ";
@@ -333,6 +332,12 @@ mod tests {
         assert_eq!(placed.text, "But they have their tails in their mouths; and the\nreason is—”");
         let placed = place(&kepub, "epubcfi(/6/4[ch1]!/4/4,/1:0,/1:5)", "along the sea-shore—”").unwrap().unwrap();
         assert_eq!(placed.start_path, "span#kobo\\.5\\.1");
+
+        // The web reader's copy runs the sentences together where kepubify
+        // broke the line; the device still gets the place.
+        let placed = place(&kepub, "epubcfi(/6/4[ch1]!/4/2,/1:20,/3:10)", "said Alice.“What sort of a dance").unwrap().unwrap();
+        assert_eq!((placed.start_path.as_str(), placed.end_path.as_str()), ("span#kobo\\.4\\.1", "span#kobo\\.4\\.2"));
+        assert_eq!(placed.text, "said Alice. “What sort of a dance");
     }
 
     #[test]

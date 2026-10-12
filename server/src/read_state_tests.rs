@@ -201,3 +201,136 @@ fn only_a_page_on_this_site_is_gone_back_to_after_login() {
     assert_eq!(safe_next("/a\nb"), None);
     assert_eq!(safe_next(" /books/12 ").as_deref(), Some("/books/12"));
 }
+
+/// One sync round as the device, with the sync token of the round before.
+async fn sync(app: &Router, token: &str, sync_token: Option<&str>) -> (Vec<Value>, String) {
+    let mut req = Request::builder().method(Method::GET).uri(format!("/api/kobo/{token}/v1/library/sync"));
+    if let Some(sync_token) = sync_token {
+        req = req.header("x-kobo-synctoken", sync_token);
+    }
+    let res = app.clone().oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let next = res.headers().get("x-kobo-synctoken").unwrap().to_str().unwrap().to_string();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    (serde_json::from_slice::<Value>(&bytes).unwrap().as_array().cloned().unwrap_or_default(), next)
+}
+
+#[tokio::test]
+async fn a_place_read_in_the_web_points_the_device_to_the_same_sentence() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let uuid = "5f1c2a9d3b4e4c6f8a7b9c0d1e2f3a4c";
+    let book: i64 = sqlx::query_scalar("INSERT INTO books (uuid, owner_id, title, file_size) VALUES (?, ?, 'Alice', 1) RETURNING id")
+        .bind(uuid)
+        .bind(alice)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    // The KEPUB the device reads, as kepubify leaves it in the cache.
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join(format!("{uuid}.kepub.epub")), crate::kobospan::sample_kepub()).await.unwrap();
+    let token = kobo_token(&app, &a).await;
+    let dashed = format!("{}-{}-{}-{}-{}", &uuid[0..8], &uuid[8..12], &uuid[12..16], &uuid[16..20], &uuid[20..32]);
+    let state_url = format!("/api/kobo/{token}/v1/library/{dashed}/state");
+    let progress_url = format!("/api/books/{book}/progress");
+
+    // Not opened anywhere: the device starts the book fresh.
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
+
+    // Read in the web as far as the Gryphon's line: the device is pointed to
+    // the sentence those words begin, dated by the web's time.
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/4/1:0)", "percent": 0.42, "text": "“Why,” said the Gryphon, “you first form\n into a line" });
+    let (status, _) = send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    let read_at: String = sqlx::query_scalar("SELECT updated_at FROM reading_progress WHERE book_id = ?").bind(book).fetch_one(&db).await.unwrap();
+    assert_eq!(v[0]["StatusInfo"]["Status"], "Reading", "{v}");
+    assert_eq!(v[0]["StatusInfo"]["TimesStartedReading"], 1);
+    assert_eq!(v[0]["LastModified"], read_at);
+    assert_eq!(v[0]["StatusInfo"]["LastModified"], read_at);
+    let bookmark = &v[0]["CurrentBookmark"];
+    assert_eq!(bookmark["LastModified"], read_at);
+    assert_eq!(bookmark["ProgressPercent"], 42);
+    let in_chapter = bookmark["ContentSourceProgressPercent"].as_i64().unwrap();
+    assert!((1..50).contains(&in_chapter), "early in the chapter: {bookmark}");
+    assert_eq!(bookmark["Location"], json!({ "Value": "kobo.5.1", "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" }));
+    let placed: Option<String> = sqlx::query_scalar("SELECT kobo_json FROM reading_progress WHERE book_id = ?").bind(book).fetch_one(&db).await.unwrap();
+    assert!(placed.is_some_and(|p| p.contains("kobo.5.1")), "placed once, kept for later syncs");
+    let (_, p) = send(&app, Method::GET, &progress_url, Some(&a), None).await;
+    assert_eq!(p["cfi"], "epubcfi(/6/4[ch1]!/4/4/1:0)", "the web keeps its own position");
+
+    // A sync carries the place in the book's entitlement, and, read further
+    // between syncs, as a changed reading state; then nothing more.
+    let (items, sync_token) = sync(&app, &token, None).await;
+    let new = items.iter().find(|i| i["NewEntitlement"]["BookEntitlement"]["Id"] == dashed).expect("the book is new to the device");
+    assert_eq!(new["NewEntitlement"]["ReadingState"]["CurrentBookmark"]["Location"]["Value"], "kobo.5.1");
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/6/1:0)", "percent": 0.9, "text": "crumbs would all wash off in the sea" });
+    send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
+    let (items, sync_token) = sync(&app, &token, Some(&sync_token)).await;
+    let changed: Vec<&Value> = items.iter().filter(|i| i.get("ChangedReadingState").is_some()).collect();
+    assert_eq!(changed.len(), 1, "{items:?}");
+    let reading_state = &changed[0]["ChangedReadingState"]["ReadingState"];
+    assert_eq!(reading_state["EntitlementId"], dashed);
+    assert_eq!(reading_state["CurrentBookmark"]["Location"]["Value"], "kobo.31.1");
+    assert_eq!(reading_state["CurrentBookmark"]["ProgressPercent"], 90);
+    let (items, sync_token) = sync(&app, &token, Some(&sync_token)).await;
+    assert!(items.iter().all(|i| i.get("ChangedReadingState").is_none()), "sent once: {items:?}");
+
+    // The device then reads on and says so: its word is the newer one, and
+    // the web's older place is not sent back over it.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let now = crate::db::now_ts().replace(".000Z", "Z");
+    let device = json!({ "ReadingStates": [{
+        "StatusInfo": { "Status": "Reading", "LastModified": now, "TimesStartedReading": 1 },
+        "Statistics": { "LastModified": now, "SpentReadingMinutes": 7 },
+        "CurrentBookmark": { "LastModified": now, "ProgressPercent": 95, "ContentSourceProgressPercent": 80,
+                             "Location": { "Value": "kobo.31.4", "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" } },
+    }] });
+    let (status, _) = send(&app, Method::PUT, &state_url, None, Some(device)).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Value"], "kobo.31.4");
+    assert_eq!(v[0]["CurrentBookmark"]["ProgressPercent"], 95);
+    let (items, sync_token) = sync(&app, &token, Some(&sync_token)).await;
+    let changed: Vec<&Value> = items.iter().filter(|i| i.get("ChangedReadingState").is_some()).collect();
+    assert_eq!(changed.len(), 1, "the device's own state comes back to it, as before");
+    assert_eq!(changed[0]["ChangedReadingState"]["ReadingState"]["CurrentBookmark"]["ProgressPercent"], 95);
+
+    // Read again in the web, but words the KEPUB does not have: the device
+    // keeps its own place, what it counted stays, and the catalog still
+    // shows the web's newer position.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/6/1:0)", "percent": 0.5, "text": "words that are not in the book" });
+    send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["CurrentBookmark"]["ProgressPercent"], 95, "{v}");
+    assert_eq!(v[0]["Statistics"]["SpentReadingMinutes"], 7);
+    let (_, b) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(b["progress_percent"], 0.5);
+    // ...and a position found keeps the device's statistics as well.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/2/1:0)", "percent": 0.1, "text": "No, indeed" });
+    send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Value"], "kobo.4.1");
+    assert_eq!(v[0]["CurrentBookmark"]["ProgressPercent"], 10);
+    assert_eq!(v[0]["Statistics"]["SpentReadingMinutes"], 7);
+    assert_eq!(v[0]["StatusInfo"]["TimesStartedReading"], 1);
+    let (items, _) = sync(&app, &token, Some(&sync_token)).await;
+    let changed: Vec<&Value> = items.iter().filter(|i| i.get("ChangedReadingState").is_some()).collect();
+    assert_eq!(changed.len(), 1, "one state for the book, however many times it was read: {items:?}");
+
+    // Started over by hand: the device hears that, not the old place.
+    send(&app, Method::PUT, &format!("/api/books/{book}/read"), Some(&a), Some(json!({ "read": false }))).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
+    assert!(v[0]["CurrentBookmark"].get("Location").is_none());
+
+    // A position without text, as an older web reader sends it, points nowhere.
+    send(&app, Method::PUT, &progress_url, Some(&a), Some(json!({ "cfi": "epubcfi(/6/4[ch1]!/4/2/1:0)", "percent": 0.2 }))).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
+}

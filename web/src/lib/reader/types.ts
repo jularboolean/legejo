@@ -55,6 +55,11 @@ export type ReaderLocation = {
 	percent: number;
 	/** True once the percentage comes from generated locations. */
 	exact: boolean;
+	/**
+	 * The first words at the position, whitespace squeezed; by them the place
+	 * is found again in another copy of the book, such as the one a Kobo reads.
+	 */
+	excerpt: string | null;
 	/** Id of the TOC entry being read, if any. */
 	tocId: string | null;
 	chapterLabel: string | null;

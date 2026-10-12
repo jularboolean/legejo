@@ -1,12 +1,14 @@
 //! Reading position for the web reader, per user+book.
 //!
 //! The web reader stores an EPUB CFI plus an overall percentage (0–1) in
-//! `reading_progress`. Kobo devices keep their own state in
-//! `kobo_reading_state`, with a location format that can't be mapped to a CFI.
-//! KOReader (via kosync.rs) reports an xpointer and a percentage into
-//! `kosync_progress`. Only the percentage is shared, and only when reading:
-//! whichever of the three sources was updated last decides the percent shown.
-//! Nothing here writes to the device tables, so device sync is unaffected.
+//! `reading_progress`, with a little of the text at the position. Kobo
+//! devices keep their own state in `kobo_reading_state`, with a location
+//! format that can't be mapped to a CFI; the other way works, by finding the
+//! text in the KEPUB the device reads (see kobo.rs). KOReader (via kosync.rs)
+//! reports an xpointer and a percentage into `kosync_progress`. Only the
+//! percentage is shared with it, and only when reading: whichever of the
+//! three sources was updated last decides the percent shown. Nothing here
+//! writes to the device tables, so device sync is unaffected.
 
 use crate::auth::AuthUser;
 use crate::db::{now_ts, Backend};
@@ -18,6 +20,8 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 const MAX_CFI_CHARS: usize = 2000;
+/// The text at the position is a line or two; more than this is cut.
+const MAX_TEXT_CHARS: usize = 500;
 
 /// Joins the three position tables onto `books b`. `$1` must be the user id.
 /// kosync_progress has at most one row per user and book (see the migration).
@@ -179,6 +183,9 @@ pub async fn get(
 pub struct PutProgress {
     cfi: String,
     percent: f64,
+    /// The first words at the position, by which a Kobo is pointed to it.
+    #[serde(default)]
+    text: Option<String>,
 }
 
 pub async fn put(
@@ -194,18 +201,27 @@ pub async fn put(
         return Err(unprocessable("cfi too long (max 2000 characters)"));
     }
 
+    let text = req
+        .text
+        .as_deref()
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_TEXT_CHARS).collect::<String>())
+        .filter(|t| !t.is_empty());
+
     // Insert only for a book the user owns; no row written means no such book.
+    // A new position has yet to be placed in the KEPUB for a Kobo.
     let result = sqlx::query(
-        "INSERT INTO reading_progress (user_id, book_id, cfi, percent, updated_at)
-         SELECT $1, id, $3, $4, $5
+        "INSERT INTO reading_progress (user_id, book_id, cfi, percent, text, kobo_json, updated_at)
+         SELECT $1, id, $3, $4, $5, NULL, $6
          FROM books WHERE id = $2 AND owner_id = $1
          ON CONFLICT (user_id, book_id)
-         DO UPDATE SET cfi = excluded.cfi, percent = excluded.percent, updated_at = excluded.updated_at",
+         DO UPDATE SET cfi = excluded.cfi, percent = excluded.percent, text = excluded.text,
+                       kobo_json = NULL, updated_at = excluded.updated_at",
     )
     .bind(user.0.id)
     .bind(id)
     .bind(&req.cfi)
     .bind(req.percent)
+    .bind(text)
     .bind(now_ts())
     .execute(&state.db)
     .await

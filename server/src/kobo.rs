@@ -914,18 +914,118 @@ fn default_reading_state(book: &Book) -> Value {
     })
 }
 
-async fn stored_reading_state(state: &AppState, user_id: i64, book_id: i64) -> Result<Option<Value>, Response> {
-    let raw: Option<String> =
-        sqlx::query_scalar("SELECT state FROM kobo_reading_state WHERE user_id = $1 AND book_id = $2")
+/// The device's own last word on a book, and when it was received.
+async fn stored_reading_state(state: &AppState, user_id: i64, book_id: i64) -> Result<Option<(Value, String)>, Response> {
+    let raw: Option<(String, String)> =
+        sqlx::query_as("SELECT state, updated_at FROM kobo_reading_state WHERE user_id = $1 AND book_id = $2")
             .bind(user_id)
             .bind(book_id)
             .fetch_optional(&state.db)
             .await
             .map_err(|e| internal(e.into()))?;
-    Ok(raw.and_then(|s| serde_json::from_str(&s).ok()).map(|mut state: Value| {
+    Ok(raw.and_then(|(s, at)| serde_json::from_str::<Value>(&s).ok().filter(Value::is_object).map(|mut state| {
         trim_timestamps(&mut state);
-        state
-    }))
+        (state, at)
+    })))
+}
+
+/// The reading state the device gets for a book: its own last word, unless
+/// the book was read further in the web since, in which case the device is
+/// pointed to that place in its KEPUB. Without such a place (no text, or
+/// text the KEPUB does not have), the device's own state stands, or a fresh
+/// one for a book it has not opened.
+async fn reading_state_for(state: &AppState, user_id: i64, book: &Book) -> Result<Value, Response> {
+    let stored = stored_reading_state(state, user_id, book.id).await?;
+    let web: Option<(String, Option<String>, f64, String, Option<String>)> = sqlx::query_as(
+        "SELECT cfi, text, percent, updated_at, kobo_json FROM reading_progress WHERE user_id = $1 AND book_id = $2",
+    )
+    .bind(user_id)
+    .bind(book.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    if let Some((cfi, Some(text), percent, at, placed)) = web {
+        let newer = stored.as_ref().map_or(true, |(_, device)| at.as_str() > device.as_str());
+        if newer && book.format == "epub" {
+            if let Some(bookmark) = web_bookmark(state, user_id, book, &cfi, &text, percent, &at, placed).await {
+                let base = stored.map(|(s, _)| s).unwrap_or_else(|| default_reading_state(book));
+                return Ok(reading_state_read_in_web(base, &at, bookmark));
+            }
+        }
+    }
+    Ok(stored.map(|(s, _)| s).unwrap_or_else(|| default_reading_state(book)))
+}
+
+/// The device's bookmark for the web's position: the span its first words
+/// are in, found in the KEPUB and kept in the row until the position
+/// changes. None when there is no KEPUB or the text is not in it.
+#[allow(clippy::too_many_arguments)]
+async fn web_bookmark(
+    state: &AppState,
+    user_id: i64,
+    book: &Book,
+    cfi: &str,
+    text: &str,
+    percent: f64,
+    at: &str,
+    placed: Option<String>,
+) -> Option<Value> {
+    if let Some(cached) = placed.and_then(|p| serde_json::from_str::<Value>(&p).ok()) {
+        return Some(cached);
+    }
+    let kepub = ensure_kepub(state, &book.uuid).await?;
+    let bytes = std::sync::Arc::new(tokio::fs::read(&kepub).await.ok()?);
+    let (cfi, text) = (cfi.to_string(), text.to_string());
+    let found = tokio::task::spawn_blocking(move || crate::kobospan::place(&bytes, &cfi, &text)).await;
+    let found = match found {
+        Ok(Ok(Some(found))) => found,
+        Ok(Ok(None)) => {
+            tracing::debug!("kobo: the web's place in \"{}\" is not in its kepub", book.title);
+            return None;
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("kobo: could not read the kepub of \"{}\" to place the web's position: {e:#}", book.title);
+            return None;
+        }
+        Err(_) => return None,
+    };
+    let bookmark = json!({
+        "ProgressPercent": (percent.clamp(0.0, 1.0) * 100.0).round() as i64,
+        "ContentSourceProgressPercent": (found.progress.clamp(0.0, 1.0) * 100.0).round() as i64,
+        "Location": { "Value": found.start_id, "Type": "KoboSpan", "Source": found.chapter },
+    });
+    // Kept for the position it was found for; a newer one has cleared the column.
+    let _ = sqlx::query("UPDATE reading_progress SET kobo_json = $1 WHERE user_id = $2 AND book_id = $3 AND updated_at = $4 AND kobo_json IS NULL")
+        .bind(bookmark.to_string())
+        .bind(user_id)
+        .bind(book.id)
+        .bind(at)
+        .execute(&state.db)
+        .await;
+    tracing::info!("kobo: the web's place in \"{}\" is {} in {} for the device", book.title, found.start_id, found.chapter);
+    Some(bookmark)
+}
+
+/// A state pointing the device to a place read in the web: Reading, at that
+/// bookmark, every part dated by the web's time so that the device takes it
+/// over its own, older one. What the device counted stays.
+fn reading_state_read_in_web(mut base: Value, at: &str, mut bookmark: Value) -> Value {
+    base["LastModified"] = json!(at);
+    base["PriorityTimestamp"] = json!(at);
+    let started = base.pointer("/StatusInfo/TimesStartedReading").and_then(Value::as_i64).unwrap_or(0).max(1);
+    let first_started = base.pointer("/StatusInfo/LastTimeStartedReading").cloned().unwrap_or_else(|| json!(at));
+    base["StatusInfo"] = json!({
+        "LastModified": at,
+        "Status": "Reading",
+        "TimesStartedReading": started,
+        "LastTimeStartedReading": first_started,
+    });
+    if base.get("Statistics").is_none() {
+        base["Statistics"] = json!({ "LastModified": at });
+    }
+    bookmark["LastModified"] = json!(at);
+    base["CurrentBookmark"] = bookmark;
+    base
 }
 
 fn entitlement(book: &Book, reading_state: Value, base: &str, kepub: bool, change_type: &str) -> Value {
@@ -1040,9 +1140,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
     };
     let kepub = state.kepubify.is_some();
     for book in new_books {
-        let reading_state = stored_reading_state(&state, user_id, book.id)
-            .await?
-            .unwrap_or_else(|| default_reading_state(book));
+        let reading_state = reading_state_for(&state, user_id, book).await?;
         items.push(entitlement(book, reading_state, &base, kepub, "NewEntitlement"));
         sync_token.books_created = book.created_at.clone();
     }
@@ -1071,9 +1169,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
             &changed[..]
         };
         for book in changed {
-            let reading_state = stored_reading_state(&state, user_id, book.id)
-                .await?
-                .unwrap_or_else(|| default_reading_state(book));
+            let reading_state = reading_state_for(&state, user_id, book).await?;
             items.push(entitlement(book, reading_state, &base, kepub, "ChangedEntitlement"));
             sync_token.books_updated = book.updated_at.clone().unwrap_or_default();
         }
@@ -1124,10 +1220,11 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         }
     }
 
-    // 4. Reading-state changes (e.g. from another device).
+    // 4. Reading-state changes: the device's own (e.g. from another device)
+    //    and places read in the web since the last sync, in time order.
     if !continue_sync {
-        let states: Vec<(i64, String, String)> = sqlx::query_as(
-            "SELECT book_id, state, updated_at FROM kobo_reading_state
+        let mut changed: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT book_id, updated_at FROM kobo_reading_state
              WHERE user_id = $1 AND updated_at > $2
              ORDER BY updated_at
              LIMIT 200",
@@ -1137,11 +1234,33 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-        for (_, raw, updated_at) in states {
-            if let Ok(value) = serde_json::from_str::<Value>(&raw) {
-                items.push(json!({ "ChangedReadingState": { "ReadingState": value } }));
+        let read_in_web: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT rp.book_id, rp.updated_at FROM reading_progress rp
+             JOIN books b ON b.id = rp.book_id
+             WHERE rp.user_id = $1 AND rp.updated_at > $2 AND rp.text IS NOT NULL
+               AND b.kobo_removed_at IS NULL AND b.format = 'epub'
+             ORDER BY rp.updated_at
+             LIMIT 200",
+        )
+        .bind(user_id)
+        .bind(&sync_token.state_updated)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+        changed.extend(read_in_web);
+        changed.sort_by(|a, b| a.1.cmp(&b.1));
+        changed.truncate(200);
+        let mut sent: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        for (book_id, updated_at) in changed {
+            if sent.insert(book_id) {
+                if let Some(book) = book_by_id(&state, user_id, book_id).await? {
+                    let value = reading_state_for(&state, user_id, &book).await?;
+                    items.push(json!({ "ChangedReadingState": { "ReadingState": value } }));
+                }
             }
-            sync_token.state_updated = updated_at;
+            if updated_at > sync_token.state_updated {
+                sync_token.state_updated = updated_at;
+            }
         }
     }
 
@@ -1432,6 +1551,16 @@ async fn book_by_uuid(state: &AppState, user_id: i64, uuid: &str) -> Result<Book
     book.ok_or_else(not_found)
 }
 
+/// The user's book with this id, when it is one the device can have.
+async fn book_by_id(state: &AppState, user_id: i64, id: i64) -> Result<Option<Book>, Response> {
+    sqlx::query_as(&format!("SELECT {BOOK_COLUMNS} FROM books WHERE id = $1 AND owner_id = $2 AND format IN ('epub', 'cbz')"))
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))
+}
+
 pub async fn library_metadata(
     State(state): State<AppState>,
     Path((token, uuid)): Path<(String, String)>,
@@ -1449,9 +1578,7 @@ pub async fn reading_state_get(
 ) -> Result<Json<Value>, Response> {
     let user_id = user_from_token(&state, &token).await?;
     let book = book_by_uuid(&state, user_id, &uuid).await?;
-    let reading_state = stored_reading_state(&state, user_id, book.id)
-        .await?
-        .unwrap_or_else(|| default_reading_state(&book));
+    let reading_state = reading_state_for(&state, user_id, &book).await?;
     Ok(Json(json!([reading_state])))
 }
 

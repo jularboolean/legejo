@@ -362,7 +362,8 @@ back. The middle shows or hides the toolbars. Swiping turns pages too, and so do
 Space and Page Down.</p>""",
   """<p>Your place is saved as you read and sent to the server, so the book opens where you left
 it on any device. If you last read it on a Kobo or in KOReader, the reader starts at about the
-same place: those devices report a percentage, not a line.</p>"""),
+same place: those devices report a percentage, not a line. The other way is exact: a Kobo opens
+the book at the sentence you reached in the browser, after its next sync (Recipe 8.2).</p>"""),
 
  ("Making the Page Yours",
   "<p>The text is too small, the lines too tight, or the white too bright.</p>",
@@ -499,9 +500,12 @@ something does not arrive on the device.</p>"""),
   "<p>You wonder what will show up, and what will come back.</p>",
   """<p>Your EPUB books arrive, converted on the way to Kobo's own format so that the device's
 reader works fully. Shelves arrive as collections. Your place in each book goes both ways: read
-on the Kobo, continue in the browser. Comics arrive as books with one page per picture.</p>""",
+on the Kobo, continue in the browser; read in the browser, and the Kobo opens the book at that
+sentence once it has synced. Comics arrive as books with one page per picture.</p>""",
   """<p>PDF files do not sync. A book counts as finished at 99&#160;% read, on the Kobo as in the
-web reader. Removing a book on the Kobo removes it from the device, not from your library; its page in Legejo can send it to the device again.</p>"""),
+web reader. A place read in the browser reaches a book the Kobo has downloaded; a book still
+waiting to be downloaded gets it with the download. Removing a book on the Kobo removes it from
+the device, not from your library; its page in Legejo can send it to the device again.</p>"""),
 
  ("Syncing Highlights with a Kobo",
   "<p>You highlight on the Kobo and want those passages in Legejo, and the other way round.</p>",

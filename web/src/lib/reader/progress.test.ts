@@ -38,6 +38,15 @@ describe('sendUnsent', () => {
 		expect(stored().unsent).toBeUndefined();
 	});
 
+	it('sends the words at the position along, for the copy a Kobo reads', async () => {
+		localStorage.setItem(KEY, JSON.stringify({ cfi: 'epubcfi(/6/4!/4/2)', percent: 0.4, text: 'said the Gryphon', updatedAt: Date.parse('2026-10-11T10:00:00Z'), unsent: true }));
+		const fetch = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === 'PUT' ? answer({}) : answer({ cfi: null, percent: null, updated_at: null })));
+		vi.stubGlobal('fetch', fetch);
+		await sendUnsent();
+		expect(JSON.parse(fetch.mock.calls[1][1]!.body as string)).toEqual({ cfi: 'epubcfi(/6/4!/4/2)', percent: 0.4, text: 'said the Gryphon' });
+		expect(stored()).toEqual({ cfi: 'epubcfi(/6/4!/4/2)', percent: 0.4, text: 'said the Gryphon', updatedAt: Date.parse('2026-10-11T10:00:00Z') });
+	});
+
 	it('gives way to a later position from another device', async () => {
 		unsent(Date.parse('2026-10-11T10:00:00Z'));
 		const fetch = vi.fn(async () => answer({ cfi: 'newer', percent: 0.9, updated_at: '2026-10-11T12:00:00Z' }));

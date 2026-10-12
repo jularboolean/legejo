@@ -34,6 +34,8 @@ const SEARCH_MAX_HITS = 300;
 const SEARCH_CONTEXT_CHARS = 64;
 /** Characters per generated location; ~1 location per page of text. */
 const LOCATION_CHARS = 1600;
+/** How much of the text at a position travels with it: a line or two. */
+const EXCERPT_CHARS = 160;
 const OPEN_TIMEOUT_MS = 30_000;
 const DISPLAY_TIMEOUT_MS = 20_000;
 const SETTLE_TIMEOUT_MS = 2_500;
@@ -601,6 +603,48 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		return best?.item ?? null;
 	}
 
+	/** The first words at a CFI, in reading order, with whitespace squeezed. */
+	function excerptAt(cfi: string): string | null {
+		let range: Range | undefined;
+		try {
+			range = rendition?.getRange(cfi);
+		} catch {
+			return null;
+		}
+		const doc = range?.startContainer.ownerDocument;
+		if (!range || !doc?.body) return null;
+		const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+		const start = range.startContainer;
+		const parts: string[] = [];
+		let length = 0;
+		let node: Node | null;
+		if (start.nodeType === Node.TEXT_NODE) {
+			walker.currentNode = start;
+			parts.push((start as Text).data.slice(range.startOffset));
+			length = parts[0].length;
+			node = walker.nextNode();
+		} else {
+			const child = start.childNodes[range.startOffset];
+			if (child) {
+				walker.currentNode = child;
+				node = child.nodeType === Node.TEXT_NODE ? child : walker.nextNode();
+			} else {
+				// Past the element's last child: the text that follows it.
+				walker.currentNode = start;
+				node = walker.nextNode();
+				while (node && start.contains(node)) node = walker.nextNode();
+			}
+		}
+		while (node && length < EXCERPT_CHARS) {
+			const data = (node as Text).data;
+			parts.push(data);
+			length += data.length;
+			node = walker.nextNode();
+		}
+		const text = parts.join('').replace(/\s+/g, ' ').trim().slice(0, EXCERPT_CHARS).trim();
+		return text || null;
+	}
+
 	function toLocation(loc: Location): ReaderLocation {
 		const start = loc.start;
 		const page = start.displayed?.page ?? 1;
@@ -628,6 +672,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			cfi: start.cfi,
 			percent: clamp01(percent),
 			exact,
+			excerpt: excerptAt(start.cfi),
 			tocId: entry?.id ?? null,
 			chapterLabel: entry?.label ?? null,
 			page,
@@ -642,8 +687,10 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	function onRelocated(source: Rendition, loc: Location) {
 		if (destroyed || source !== rendition || !loc?.start) return;
 		const next = toLocation(loc);
-		if (layoutPass && anchor) next.cfi = anchor;
-		else anchor = next.cfi;
+		if (layoutPass && anchor) {
+			next.cfi = anchor;
+			next.excerpt = excerptAt(anchor);
+		} else anchor = next.cfi;
 		current = next;
 		options.onRelocated?.(next);
 	}

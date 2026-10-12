@@ -153,7 +153,7 @@
 		if (next.cfi === savedCfi && (savedExact || !next.exact)) return;
 		savedCfi = next.cfi;
 		savedExact = next.exact;
-		progress.save({ cfi: next.cfi, percent: next.percent });
+		progress.save({ cfi: next.cfi, percent: next.percent, text: next.excerpt });
 	}
 
 	/**

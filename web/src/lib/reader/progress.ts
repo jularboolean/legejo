@@ -7,6 +7,11 @@ export type Progress = {
 	cfi: string;
 	/** Overall progress, 0–1. */
 	percent: number;
+	/**
+	 * The first words at the position. The server finds the place by them in
+	 * the copy of the book a Kobo reads, which knows nothing of CFIs.
+	 */
+	text?: string | null;
 };
 
 /**
@@ -59,6 +64,12 @@ function storageKey(bookId: number | string): string {
 	return `legejo.reader.progress.${bookId}`;
 }
 
+/** What the server is sent for a position; the words only when there are any. */
+function body(progress: Progress): { cfi: string; percent: number; text?: string } {
+	const percent = Math.min(1, Math.max(0, progress.percent));
+	return progress.text ? { cfi: progress.cfi, percent, text: progress.text } : { cfi: progress.cfi, percent };
+}
+
 /** This device's last known progress (0–1) for a book, without asking the server. */
 export function localPercent(bookId: number | string): number | null {
 	try {
@@ -87,6 +98,7 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 			return {
 				cfi: v.cfi,
 				percent: typeof v.percent === 'number' ? v.percent : 0,
+				text: typeof v.text === 'string' ? v.text : null,
 				updatedAt: typeof v.updatedAt === 'number' ? v.updatedAt : 0,
 				unsent: v.unsent === true
 			};
@@ -110,7 +122,7 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 		const local = readLocal();
 		if (!local || local.cfi !== progress.cfi) return;
 		try {
-			localStorage.setItem(key, JSON.stringify({ cfi: local.cfi, percent: local.percent, updatedAt: local.updatedAt }));
+			localStorage.setItem(key, JSON.stringify({ cfi: local.cfi, percent: local.percent, text: local.text, updatedAt: local.updatedAt }));
 		} catch {
 			// Sent again next time; the server takes the same position twice.
 		}
@@ -118,11 +130,10 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 
 	function send(progress: Progress, keepalive: boolean): Promise<void> {
 		if (!remote || progress.cfi.length > MAX_CFI_LENGTH) return Promise.resolve();
-		const percent = Math.min(1, Math.max(0, progress.percent));
 		return fetch(url, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ cfi: progress.cfi, percent }),
+			body: JSON.stringify(body(progress)),
 			keepalive
 		})
 			.then((res) => {
@@ -207,7 +218,7 @@ export async function sendUnsent(): Promise<void> {
 		}
 		if (!local?.unsent || typeof local.cfi !== 'string' || local.cfi.length > MAX_CFI_LENGTH) continue;
 		const url = `/api/books/${key.slice(prefix.length)}/progress`;
-		const settled = { cfi: local.cfi, percent: local.percent, updatedAt: local.updatedAt };
+		const settled = { cfi: local.cfi, percent: local.percent, text: local.text, updatedAt: local.updatedAt };
 		try {
 			const res = await fetch(url);
 			// An answer out of the device's own cache says nothing about the server.
@@ -218,7 +229,7 @@ export async function sendUnsent(): Promise<void> {
 					const put = await fetch(url, {
 						method: 'PUT',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ cfi: local.cfi, percent: Math.min(1, Math.max(0, local.percent)) })
+						body: JSON.stringify(body(local))
 					});
 					if (!put.ok && put.status !== 404 && put.status !== 422) continue;
 				}
