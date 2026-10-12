@@ -1,19 +1,20 @@
-// The look of the catalog: light, dark, or Zamenhof, a brown and green one
-// after old Esperanto print. "auto" follows the system between light and
+// The look of the catalog: light, dark, Zamenhof (a brown and green one
+// after old Esperanto print), or Pigeon, in the birds' own slate and purple. "auto" follows the system between light and
 // dark, which is what Legejo did before there was a choice. The choice is
 // kept on the device and put on <html> as `data-design`; app.css holds the
 // colours, and app.html sets the attribute before the first paint.
 
-export type Design = 'auto' | 'light' | 'dark' | 'zamenhof';
+export type Design = 'auto' | 'light' | 'dark' | 'zamenhof' | 'pigeon';
 
-export const DESIGNS: Design[] = ['auto', 'light', 'dark', 'zamenhof'];
+export const DESIGNS: Design[] = ['auto', 'light', 'dark', 'zamenhof', 'pigeon'];
 const KEY = 'legejo.design';
 
 /** The colour of the page behind everything, for the browser's own chrome. */
 export const PAGE_COLOR: Record<Exclude<Design, 'auto'>, string> = {
 	light: '#f3f5f5',
 	dark: '#15181a',
-	zamenhof: '#e0cfac'
+	zamenhof: '#e0cfac',
+	pigeon: '#d7e0e3'
 };
 
 function load(): Design {

@@ -20,6 +20,8 @@ export const en = {
 	'design.dark.about': "For the evening.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Brown paper and Esperanto green.",
+	'design.pigeon': "Pigeon",
+	'design.pigeon.about': "The birds' own slate and purple.",
 	'design.motion': "Animations",
 	'design.motion.on': "Show animations",
 	'design.motion.about': "Menus and dialogs come in softly, and covers fade in as they arrive. Off, everything appears at once.",

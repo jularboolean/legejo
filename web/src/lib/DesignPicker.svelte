@@ -141,6 +141,11 @@
 		--b: #806a4f;
 		--c: #1e8a3e;
 	}
+	.swatch.pigeon {
+		--a: #d7e0e3;
+		--b: #5a7075;
+		--c: #9e528e;
+	}
 	.swatch.light {
 		--b: #dbe1e2;
 	}

@@ -22,6 +22,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'design.dark.about': "Pour le soir.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Papier brun et vert espéranto.",
+	'design.pigeon': "Pigeon",
+	'design.pigeon.about': "L’ardoise et le violet des oiseaux eux-mêmes.",
 	'design.motion': "Animations",
 	'design.motion.on': "Afficher les animations",
 	'design.motion.about': "Les menus et les dialogues arrivent en douceur, et les couvertures apparaissent en fondu. Désactivé, tout s’affiche d’un coup.",

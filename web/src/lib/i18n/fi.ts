@@ -22,6 +22,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'design.dark.about': "Iltaa varten.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Ruskeaa paperia ja esperanton vihreää.",
+	'design.pigeon': "Kyyhky",
+	'design.pigeon.about': "Kyyhkyjen omaa liuskeenharmaata ja violettia.",
 	'design.motion': "Animaatiot",
 	'design.motion.on': "Näytä animaatiot",
 	'design.motion.about': "Valikot ja ikkunat tulevat esiin pehmeästi, ja kannet häivittyvät näkyviin latauduttuaan. Pois päältä kaikki näkyy heti.",

@@ -65,6 +65,22 @@
 	--star: #1e8a3e;
 	font-family: 'Literata Variable', Georgia, serif;
 }
+/* Pigeon: the birds' own colours. The slate of their backs, the pale blue
+   of the wing, the purple at its tip for what can be pressed, and the
+   yellow of the eye. */
+:root[data-design='pigeon'] {
+	color-scheme: light;
+	--bg: #d7e0e3;
+	--fg: #26343a;
+	--muted: #5a7075;
+	--accent: #85597b;
+	--gold: #a98700;
+	--card: #e9eff1;
+	--border: #b4c3c8;
+	--danger: #a8323a;
+	--shadow: 0 1px 2px rgba(40, 56, 62, 0.16), 0 4px 14px rgba(40, 56, 62, 0.1);
+}
+
 /* Whatever names the sans face for itself is set in the book face here. */
 :root[data-design='zamenhof'] :is(body, button, input, select, textarea, .count) {
 	font-family: 'Literata Variable', Georgia, serif;
