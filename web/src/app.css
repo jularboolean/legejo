@@ -264,3 +264,11 @@ img[data-cover='arriving'] {
 		animation: none;
 	}
 }
+
+/* Motion turned off on the Account page: nothing in the catalog moves. */
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+	transition: none !important;
+	animation: none !important;
+}

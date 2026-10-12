@@ -59,6 +59,7 @@
 			try {
 				var d = localStorage.getItem('legejo.design');
 				if (d === 'light' || d === 'dark' || d === 'zamenhof') document.documentElement.dataset.design = d;
+				if (localStorage.getItem('legejo.motion') === 'off') document.documentElement.dataset.motion = 'off';
 			} catch (e) {}
 		</script>
 		%sveltekit.head%

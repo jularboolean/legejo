@@ -27,8 +27,8 @@
 	const tabs = $derived([
 		{ href: '/account', label: t('tabs.profile'), active: tab === 'profile' },
 		{ href: '/account?tab=devices', label: t('devices.heading'), active: tab === 'devices' },
-		{ href: '/account?tab=design', label: t('tabs.design'), active: tab === 'design' },
-		...(hasOptions ? [{ href: '/account?tab=options', label: t('tabs.options'), active: tab === 'options' }] : [])
+		...(hasOptions ? [{ href: '/account?tab=options', label: t('tabs.options'), active: tab === 'options' }] : []),
+		{ href: '/account?tab=design', label: t('tabs.design'), active: tab === 'design' }
 	]);
 	let form = $state({
 		username: data.account.username,

@@ -6,6 +6,7 @@
 import { fade as svelteFade, fly as svelteFly, scale as svelteScale } from 'svelte/transition';
 
 export function reducedMotion(): boolean {
+	if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'off') return true;
 	return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 

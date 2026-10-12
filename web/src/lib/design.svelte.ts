@@ -43,3 +43,33 @@ export function setDesign(next: Design) {
 	if (next === 'auto') delete document.documentElement.dataset.design;
 	else document.documentElement.dataset.design = next;
 }
+
+// Motion: on unless turned off here (or by the system, which motion.ts and
+// the styles ask about themselves). Off is `data-motion="off"` on <html>.
+const MOTION_KEY = 'legejo.motion';
+
+function loadMotion(): boolean {
+	try {
+		return localStorage.getItem(MOTION_KEY) !== 'off';
+	} catch {
+		return true;
+	}
+}
+
+let moving = $state(loadMotion());
+
+export function motion(): boolean {
+	return moving;
+}
+
+export function setMotion(on: boolean) {
+	moving = on;
+	try {
+		if (on) localStorage.removeItem(MOTION_KEY);
+		else localStorage.setItem(MOTION_KEY, 'off');
+	} catch {
+		// The choice lasts as long as the page.
+	}
+	if (on) delete document.documentElement.dataset.motion;
+	else document.documentElement.dataset.motion = 'off';
+}
