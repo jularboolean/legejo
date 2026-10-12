@@ -24,7 +24,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Papel marrón y verde esperanto.",
 	'design.motion': "Animaciones",
 	'design.motion.on': "Mostrar animaciones",
-	'design.motion.about': "Los menús y los diálogos entran con suavidad, y las cubiertas aparecen gradualmente al cargarse. Desactivado, todo aparece de una vez.",
+	'design.motion.about': "Los menús y los diálogos van y vienen con suavidad, los libros nuevos y las cubiertas aparecen gradualmente, y una página da paso a la siguiente. Desactivado, todo aparece de una vez.",
 	'tabs.settings': "Ajustes",
 	'admin.features': 'Funciones',
 	'admin.librisToggle': 'Búsqueda en Libris en la página de edición del libro',

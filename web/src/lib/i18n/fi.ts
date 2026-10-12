@@ -24,7 +24,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Ruskeaa paperia ja esperanton vihreää.",
 	'design.motion': "Animaatiot",
 	'design.motion.on': "Näytä animaatiot",
-	'design.motion.about': "Valikot ja ikkunat tulevat esiin pehmeästi, ja kannet häivittyvät näkyviin latauduttuaan. Pois päältä kaikki näkyy heti.",
+	'design.motion.about': "Valikot ja ikkunat tulevat ja menevät pehmeästi, uudet kirjat ja kannet häivittyvät näkyviin, ja sivu vaihtuu liukuen seuraavaan. Pois päältä kaikki näkyy heti.",
 	'tabs.settings': "Asetukset",
 	'admin.features': 'Toiminnot',
 	'admin.librisToggle': 'Libris-haku kirjan muokkaussivulla',

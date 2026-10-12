@@ -297,7 +297,7 @@
 			<button
 				type="button"
 				class="chip"
-				in:pop={{ start: 0.9, duration: 90 }}
+				in:pop={{ start: 0.7 }}
 				aria-label={t('library.removeFilter', { name: chip.label })}
 				onclick={() => (filters = { ...filters, [chip.field]: null })}
 			>

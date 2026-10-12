@@ -24,7 +24,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Papier brun et vert espéranto.",
 	'design.motion': "Animations",
 	'design.motion.on': "Afficher les animations",
-	'design.motion.about': "Les menus et les dialogues arrivent en douceur, et les couvertures apparaissent en fondu. Désactivé, tout s’affiche d’un coup.",
+	'design.motion.about': "Les menus et les dialogues vont et viennent en douceur, les nouveaux livres et les couvertures apparaissent en fondu, et une page laisse place à la suivante. Désactivé, tout s’affiche d’un coup.",
 	'tabs.settings': "Réglages",
 	'admin.features': 'Fonctionnalités',
 	'admin.librisToggle': 'Recherche Libris sur la page de modification d’un livre',

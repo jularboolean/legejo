@@ -3,6 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { cover as arriving } from '#lib/cover';
+	import { fade } from '#lib/motion';
 	import { bookYear, languageName, plainSnippet } from '#lib/library';
 	import Rating from '#lib/Rating.svelte';
 	import type { Book, Shelf } from '#lib/types';
@@ -51,7 +52,7 @@
 		{@const year = bookYear(book)}
 		{@const snippet = plainSnippet(book.description)}
 		{@const shelfIds = (book.shelf_ids ?? []).filter((id) => shelfNames.has(id))}
-		<li class="row" class:picked={selected?.has(book.id)}>
+		<li class="row" class:picked={selected?.has(book.id)} in:fade={{ duration: 260 }}>
 			{#if selected}
 				<button
 					type="button"

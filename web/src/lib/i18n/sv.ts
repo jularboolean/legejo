@@ -24,7 +24,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Brunt papper och esperantogrönt.",
 	'design.motion': "Animationer",
 	'design.motion.on': "Visa animationer",
-	'design.motion.about': "Menyer och dialoger kommer in mjukt, och omslag tonar in när de hämtats. Avstängt visas allt på en gång.",
+	'design.motion.about': "Menyer och dialoger kommer och går mjukt, nya böcker och omslag tonar in, och en sida glider över i nästa. Avstängt visas allt på en gång.",
 	'tabs.settings': "Inställningar",
 	'admin.features': 'Funktioner',
 	'admin.librisToggle': 'Libris-uppslag på bokredigeringssidan',

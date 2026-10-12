@@ -44,15 +44,15 @@ export function setDesign(next: Design) {
 	else document.documentElement.dataset.design = next;
 }
 
-// Motion: on unless turned off here (or by the system, which motion.ts and
-// the styles ask about themselves). Off is `data-motion="off"` on <html>.
+// Motion: off unless turned on here. On is `data-motion="on"` on <html>,
+// which motion.ts and the styles ask about.
 const MOTION_KEY = 'legejo.motion';
 
 function loadMotion(): boolean {
 	try {
-		return localStorage.getItem(MOTION_KEY) !== 'off';
+		return localStorage.getItem(MOTION_KEY) === 'on';
 	} catch {
-		return true;
+		return false;
 	}
 }
 
@@ -65,11 +65,11 @@ export function motion(): boolean {
 export function setMotion(on: boolean) {
 	moving = on;
 	try {
-		if (on) localStorage.removeItem(MOTION_KEY);
-		else localStorage.setItem(MOTION_KEY, 'off');
+		if (on) localStorage.setItem(MOTION_KEY, 'on');
+		else localStorage.removeItem(MOTION_KEY);
 	} catch {
 		// The choice lasts as long as the page.
 	}
-	if (on) delete document.documentElement.dataset.motion;
-	else document.documentElement.dataset.motion = 'off';
+	if (on) document.documentElement.dataset.motion = 'on';
+	else delete document.documentElement.dataset.motion;
 }

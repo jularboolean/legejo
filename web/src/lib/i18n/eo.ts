@@ -24,7 +24,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Bruna papero kaj Esperanta verdo.",
 	'design.motion': "Animacioj",
 	'design.motion.on': "Montri animaciojn",
-	'design.motion.about': "Menuoj kaj dialogoj venas milde, kaj kovriloj aperas iom post iom, kiam ili alvenas. Malŝaltite, ĉio aperas tuj.",
+	'design.motion.about': "Menuoj kaj dialogoj venas kaj iras milde, novaj libroj kaj kovriloj aperas iom post iom, kaj unu paĝo cedas al la sekva. Malŝaltite, ĉio aperas tuj.",
 	'tabs.settings': "Agordoj",
 	'admin.features': 'Funkcioj',
 	'admin.librisToggle': 'Libris-serĉo sur la redaktopaĝo de libro',

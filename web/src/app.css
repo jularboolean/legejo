@@ -266,13 +266,29 @@ label:has(> input[type='checkbox']) {
 	font-size: 0.9rem;
 }
 
+/* Motion is off until it is turned on, on the Account page: without
+   `data-motion="on"` nothing in the catalog moves. The reader, which has
+   a setting of its own, and the screen shown while the app starts are
+   outside the catalog's frame and keep theirs. */
+:root:not([data-motion='on']) :is(.shell, .topbar) *,
+:root:not([data-motion='on']) :is(.shell, .topbar) *::before,
+:root:not([data-motion='on']) :is(.shell, .topbar) *::after {
+	transition: none !important;
+	animation: none !important;
+}
+
 /* A cover on its way: its place shimmers until the picture is there, and
    the picture then comes in (see lib/cover.ts). */
 img[data-cover] {
-	transition: opacity 0.18s ease-out;
+	transition:
+		opacity 0.35s ease-out,
+		transform 0.35s ease-out;
 }
 img[data-cover='arriving'] {
 	opacity: 0;
+}
+:root[data-motion='on'] img[data-cover='arriving'] {
+	transform: scale(1.03);
 }
 :has(> img[data-cover='arriving']) {
 	background: linear-gradient(100deg, var(--border) 30%, var(--card) 50%, var(--border) 70%) 0 0 / 300% 100%;
@@ -286,19 +302,23 @@ img[data-cover='arriving'] {
 		background-position: 0 0;
 	}
 }
-@media (prefers-reduced-motion: reduce) {
-	img[data-cover] {
-		transition: none;
-	}
-	:has(> img[data-cover='arriving']) {
-		animation: none;
+
+/* One page giving way to the next (see the root layout): the old one fades,
+   the new one fades in and settles from a little below. */
+::view-transition-old(root) {
+	animation: page-out 0.14s ease-in both;
+}
+::view-transition-new(root) {
+	animation: page-in 0.24s ease-out both;
+}
+@keyframes page-out {
+	to {
+		opacity: 0;
 	}
 }
-
-/* Motion turned off on the Account page: nothing in the catalog moves. */
-:root[data-motion='off'] *,
-:root[data-motion='off'] *::before,
-:root[data-motion='off'] *::after {
-	transition: none !important;
-	animation: none !important;
+@keyframes page-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
 }

@@ -22,7 +22,7 @@ export const en = {
 	'design.zamenhof.about': "Brown paper and Esperanto green.",
 	'design.motion': "Animations",
 	'design.motion.on': "Show animations",
-	'design.motion.about': "Menus and dialogs come in softly, and covers fade in as they arrive. Off, everything appears at once.",
+	'design.motion.about': "Menus and dialogs come and go softly, new books and covers fade in, and one page gives way to the next. Off, everything appears at once.",
 	'tabs.settings': "Settings",
 	'admin.features': 'Features',
 	'admin.librisToggle': 'Libris lookup on the book edit page',

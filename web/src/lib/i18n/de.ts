@@ -24,7 +24,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'design.zamenhof.about': "Braunes Papier und Esperanto-Grün.",
 	'design.motion': "Animationen",
 	'design.motion.on': "Animationen anzeigen",
-	'design.motion.about': "Menüs und Dialoge erscheinen sanft, und Umschläge blenden ein, sobald sie geladen sind. Ausgeschaltet erscheint alles sofort.",
+	'design.motion.about': "Menüs und Dialoge kommen und gehen sanft, neue Bücher und Umschläge blenden ein, und eine Seite geht in die nächste über. Ausgeschaltet erscheint alles sofort.",
 	'tabs.settings': "Einstellungen",
 	'admin.features': 'Funktionen',
 	'admin.librisToggle': 'Libris-Suche auf der Seite zum Bearbeiten von Büchern',
