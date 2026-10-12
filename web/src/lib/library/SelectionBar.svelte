@@ -3,6 +3,7 @@
 	import { BookMarked, Bookmark, Download, Tag, Trash2, X, Wrench } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { t } from '#lib/i18n';
+	import { rise } from '#lib/motion';
 	import { reasonText, type NotFederable } from '#lib/license';
 	import type { Shelf } from '#lib/types';
 	import Popover from './Popover.svelte';
@@ -63,7 +64,7 @@
 	const archiveHref = $derived(`/api/books/archive?ids=${ids.join(',')}`);
 </script>
 
-<div class="bar" role="toolbar" aria-label={t('select.toolbar')}>
+<div class="bar" role="toolbar" aria-label={t('select.toolbar')} in:rise={{ y: 24, duration: 180 }}>
 	<div class="inner">
 		<span class="count">{t('select.count', { count: selected.size })}</span>
 		<button type="button" class="link" onclick={toggleAll}>

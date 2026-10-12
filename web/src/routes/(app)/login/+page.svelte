@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { nextPage } from '../../+layout';
+	import { nextPage } from '#lib/nextPage';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
 	import type { PageData } from './$types';

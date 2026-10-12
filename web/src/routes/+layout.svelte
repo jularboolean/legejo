@@ -1,8 +1,10 @@
 <script lang="ts">
 	import '../app.css';
+	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, type Snippet } from 'svelte';
 	import { getLocale } from '#lib/i18n';
+	import { reducedMotion } from '#lib/motion';
 	import { pageTitle } from '#lib/pageTitle';
 	import icon from '#lib/assets/duva.png';
 
@@ -13,6 +15,23 @@
 
 	// There is a page to show: what app.html put up while the app started goes.
 	onMount(() => document.getElementById('starting')?.remove());
+
+	// One page fades into the next, where the browser can do that. Not within
+	// a page (a search or a filter in the address), where it would flicker.
+	onNavigate((navigation) => {
+		if (!document.startViewTransition || reducedMotion()) return;
+		if (navigation.from?.route.id === navigation.to?.route.id) return;
+		return new Promise((resolve) => {
+			const transition = document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+			// Skipped by the browser (a hidden tab, another navigation on its
+			// heels): the page changes all the same.
+			transition.ready.catch(() => {});
+			transition.finished.catch(() => {});
+		});
+	});
 
 	// The one place the tab title is set (see pageTitle.ts).
 	const title = $derived(pageTitle(page.route.id, page.data));

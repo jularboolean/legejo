@@ -2,6 +2,7 @@
 	import { BookMarked, Check, Download, Layers } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
+	import { fade, flip, MOVING_LIMIT } from '#lib/motion';
 	import { bookYear, languageName, plainSnippet } from '#lib/library';
 	import Rating from '#lib/Rating.svelte';
 	import type { Book, Shelf } from '#lib/types';
@@ -37,6 +38,7 @@
 		ontoggle?: (id: number) => void;
 	} = $props();
 
+	const still = $derived(books.length > MOVING_LIMIT);
 	const shelfNames = $derived(new Map(shelves.map((s) => [s.id, s.name])));
 
 	function seriesLabel(book: T): string {
@@ -50,7 +52,7 @@
 		{@const year = bookYear(book)}
 		{@const snippet = plainSnippet(book.description)}
 		{@const shelfIds = (book.shelf_ids ?? []).filter((id) => shelfNames.has(id))}
-		<li class="row" class:picked={selected?.has(book.id)}>
+		<li class="row" class:picked={selected?.has(book.id)} animate:flip={{ still }} in:fade={{ still }}>
 			{#if selected}
 				<button
 					type="button"

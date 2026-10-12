@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fade, pop } from '#lib/motion';
+
 	let {
 		open,
 		title,
@@ -36,7 +38,7 @@
 <svelte:window {onkeydown} />
 
 {#if open}
-	<div class="backdrop" onclick={oncancel} role="presentation">
+	<div class="backdrop" onclick={oncancel} role="presentation" transition:fade={{ duration: 120 }}>
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 		<div
 			class="dialog"
@@ -45,6 +47,7 @@
 			aria-label={title}
 			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
+			in:pop
 		>
 			<h2>{title}</h2>
 			{#if message}<p class="message">{message}</p>{/if}

@@ -177,3 +177,18 @@ label:has(> input[type='checkbox']) {
 	color: var(--danger);
 	font-size: 0.9rem;
 }
+
+/* One page fading into the next (see the root layout): brief, so that it
+   reads as smoothness and not as waiting. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 0.16s;
+	animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
+}

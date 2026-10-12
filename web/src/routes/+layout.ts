@@ -2,16 +2,12 @@ import { error, redirect } from '@sveltejs/kit';
 import { setLocale, t } from '#lib/i18n';
 import { CACHED_HEADER } from '#lib/offline/keys';
 import { keepOnlyFor } from '#lib/offline/store';
+import { nextPage } from '#lib/nextPage';
 import type { FedStatus, Shelf } from '#lib/types';
 import type { LayoutLoad } from './$types';
 
 export const ssr = false;
 
-/** The page to go to after login: one of this site's own, else the start page. */
-export function nextPage(next: string | null): string {
-	if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/api/')) return '/';
-	return next;
-}
 export const prerender = false;
 
 export const load: LayoutLoad = async ({ fetch, url }) => {

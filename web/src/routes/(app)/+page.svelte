@@ -284,12 +284,12 @@
 			onclick={() => (selecting ? stopSelecting() : (selecting = true))}
 		>
 			<CheckSquare size={13} />
-			{selecting ? t('select.done') : t('select.start')}
+			<span class="label">{selecting ? t('select.done') : t('select.start')}</span>
 		</button>
 	{/if}
 	<button class="upload" onclick={() => fileInput?.click()} disabled={uploading}>
 		<Upload size={13} />
-		{uploading ? t('home.uploading') : t('home.upload')}
+		<span class="label">{uploading ? t('home.uploading') : t('home.upload')}</span>
 	</button>
 	<input
 		type="file"
@@ -419,6 +419,31 @@
 	.upload {
 		font-size: 0.78rem;
 		padding: 0.32rem 0.7rem;
+	}
+	/* On a phone the two buttons keep their icons only: the words crowd the
+	   heading. They stay for a screen reader. */
+	@media (max-width: 560px) {
+		.heading {
+			gap: 0.5rem;
+		}
+		.select-toggle,
+		.upload {
+			position: relative;
+			padding: 0.5rem 0.6rem;
+		}
+		.select-toggle :global(svg),
+		.upload :global(svg) {
+			width: 16px;
+			height: 16px;
+		}
+		.label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
 	}
 	.dropzone {
 		position: fixed;

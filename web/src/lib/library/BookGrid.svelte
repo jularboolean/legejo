@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Check } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
+	import { fade, flip, MOVING_LIMIT } from '#lib/motion';
 	import { languageName } from '#lib/library';
 	import type { Book } from '#lib/types';
 
@@ -17,11 +18,13 @@
 		selected?: Set<number> | null;
 		ontoggle?: (id: number) => void;
 	} = $props();
+
+	const still = $derived(books.length > MOVING_LIMIT);
 </script>
 
 <div class="grid">
 	{#each books as book (book.id)}
-		<div class="card" class:picked={selected?.has(book.id)}>
+		<div class="card" class:picked={selected?.has(book.id)} animate:flip={{ still }} in:fade={{ still }}>
 			{#if selected}
 				<button
 					type="button"
