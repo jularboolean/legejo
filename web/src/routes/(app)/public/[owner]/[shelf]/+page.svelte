@@ -2,11 +2,23 @@
 	import { invalidateAll } from '$app/navigation';
 	import { ArrowLeft, Check, Download } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
 	import { renderMarkdown } from '#lib/markdown';
 	import { defaultShelfCover } from '#lib/shelfCovers';
-	import { loadView, saveView, type ViewMode } from '#lib/library';
+	import {
+		SHARED_SORT_KEYS,
+		loadSharedSort,
+		loadView,
+		saveSharedSort,
+		saveView,
+		sortShared,
+		type SortDir,
+		type SortKey,
+		type ViewMode
+	} from '#lib/library';
 	import BookRows from '#lib/library/BookRows.svelte';
+	import SortControl from '#lib/library/SortControl.svelte';
+	import { fade, flip } from '#lib/motion';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
 	import type { PublicBook } from '#lib/types';
 	import type { PageData } from './$types';
@@ -29,6 +41,15 @@
 	function setView(next: ViewMode) {
 		view = next;
 		saveView(next);
+	}
+
+	// One order for every shared shelf, remembered on this device.
+	let order = $state(loadSharedSort());
+	const books = $derived(sortShared(shelf.books, order.sort, order.dir, getLocale()));
+
+	function setOrder(sort: SortKey, dir: SortDir) {
+		order = { sort, dir };
+		saveSharedSort(sort, dir);
 	}
 
 	let importing = $state<Set<number>>(new Set());
@@ -83,7 +104,12 @@
 <div class="bar">
 	<p class="hint">{t('public.importHint')}</p>
 	{#if shelf.books.length > 0}
-		<ViewSwitch {view} onchange={setView} />
+		<div class="controls">
+			{#if shelf.books.length > 1}
+				<SortControl keys={SHARED_SORT_KEYS} sort={order.sort} dir={order.dir} onchange={setOrder} />
+			{/if}
+			<ViewSwitch {view} onchange={setView} />
+		</div>
 	{/if}
 </div>
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
@@ -102,11 +128,11 @@
 {/snippet}
 
 {#if view === 'list'}
-	<BookRows books={shelf.books} href={bookPath} cover={bookCover} own={false} action={importAction} />
+	<BookRows {books} href={bookPath} cover={bookCover} own={false} action={importAction} />
 {:else}
 	<div class="grid">
-		{#each shelf.books as book (book.id)}
-			<div class="card">
+		{#each books as book (book.id)}
+			<div class="card" animate:flip in:fade>
 				<a class="cover" href={bookPath(book)}>
 					{#if book.has_cover}
 						<img src={bookCover(book)} alt={book.title} loading="lazy" />
@@ -209,6 +235,22 @@
 		justify-content: space-between;
 		gap: 1rem;
 		margin: 0 0 1.25rem;
+	}
+	.controls {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
+	}
+	@media (max-width: 560px) {
+		.bar {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.6rem;
+		}
+		.controls {
+			justify-content: space-between;
+		}
 	}
 	.hint {
 		margin: 0;

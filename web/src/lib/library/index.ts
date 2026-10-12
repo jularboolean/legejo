@@ -161,21 +161,21 @@ export function filterBooks(books: LibraryBook[], f: Filters): LibraryBook[] {
 	});
 }
 
-export function sortBooks(
-	books: LibraryBook[],
+export function sortBooks<T extends Book = LibraryBook>(
+	books: T[],
 	key: SortKey,
 	dir: SortDir,
 	locale: string
-): LibraryBook[] {
+): T[] {
 	const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
 	const sign = dir === 'asc' ? 1 : -1;
-	const byTitle = (a: LibraryBook, b: LibraryBook) => collator.compare(a.title, b.title);
+	const byTitle = (a: T, b: T) => collator.compare(a.title, b.title);
 
 	// Books without a value go last whichever way the rest is ordered.
-	function compare<T>(
-		value: (book: LibraryBook) => T | null,
-		order: (a: T, b: T) => number
-	): (a: LibraryBook, b: LibraryBook) => number {
+	function compare<V>(
+		value: (book: T) => V | null,
+		order: (a: V, b: V) => number
+	): (a: T, b: T) => number {
 		return (a, b) => {
 			const va = value(a);
 			const vb = value(b);
@@ -186,7 +186,7 @@ export function sortBooks(
 		};
 	}
 
-	const comparators: Record<SortKey, (a: LibraryBook, b: LibraryBook) => number> = {
+	const comparators: Record<SortKey, (a: T, b: T) => number> = {
 		added: (a, b) => sign * (a.created_at.localeCompare(b.created_at) || a.id - b.id),
 		title: (a, b) => sign * byTitle(a, b),
 		author: compare(
@@ -225,6 +225,40 @@ export function plainSnippet(description: string | null | undefined, max = 220):
 
 // View and sorting are a lasting preference per device; filters only need to
 // survive opening a book and coming back.
+/** What the books of a shelf someone else shares can be ordered by. */
+export const SHARED_SORT_KEYS: SortKey[] = ['added', 'author', 'title', 'year'];
+const SHARED_SORT_KEY = 'legejo.shared.sort';
+
+/**
+ * A shared shelf's books in the chosen order. They arrive latest added to
+ * the shelf first, which is what "added" means there: when the owner put
+ * the book on the shelf, not when it came into their library.
+ */
+export function sortShared<T extends Book>(books: T[], key: SortKey, dir: SortDir, locale: string): T[] {
+	if (key === 'added') return dir === 'desc' ? books : [...books].reverse();
+	return sortBooks(books, key, dir, locale);
+}
+
+export function loadSharedSort(): { sort: SortKey; dir: SortDir } {
+	const chosen: { sort: SortKey; dir: SortDir } = { sort: 'added', dir: 'desc' };
+	try {
+		const saved = JSON.parse(localStorage.getItem(SHARED_SORT_KEY) ?? 'null');
+		if (SHARED_SORT_KEYS.includes(saved?.sort)) chosen.sort = saved.sort;
+		if (saved?.dir === 'asc' || saved?.dir === 'desc') chosen.dir = saved.dir;
+	} catch {
+		// No storage, or something else's leftovers: the default order.
+	}
+	return chosen;
+}
+
+export function saveSharedSort(sort: SortKey, dir: SortDir) {
+	try {
+		localStorage.setItem(SHARED_SORT_KEY, JSON.stringify({ sort, dir }));
+	} catch {
+		// The choice lasts as long as the page.
+	}
+}
+
 const PREFS_KEY = 'legejo.library.prefs';
 const FILTERS_KEY = 'legejo.library.filters';
 
