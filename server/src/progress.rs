@@ -28,7 +28,8 @@ pub(crate) const PROGRESS_JOINS: &str =
 
 /// Kobo's overall progress as 0–1, or NULL when the device hasn't reported
 /// one. Kobo sends ProgressPercent as 0–100; a finished book counts as fully
-/// read. The JSON access is dialect-specific: SQLite's json_extract vs
+/// read, and one marked unread on the device ("ReadyToRead") as not begun,
+/// whatever bookmark the state still carries. The JSON access is dialect-specific: SQLite's json_extract vs
 /// Postgres' jsonb operators, with try_jsonb (defined in the Postgres
 /// migrations) standing in for json_valid.
 fn kobo_percent(backend: Backend) -> &'static str {
@@ -36,11 +37,13 @@ fn kobo_percent(backend: Backend) -> &'static str {
         Backend::Sqlite => {
             "(CASE WHEN ks.state IS NULL OR NOT json_valid(ks.state) THEN NULL \
               WHEN json_extract(ks.state, '$.StatusInfo.Status') = 'Finished' THEN 1.0 \
+              WHEN json_extract(ks.state, '$.StatusInfo.Status') = 'ReadyToRead' THEN NULL \
               ELSE MIN(1.0, MAX(0.0, CAST(json_extract(ks.state, '$.CurrentBookmark.ProgressPercent') AS REAL) / 100.0)) END)"
         }
         Backend::Postgres => {
             "(CASE WHEN ks.state IS NULL OR try_jsonb(ks.state) IS NULL THEN NULL \
               WHEN try_jsonb(ks.state) #>> '{StatusInfo,Status}' = 'Finished' THEN 1.0 \
+              WHEN try_jsonb(ks.state) #>> '{StatusInfo,Status}' = 'ReadyToRead' THEN NULL \
               WHEN jsonb_typeof(try_jsonb(ks.state) #> '{CurrentBookmark,ProgressPercent}') = 'number' \
                 THEN LEAST(1.0, GREATEST(0.0, (try_jsonb(ks.state) #>> '{CurrentBookmark,ProgressPercent}')::double precision / 100.0)) \
               ELSE NULL END)"
@@ -67,11 +70,35 @@ pub(crate) fn kobo_wins(backend: Backend) -> String {
     )
 }
 
+/// True when the device's last word on the book is that it is unread
+/// ("ReadyToRead", dated by the device in StatusInfo.LastModified), and that
+/// word is newer than any place read in the web or in KOReader: the book is
+/// then not begun, whatever those say. A state without that date is a book
+/// the device merely has, which says nothing. The device writes its times
+/// as "2026-10-12T10:51:24Z", which compares with the database's own.
+fn kobo_unread(backend: Backend) -> &'static str {
+    match backend {
+        Backend::Sqlite => {
+            "(ks.state IS NOT NULL AND json_valid(ks.state) AND json_extract(ks.state, '$.StatusInfo.Status') = 'ReadyToRead' \
+              AND json_extract(ks.state, '$.StatusInfo.LastModified') IS NOT NULL \
+              AND (rp.updated_at IS NULL OR json_extract(ks.state, '$.StatusInfo.LastModified') > rp.updated_at) \
+              AND (kp.updated_at IS NULL OR json_extract(ks.state, '$.StatusInfo.LastModified') > kp.updated_at))"
+        }
+        Backend::Postgres => {
+            "(ks.state IS NOT NULL AND try_jsonb(ks.state) IS NOT NULL AND try_jsonb(ks.state) #>> '{StatusInfo,Status}' = 'ReadyToRead' \
+              AND try_jsonb(ks.state) #>> '{StatusInfo,LastModified}' IS NOT NULL \
+              AND (rp.updated_at IS NULL OR try_jsonb(ks.state) #>> '{StatusInfo,LastModified}' > rp.updated_at) \
+              AND (kp.updated_at IS NULL OR try_jsonb(ks.state) #>> '{StatusInfo,LastModified}' > kp.updated_at))"
+        }
+    }
+}
+
 /// Latest known progress (0–1) across web, Kobo and KOReader; needs `PROGRESS_JOINS`.
 pub(crate) fn progress_percent(backend: Backend) -> String {
     let kobo = kobo_percent(backend);
     format!(
-        "CASE WHEN {ko} THEN kp.percentage WHEN {kw} THEN {kobo} ELSE rp.percent END",
+        "CASE WHEN {unread} THEN NULL WHEN {ko} THEN kp.percentage WHEN {kw} THEN {kobo} ELSE rp.percent END",
+        unread = kobo_unread(backend),
         ko = koreader_wins(backend),
         kw = kobo_wins(backend),
     )
@@ -80,7 +107,8 @@ pub(crate) fn progress_percent(backend: Backend) -> String {
 /// When the winning source was last updated; needs `PROGRESS_JOINS`.
 pub(crate) fn last_read_at(backend: Backend) -> String {
     format!(
-        "CASE WHEN {ko} THEN kp.updated_at WHEN {kw} THEN ks.updated_at ELSE rp.updated_at END",
+        "CASE WHEN {unread} THEN NULL WHEN {ko} THEN kp.updated_at WHEN {kw} THEN ks.updated_at ELSE rp.updated_at END",
+        unread = kobo_unread(backend),
         ko = koreader_wins(backend),
         kw = kobo_wins(backend),
     )

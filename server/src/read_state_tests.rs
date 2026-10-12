@@ -94,6 +94,46 @@ async fn a_book_is_read_when_marked_so_and_unread_again_everywhere_when_marked_u
     let mine = list.as_array().unwrap().iter().find(|x| x["id"] == book).unwrap();
     assert!(mine.get("progress_percent").is_none() && mine["read_at"].is_null());
 
+    // Marked as unread on the device: the web's place and the mark by hand go, being older.
+    send(&app, Method::PUT, &format!("/api/books/{book}/read"), Some(&a), Some(json!({ "read": true }))).await;
+    send(&app, Method::PUT, &format!("/api/books/{book}/progress"), Some(&a), Some(json!({ "cfi": "epubcfi(/6/4!/4/2/1:0)", "percent": 0.3 }))).await;
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let unread = json!({ "ReadingStates": [{ "StatusInfo": { "Status": "ReadyToRead", "LastModified": crate::db::now_ts(), "TimesStartedReading": 0 },
+                                              "CurrentBookmark": { "ProgressPercent": 30, "LastModified": crate::db::now_ts() } }] });
+    let (status, _) = send(&app, Method::PUT, &format!("/api/kobo/{token}/v1/library/{dashed}/state"), None, Some(unread)).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert!(v.get("progress_percent").is_none(), "unread, whatever bookmark the state carries: {v}");
+    assert!(v["read_at"].is_null());
+    // A place read in the web after the device's decision is kept.
+    sqlx::query("UPDATE kobo_reading_state SET state = ? WHERE book_id = ?")
+        .bind(json!({ "StatusInfo": { "Status": "ReadyToRead", "LastModified": "2020-01-01T00:00:00.000Z" } }).to_string())
+        .bind(book)
+        .execute(&db)
+        .await
+        .unwrap();
+    send(&app, Method::PUT, &format!("/api/books/{book}/progress"), Some(&a), Some(json!({ "cfi": "epubcfi(/6/4!/4/2/1:0)", "percent": 0.6 }))).await;
+    let old = json!({ "ReadingStates": [{ "StatusInfo": { "Status": "ReadyToRead", "LastModified": "2020-01-01T00:00:00Z" } }] });
+    send(&app, Method::PUT, &format!("/api/kobo/{token}/v1/library/{dashed}/state"), None, Some(old)).await;
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["progress_percent"], 0.6, "{v}");
+
+    // A stored "unread" from the device that is newer than the web's place counts, even
+    // before the device says it again (what an upgrade finds in the database).
+    send(&app, Method::PUT, &format!("/api/books/{book}/progress"), Some(&a), Some(json!({ "cfi": "epubcfi(/6/4!/4/2/1:0)", "percent": 0.7 }))).await;
+    sqlx::query("UPDATE kobo_reading_state SET state = ?, updated_at = ? WHERE book_id = ?")
+        .bind(json!({ "StatusInfo": { "Status": "ReadyToRead", "LastModified": crate::db::ts_in_hours(1).replace(".000Z", "Z") }, "CurrentBookmark": { "ProgressPercent": 70 } }).to_string())
+        .bind(crate::db::ts_in_hours(1))
+        .bind(book)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert!(v.get("progress_percent").is_none(), "{v}");
+    let (_, list) = send(&app, Method::GET, "/api/books", Some(&a), None).await;
+    let mine = list.as_array().unwrap().iter().find(|x| x["id"] == book).unwrap();
+    assert!(mine.get("progress_percent").is_none() && mine.get("last_read_at").is_none(), "{mine}");
+
     // Without a Kobo token, no Kobo state is made up.
     let (_, c) = add_user(&db, "cecilia").await;
     let (cecilias, _) = add_book(&db, 3, "Hemsöborna").await;

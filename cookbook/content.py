@@ -599,8 +599,9 @@ unread.</p>""",
 takes it, since it is newer than its own. KOReader keeps its own place in the book until you
 open the book there again, at which it sends that place back; start over in KOReader as well
 if you mean it.</p>
-<p>Marking as read also tells a Kobo the book is finished. The book itself is not touched by
-any of this.</p>"""),
+<p>Marking as read also tells a Kobo the book is finished. And it works the other way: a
+book marked as unread on the Kobo is unread here after the next sync, and a place read in the
+web before that is forgotten. The book itself is not touched by any of this.</p>"""),
  ]),
 
 ("Audiobooks",

@@ -80,6 +80,13 @@ fn trimmed_timestamp(s: &str) -> Option<String> {
     shaped.then(|| format!("{}Z", &s[..23]))
 }
 
+/// A time as the device writes it ("2026-10-12T10:51:24Z", with or without
+/// fractions) in the form the database compares: to the millisecond.
+fn device_timestamp(s: &str) -> Option<String> {
+    let parsed = time::OffsetDateTime::parse(s.trim(), &time::format_description::well_known::Rfc3339).ok()?;
+    parsed.to_offset(time::UtcOffset::UTC).format(&crate::db::TS_FORMAT).ok()
+}
+
 /// 32-char hex uuid -> dashed 8-4-4-4-12 form the Kobo API uses.
 fn dashed(uuid: &str) -> String {
     if uuid.len() == 32 {
@@ -1484,6 +1491,28 @@ pub async fn reading_state_put(
     .await
     .map_err(|e| internal(e.into()))?;
 
+    // Marked as unread on the device: that is the latest word on the book,
+    // so a place read in the web or in KOReader before it goes, and so does
+    // a mark set by hand. Anything newer than the device's decision stays.
+    let status = incoming.pointer("/StatusInfo/Status").and_then(Value::as_str);
+    let decided = incoming.pointer("/StatusInfo/LastModified").and_then(Value::as_str).and_then(device_timestamp);
+    if let (Some("ReadyToRead"), Some(since)) = (status, decided) {
+        for table in ["reading_progress", "kosync_progress"] {
+            let _ = sqlx::query(&format!("DELETE FROM {table} WHERE user_id = $1 AND book_id = $2 AND updated_at < $3"))
+                .bind(user_id)
+                .bind(book.id)
+                .bind(&since)
+                .execute(&state.db)
+                .await;
+        }
+        let _ = sqlx::query("UPDATE books SET read_at = NULL WHERE id = $1 AND read_at IS NOT NULL AND read_at < $2")
+            .bind(book.id)
+            .bind(&since)
+            .execute(&state.db)
+            .await;
+        tracing::info!("kobo: \"{}\" is unread on the device since {since}", book.title);
+    }
+
     Ok(Json(json!({
         "RequestResult": "Success",
         "UpdateResults": [{
@@ -1774,6 +1803,14 @@ mod probe_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_device_time_compares_with_the_databases_own() {
+        assert_eq!(device_timestamp("2026-10-12T10:51:24Z").as_deref(), Some("2026-10-12T10:51:24.000Z"));
+        assert_eq!(device_timestamp("2026-10-12T10:51:24.217620743Z").as_deref(), Some("2026-10-12T10:51:24.217Z"));
+        assert_eq!(device_timestamp("2026-10-12T12:51:24+02:00").as_deref(), Some("2026-10-12T10:51:24.000Z"));
+        assert_eq!(device_timestamp("yesterday"), None);
+    }
 
     #[test]
     fn timestamps_are_cut_to_milliseconds() {
