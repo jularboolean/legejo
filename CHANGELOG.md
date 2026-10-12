@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.18.1 (2026-10-12)
+
+- **A little motion.** Books glide to their places when the library is
+  filtered or sorted, menus and dialogs come in rather than appear, the bar
+  for selected books rises from the edge, and one page fades into the next
+  where the browser can do that. All of it is brief, and none of it happens
+  for someone who has asked their system for less motion.
+- **A shared shelf's books can be ordered:** by latest added to the shelf,
+  author, title or year of publication, either way round, with the same
+  control as in My library. The choice is remembered on the device.
+- **Room in the library's heading on a phone.** The buttons for selecting
+  and for uploading books show their icons only there.
+- **Upgrading:** nothing to do.
+
 ## 1.18.0 (2026-10-12)
 
 - **Where you are in the browser, the Kobo opens.** A book read in the web
