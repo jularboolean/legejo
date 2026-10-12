@@ -97,7 +97,7 @@
 
 /* Drawn a little smaller there, so that feet and tail stay inside the rule. */
 :root[data-design='zamenhof'] :is(.sidebrand, .wrap h1) > .logo svg {
-	transform: translateY(-2%) scale(0.8);
+	transform: translate(4%, -2%) scale(0.87);
 }
 
 /* La verda stelo: beside the name, and before the heading of every page. */
