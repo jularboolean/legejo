@@ -137,6 +137,7 @@ own, and each file is one part.
 - An export of the whole library (book files, covers, CSV and JSON) and account deletion.
 - A system log of everything that happens on the instance, and a note of what is new after each upgrade.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
+- A choice of design for each device: light, dark, following the system, or Zamenhof, in the browns of an old textbook with the green star of Esperanto. Animations can be turned on.
 
 **For self-hosters**
 - A new instance begins with one book in its library: *The Legejo Cookbook*, the user manual, in the public domain. Delete it when you no longer need it.

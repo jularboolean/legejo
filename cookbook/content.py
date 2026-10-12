@@ -118,7 +118,7 @@ saw, read from the changelog built into Legejo itself. The Admin page has the sa
   "<p>You want to be able to lose the machine without losing the library.</p>",
   """<p>Back up the <code>/data</code> volume. With SQLite that is everything. With PostgreSQL,
 back up the database too.</p>""",
-  """<p>Each user can also take their own library with them: Recipe 11.4 describes the export,
+  """<p>Each user can also take their own library with them: Recipe 11.5 describes the export,
 which holds the book files, the covers and the catalogue as CSV and JSON.</p>"""),
  ]),
 
@@ -674,6 +674,17 @@ library and nothing else, and the text of a book only leaves the server when the
 for it.</p>
 <p>Clients that keep the <code>Authorization</code> header for themselves can send the app
 password in an <code>X-Api-Key</code> header instead.</p>"""),
+
+ ("Choosing How Legejo Looks",
+  "<p>The greys are not for you, or you want dark in daylight, or a little movement on the page.</p>",
+  """<p>On the <strong>Account</strong> page, open <strong>Design</strong> and pick one:
+<strong>Automatic</strong> (light or dark, as your system is set), <strong>Light</strong>,
+<strong>Dark</strong>, or <strong>Zamenhof</strong>, in the browns of an old textbook with the
+green star of Esperanto and a book typeface. Below it, <strong>Show animations</strong> lets
+menus, dialogs, covers and pages come in softly instead of all at once.</p>""",
+  """<p>Both choices are kept on the device, so a phone and a computer can differ. Animations
+are off until you turn them on. The reader has themes of its own, in its
+<strong>Reading settings</strong> (Recipe 6.2), and is not changed by the design.</p>"""),
 
  ("Taking Your Library with You",
   "<p>You want a copy of everything, or you are leaving.</p>",

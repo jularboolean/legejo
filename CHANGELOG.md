@@ -4,6 +4,25 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.19.0 (2026-10-12)
+
+- **A choice of design.** The Account page has a new part, **Design**, with
+  four looks: **Automatic** (light or dark, as your system is set, which is
+  what Legejo did before), **Light**, **Dark**, and **Zamenhof**: the browns
+  of an old textbook, the green star of Esperanto, the pigeons on a
+  medallion, and a book typeface. The choice is kept on the device. The
+  reader keeps its own themes.
+- **Animations are yours to turn on.** The motion that came with 1.18.1 made
+  the app feel slower to some, so it is now off until you tick **Show
+  animations** under Design. On, it is clearer than before: menus and dialogs
+  come and go, new books fade in, one page fades into the next, and the page
+  of a book comes in once it has been laid out. The books no longer slide
+  about when the library is filtered or sorted.
+- **Covers arrive.** The place of a cover that is still being fetched shows
+  a soft shimmer until the picture is there.
+- *The Legejo Cookbook* has a new recipe, Choosing How Legejo Looks.
+- **Upgrading:** nothing to do.
+
 ## 1.18.1 (2026-10-12)
 
 - **A little motion.** Books glide to their places when the library is
