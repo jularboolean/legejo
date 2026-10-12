@@ -9,7 +9,7 @@
 		X
 	} from '@lucide/svelte';
 	import { t } from '#lib/i18n';
-	import { flip, pop } from '#lib/motion';
+	import { pop } from '#lib/motion';
 	import type { MessageKey } from '#lib/i18n';
 	import {
 		SORT_KEYS,
@@ -297,8 +297,7 @@
 			<button
 				type="button"
 				class="chip"
-				animate:flip
-				in:pop={{ start: 0.85 }}
+				in:pop={{ start: 0.9, duration: 90 }}
 				aria-label={t('library.removeFilter', { name: chip.label })}
 				onclick={() => (filters = { ...filters, [chip.field]: null })}
 			>

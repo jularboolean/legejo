@@ -18,7 +18,7 @@
 	} from '#lib/library';
 	import BookRows from '#lib/library/BookRows.svelte';
 	import SortControl from '#lib/library/SortControl.svelte';
-	import { fade, flip } from '#lib/motion';
+	import { cover } from '#lib/cover';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
 	import type { PublicBook } from '#lib/types';
 	import type { PageData } from './$types';
@@ -132,10 +132,10 @@
 {:else}
 	<div class="grid">
 		{#each books as book (book.id)}
-			<div class="card" animate:flip in:fade>
+			<div class="card">
 				<a class="cover" href={bookPath(book)}>
 					{#if book.has_cover}
-						<img src={bookCover(book)} alt={book.title} loading="lazy" />
+						<img use:cover src={bookCover(book)} alt={book.title} loading="lazy" />
 					{:else}
 						<span class="placeholder">{book.title}</span>
 					{/if}

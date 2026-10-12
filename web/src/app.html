@@ -38,9 +38,15 @@
 				}
 			}
 			@media (prefers-color-scheme: dark) {
-				html {
+				html:not([data-design]) {
 					background: #15181a;
 				}
+			}
+			html[data-design='dark'] {
+				background: #15181a;
+			}
+			html[data-design='zamenhof'] {
+				background: #ece0c8;
 			}
 			@media (prefers-reduced-motion: reduce) {
 				#starting {
@@ -48,6 +54,13 @@
 				}
 			}
 		</style>
+		<script>
+			// The chosen design, before anything is painted (see design.svelte.ts).
+			try {
+				var d = localStorage.getItem('legejo.design');
+				if (d === 'light' || d === 'dark' || d === 'zamenhof') document.documentElement.dataset.design = d;
+			} catch (e) {}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

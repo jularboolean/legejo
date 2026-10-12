@@ -1,12 +1,9 @@
-// Motion in the catalog: short, and none at all for someone who has asked
-// the system for less of it. Every transition and animation takes its
-// duration from here.
+// Motion in the catalog: a menu, a dialog or a bar coming in, briefly, and
+// not at all for someone who has asked the system for less of it. Nothing
+// goes out with motion, and the books themselves stand still: the catalog
+// must never wait for an animation.
 
-import { flip as svelteFlip } from 'svelte/animate';
 import { fade as svelteFade, fly as svelteFly, scale as svelteScale } from 'svelte/transition';
-
-/** Above this many items a list rearranges at once: moving them all costs more than it gives. */
-export const MOVING_LIMIT = 300;
 
 export function reducedMotion(): boolean {
 	return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -18,11 +15,6 @@ export function lasting(ms: number, still = false): number {
 }
 
 type Still = { still?: boolean };
-
-/** Items of a keyed list glide to their new places. */
-export function flip(node: Element, fromTo: { from: DOMRect; to: DOMRect }, params: Still = {}) {
-	return svelteFlip(node, fromTo, { duration: lasting(220, params.still) });
-}
 
 export function fade(node: Element, params: Still & { duration?: number } = {}) {
 	return svelteFade(node, { duration: lasting(params.duration ?? 140, params.still) });

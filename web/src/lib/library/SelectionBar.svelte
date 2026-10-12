@@ -64,7 +64,7 @@
 	const archiveHref = $derived(`/api/books/archive?ids=${ids.join(',')}`);
 </script>
 
-<div class="bar" role="toolbar" aria-label={t('select.toolbar')} in:rise={{ y: 24, duration: 180 }}>
+<div class="bar" role="toolbar" aria-label={t('select.toolbar')} in:rise={{ y: 12, duration: 120 }}>
 	<div class="inner">
 		<span class="count">{t('select.count', { count: selected.size })}</span>
 		<button type="button" class="link" onclick={toggleAll}>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ChevronDown } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
-	import { fade, rise } from '#lib/motion';
+	import { rise } from '#lib/motion';
 
 	let {
 		label,
@@ -52,7 +52,7 @@
 		<ChevronDown size={13} />
 	</button>
 	{#if open}
-		<div class="panel" class:right={align === 'right'} class:up in:rise={{ y: up ? 6 : -6, duration: 120 }} out:fade={{ duration: 80 }}>
+		<div class="panel" class:right={align === 'right'} class:up in:rise={{ y: up ? 4 : -4, duration: 90 }}>
 			{@render children(close)}
 		</div>
 	{/if}

@@ -8,6 +8,7 @@
 	import KosyncSetup from '#lib/KosyncSetup.svelte';
 	import McpSetup from '#lib/McpSetup.svelte';
 	import Avatar from '#lib/Avatar.svelte';
+	import DesignPicker from '#lib/DesignPicker.svelte';
 	import Tabs from '#lib/Tabs.svelte';
 	import { LANGUAGES, getLocale, setLocale, t } from '#lib/i18n';
 	import type { Account, KoboDevices } from '#lib/types';
@@ -20,10 +21,13 @@
 	// The page in parts, the part in the address: /account?tab=devices.
 	const hasOptions = $derived(account.librarian_available || account.fediverse_available || account.catalogs_available || data.mcpEnabled);
 	const wanted = $derived(page.url.searchParams.get('tab'));
-	const tab = $derived(wanted === 'devices' || (wanted === 'options' && hasOptions) ? wanted : 'profile');
+	const tab = $derived(
+		wanted === 'devices' || wanted === 'design' || (wanted === 'options' && hasOptions) ? wanted : 'profile'
+	);
 	const tabs = $derived([
 		{ href: '/account', label: t('tabs.profile'), active: tab === 'profile' },
 		{ href: '/account?tab=devices', label: t('devices.heading'), active: tab === 'devices' },
+		{ href: '/account?tab=design', label: t('tabs.design'), active: tab === 'design' },
 		...(hasOptions ? [{ href: '/account?tab=options', label: t('tabs.options'), active: tab === 'options' }] : [])
 	]);
 	let form = $state({
@@ -384,6 +388,10 @@
 <OidcLink />
 
 <AccountLeave />
+{:else if tab === 'design'}
+
+<DesignPicker />
+
 {:else if tab === 'devices'}
 <section class="devices">
 	<p class="intro">{t('devices.intro')}</p>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cover } from '#lib/cover';
 	import { t } from '#lib/i18n';
 	import type { Book } from '#lib/types';
 
@@ -30,6 +31,7 @@
 					<span class="cover">
 						{#if book.has_cover}
 							<img
+								use:cover
 								src={`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`}
 								alt=""
 								loading="lazy"

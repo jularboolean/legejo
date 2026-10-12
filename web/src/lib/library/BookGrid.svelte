@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Check } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
-	import { fade, flip, MOVING_LIMIT } from '#lib/motion';
+	import { cover } from '#lib/cover';
 	import { languageName } from '#lib/library';
 	import type { Book } from '#lib/types';
 
@@ -18,13 +18,11 @@
 		selected?: Set<number> | null;
 		ontoggle?: (id: number) => void;
 	} = $props();
-
-	const still = $derived(books.length > MOVING_LIMIT);
 </script>
 
 <div class="grid">
 	{#each books as book (book.id)}
-		<div class="card" class:picked={selected?.has(book.id)} animate:flip={{ still }} in:fade={{ still }}>
+		<div class="card" class:picked={selected?.has(book.id)}>
 			{#if selected}
 				<button
 					type="button"
@@ -39,6 +37,7 @@
 			<a class="cover" href={`/books/${book.id}`}>
 				{#if book.has_cover}
 					<img
+						use:cover
 						src={`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`}
 						alt={book.title}
 						loading="lazy"

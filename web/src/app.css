@@ -15,8 +15,11 @@
 	font-family: 'Inter Variable', system-ui, sans-serif;
 }
 
+/* Dark: by the system when no design is chosen (see design.svelte.ts), or
+   by choice. The two blocks hold the same colours. */
 @media (prefers-color-scheme: dark) {
-	:root {
+	:root:not([data-design]) {
+		color-scheme: dark;
 		--bg: #15181a;
 		--fg: #e4e8e9;
 		--muted: #8d9a9e;
@@ -27,6 +30,37 @@
 		--danger: #e06c5d;
 		--shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
 	}
+}
+:root[data-design='dark'] {
+	color-scheme: dark;
+	--bg: #15181a;
+	--fg: #e4e8e9;
+	--muted: #8d9a9e;
+	--accent: #94b0b8;
+	--gold: #c0a567;
+	--card: #1d2124;
+	--border: #333a3d;
+	--danger: #e06c5d;
+	--shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+:root[data-design='light'] {
+	color-scheme: light;
+}
+
+/* Zamenhof: the browns of an old textbook and the green of the Esperanto
+   flag, set in a book face. */
+:root[data-design='zamenhof'] {
+	color-scheme: light;
+	--bg: #ece0c8;
+	--fg: #3b2a1a;
+	--muted: #806a4f;
+	--accent: #2f6b3c;
+	--gold: #a3742a;
+	--card: #f7efdd;
+	--border: #d3c09c;
+	--danger: #a23a22;
+	--shadow: 0 1px 2px rgba(74, 49, 20, 0.16), 0 4px 14px rgba(74, 49, 20, 0.1);
+	font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
 }
 
 * {
@@ -178,17 +212,31 @@ label:has(> input[type='checkbox']) {
 	font-size: 0.9rem;
 }
 
-/* One page fading into the next (see the root layout): brief, so that it
-   reads as smoothness and not as waiting. */
-::view-transition-old(root),
-::view-transition-new(root) {
-	animation-duration: 0.16s;
-	animation-timing-function: ease-out;
+/* A cover on its way: its place shimmers until the picture is there, and
+   the picture then comes in (see lib/cover.ts). */
+img[data-cover] {
+	transition: opacity 0.18s ease-out;
+}
+img[data-cover='arriving'] {
+	opacity: 0;
+}
+:has(> img[data-cover='arriving']) {
+	background: linear-gradient(100deg, var(--border) 30%, var(--card) 50%, var(--border) 70%) 0 0 / 300% 100%;
+	animation: cover-arriving 1.4s linear infinite;
+}
+@keyframes cover-arriving {
+	from {
+		background-position: 100% 0;
+	}
+	to {
+		background-position: 0 0;
+	}
 }
 @media (prefers-reduced-motion: reduce) {
-	::view-transition-group(*),
-	::view-transition-old(*),
-	::view-transition-new(*) {
-		animation: none !important;
+	img[data-cover] {
+		transition: none;
+	}
+	:has(> img[data-cover='arriving']) {
+		animation: none;
 	}
 }
