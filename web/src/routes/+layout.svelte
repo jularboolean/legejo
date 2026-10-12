@@ -18,10 +18,15 @@
 	onMount(() => document.getElementById('starting')?.remove());
 
 	// With motion on, one page gives way to the next, where the browser can
-	// do that. Not within a page (a search or a filter in the address).
+	// do that. Not within a page (a search or a filter in the address), and
+	// not into or out of the reader.
 	onNavigate((navigation) => {
 		if (!document.startViewTransition || reducedMotion()) return;
 		if (navigation.from?.route.id === navigation.to?.route.id) return;
+		// The reader fills the window in its own colours and lays out its page
+		// after it has opened: a picture of it taken on arrival is the wrong one.
+		const reader = '/books/[id]/read';
+		if (navigation.from?.route.id === reader || navigation.to?.route.id === reader) return;
 		return new Promise((resolve) => {
 			const transition = document.startViewTransition(async () => {
 				resolve();
