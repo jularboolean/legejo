@@ -1177,6 +1177,16 @@
 	.stage.busy {
 		visibility: hidden;
 	}
+	/* With motion turned on for the catalog, the page comes in once it has
+	   been laid out, instead of standing there all at once. */
+	:global(:root[data-motion='on']) .stage:not(.busy) {
+		animation: arrive 0.22s ease-out;
+	}
+	@keyframes arrive {
+		from {
+			opacity: 0;
+		}
+	}
 	.stage.shield :global(iframe) {
 		pointer-events: none;
 	}
