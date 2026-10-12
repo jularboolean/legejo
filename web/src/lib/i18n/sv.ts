@@ -22,8 +22,6 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'design.dark.about': "För kvällen.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Brunt papper och esperantogrönt.",
-	'design.dove': "Fredsduva",
-	'design.dove.about': "Nästan vitt, med olivkvistens gröna.",
 	'design.motion': "Animationer",
 	'design.motion.on': "Visa animationer",
 	'design.motion.about': "Menyer och dialoger kommer in mjukt, och omslag tonar in när de hämtats. Avstängt visas allt på en gång.",

@@ -22,8 +22,6 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'design.dark.about': "Por la vespero.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Bruna papero kaj Esperanta verdo.",
-	'design.dove': "Packolombo",
-	'design.dove.about': "Preskaŭ blanka, kun la verdo de olivbranĉo.",
 	'design.motion': "Animacioj",
 	'design.motion.on': "Montri animaciojn",
 	'design.motion.about': "Menuoj kaj dialogoj venas milde, kaj kovriloj aperas iom post iom, kiam ili alvenas. Malŝaltite, ĉio aperas tuj.",

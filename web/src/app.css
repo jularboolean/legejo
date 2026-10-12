@@ -53,50 +53,18 @@
    flag, set in a book face. */
 :root[data-design='zamenhof'] {
 	color-scheme: light;
-	--bg: #e0cfac;
+	--bg: #e8dabd;
 	--fg: #3b2a1a;
 	--muted: #735e44;
 	--accent: #2f6b3c;
 	--gold: #a3742a;
-	--card: #efe2c6;
-	--border: #c6b088;
+	--card: #f4ead3;
+	--border: #cfbb95;
 	--danger: #a23a22;
 	--shadow: 0 1px 2px rgba(74, 49, 20, 0.16), 0 4px 14px rgba(74, 49, 20, 0.1);
 	--star: #1e8a3e;
 	font-family: 'Literata Variable', Georgia, serif;
 }
-/* Dove of Peace: nearly white, with the green of an olive branch for what
-   can be pressed. */
-:root[data-design='dove'] {
-	color-scheme: light;
-	--bg: #fbfbf8;
-	--fg: #2b3033;
-	--muted: #7f888c;
-	--accent: #6c8556;
-	--gold: #b3964a;
-	--card: #ffffff;
-	--border: #e7e9e3;
-	--danger: #b3362b;
-	--shadow: 0 1px 2px rgba(60, 70, 60, 0.07), 0 4px 16px rgba(60, 70, 60, 0.05);
-}
-
-/* White doves there: the drawing's slates turn white and the wing a pale
-   grey, held against the page by a thin line and a soft shadow. The beak,
-   the eye and the purple at the wingtip stay. */
-:root[data-design='dove'] .logo svg {
-	overflow: visible;
-	filter: drop-shadow(0 1px 1.5px rgba(50, 60, 55, 0.28));
-}
-:root[data-design='dove'] .logo svg path:is([fill='#5A7075' i], [fill='#48585C' i], [fill='#4E6469' i]) {
-	fill: #ffffff;
-	stroke: #b9c0ba;
-	stroke-width: 2.5;
-	paint-order: stroke;
-}
-:root[data-design='dove'] .logo svg path[fill='#8BA7B0' i] {
-	fill: #e4e8e3;
-}
-
 /* Whatever names the sans face for itself is set in the book face here. */
 :root[data-design='zamenhof'] :is(body, button, input, select, textarea, .count) {
 	font-family: 'Literata Variable', Georgia, serif;

@@ -20,8 +20,6 @@ export const en = {
 	'design.dark.about': "For the evening.",
 	'design.zamenhof': "Zamenhof",
 	'design.zamenhof.about': "Brown paper and Esperanto green.",
-	'design.dove': "Dove of Peace",
-	'design.dove.about': "Nearly white, with the green of an olive branch.",
 	'design.motion': "Animations",
 	'design.motion.on': "Show animations",
 	'design.motion.about': "Menus and dialogs come in softly, and covers fade in as they arrive. Off, everything appears at once.",
