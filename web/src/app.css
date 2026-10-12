@@ -303,22 +303,11 @@ img[data-cover='arriving'] {
 	}
 }
 
-/* One page giving way to the next (see the root layout): the old one fades,
-   the new one fades in and settles from a little below. */
-::view-transition-old(root) {
-	animation: page-out 0.14s ease-in both;
-}
+/* One page giving way to the next (see the root layout): a plain cross-fade
+   and nothing that moves, since the frame around the page is in the
+   picture too and must stand still. */
+::view-transition-old(root),
 ::view-transition-new(root) {
-	animation: page-in 0.24s ease-out both;
-}
-@keyframes page-out {
-	to {
-		opacity: 0;
-	}
-}
-@keyframes page-in {
-	from {
-		opacity: 0;
-		transform: translateY(8px);
-	}
+	animation-duration: 0.2s;
+	animation-timing-function: ease-out;
 }
