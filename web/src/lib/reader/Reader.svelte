@@ -1180,11 +1180,12 @@
 	/* With motion turned on for the catalog, the page comes in once it has
 	   been laid out, instead of standing there all at once. */
 	:global(:root[data-motion='on']) .stage:not(.busy) {
-		animation: arrive 0.22s ease-out;
+		animation: arrive 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
 	}
 	@keyframes arrive {
 		from {
 			opacity: 0;
+			transform: translateY(10px);
 		}
 	}
 	.stage.shield :global(iframe) {
