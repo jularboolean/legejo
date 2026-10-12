@@ -517,3 +517,73 @@ mod tests {
         assert_eq!(count().await, 0);
     }
 }
+
+#[derive(Deserialize)]
+pub struct SetRead {
+    read: bool,
+}
+
+/// PUT /api/books/{id}/read: mark a book as read by hand, whatever the
+/// position says; or as unread, which also forgets the place in it: here,
+/// on a Kobo at its next sync (it is handed a state dated now), and in
+/// KOReader until the book is opened there again.
+pub async fn set_read(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(book_id): Path<i64>,
+    Json(req): Json<SetRead>,
+) -> Result<StatusCode, Response> {
+    let book: Option<(String, String, String)> = sqlx::query_as("SELECT uuid, title, created_at FROM books WHERE id = $1 AND owner_id = $2")
+        .bind(book_id)
+        .bind(user.0.id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let Some((uuid, title, created_at)) = book else { return Err(not_found()) };
+    let has_kobo = sqlx::query_scalar::<_, Option<String>>("SELECT kobo_token FROM users WHERE id = $1")
+        .bind(user.0.id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?
+        .is_some();
+    let now = now_ts();
+    let mut tx = state.db.begin().await.map_err(|e| internal(e.into()))?;
+    if req.read {
+        sqlx::query("UPDATE books SET read_at = $1 WHERE id = $2").bind(&now).bind(book_id).execute(&mut *tx).await.map_err(|e| internal(e.into()))?;
+    } else {
+        sqlx::query("UPDATE books SET read_at = NULL WHERE id = $1").bind(book_id).execute(&mut *tx).await.map_err(|e| internal(e.into()))?;
+        for table in ["reading_progress", "kosync_progress"] {
+            sqlx::query(&format!("DELETE FROM {table} WHERE user_id = $1 AND book_id = $2"))
+                .bind(user.0.id)
+                .bind(book_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| internal(e.into()))?;
+        }
+    }
+    if has_kobo {
+        let kobo_state = crate::kobo::reading_state_set_here(&uuid, &created_at, req.read).to_string();
+        sqlx::query(
+            "INSERT INTO kobo_reading_state (user_id, book_id, state, updated_at) VALUES ($1, $2, $3, $4)
+             ON CONFLICT (user_id, book_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at",
+        )
+        .bind(user.0.id)
+        .bind(book_id)
+        .bind(&kobo_state)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    } else {
+        sqlx::query("DELETE FROM kobo_reading_state WHERE user_id = $1 AND book_id = $2")
+            .bind(user.0.id)
+            .bind(book_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
+    tx.commit().await.map_err(|e| internal(e.into()))?;
+    let action = if req.read { "book.marked_read" } else { "book.marked_unread" };
+    crate::audit::log(&state, crate::audit::by(&user.0), action, serde_json::json!({ "book_id": book_id, "title": title })).await;
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import type { Account } from '#lib/types';
+import type { Account, KoboDevices } from '#lib/types';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ fetch }) => {
@@ -8,5 +8,11 @@ export const load: PageLoad = async ({ fetch }) => {
 		error(500);
 	}
 	const account: Account = await res.json();
-	return { account };
+	// The Kobo devices seen and how the last sync went: only with a token to sync with.
+	let koboDevices: KoboDevices | null = null;
+	if (account.kobo_token) {
+		const devices = await fetch('/api/account/kobo/devices').catch(() => null);
+		if (devices?.ok) koboDevices = await devices.json();
+	}
+	return { account, koboDevices };
 };

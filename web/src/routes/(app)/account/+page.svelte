@@ -9,8 +9,8 @@
 	import McpSetup from '#lib/McpSetup.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Tabs from '#lib/Tabs.svelte';
-	import { getLocale, LANGUAGES, setLocale, t } from '#lib/i18n';
-	import type { Account } from '#lib/types';
+	import { LANGUAGES, getLocale, setLocale, t } from '#lib/i18n';
+	import type { Account, KoboDevices } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -36,6 +36,32 @@
 	let errorMsg = $state('');
 	let koboErrorMsg = $state('');
 	let kindle = $state(data.account.kindle_email ?? '');
+
+	// The Kobo devices seen, and the last sync in words. Fetched again when
+	// a token is made or removed on this page, which the loader does not see.
+	let koboDevices = $state<KoboDevices | null>(data.koboDevices);
+	$effect(() => {
+		const token = account.kobo_token;
+		if (!token) {
+			koboDevices = null;
+			return;
+		}
+		fetch('/api/account/kobo/devices')
+			.then(async (res) => {
+				if (res.ok && account.kobo_token === token) koboDevices = await res.json();
+			})
+			.catch(() => {});
+	});
+	const dateFmt = $derived(new Intl.DateTimeFormat(getLocale() === 'en' ? 'en-GB' : getLocale(), { dateStyle: 'medium', timeStyle: 'short' }));
+	function syncParts(sync: NonNullable<KoboDevices['last_sync']>): string {
+		const parts = [
+			sync.new ? t('kobo.syncNew', { count: sync.new }) : '',
+			sync.changed ? t('kobo.syncChanged', { count: sync.changed }) : '',
+			sync.collections ? t('kobo.syncCollections', { count: sync.collections }) : '',
+			sync.states ? t('kobo.syncStates', { count: sync.states }) : ''
+		].filter(Boolean);
+		return parts.length ? parts.join(', ') : t('kobo.syncNothing');
+	}
 	let kindleSaved = $state(false);
 	let kindleErrorMsg = $state('');
 	let librarianErrorMsg = $state('');
@@ -402,6 +428,32 @@
 	{/if}
 
 	{#if koboErrorMsg}<p class="error">{koboErrorMsg}</p>{/if}
+
+	{#if account.kobo_token && koboDevices}
+		{@const sync = koboDevices.last_sync}
+		<div class="kobo-devices">
+			<h4>{t('kobo.devices')}</h4>
+			{#if koboDevices.devices.length === 0 && !sync}
+				<p class="intro">{t('kobo.noDevices')}</p>
+			{:else}
+				<ul>
+					{#each koboDevices.devices as device (device.last_seen_at + (device.model ?? ''))}
+						<li>{t('kobo.deviceSeen', { model: device.model ?? 'Kobo', date: dateFmt.format(new Date(device.last_seen_at)) })}</li>
+					{/each}
+				</ul>
+				{#if sync}
+					<p class="intro" class:error={!sync.ok}>
+						{#if sync.ok}
+							{t('kobo.lastSync', { date: dateFmt.format(new Date(sync.at)), what: syncParts(sync) })}
+						{:else}
+							{t('kobo.lastSyncFailed', { date: dateFmt.format(new Date(sync.at)), status: sync.status ?? '?' })}
+						{/if}
+						{#if koboDevices.syncs_last_30_days > 1}&ensp;·&ensp;{t('kobo.syncsMonth', { count: koboDevices.syncs_last_30_days })}{/if}
+					</p>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 </section>
 
 {#if account.mail_from}
@@ -603,5 +655,19 @@
 	.danger {
 		color: var(--danger);
 		border-color: var(--danger);
+	}
+	.kobo-devices {
+		margin-top: 1rem;
+		padding-top: 0.75rem;
+		border-top: 1px dashed var(--border);
+	}
+	.kobo-devices h4 {
+		margin: 0 0 0.3rem;
+		font-size: 0.88rem;
+	}
+	.kobo-devices ul {
+		margin: 0 0 0.4rem;
+		padding-left: 1.2rem;
+		font-size: 0.9rem;
 	}
 </style>

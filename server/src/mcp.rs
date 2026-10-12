@@ -380,6 +380,9 @@ fn required_int(args: &Map<String, Value>, name: &str) -> Result<i64, String> {
 }
 
 fn status_of(book: &Book) -> &'static str {
+    if book.read_at.is_some() {
+        return "finished";
+    }
     match book.progress_percent {
         None => "unread",
         Some(p) if p >= 0.99 => "finished",

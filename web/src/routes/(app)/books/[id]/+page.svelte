@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { splitAuthors } from '#lib/library/authors';
@@ -8,6 +8,7 @@
 	import { licenseName, licenseUrl } from '#lib/license';
 	import { renderMarkdown } from '#lib/markdown';
 	import { formatPublished } from '#lib/pubdate';
+	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import Rating from '#lib/Rating.svelte';
 	import { localPercent } from '#lib/reader/progress';
 	import { availability, fileVersion, removeBook, saveBook, savedVersion } from '#lib/offline/store';
@@ -54,6 +55,25 @@
 		onDevice = false;
 	}
 
+	let resetOpen = $state(false);
+	let readBusy = $state(false);
+	async function setRead(read: boolean) {
+		resetOpen = false;
+		readBusy = true;
+		try {
+			const res = await fetch(`/api/books/${book.id}/read`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ read })
+			});
+			if (res.ok) await invalidateAll();
+		} catch {
+			// Nothing changed; the buttons stay as they were.
+		}
+		readBusy = false;
+	}
+	const readDateFmt = $derived(new Intl.DateTimeFormat(getLocale() === 'en' ? 'en-GB' : getLocale(), { dateStyle: 'medium' }));
+
 	let kindleState = $state<'idle' | 'sending' | 'sent'>('idle');
 	let kindleError = $state('');
 	async function sendToKindle() {
@@ -84,6 +104,8 @@
 	// The server reports progress across devices; a server without the progress
 	// API leaves the reader's own copy in this browser.
 	const progress = $derived(book.progress_percent ?? localPercent(book.id));
+	// Read, or read again from the start: by hand, whatever the position says.
+	const finished = $derived(!!book.read_at || (progress !== null && progress >= 0.99));
 
 	// Shown at once; the server's value takes over when the reload lands.
 	// Want-to-read: shown at once, confirmed by the reload.
@@ -231,7 +253,35 @@
 			{#if wanted}<BookmarkCheck size={14} />{:else}<Bookmark size={14} />{/if}
 			{wanted ? t('book.wanted') : t('book.want')}
 		</button>
+		{#if finished}
+			<button type="button" class="want on" disabled={readBusy} onclick={() => (resetOpen = true)}>
+				<Check size={14} />
+				{t('book.markUnread')}
+			</button>
+			{#if book.read_at}<p class="elsewhere">{t('book.markedRead', { date: readDateFmt.format(new Date(book.read_at)) })}</p>{/if}
+		{:else}
+			<button type="button" class="want" disabled={readBusy} onclick={() => setRead(true)}>
+				<Check size={14} />
+				{t('book.markRead')}
+			</button>
+			{#if progress !== null}
+				<button type="button" class="want" disabled={readBusy} onclick={() => (resetOpen = true)}>
+					<RotateCcw size={14} />
+					{t('book.resetTitle').replace(/\?$/, '')}
+				</button>
+			{/if}
+		{/if}
 	</div>
+
+	<ConfirmDialog
+		open={resetOpen}
+		title={t('book.resetTitle')}
+		message={t('book.resetConfirm')}
+		confirmLabel={finished ? t('book.markUnread') : t('book.resetTitle').replace(/\?$/, '')}
+		cancelLabel={t('common.cancel')}
+		onconfirm={() => setRead(false)}
+		oncancel={() => (resetOpen = false)}
+	/>
 
 	<div class="info">
 		<div class="headline">

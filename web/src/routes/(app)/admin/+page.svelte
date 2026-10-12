@@ -1,4 +1,5 @@
 <script lang="ts">
+	import WhatsNew from '#lib/WhatsNew.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Tabs from '#lib/Tabs.svelte';
@@ -27,6 +28,7 @@
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
+	let whatsNewOpen = $state(false);
 	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
@@ -280,7 +282,9 @@
 		<button type="button" class="ghost" onclick={checkVersion} disabled={versionState === 'checking'}>
 			{versionState === 'checking' ? t('admin.versionChecking') : t('admin.versionCheck')}
 		</button>
+		<button type="button" class="ghost" onclick={() => (whatsNewOpen = true)}>{t('admin.whatsNew')}</button>
 	</div>
+	{#if whatsNewOpen}<WhatsNew since={null} onclose={() => (whatsNewOpen = false)} />{/if}
 	{#if versionState === 'latest'}
 		<p class="ok">{t('admin.versionLatest')}</p>
 	{:else if versionState === 'newer' && newerRelease}

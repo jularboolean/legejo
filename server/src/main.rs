@@ -70,6 +70,8 @@ mod kobo_annotations_tests;
 mod kobospan;
 mod welcome;
 mod shelflinks;
+mod changelog;
+mod read_state_tests;
 mod shelflink_tests;
 #[cfg(test)]
 mod annotation_tests;
@@ -165,6 +167,7 @@ fn router(state: AppState) -> Router {
         )
         .route("/account/export", get(export::status).post(export::start).delete(export::discard))
         .route("/account/export/{id}/{part}", get(export::download))
+        .route("/account/kobo/devices", get(account::kobo_devices))
         .route("/account/locale", axum::routing::put(account::set_locale))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
@@ -211,6 +214,8 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/want", axum::routing::put(books::set_want))
         .route("/books/{id}/kobo-restore", post(books::kobo_restore))
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
+        .route("/books/{id}/read", axum::routing::put(progress::set_read))
+        .route("/changelog", get(changelog::get))
         .route("/books/{id}/annotations", get(annotations::list).post(annotations::create))
         .route("/books/{id}/annotations/export", get(annotations::export))
         .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))

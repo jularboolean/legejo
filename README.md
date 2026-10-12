@@ -104,9 +104,9 @@ own, and each file is one part.
 - Highlights and notes in the web reader, listed in a panel and exported as Markdown. With a Kobo they sync both ways, once an admin turns that on.
 - Legejo can be added to the home screen of a phone or tablet, where it opens as an app of its own. Books saved on the device can be read there without the network, and your place in them is sent when it is back.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
-- A reading page with what you are reading, what you want to read, and statistics.
+- A reading page with what you are reading, what you want to read, and statistics. A book can be marked as read by hand, or started over, which forgets the place in it on a Kobo too.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways, and books are converted to KEPUB on the fly. Comics (CBZ) are made into fixed-layout books for the device, one page per image.
-- **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android.
+- **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android, also for books that Kobo sync put on a Kobo.
 - **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
@@ -135,7 +135,7 @@ own, and each file is one part.
 - Multiple users with admin roles, invitations and optional self-registration with email verification.
 - Optional single sign-on through any OpenID Connect provider (Pocket ID, Authentik, Keycloak, Forgejo, ...).
 - An export of the whole library (book files, covers, CSV and JSON) and account deletion.
-- A system log of everything that happens on the instance.
+- A system log of everything that happens on the instance, and a note of what is new after each upgrade.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
 
 **For self-hosters**

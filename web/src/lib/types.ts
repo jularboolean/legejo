@@ -26,6 +26,8 @@ export type Book = {
 	updated_at: string | null;
 	/** Reading progress 0–1 (web or Kobo, latest wins); absent when the book is unread. */
 	progress_percent?: number;
+	/** Marked as read by hand, whatever the position says. */
+	read_at?: string | null;
 	/** For imported copies: uuid of the original book. */
 	source_uuid?: string;
 	series: string | null;
@@ -48,6 +50,13 @@ export type Book = {
 
 /** A book in the library listing: the shelves it sits on come along. */
 export type LibraryBook = Book & { shelf_ids: number[] };
+
+/** The Kobo devices that have synced with an account, and how the last sync went. */
+export type KoboDevices = {
+	devices: { model: string | null; last_seen_at: string }[];
+	last_sync: { at: string; ok: boolean; new: number; changed: number; collections: number; states: number; status: number | null } | null;
+	syncs_last_30_days: number;
+};
 
 export type ShelfRef = { id: number; name: string };
 

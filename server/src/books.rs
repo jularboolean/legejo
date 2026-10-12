@@ -62,6 +62,9 @@ pub struct Book {
     pub has_cover: DbFlag,
     pub created_at: String,
     pub updated_at: Option<String>,
+    /// Marked as read by hand, whatever the position says.
+    #[sqlx(default)]
+    pub read_at: Option<String>,
     /// Reading progress 0–1 for the requesting user (web or Kobo, latest wins).
     /// Only filled in by the web API's queries; omitted when there is none.
     #[sqlx(default)]
@@ -165,7 +168,7 @@ pub(crate) const BOOK_COLUMNS: &str =
      category, identifier, isbn, libris_id, source_uuid, series, series_index, rating, \
      license, license_source_url, author_death_year, cover_is_free, fed_source, want_to_read, wanted_at, format, file_size, health_issues, \
      CAST(CASE WHEN cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
-     created_at, updated_at";
+     created_at, updated_at, read_at";
 
 /// Same columns qualified with the `b` table alias, for queries that join other tables.
 pub(crate) const BOOK_COLUMNS_B: &str =
@@ -173,7 +176,7 @@ pub(crate) const BOOK_COLUMNS_B: &str =
      b.category, b.identifier, b.isbn, b.libris_id, b.source_uuid, b.series, b.series_index, b.rating, \
      b.license, b.license_source_url, b.author_death_year, b.cover_is_free, b.fed_source, b.want_to_read, b.wanted_at, b.format, b.file_size, b.health_issues, \
      CAST(CASE WHEN b.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS has_cover, \
-     b.created_at, b.updated_at";
+     b.created_at, b.updated_at, b.read_at";
 
 /// Where a book's file is kept.
 pub(crate) fn book_path(state: &AppState, uuid: &str, format: Format) -> std::path::PathBuf {

@@ -108,7 +108,11 @@ docker compose up -d</pre>""",
 from your browser. The server itself never asks anyone anything. What changed in each version is
 in the changelog in the repository and on the releases page.</p>
 <p>People who have the web app open during an upgrade see a small note,
-<strong>A new version of Legejo is ready</strong>, with a button to reload.</p>"""),
+<strong>A new version of Legejo is ready</strong>, with a button to reload. The next time
+anyone opens Legejo after an upgrade, a note says which version it is now, with
+<strong>What is new</strong> a click away: the changes since the version that browser last
+saw, read from the changelog built into Legejo itself. The Admin page has the same under
+<strong>Version</strong>, for the version running.</p>"""),
 
  ("Backing Up",
   "<p>You want to be able to lose the machine without losing the library.</p>",
@@ -485,7 +489,11 @@ copied.</li>
 are. The address holds your token, which is what tells Legejo whose library to send. Keep it to
 yourself; <strong>Regenerate</strong> makes a new one and the old one stops working.</p>
 <p>The instance must be reachable from the Kobo at the address in
-<code>LEGEJO_PUBLIC_URL</code> (Recipe 1.4).</p>"""),
+<code>LEGEJO_PUBLIC_URL</code> (Recipe 1.4).</p>
+<p>Once the device has synced, the same place on the Account page lists it under
+<strong>Your Kobo devices</strong>, with when it was last seen, and says how the last sync
+went: what was sent, or that it failed and with what. That is where to look first when
+something does not arrive on the device.</p>"""),
 
  ("Knowing What Syncs with a Kobo",
   "<p>You wonder what will show up, and what will come back.</p>",
@@ -518,7 +526,10 @@ change them on the device.</li>
   """<p>Get the books through OPDS. On the <strong>Account</strong> page, under
 <strong>OPDS catalog</strong>, is the address to add as a catalog in KOReader. Log in with your
 username and an app password (Recipe 11.2).</p>""",
-  "<p>The catalog lists your books, your shelves and your series, and can be searched.</p>"),
+  """<p>The catalog lists your books, your shelves and your series, and can be searched.</p>
+<p>KOReader on a Kobo can also read the books that Kobo sync put on the device. Legejo
+knows those files too, so the reading position of such a book finds its way here as well
+(Recipe 8.5).</p>"""),
 
  ("Syncing Your Place with KOReader",
   "<p>You want the place you reached in KOReader to show in Legejo, and follow you between KOReader devices.</p>",
@@ -573,8 +584,23 @@ library and mark them together. They are listed on <strong>My reading</strong>.<
   """<p>Further down <strong>My reading</strong> are <strong>Recently finished</strong> and
 <strong>Statistics</strong>: books finished per month, books added per month, the authors you
 have read most, the languages, and your ratings.</p>""",
-  """<p>A book counts as finished at 99&#160;% read. Its month is the one in which it was last
-read. Nothing here leaves your instance.</p>"""),
+  """<p>A book counts as finished at 99&#160;% read, or when you mark it so (the next recipe).
+Its month is the one in which it was last read, or marked. Nothing here leaves your
+instance.</p>"""),
+
+ ("Marking a Book as Read, or Starting Over",
+  "<p>You read a book on paper, or its last pages are notes, so Legejo never counts it as finished. Or you opened a book by mistake and do not want it among the ones you are reading.</p>",
+  """<p>On the book's page, press <strong>Mark as read</strong>. The book counts as finished from
+then on, whatever the position says.</p>
+<p>For a book opened by mistake, press <strong>Start over</strong>; for a finished one,
+<strong>Mark as unread</strong>. Both forget your place in the book and put it back among the
+unread.</p>""",
+  """<p>Starting over reaches the devices too. A Kobo is handed a fresh state at its next sync and
+takes it, since it is newer than its own. KOReader keeps its own place in the book until you
+open the book there again, at which it sends that place back; start over in KOReader as well
+if you mean it.</p>
+<p>Marking as read also tells a Kobo the book is finished. The book itself is not touched by
+any of this.</p>"""),
  ]),
 
 ("Audiobooks",
@@ -619,7 +645,7 @@ stops working, and nobody else's is affected.</p>"""),
 <strong>Current password</strong> is needed to save. Choose a <strong>Profile picture</strong>.
 Choose a <strong>Language</strong>: English, Swedish, Finnish, German, French, Spanish or
 Esperanto.</p>""",
-  "<p>The language takes effect at once, for your account only.</p>"),
+  "<p>The language takes effect at once, for your account only. A small thing worth knowing: a link to a book or a shelf that asks you to log in takes you to that book or shelf once you have, not to the start page.</p>"),
 
  ("Giving Each App a Password of Its Own",
   "<p>You would rather not type your real password into a reading app.</p>",

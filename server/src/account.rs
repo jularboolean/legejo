@@ -479,3 +479,43 @@ pub async fn delete_account(
     removal.set_path("/");
     Ok(jar.remove(removal))
 }
+
+/// GET /api/account/kobo/devices: the Kobo devices that have synced with
+/// this account, and how the last sync went, from the system log.
+pub async fn kobo_devices(State(state): State<AppState>, user: AuthUser) -> Result<Json<serde_json::Value>, Response> {
+    let devices: Vec<(Option<String>, String)> =
+        sqlx::query_as("SELECT model, last_seen_at FROM kobo_devices WHERE user_id = $1 ORDER BY last_seen_at DESC")
+            .bind(user.0.id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
+    let last: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT at, action, details FROM activity_log WHERE actor_id = $1 AND action IN ('kobo.synced', 'kobo.sync_failed')
+         ORDER BY id DESC LIMIT 1",
+    )
+    .bind(user.0.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let month: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM activity_log WHERE actor_id = $1 AND action = 'kobo.synced' AND at > $2")
+        .bind(user.0.id)
+        .bind(crate::db::ts_in_hours(-24 * 30))
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let last_sync = last.map(|(at, action, details)| {
+        let d: serde_json::Value = serde_json::from_str(&details).unwrap_or_default();
+        let n = |key: &str| d.get(key).and_then(|v| v.as_i64()).unwrap_or(0);
+        serde_json::json!({
+            "at": at,
+            "ok": action == "kobo.synced",
+            "new": n("new"), "changed": n("changed"), "collections": n("collections"), "states": n("states"),
+            "status": d.get("status").and_then(|v| v.as_i64()),
+        })
+    });
+    Ok(Json(serde_json::json!({
+        "devices": devices.into_iter().map(|(model, last_seen_at)| serde_json::json!({ "model": model, "last_seen_at": last_seen_at })).collect::<Vec<_>>(),
+        "last_sync": last_sync,
+        "syncs_last_30_days": month,
+    })))
+}

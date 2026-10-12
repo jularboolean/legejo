@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
+	import { nextPage } from '../../+layout';
 	import Logo from '#lib/Logo.svelte';
 	import { t } from '#lib/i18n';
 	import type { PageData } from './$types';
@@ -19,6 +20,9 @@
 	const oidcParam = page.url.searchParams.get('oidc') as keyof typeof oidcErrors | null;
 	let error = $state(oidcParam && oidcErrors[oidcParam] ? t(oidcErrors[oidcParam]) : '');
 	let busy = $state(false);
+	// Where to go once logged in: the page that sent us here, if any.
+	const next = nextPage(page.url.searchParams.get('next'));
+	const ssoHref = $derived(next === '/' ? '/api/auth/oidc/start' : `/api/auth/oidc/start?next=${encodeURIComponent(next)}`);
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
@@ -32,7 +36,7 @@
 			});
 			if (res.ok) {
 				await invalidateAll();
-				goto('/');
+				goto(next);
 			} else {
 				const body = await res.json().catch(() => null);
 				error =
@@ -70,7 +74,7 @@
 		<button disabled={busy}>{busy ? t('login.submitting') : t('login.submit')}</button>
 		{#if data.oidcName}
 			<div class="or"><span>{t('login.or')}</span></div>
-			<a class="sso" href="/api/auth/oidc/start" data-sveltekit-reload>{t('login.sso', { name: data.oidcName })}</a>
+			<a class="sso" href={ssoHref} data-sveltekit-reload>{t('login.sso', { name: data.oidcName })}</a>
 		{/if}
 		{#if data.registrationEnabled}
 			<a class="register" href="/register">{t('login.register')}</a>

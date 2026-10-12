@@ -866,6 +866,30 @@ fn book_metadata(book: &Book, base: &str, kepub: bool) -> Value {
     metadata
 }
 
+/// A reading state set here rather than on the device: finished, or back
+/// to unread. Every part is dated now, so that the device takes it over its
+/// own at the next sync.
+pub(crate) fn reading_state_set_here(uuid: &str, created_at: &str, finished: bool) -> Value {
+    let now = now();
+    let mut status = json!({
+        "LastModified": now,
+        "Status": if finished { "Finished" } else { "ReadyToRead" },
+        "TimesStartedReading": if finished { 1 } else { 0 },
+    });
+    if finished {
+        status["LastTimeFinished"] = json!(now);
+    }
+    json!({
+        "EntitlementId": dashed(uuid),
+        "Created": created_at,
+        "LastModified": now,
+        "PriorityTimestamp": now,
+        "StatusInfo": status,
+        "Statistics": { "LastModified": now },
+        "CurrentBookmark": { "LastModified": now },
+    })
+}
+
 fn default_reading_state(book: &Book) -> Value {
     let last_modified = book.updated_at.as_deref().unwrap_or(&book.created_at);
     json!({
@@ -1534,6 +1558,12 @@ async fn ensure_comic(state: &AppState, book: &Book) -> Option<std::path::PathBu
     }
 }
 
+/// At most this many conversions at once: a device fetching a whole library
+/// must not start one kepubify per book.
+static KEPUB_GATE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+/// Longer than this and the conversion is given up (and the process ended).
+const KEPUB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
+
 /// Convert to kepub with the external `kepubify` binary, caching the result.
 /// Returns None (fall back to plain epub) when conversion is unavailable or fails.
 async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
@@ -1543,14 +1573,25 @@ async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf
         return Some(out);
     }
     let bin = state.kepubify.as_ref()?;
+    let _slot = KEPUB_GATE.acquire().await.ok()?;
+    // Made meanwhile by the request that held the slot before this one.
+    if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+        return Some(out);
+    }
     tokio::fs::create_dir_all(&out_dir).await.ok()?;
     let src = state.data_dir.join("books").join(format!("{uuid}.epub"));
-    let result = tokio::process::Command::new(bin)
-        .arg(&src)
-        .arg("-o")
-        .arg(&out_dir)
-        .output()
-        .await;
+    let result = tokio::time::timeout(
+        KEPUB_TIMEOUT,
+        tokio::process::Command::new(bin).arg(&src).arg("-o").arg(&out_dir).kill_on_drop(true).output(),
+    )
+    .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(_) => {
+            tracing::warn!("kepubify took longer than {}s for {uuid}; given up", KEPUB_TIMEOUT.as_secs());
+            return None;
+        }
+    };
     match result {
         Ok(output) if output.status.success() => {
             // kepubify names its output <stem>_converted.kepub.epub; move it
@@ -1607,11 +1648,16 @@ async fn download_file(state: &AppState, token: &str, filename: &str) -> Result<
     if book.format == "cbz" {
         // A comic has no file a device can read but the one made here.
         let path = ensure_comic(state, &book).await.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
+        crate::kosync::remember_file_id(state, book.id, path.clone()).await;
         let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
         return Ok((([(header::CONTENT_TYPE, "application/epub+zip")], data).into_response(), book.title, "kepub"));
     }
     let epub_path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
     let kepub = if want_kepub { ensure_kepub(state, &book.uuid).await } else { None };
+    // KOReader on the same device knows the book by the file it was handed.
+    if let Some(path) = &kepub {
+        crate::kosync::remember_file_id(state, book.id, path.clone()).await;
+    }
     let format = if kepub.is_some() { "kepub" } else { "epub" };
     let data = tokio::fs::read(kepub.unwrap_or(epub_path)).await.map_err(|e| internal(e.into()))?;
     Ok((([(header::CONTENT_TYPE, "application/epub+zip")], data).into_response(), book.title, format))

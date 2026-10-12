@@ -314,6 +314,17 @@ pub async fn backfill(state: AppState) {
     }
 }
 
+/// Note a file a device was handed (a KEPUB, a comic made into a book) under
+/// the book, so that KOReader on that device finds the book by the file it has.
+pub async fn remember_file_id(state: &AppState, book_id: i64, path: std::path::PathBuf) {
+    let Ok(Ok(md5)) = tokio::task::spawn_blocking(move || partial_md5(&path)).await else { return };
+    let _ = sqlx::query("INSERT INTO book_file_ids (md5, book_id) VALUES ($1, $2) ON CONFLICT (md5, book_id) DO NOTHING")
+        .bind(&md5)
+        .bind(book_id)
+        .execute(&state.db)
+        .await;
+}
+
 /// (Re)compute one book's KOReader id from its file.
 pub async fn set_md5(state: &AppState, id: i64, uuid: &str) -> bool {
     let (path, _) = crate::books::book_file(state, uuid).await;

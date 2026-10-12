@@ -23,6 +23,7 @@
 	} from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
+	import WhatsNew from '#lib/WhatsNew.svelte';
 	import { t } from '#lib/i18n';
 	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
 	import { sendUnsent } from '#lib/reader/progress';
@@ -53,7 +54,33 @@
 	// app and the saved books at hand. Only in a built app: in development
 	// it would stand between the editor and the page.
 	let hasSaved = $state(false);
+
+	// After an upgrade, a note that says so, with what is new a click away.
+	// Per browser: the version last seen here. A browser seeing Legejo for
+	// the first time has nothing to be told.
+	const SEEN_KEY = 'legejo.version.seen';
+	let upgradedFrom = $state<string | null>(null);
+	let whatsNewOpen = $state(false);
+	function noteVersion() {
+		try {
+			const seen = localStorage.getItem(SEEN_KEY);
+			if (seen && seen !== __APP_VERSION__) upgradedFrom = seen;
+			else if (!seen) localStorage.setItem(SEEN_KEY, __APP_VERSION__);
+		} catch {
+			// No storage: no note, and no harm.
+		}
+	}
+	function versionSeen() {
+		upgradedFrom = null;
+		whatsNewOpen = false;
+		try {
+			localStorage.setItem(SEEN_KEY, __APP_VERSION__);
+		} catch {
+			// Shown again next time, then.
+		}
+	}
 	onMount(() => {
+		if (data.user) noteVersion();
 		const online = () => {
 			sendUnsent();
 			invalidateAll();
@@ -280,6 +307,15 @@
 		<span>{t('update.available')}</span>
 		<button type="button" onclick={() => location.reload()}>{t('update.reload')}</button>
 	</div>
+{:else if upgradedFrom && data.user}
+	<div class="update" role="status">
+		<span>{t('whatsnew.updated', { version: __APP_VERSION__ })}</span>
+		<button type="button" onclick={() => (whatsNewOpen = true)}>{t('whatsnew.show')}</button>
+		<button type="button" class="ghost" onclick={versionSeen}>{t('whatsnew.dismiss')}</button>
+	</div>
+{/if}
+{#if whatsNewOpen}
+	<WhatsNew since={upgradedFrom} onclose={versionSeen} />
 {/if}
 
 <style>

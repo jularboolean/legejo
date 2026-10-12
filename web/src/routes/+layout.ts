@@ -6,6 +6,12 @@ import type { FedStatus, Shelf } from '#lib/types';
 import type { LayoutLoad } from './$types';
 
 export const ssr = false;
+
+/** The page to go to after login: one of this site's own, else the start page. */
+export function nextPage(next: string | null): string {
+	if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/api/')) return '/';
+	return next;
+}
 export const prerender = false;
 
 export const load: LayoutLoad = async ({ fetch, url }) => {
@@ -28,10 +34,12 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 
 	const openPaths = ['/login', '/register', '/verify', '/forgot', '/reset', '/invite'];
 	if (!user && !openPaths.includes(url.pathname)) {
-		redirect(307, '/login');
+		// Back here once logged in; the start page needs no saying.
+		const here = url.pathname + url.search;
+		redirect(307, here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`);
 	}
 	if (user && url.pathname === '/login') {
-		redirect(307, '/');
+		redirect(307, nextPage(url.searchParams.get('next')));
 	}
 
 	let shelves: Shelf[] = [];

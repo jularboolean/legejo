@@ -1077,7 +1077,32 @@ export const en = {
 	'log.book.link_imported': "fetched “{title}” from the shelf {shelf}",
 	'linked.state.unreachable': "not answering",
 	'linked.state.gone': "link no longer works",
-	'linked.add': "Follow a shelf from another Legejo instance"
+	'linked.add': "Follow a shelf from another Legejo instance",
+	'book.markRead': "Mark as read",
+	'book.markUnread': "Mark as unread",
+	'book.markedRead': "Marked as read {date}",
+	'book.resetTitle': "Start over?",
+	'book.resetConfirm': "Your place in the book is forgotten: here, on your Kobo at its next sync, and in KOReader until you open the book there again. The book itself stays.",
+	'whatsnew.updated': "Legejo is now version {version}.",
+	'whatsnew.show': "What is new",
+	'whatsnew.dismiss': "Got it",
+	'whatsnew.title': "What is new",
+	'whatsnew.none': "Nothing to tell.",
+	'admin.whatsNew': "What changed in this version",
+	'kobo.devices': "Your Kobo devices",
+	'kobo.deviceSeen': "{model}, last seen {date}",
+	'kobo.noDevices': "No device has synced yet.",
+	'kobo.lastSync': "Last sync {date}: {what}.",
+	'kobo.lastSyncFailed': "Last sync {date} failed (HTTP {status}).",
+	'kobo.syncNew': "{count} new",
+	'kobo.syncChanged': "{count} changed",
+	'kobo.syncCollections': "{count} collections",
+	'kobo.syncStates': "{count} reading positions",
+	'kobo.syncNothing': "nothing to send",
+	'kobo.syncsMonth': "{count} syncs in the last 30 days",
+	'log.book.marked_read': "marked “{title}” as read",
+	'log.book.marked_unread': "marked “{title}” as unread",
+	'common.close': "Close"
 };
 
 export type MessageKey = keyof typeof en;

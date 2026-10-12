@@ -119,9 +119,15 @@ export function bookYear(book: { first_published?: number | null; published?: st
 }
 
 export function readStatus(book: LibraryBook): ReadStatus {
+	if (book.read_at) return 'finished';
 	const p = book.progress_percent;
 	if (p == null) return 'unread';
 	return p >= 0.99 ? 'finished' : 'reading';
+}
+
+/** When a finished book was finished: when it was marked so by hand, else when it was last read. */
+export function finishedAt(book: LibraryBook): string | null {
+	return book.read_at ?? book.last_read_at ?? null;
 }
 
 /** "Sven Delblanc" sorts under D, "Lagerlöf, Selma" under L: the first author's surname. */

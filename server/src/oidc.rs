@@ -195,23 +195,44 @@ struct Flow {
     nonce: String,
     /// Started from the account page by a logged-in user.
     link: bool,
+    /// The page to go back to once logged in (a path on this site).
+    next: Option<String>,
 }
 
 impl Flow {
     fn encode(&self) -> String {
-        format!("{}.{}.{}.{}", self.state, self.verifier, self.nonce, if self.link { "l" } else { "n" })
+        let next: String = self.next.as_deref().unwrap_or("").bytes().map(|b| format!("{b:02x}")).collect();
+        format!("{}.{}.{}.{}.{next}", self.state, self.verifier, self.nonce, if self.link { "l" } else { "n" })
     }
 
     fn decode(s: &str) -> Option<Flow> {
         let mut it = s.split('.');
-        let flow = Flow {
+        let mut flow = Flow {
             state: it.next()?.to_string(),
             verifier: it.next()?.to_string(),
             nonce: it.next()?.to_string(),
             link: it.next()? == "l",
+            next: None,
         };
+        if let Some(hex) = it.next() {
+            let bytes: Option<Vec<u8>> = (0..hex.len() / 2).map(|i| u8::from_str_radix(hex.get(2 * i..2 * i + 2)?, 16).ok()).collect();
+            flow.next = bytes.and_then(|b| String::from_utf8(b).ok()).and_then(|n| safe_next(&n));
+        }
         (it.next().is_none() && !flow.state.is_empty()).then_some(flow)
     }
+}
+
+/// A page on this site to go back to, or nothing: never another site, and
+/// never one of the API's own addresses.
+pub fn safe_next(next: &str) -> Option<String> {
+    let next = next.trim();
+    let ok = next.starts_with('/')
+        && !next.starts_with("//")
+        && !next.starts_with("/\\")
+        && !next.starts_with("/api/")
+        && next.len() <= 2000
+        && !next.chars().any(|c| c.is_control());
+    ok.then(|| next.to_string())
 }
 
 fn flow_cookie(value: String, minutes: i64, secure: bool) -> Cookie<'static> {
@@ -232,6 +253,7 @@ fn not_configured() -> Response {
 #[derive(Deserialize)]
 pub struct StartQuery {
     link: Option<String>,
+    next: Option<String>,
 }
 
 /// GET /api/auth/oidc/start[?link=1]: redirects to the provider.
@@ -253,7 +275,8 @@ pub async fn start(
             return Redirect::to(&format!("{back}?oidc=unavailable")).into_response();
         }
     };
-    let flow = Flow { state: random_hex(16), verifier: random_hex(32), nonce: random_hex(16), link };
+    let next = if link { None } else { q.next.as_deref().and_then(safe_next) };
+    let flow = Flow { state: random_hex(16), verifier: random_hex(32), nonce: random_hex(16), link, next };
     let mut url = match url::Url::parse(&discovery.authorization_endpoint) {
         Ok(u) => u,
         Err(_) => return Redirect::to(&format!("{back}?oidc=unavailable")).into_response(),
@@ -340,6 +363,7 @@ pub async fn callback(
     let jar = jar.remove(flow_cookie(String::new(), 0, state.settings.secure_cookies));
     let link = flow.as_ref().is_some_and(|f| f.link);
     let back = if link { "/account" } else { "/login" };
+    let landing = flow.as_ref().and_then(|f| f.next.clone()).unwrap_or_else(|| "/".to_string());
 
     // For a link flow, the user whose session started it.
     let linking_user = match link {
@@ -352,7 +376,7 @@ pub async fn callback(
 
     match finish(&state, &oidc, &headers, flow, linking_user, q).await {
         Ok(Done::LoggedIn(user_id)) => match new_session(&state, user_id).await {
-            Ok(token) => (jar.add(auth::session_cookie(token, auth::SESSION_DAYS, state.settings.secure_cookies)), Redirect::to("/")).into_response(),
+            Ok(token) => (jar.add(auth::session_cookie(token, auth::SESSION_DAYS, state.settings.secure_cookies)), Redirect::to(&landing)).into_response(),
             Err(_) => (jar, Redirect::to(&format!("{back}?oidc=error"))).into_response(),
         },
         Ok(Done::Linked) => (jar, Redirect::to("/account?oidc=linked")).into_response(),
@@ -862,9 +886,13 @@ mod tests {
         assert!(in_group(&c, "legejo-admins"));
         assert!(!in_group(&c, "admins"));
         assert_eq!(pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-        let f = Flow { state: "s".into(), verifier: "v".into(), nonce: "n".into(), link: true }.encode();
+        let f = Flow { state: "s".into(), verifier: "v".into(), nonce: "n".into(), link: true, next: None }.encode();
         let back = Flow::decode(&f).unwrap();
-        assert!(back.link && back.state == "s" && back.verifier == "v" && back.nonce == "n");
+        assert!(back.link && back.state == "s" && back.verifier == "v" && back.nonce == "n" && back.next.is_none());
         assert!(Flow::decode("a.b").is_none());
+        // The page to go back to survives the cookie, dots and all; a cookie from before has none.
+        let f = Flow { state: "s".into(), verifier: "v".into(), nonce: "n".into(), link: false, next: Some("/books/1?q=a.b".into()) }.encode();
+        assert_eq!(Flow::decode(&f).unwrap().next.as_deref(), Some("/books/1?q=a.b"));
+        assert!(Flow::decode("s.v.n.n").unwrap().next.is_none());
     }
 }

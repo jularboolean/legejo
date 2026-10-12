@@ -17,6 +17,8 @@ FROM rust:1.99-slim-bookworm AS rust
 WORKDIR /src/server
 ENV CARGO_INCREMENTAL=0
 COPY server/ ./
+# Built into the binary: what changed in each version (changelog.rs).
+COPY CHANGELOG.md /src/CHANGELOG.md
 
 FROM web AS web-check
 RUN npm run check
