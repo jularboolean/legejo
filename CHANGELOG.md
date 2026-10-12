@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.17.1 (2026-10-12)
+
+- **Improved eyes on pigeons.** Both birds now see the library through
+  yellow eyes, and the one on the app's icon has a lighter wing, to match
+  its companion. The change is carried through to the app's icons, the pages of federated shelves and
+  the cover of *The Legejo Cookbook*. No pigeons were harmed.
+- **The app no longer starts as a blank screen.** Opened from the home
+  screen, Legejo could show nothing but its background for a couple of
+  seconds while it loaded. It now shows the pigeons while they wait with
+  you, in light and in dark. Where the app starts at once, nothing is shown.
+- **Upgrading:** nothing to do. To get the new icon on a phone, remove
+  Legejo from the home screen and add it again.
+
 ## 1.17.0 (2026-10-11)
 
 - **A shelf for someone on another Legejo.** The owner of a shelf can make

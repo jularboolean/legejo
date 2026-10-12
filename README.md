@@ -119,8 +119,6 @@ own, and each file is one part.
 - The model can only answer with books from the catalogue it was given; nothing it writes is shown.
 - The admin page shows how many questions were asked and how many tokens they took.
 
-![The reading page](docs/screenshots/reading.jpg)
-
 **Catalogs of other libraries (optional)**
 - Add the OPDS catalog of another library by its address, look through it and search it from Legejo, and fetch a book into your library. A handful of catalogs of free books, in English, French, German and Spanish, are suggested to begin with.
 - Off until an admin turns it on for the instance, and then for each user until they turn it on from their account page.

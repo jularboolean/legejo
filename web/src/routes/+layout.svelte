@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { getLocale } from '#lib/i18n';
 	import { pageTitle } from '#lib/pageTitle';
 	import icon from '#lib/assets/duva.png';
@@ -10,6 +10,9 @@
 	// shelves) lives in the (app) group, so full-screen routes such as the
 	// reader can opt out of it by living outside that group.
 	let { children }: { children: Snippet } = $props();
+
+	// There is a page to show: what app.html put up while the app started goes.
+	onMount(() => document.getElementById('starting')?.remove());
 
 	// The one place the tab title is set (see pageTitle.ts).
 	const title = $derived(pageTitle(page.route.id, page.data));
