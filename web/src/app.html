@@ -48,8 +48,8 @@
 			html[data-design='zamenhof'] {
 				background: #e0cfac;
 			}
-			html[data-design='pigeon'] {
-				background: #d7e0e3;
+			html[data-design='dove'] {
+				background: #fbfbf8;
 			}
 			@media (prefers-reduced-motion: reduce) {
 				#starting {
@@ -61,7 +61,7 @@
 			// The chosen design, before anything is painted (see design.svelte.ts).
 			try {
 				var d = localStorage.getItem('legejo.design');
-				if (d === 'light' || d === 'dark' || d === 'zamenhof' || d === 'pigeon') document.documentElement.dataset.design = d;
+				if (d === 'light' || d === 'dark' || d === 'zamenhof' || d === 'dove') document.documentElement.dataset.design = d;
 				if (localStorage.getItem('legejo.motion') === 'off') document.documentElement.dataset.motion = 'off';
 			} catch (e) {}
 		</script>

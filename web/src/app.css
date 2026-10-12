@@ -65,20 +65,19 @@
 	--star: #1e8a3e;
 	font-family: 'Literata Variable', Georgia, serif;
 }
-/* Pigeon: the birds' own colours. The slate of their backs, the pale blue
-   of the wing, the purple at its tip for what can be pressed, and the
-   yellow of the eye. */
-:root[data-design='pigeon'] {
+/* Dove of Peace: nearly white, with the green of an olive branch for what
+   can be pressed. */
+:root[data-design='dove'] {
 	color-scheme: light;
-	--bg: #d7e0e3;
-	--fg: #26343a;
-	--muted: #5a7075;
-	--accent: #85597b;
-	--gold: #a98700;
-	--card: #e9eff1;
-	--border: #b4c3c8;
-	--danger: #a8323a;
-	--shadow: 0 1px 2px rgba(40, 56, 62, 0.16), 0 4px 14px rgba(40, 56, 62, 0.1);
+	--bg: #fbfbf8;
+	--fg: #2b3033;
+	--muted: #7f888c;
+	--accent: #6c8556;
+	--gold: #b3964a;
+	--card: #ffffff;
+	--border: #e7e9e3;
+	--danger: #b3362b;
+	--shadow: 0 1px 2px rgba(60, 70, 60, 0.07), 0 4px 16px rgba(60, 70, 60, 0.05);
 }
 
 /* Whatever names the sans face for itself is set in the book face here. */
