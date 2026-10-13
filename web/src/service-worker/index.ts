@@ -37,6 +37,8 @@ function fingerprint(text: string): string {
 }
 /** How long the network gets before a cached answer is used instead. */
 const PATIENCE_MS = 4000;
+/** How long it gets to begin answering the page's own requests for data at all. */
+const GIVE_UP_MS = 15000;
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -102,6 +104,21 @@ async function networkFirst(request: Request, cacheName: string, key: string, ke
 	return marked(cached);
 }
 
+/**
+ * The network's answer, or a failure once it has kept the page waiting too
+ * long to begin one: a network that is there in name only otherwise leaves
+ * the app hanging, with nothing to tell its user. Only the wait for the
+ * answer to begin is timed; a long download goes on for as long as it takes.
+ */
+async function withinReason(request: Request): Promise<Response> {
+	const fresh = fetch(request);
+	const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), GIVE_UP_MS));
+	const first = await Promise.race([fresh, late]);
+	if (first) return first;
+	fresh.catch(() => {});
+	return Response.error();
+}
+
 async function cacheFirst(request: Request, cacheName: string, key: string, keep: boolean): Promise<Response> {
 	const cache = await caches.open(cacheName);
 	const cached = await cache.match(key);
@@ -149,11 +166,16 @@ sw.addEventListener('fetch', (event) => {
 			return;
 		}
 		const key = bookKey(path);
-		if (!key) return;
+		if (!key) {
+			// What the page fetches for itself; pictures, sound and downloads
+			// are left to the browser.
+			if (request.destination === '' && !request.headers.has('range')) event.respondWith(withinReason(request));
+			return;
+		}
 		event.respondWith(
 			(async () => {
 				const saved = await (await caches.open(BOOKS_CACHE)).match(key.url);
-				if (!saved) return fetch(request);
+				if (!saved) return request.destination === '' ? withinReason(request) : fetch(request);
 				// The file is what it was when saved; the page saves it anew
 				// when the book has changed.
 				if (key.kind === 'file') return cacheFirst(request, BOOKS_CACHE, key.url, false);

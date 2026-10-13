@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { onMount, type Snippet } from 'svelte';
 	import { design, PAGE_COLOR } from '#lib/design.svelte';
+	import Connection from '#lib/Connection.svelte';
 	import { getLocale } from '#lib/i18n';
 	import { reducedMotion } from '#lib/motion';
 	import { pageTitle } from '#lib/pageTitle';
@@ -66,4 +67,5 @@
 	{/if}
 </svelte:head>
 
+<Connection />
 {@render children()}
