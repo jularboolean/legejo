@@ -2,7 +2,6 @@
 	import { Check } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { cover } from '#lib/cover';
-	import { fade } from '#lib/motion';
 	import { languageName } from '#lib/library';
 	import type { Book } from '#lib/types';
 
@@ -23,7 +22,7 @@
 
 <div class="grid">
 	{#each books as book (book.id)}
-		<div class="card" class:picked={selected?.has(book.id)} in:fade={{ duration: 260 }}>
+		<div class="card" class:picked={selected?.has(book.id)}>
 			{#if selected}
 				<button
 					type="button"

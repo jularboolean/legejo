@@ -279,16 +279,12 @@ label:has(> input[type='checkbox']) {
 
 /* A cover on its way: its place shimmers until the picture is there, and
    the picture then comes in (see lib/cover.ts). */
-img[data-cover] {
-	transition:
-		opacity 0.35s ease-out,
-		transform 0.35s ease-out;
-}
 img[data-cover='arriving'] {
 	opacity: 0;
 }
-:root[data-motion='on'] img[data-cover='arriving'] {
-	transform: scale(1.03);
+/* Only on the way in: a cover that turns out to be late goes out at once. */
+img[data-cover=''] {
+	transition: opacity 0.3s ease-out;
 }
 :has(> img[data-cover='arriving']) {
 	background: linear-gradient(100deg, var(--border) 30%, var(--card) 50%, var(--border) 70%) 0 0 / 300% 100%;
