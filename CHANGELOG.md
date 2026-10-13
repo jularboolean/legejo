@@ -4,6 +4,26 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.19.1 (2026-10-13)
+
+- **The app says what the network is doing.** On a poor connection Legejo
+  could seem frozen: a press on a link was met with nothing while the page
+  was being fetched. Now a line moves along the top while that goes on, a
+  note says so when it takes more than a few seconds, and another says when
+  there is no connection at all, each with the way to the books saved on the
+  device. If the server has not begun to answer in half a minute, the page
+  says that it could not be reached instead of waiting without end.
+- **A list that could not be fetched is not an empty one.** The library, the
+  reading page, authors, a series, audiobooks and shared shelves showed
+  nothing when the server answered with an error, as if there were no books.
+  They now show the error and a way to try again.
+- **Covers no longer blink** with animations on. A cover is only faded in
+  when it has kept the page waiting, and the books appear at once when a
+  filter changes.
+- **The upload's spinner turns again.** With animations off, which is where
+  they start since 1.19.0, it stood still.
+- **Upgrading:** nothing to do.
+
 ## 1.19.0 (2026-10-12)
 
 - **A choice of design.** The Account page has a new part, **Design**, with
