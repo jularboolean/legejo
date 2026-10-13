@@ -2,6 +2,20 @@
   <img src="web/src/lib/assets/legejo.svg" alt="Legejo" width="150">
 </p>
 
+<p align="center">
+  <a href="https://legejo.se">Website</a> ·
+  <a href="https://hub.docker.com/r/slurvdjur/legejo">Docker Hub</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/jularboolean/legejo/releases">Releases</a> ·
+  <a href="server/assets/the-legejo-cookbook.epub">The Legejo Cookbook</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/jularboolean/legejo/releases"><img src="https://img.shields.io/github/v/release/jularboolean/legejo?label=version" alt="Latest version"></a>
+  <a href="https://hub.docker.com/r/slurvdjur/legejo"><img src="https://img.shields.io/docker/pulls/slurvdjur/legejo" alt="Docker pulls"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jularboolean/legejo" alt="License"></a>
+</p>
+
 # Legejo
 
 Legejo is a self-hosted library for your e-books. Upload your books, organize
@@ -15,6 +29,27 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 (Axum) and SvelteKit.
 
 ![The library view](docs/screenshots/library.jpg)
+
+## Contents
+
+- [Why Legejo?](#why-legejo)
+- [Why not?](#why-not)
+- [Features](#features)
+  - [Library](#library)
+  - [Shelves](#shelves)
+  - [Audiobooks (optional)](#audiobooks-optional)
+  - [Reading](#reading)
+  - [The librarian (optional)](#the-librarian-optional)
+  - [Catalogs of other libraries (optional)](#catalogs-of-other-libraries-optional)
+  - [Federation](#federation)
+  - [Accounts and administration](#accounts-and-administration)
+  - [For self-hosters](#for-self-hosters)
+- [Running Legejo with Docker](#running-legejo-with-docker)
+  - [Coolify, Dokploy and similar platforms](#coolify-dokploy-and-similar-platforms)
+  - [Configuration](#configuration)
+- [Building from source](#building-from-source)
+- [Built with](#built-with)
+- [License](#license)
 
 ## Why Legejo?
 
@@ -76,7 +111,7 @@ own, and each file is one part.
 
 ## Features
 
-**Library**
+### Library
 - Upload EPUB, PDF and CBZ files; title, author, series, cover and other metadata are read from the file where it has them.
 - PDF and CBZ are stored as they are: a scanned PDF and a comic take their first page as the cover, and a comic's `ComicInfo.xml` is read. Password-protected PDFs are refused.
 - Edit metadata by hand or look it up in Open Library or Libris (the Swedish national catalogue).
@@ -87,19 +122,19 @@ own, and each file is one part.
 - Full-text search, filters, sorting, an authors page and duplicate detection on upload.
 - Select many books at once to tag, shelve, mark as want-to-read or delete them.
 
-**Shelves**
+### Shelves
 - Private shelves, shelves shared with the users you choose, and shelves shared with everyone on the instance.
 - Users can copy books from shared shelves into their own library.
 - A shelf can be given to someone outside the instance by a private link (optional): an address that opens the shelf as an OPDS catalog without a login, one per person, each to be taken back on its own. Pasted into another Legejo it becomes a shelf there, with its books to be added to that library; it works in reading apps too. Off until an admin turns it on.
 
-**Audiobooks (optional)**
+### Audiobooks (optional)
 - Off until an admin turns it on.
 - Upload MP3, M4A or M4B files, or a whole folder; title, author, narrator, cover and length are read from the files.
 - Each audiobook is a private podcast feed with one episode per file, and buttons that open it in Apple Podcasts, Pocket Casts, Overcast and Castro.
 - Keep an audiobook to yourself, share it with the users you choose, or with everyone on the instance. Every listener has a feed address of their own, which stops working when the sharing ends.
 - Category, tags, filters and search, as for books.
 
-**Reading**
+### Reading
 - A web reader with themes, font settings and saved position.
 - Highlights and notes in the web reader, listed in a panel and exported as Markdown. With a Kobo they sync both ways, once an admin turns that on.
 - Legejo can be added to the home screen of a phone or tablet, where it opens as an app of its own. Books saved on the device can be read there without the network, and your place in them is sent when it is back.
@@ -111,7 +146,7 @@ own, and each file is one part.
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
 
-**The librarian (optional)**
+### The librarian (optional)
 - Ask for something to read in plain words ("something short and funny I have not read", "what should I read after The Terror?") and get books from your own library, and from the shelves others share with you.
 - Works with any provider that has an OpenAI-style chat API, a model you run yourself included. The operator sets it up and pays for the requests.
 - Off for every user until they turn it on from their account page.
@@ -119,19 +154,19 @@ own, and each file is one part.
 - The model can only answer with books from the catalogue it was given; nothing it writes is shown.
 - The admin page shows how many questions were asked and how many tokens they took.
 
-**Catalogs of other libraries (optional)**
+### Catalogs of other libraries (optional)
 - Add the OPDS catalog of another library by its address, look through it and search it from Legejo, and fetch a book into your library. A handful of catalogs of free books, in English, French, German and Spanish, are suggested to begin with.
 - Off until an admin turns it on for the instance, and then for each user until they turn it on from their account page.
 - A fetched book is an ordinary book in the library: checked and repaired like an uploaded one, and not added again when you already have the file. Legejo sets no licence on it; what the catalog says about the rights is shown with each book.
 - Legejo reads OPDS 1 catalogs that are open to everyone. Catalogs that ask for a login, and OPDS 2, are not read.
 - The server fetches only from public `https` addresses, never from addresses inside its own network, and covers reach the browser by way of the server, so the browser never talks to the catalog itself.
 
-**Federation**
+### Federation
 - Shelves of free books (public domain or Creative Commons, with a source) can be federated over ActivityPub. Other Legejo instances, and Mastodon users, can follow them and import the books.
 - Admins choose whether federation is on and which instances are allowed or blocked.
 - Follows to or from an instance that is not allowed yet wait for the admin, who sees them as requests. A followed shelf whose instance stops answering is marked, and dropped after a week.
 
-**Accounts and administration**
+### Accounts and administration
 - Multiple users with admin roles, invitations and optional self-registration with email verification.
 - Optional single sign-on through any OpenID Connect provider (Pocket ID, Authentik, Keycloak, Forgejo, ...).
 - An export of the whole library (book files, covers, CSV and JSON) and account deletion.
@@ -139,13 +174,17 @@ own, and each file is one part.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
 - A choice of design for each device: light, dark, following the system, or Zamenhof, in the browns of an old textbook with the green star of Esperanto. Animations can be turned on.
 
-**For self-hosters**
+### For self-hosters
 - A new instance begins with one book in its library: *The Legejo Cookbook*, the user manual, in the public domain. Delete it when you no longer need it.
 - SQLite with zero configuration, or PostgreSQL.
 - A watched import folder for EPUB, PDF and CBZ files.
 - Prometheus metrics, JSON logs, throttling of password guessing, and secrets from files.
 
 ## Running Legejo with Docker
+
+The image is [`slurvdjur/legejo`](https://hub.docker.com/r/slurvdjur/legejo) on
+Docker Hub, published for `linux/amd64` and `linux/arm64` and tagged with the
+version (`1.19.0`, `1.19`, `1`) and `latest`.
 
 ```sh
 curl -O https://raw.githubusercontent.com/jularboolean/legejo/main/docker-compose.yml
@@ -168,10 +207,8 @@ Put Legejo behind a reverse proxy that terminates TLS, and set
 `LEGEJO_PUBLIC_URL` to the address users reach it on. Kobo sync, links in
 emails and federation depend on it.
 
-The image is published for `linux/amd64` and `linux/arm64` as
-[`slurvdjur/legejo`](https://hub.docker.com/r/slurvdjur/legejo) on Docker Hub, tagged with the version (`1.0.0`, `1.0`, `1`) and `latest`.
-It has a health check built in, so Docker and deployment platforms can tell
-when the server is ready. What changed in each version is in the
+The image has a health check built in, so Docker and deployment platforms can
+tell when the server is ready. What changed in each version is in the
 [changelog](CHANGELOG.md) and on the [releases page](https://github.com/jularboolean/legejo/releases).
 
 ### Coolify, Dokploy and similar platforms
