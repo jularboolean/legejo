@@ -34,19 +34,8 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 - [Why Legejo?](#why-legejo)
 - [Why not?](#why-not)
-- [Features](#features)
-  - [Library](#library)
-  - [Shelves](#shelves)
-  - [Audiobooks (optional)](#audiobooks-optional)
-  - [Reading](#reading)
-  - [The librarian (optional)](#the-librarian-optional)
-  - [Catalogs of other libraries (optional)](#catalogs-of-other-libraries-optional)
-  - [Federation](#federation)
-  - [Accounts and administration](#accounts-and-administration)
-  - [For self-hosters](#for-self-hosters)
-- [Running Legejo with Docker](#running-legejo-with-docker)
-  - [Coolify, Dokploy and similar platforms](#coolify-dokploy-and-similar-platforms)
-  - [Configuration](#configuration)
+- [Features](#features): [Library](#library) · [Shelves to share](#shelves-to-share) · [Reading](#reading) · [Audiobooks](#audiobooks-optional) · [LibrAIrian](#the-librairian-optional) · [Catalogs](#catalogs-of-other-libraries-optional) · [Federation](#federation) · [Accounts](#accounts-and-administration) · [Self-hosting](#for-self-hosters)
+- [Running Legejo with Docker](#running-legejo-with-docker) · [Platforms](#coolify-dokploy-and-similar-platforms) · [Configuration](#configuration)
 - [Building from source](#building-from-source)
 - [Built with](#built-with)
 - [License](#license)
@@ -122,17 +111,30 @@ own, and each file is one part.
 - Full-text search, filters, sorting, an authors page and duplicate detection on upload.
 - Select many books at once to tag, shelve, mark as want-to-read or delete them.
 
-### Shelves
-- Private shelves, shelves shared with the users you choose, and shelves shared with everyone on the instance.
-- Users can copy books from shared shelves into their own library.
-- A shelf can be given to someone outside the instance by a private link (optional): an address that opens the shelf as an OPDS catalog without a login, one per person, each to be taken back on its own. Pasted into another Legejo it becomes a shelf there, with its books to be added to that library; it works in reading apps too. Off until an admin turns it on.
+### Shelves to share
 
-### Audiobooks (optional)
-- Off until an admin turns it on.
-- Upload MP3, M4A or M4B files, or a whole folder; title, author, narrator, cover and length are read from the files.
-- Each audiobook is a private podcast feed with one episode per file, and buttons that open it in Apple Podcasts, Pocket Casts, Overcast and Castro.
-- Keep an audiobook to yourself, share it with the users you choose, or with everyone on the instance. Every listener has a feed address of their own, which stops working when the sharing ends.
-- Category, tags, filters and search, as for books.
+A shelf is how you hand your reading to someone else. It has a name, a cover
+picture and a description of its own, and you decide how far it reaches.
+
+- **With the people you choose.** Share a shelf with some of the users on your
+  instance, or with all of them. It shows up under Shared shelves for them,
+  with your name on it. A shelf can also stay private.
+- **Theirs to keep.** Anyone the shelf is shared with can copy a book from it
+  into their own library with one button, and read it on their own devices.
+- **Easy to browse.** A shared shelf can be seen as covers or as a list, and
+  ordered by latest added, author, title or year. Search finds books on shared
+  shelves alongside your own.
+- **With someone on another Legejo (optional).** Make a private link to a
+  shelf, one for each person. Pasted into their Legejo it becomes a shelf
+  there, with its books to add to their library. Each link can be given a
+  last day and taken back on its own. Off until an admin turns it on.
+- **With any reading app.** The same link is an ordinary OPDS catalog, so it
+  opens in KOReader, Thorium and others, without an account.
+- **With the world, for free books.** A shelf of public-domain or Creative
+  Commons books can be federated over ActivityPub: other Legejo instances,
+  and people on Mastodon, can follow it and get what you add.
+- **And the librarian knows them.** Ask for something to read and the answer
+  can come from the shelves others share with you, not only from your own.
 
 ### Reading
 - A web reader with themes, font settings and saved position.
@@ -146,7 +148,14 @@ own, and each file is one part.
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
 
-### The librarian (optional)
+### Audiobooks (optional)
+- Off until an admin turns it on.
+- Upload MP3, M4A or M4B files, or a whole folder; title, author, narrator, cover and length are read from the files.
+- Each audiobook is a private podcast feed with one episode per file, and buttons that open it in Apple Podcasts, Pocket Casts, Overcast and Castro.
+- Keep an audiobook to yourself, share it with the users you choose, or with everyone on the instance. Every listener has a feed address of their own, which stops working when the sharing ends.
+- Category, tags, filters and search, as for books.
+
+### The LibrAIrian (optional)
 - Ask for something to read in plain words ("something short and funny I have not read", "what should I read after The Terror?") and get books from your own library, and from the shelves others share with you.
 - Works with any provider that has an OpenAI-style chat API, a model you run yourself included. The operator sets it up and pays for the requests.
 - Off for every user until they turn it on from their account page.
@@ -162,7 +171,7 @@ own, and each file is one part.
 - The server fetches only from public `https` addresses, never from addresses inside its own network, and covers reach the browser by way of the server, so the browser never talks to the catalog itself.
 
 ### Federation
-- Shelves of free books (public domain or Creative Commons, with a source) can be federated over ActivityPub. Other Legejo instances, and Mastodon users, can follow them and import the books.
+- Shelves of free books (public domain or Creative Commons, with a source) can be federated over ActivityPub, as described under [Shelves to share](#shelves-to-share).
 - Admins choose whether federation is on and which instances are allowed or blocked.
 - Follows to or from an instance that is not allowed yet wait for the admin, who sees them as requests. A followed shelf whose instance stops answering is marked, and dropped after a week.
 
