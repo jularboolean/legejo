@@ -267,14 +267,17 @@ label:has(> input[type='checkbox']) {
 }
 
 /* Motion is off until it is turned on, on the Account page: without
-   `data-motion="on"` nothing in the catalog moves. The reader, which has
-   a setting of its own, and the screen shown while the app starts are
-   outside the catalog's frame and keep theirs. */
+   `data-motion="on"` nothing in the catalog's frame glides from one state
+   to another. The reader, which has a setting of its own, is outside that
+   frame. What turns to show that work is going on (an upload, a page being
+   fetched) is not motion in this sense and keeps turning. */
 :root:not([data-motion='on']) :is(.shell, .topbar) *,
 :root:not([data-motion='on']) :is(.shell, .topbar) *::before,
 :root:not([data-motion='on']) :is(.shell, .topbar) *::after {
 	transition: none !important;
-	animation: none !important;
+}
+:root:not([data-motion='on']) :has(> img[data-cover='arriving']) {
+	animation: none;
 }
 
 /* A cover on its way: its place shimmers until the picture is there, and

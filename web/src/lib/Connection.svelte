@@ -2,7 +2,7 @@
 	// What the app says about the network, so that a press on a link is never
 	// met with silence: a line along the top while a page is being fetched, a
 	// word when that takes long, and a word when there is no connection.
-	import { navigating } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import { WifiOff } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 
@@ -13,6 +13,10 @@
 	let fetching = $state(false);
 	let slow = $state(false);
 	let offline = $state(typeof navigator !== 'undefined' && navigator.onLine === false);
+
+	// Reading a saved book without the network is what the app is for, and
+	// the page of saved books says it itself: no word in the way there.
+	const quiet = $derived(page.route.id === '/books/[id]/read' || page.route.id === '/(app)/offline');
 
 	$effect(() => {
 		if (!navigating.to) {
@@ -35,7 +39,7 @@
 	<div class="line" role="progressbar" aria-label={t('net.fetching')}></div>
 {/if}
 
-{#if offline || slow}
+{#if slow || (offline && !quiet)}
 	<div class="notice" role="status">
 		<WifiOff size={15} />
 		<span>{offline ? t('net.offline') : t('net.slow')}</span>

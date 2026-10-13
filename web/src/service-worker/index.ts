@@ -37,8 +37,12 @@ function fingerprint(text: string): string {
 }
 /** How long the network gets before a cached answer is used instead. */
 const PATIENCE_MS = 4000;
-/** How long it gets to begin answering the page's own requests for data at all. */
-const GIVE_UP_MS = 15000;
+/**
+ * How long it gets to begin answering the page's own requests for data at
+ * all. Longer than the server itself waits for another library's catalog
+ * (fifteen seconds), so that a slow one of those is not cut short here.
+ */
+const GIVE_UP_MS = 30000;
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
