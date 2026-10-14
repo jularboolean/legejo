@@ -445,7 +445,9 @@ pub fn fill_template(template: &str, terms: &str) -> String {
             rest = &rest[start..];
             break;
         };
-        let name = &rest[start + 1..start + end];
+        // `{startPage?}`: a trailing question mark makes a parameter optional;
+        // it is still the same parameter.
+        let name = rest[start + 1..start + end].trim_end_matches('?');
         out.push_str(match name.rsplit(':').next().unwrap_or(name) {
             "searchTerms" => &encoded,
             "startPage" | "startIndex" => "1",

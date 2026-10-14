@@ -119,7 +119,7 @@ fn the_search_address_is_read_from_the_description_and_filled_in() {
 </OpenSearchDescription>"#;
     let template = opensearch_template(osd, &base()).unwrap();
     assert_eq!(template, "https://books.example/search.opds/?query={searchTerms}&page={startPage?}");
-    assert_eq!(fill_template(&template, "röda rummet & co"), "https://books.example/search.opds/?query=r%C3%B6da%20rummet%20%26%20co&page=");
+    assert_eq!(fill_template(&template, "röda rummet & co"), "https://books.example/search.opds/?query=r%C3%B6da%20rummet%20%26%20co&page=1");
     assert_eq!(fill_template("https://b.example/s/{searchTerms}/{count}/{startIndex}", "a/b"), "https://b.example/s/a%2Fb/25/1");
 }
 
