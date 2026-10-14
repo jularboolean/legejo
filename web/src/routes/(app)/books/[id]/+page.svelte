@@ -4,6 +4,7 @@
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
+	import { onOpenLibrary } from '#lib/library';
 	import { splitAuthors } from '#lib/library/authors';
 	import { fedHost } from '#lib/fed';
 	import { licenseName, licenseUrl } from '#lib/license';
@@ -420,6 +421,7 @@
 				<dt>{t('book.isbn')}</dt>
 				<dd class="isbn">
 					{book.isbn}
+					{#if onOpenLibrary(book)}
 					<a
 						class="open-library"
 						href={`https://openlibrary.org/search?q=${encodeURIComponent(book.isbn.replace(/[^0-9Xx]/g, ''))}`}
@@ -428,6 +430,7 @@
 						title={t('book.openLibrary')}
 						aria-label={t('book.openLibrary')}
 					>{@html openLibraryMark}</a>
+					{/if}
 				</dd>
 			{/if}
 			{#if book.libris_id}

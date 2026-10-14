@@ -86,6 +86,18 @@ export function primaryLanguage(code: string | null | undefined): string | null 
 	return ISO3[base] ?? base;
 }
 
+/**
+ * Whether a book is worth a link to Open Library: one with an ISBN, in
+ * English or in no stated language. Open Library knows few books in other
+ * languages by their ISBN (none of a sample of Swedish ones), and a link
+ * that finds nothing is worse than none.
+ */
+export function onOpenLibrary(book: { isbn?: string | null; language?: string | null }): boolean {
+	if (!book.isbn?.trim()) return false;
+	const language = primaryLanguage(book.language);
+	return language === null || language === 'en';
+}
+
 /** A book's language by name, e.g. "Swedish"; null when it has none that is usable. */
 export function languageName(code: string | null | undefined, locale: string): string | null {
 	const primary = primaryLanguage(code);
