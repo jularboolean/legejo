@@ -10,4 +10,10 @@ describe('the rating dove', () => {
 		expect(fills.every(Boolean)).toBe(true);
 		expect(fills).toContain('#5a7075');
 	});
+
+	it('keeps each part where the drawing puts it', () => {
+		// The beak, the wing and the eye are placed by transforms of their own.
+		const placed = [...raw.matchAll(/<path\b[^>]*>/g)].filter(([tag]) => /\stransform="/.test(tag));
+		expect(placed.length).toBeGreaterThan(0);
+	});
 });

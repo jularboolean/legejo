@@ -2,16 +2,19 @@
 	import raw from './assets/duva.svg?raw';
 
 	// The logo's own paths, body first; drawn here so a rating can show the
-	// dove in colour or as a pale silhouette.
+	// dove in colour or as a pale silhouette. Each path keeps the place the
+	// drawing gives it (its own transform), and the picture keeps its frame.
 	const PATHS = [...raw.matchAll(/<path\b[^>]*>/g)].map(([tag]) => ({
 		d: /\sd="([^"]+)"/.exec(tag)?.[1] ?? '',
 		// As an attribute (fill="#5A7075") or in a style (fill:#5A7075).
-		fill: (/fill(?::|=")\s*(#[0-9a-fA-F]{6})/.exec(tag)?.[1] ?? '#000').toLowerCase()
+		fill: (/fill(?::|=")\s*(#[0-9a-fA-F]{6})/.exec(tag)?.[1] ?? '#000').toLowerCase(),
+		transform: /\stransform="([^"]+)"/.exec(tag)?.[1]
 	}));
-	const OFFSET = /<g\b[^>]*transform="([^"]+)"/.exec(raw)?.[1] ?? '';
+	const VIEW_BOX = /viewBox="([^"]+)"/.exec(raw)?.[1] ?? '0 0 225 341';
+	const [, , WIDTH, HEIGHT] = VIEW_BOX.split(/\s+/).map(Number);
 	/** The body's colour, which a filled dove takes from the page's accent. */
 	const BODY = '#5a7075';
-	const RATIO = 225.65 / 341.36;
+	const RATIO = WIDTH / HEIGHT;
 </script>
 
 <script lang="ts">
@@ -19,11 +22,12 @@
 	let { size = 20, filled = false }: { size?: number; filled?: boolean } = $props();
 </script>
 
-<svg class="dove" class:empty={!filled} width={size * RATIO} height={size} viewBox="0 0 225.65 341.36" aria-hidden="true">
-	<g transform={OFFSET}>
+<svg class="dove" class:empty={!filled} width={size * RATIO} height={size} viewBox={VIEW_BOX} aria-hidden="true">
+	<g>
 		{#each PATHS as path (path.d)}
 			<path
 				d={path.d}
+				transform={path.transform}
 				fill-rule="evenodd"
 				fill={!filled ? 'currentColor' : path.fill === BODY ? 'var(--accent)' : path.fill}
 			/>
