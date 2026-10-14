@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { Pencil } from '@lucide/svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
 	import { renderMarkdown } from '#lib/markdown';
 	import { defaultShelfCover } from '#lib/shelfCovers';
-	import { loadView, saveView, type ViewMode } from '#lib/library';
+	import {
+		SHARED_SORT_KEYS,
+		loadSharedSort,
+		loadView,
+		saveSharedSort,
+		saveView,
+		sortShared,
+		type SortDir,
+		type SortKey,
+		type ViewMode
+	} from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
+	import SortControl from '#lib/library/SortControl.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
 	import type { PageData } from './$types';
 
@@ -20,6 +31,15 @@
 	function setView(next: ViewMode) {
 		view = next;
 		saveView(next);
+	}
+
+	// The same order as on shared shelves, and remembered with it.
+	let order = $state(loadSharedSort());
+	const books = $derived(sortShared(shelf.books, order.sort, order.dir, getLocale()));
+
+	function setOrder(sort: SortKey, dir: SortDir) {
+		order = { sort, dir };
+		saveSharedSort(sort, dir);
 	}
 </script>
 
@@ -61,16 +81,21 @@
 		<div class="description">{@html descriptionHtml}</div>
 	{/if}
 	{#if shelf.books.length > 0}
-		<div class="switch"><ViewSwitch {view} onchange={setView} /></div>
+		<div class="switch">
+			{#if shelf.books.length > 1}
+				<SortControl keys={SHARED_SORT_KEYS} sort={order.sort} dir={order.dir} onchange={setOrder} />
+			{/if}
+			<ViewSwitch {view} onchange={setView} />
+		</div>
 	{/if}
 </div>
 
 {#if shelf.books.length === 0}
 	<p class="empty">{t('shelf.empty')}</p>
 {:else if view === 'list'}
-	<BookRows books={shelf.books} />
+	<BookRows {books} />
 {:else}
-	<BookGrid books={shelf.books} />
+	<BookGrid {books} />
 {/if}
 
 <style>
@@ -164,6 +189,9 @@
 	}
 	.switch {
 		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 	.description {
 		max-width: 42rem;

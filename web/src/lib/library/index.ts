@@ -237,13 +237,13 @@ export function plainSnippet(description: string | null | undefined, max = 220):
 
 // View and sorting are a lasting preference per device; filters only need to
 // survive opening a book and coming back.
-/** What the books of a shelf someone else shares can be ordered by. */
+/** What the books of a shelf can be ordered by: one's own, or one someone shares. */
 export const SHARED_SORT_KEYS: SortKey[] = ['added', 'author', 'title', 'year'];
 const SHARED_SORT_KEY = 'legejo.shared.sort';
 
 /**
- * A shared shelf's books in the chosen order. They arrive latest added to
- * the shelf first, which is what "added" means there: when the owner put
+ * A shelf's books in the chosen order. They arrive latest added to the
+ * shelf first, which is what "added" means there: when the owner put
  * the book on the shelf, not when it came into their library.
  */
 export function sortShared<T extends Book>(books: T[], key: SortKey, dir: SortDir, locale: string): T[] {
