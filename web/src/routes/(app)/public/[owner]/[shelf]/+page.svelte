@@ -276,6 +276,21 @@
 		display: flex;
 		box-shadow: var(--shadow);
 	}
+	/* As in the library: a little turn under the pointer, with animations on. */
+	:global(:root[data-motion='on']) .cover {
+		transform: perspective(465px) rotateY(0deg);
+		transition:
+			transform 0.8s,
+			box-shadow 0.8s;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		:global(:root[data-motion='on']) .cover:hover {
+			transform: perspective(465px) rotateY(-5deg);
+			box-shadow:
+				var(--shadow),
+				4px 8px 18px rgba(20, 30, 34, 0.16);
+		}
+	}
 	.cover img {
 		width: 100%;
 		height: 100%;
