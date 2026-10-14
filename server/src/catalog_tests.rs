@@ -375,3 +375,22 @@ fn an_http_link_with_its_port_written_out_is_taken_as_https_without_it() {
     assert_eq!(feed.entries[0].href.as_deref(), Some("https://books.example/api/opds/all"));
     assert_eq!(feed.entries[1].href.as_deref(), Some("https://books.example:8080/api/opds/new"));
 }
+
+#[test]
+fn the_address_to_search_with_is_taken_over_a_description_of_it() {
+    // As Litteraturbanken's catalog gives its search: the description first,
+    // the address itself after it.
+    let xml = r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>Two ways to search</title>
+<link rel="search" href="/opds/opensearch.xml" type="application/opensearchdescription+xml"/>
+<link rel="search" href="/opds/search?q={searchTerms}" type="application/atom+xml;profile=opds-catalog;kind=acquisition"/>
+</feed>"#;
+    let feed = parse_feed(xml.as_bytes(), &base()).unwrap();
+    assert_eq!(feed.search, Some(SearchLink { href: "https://books.example/opds/search?q={searchTerms}".into(), template: true }));
+
+    // Only the description: that is what there is.
+    let xml = r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>One way</title>
+<link rel="search" href="/opds/opensearch.xml" type="application/opensearchdescription+xml"/>
+</feed>"#;
+    let feed = parse_feed(xml.as_bytes(), &base()).unwrap();
+    assert_eq!(feed.search, Some(SearchLink { href: "https://books.example/opds/opensearch.xml".into(), template: false }));
+}

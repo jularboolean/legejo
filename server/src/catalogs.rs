@@ -391,12 +391,16 @@ pub fn parse_feed(bytes: &[u8], base: &Url) -> Result<Feed, String> {
         match rel {
             "next" => feed.next = feed.next.or_else(|| resolve(base, href)),
             "previous" | "prev" => feed.previous = feed.previous.or_else(|| resolve(base, href)),
-            "search" if feed.search.is_none() => {
-                if mime.starts_with("application/opensearchdescription+xml") {
-                    feed.search = resolve(base, href).map(|href| SearchLink { href, template: false });
-                } else if is_feed_type(mime) && href.contains("{searchTerms}") {
+            // A catalog may give both a description of its search and the
+            // address to search with. The address is taken over the
+            // description wherever it comes: it needs nothing more fetched,
+            // and so nothing more that can fail.
+            "search" if !feed.search.as_ref().is_some_and(|s| s.template) => {
+                if is_feed_type(mime) && href.contains("{searchTerms}") {
                     // The braces do not survive Url::join; a template is kept as written.
                     feed.search = Some(SearchLink { href: absolute_template(base, href), template: true });
+                } else if feed.search.is_none() && mime.starts_with("application/opensearchdescription+xml") {
+                    feed.search = resolve(base, href).map(|href| SearchLink { href, template: false });
                 }
             }
             _ => {}
