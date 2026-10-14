@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.19.2 (2026-10-14)
+
+- **Catalogs of other libraries that could not be searched now can.** A
+  catalog that gave both a description of its search and the address to
+  search with got no search at all when the description could not be
+  fetched; the address is now taken first. And an optional part of a search
+  address, such as the page to start on, was left empty, which some catalogs
+  refuse; it is now filled in. A catalog added before this version keeps the
+  search it was given: remove it and add it again to get the search box.
+- **Catalogs behind a proxy.** A link written as plain http with port 80 is
+  now followed over https on the right port.
+- **The librarian** is a little smaller on its page.
+- **Upgrading:** nothing to do.
+
 ## 1.19.1 (2026-10-13)
 
 - **The app says what the network is doing.** On a poor connection Legejo
