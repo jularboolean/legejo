@@ -5,10 +5,12 @@
 	// dove in colour or as a pale silhouette.
 	const PATHS = [...raw.matchAll(/<path\b[^>]*>/g)].map(([tag]) => ({
 		d: /\sd="([^"]+)"/.exec(tag)?.[1] ?? '',
-		fill: /fill:(#[0-9a-fA-F]{6})/.exec(tag)?.[1] ?? '#000'
+		// As an attribute (fill="#5A7075") or in a style (fill:#5A7075).
+		fill: (/fill(?::|=")\s*(#[0-9a-fA-F]{6})/.exec(tag)?.[1] ?? '#000').toLowerCase()
 	}));
 	const OFFSET = /<g\b[^>]*transform="([^"]+)"/.exec(raw)?.[1] ?? '';
-	const BODY = '#53676c';
+	/** The body's colour, which a filled dove takes from the page's accent. */
+	const BODY = '#5a7075';
 	const RATIO = 225.65 / 341.36;
 </script>
 

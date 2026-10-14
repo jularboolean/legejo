@@ -504,11 +504,11 @@
 		gap: 0.3rem;
 		color: var(--muted);
 	}
-	.edit-top {
+	.edit-btn.edit-top {
 		display: none;
 	}
 	@media (max-width: 40rem) {
-		.edit-top {
+		.edit-btn.edit-top {
 			display: inline-flex;
 		}
 		.headline > .edit-btn {
