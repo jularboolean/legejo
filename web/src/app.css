@@ -302,6 +302,24 @@ img[data-cover=''] {
 	}
 }
 
+/* A book's cover, with animations on, turns a little under the pointer,
+   like a book taken off a shelf, and settles back slowly. `--turn` is how
+   far, in degrees: ten where a book stands alone, less among many. */
+:root[data-motion='on'] .turning {
+	transform: perspective(465px) rotateY(0deg);
+	transition:
+		transform 0.8s,
+		box-shadow 0.8s;
+}
+@media (hover: hover) and (pointer: fine) {
+	:root[data-motion='on'] .turning:hover {
+		transform: perspective(465px) rotateY(calc(-1deg * var(--turn, 10)));
+		box-shadow:
+			var(--shadow),
+			calc(0.6px * var(--turn, 10)) calc(1px * var(--turn, 10)) 22px rgba(20, 30, 34, 0.17);
+	}
+}
+
 /* One page giving way to the next (see the root layout): a plain cross-fade
    and nothing that moves, since the frame around the page is in the
    picture too and must stand still. */

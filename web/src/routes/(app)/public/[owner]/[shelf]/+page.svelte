@@ -133,7 +133,7 @@
 	<div class="grid">
 		{#each books as book (book.id)}
 			<div class="card">
-				<a class="cover" href={bookPath(book)}>
+				<a class="cover turning" style:--turn="5" href={bookPath(book)}>
 					{#if book.has_cover}
 						<img use:cover src={bookCover(book)} alt={book.title} loading="lazy" />
 					{:else}
@@ -275,21 +275,6 @@
 		border: 1px solid var(--border);
 		display: flex;
 		box-shadow: var(--shadow);
-	}
-	/* As in the library: a little turn under the pointer, with animations on. */
-	:global(:root[data-motion='on']) .cover {
-		transform: perspective(465px) rotateY(0deg);
-		transition:
-			transform 0.8s,
-			box-shadow 0.8s;
-	}
-	@media (hover: hover) and (pointer: fine) {
-		:global(:root[data-motion='on']) .cover:hover {
-			transform: perspective(465px) rotateY(-5deg);
-			box-shadow:
-				var(--shadow),
-				4px 8px 18px rgba(20, 30, 34, 0.16);
-		}
 	}
 	.cover img {
 		width: 100%;

@@ -34,7 +34,7 @@
 					<span class="tick">{#if selected.has(book.id)}<Check size={14} strokeWidth={3} />{/if}</span>
 				</button>
 			{/if}
-			<a class="cover" href={`/books/${book.id}`}>
+			<a class="cover turning" style:--turn="5" href={`/books/${book.id}`}>
 				{#if book.has_cover}
 					<img
 						use:cover
@@ -132,22 +132,6 @@
 		border: 1px solid var(--border);
 		display: flex;
 		box-shadow: var(--shadow);
-	}
-	/* With animations on, a cover turns a little under the pointer, as on
-	   the book's own page but half as far: here there are many together. */
-	:global(:root[data-motion='on']) .cover {
-		transform: perspective(465px) rotateY(0deg);
-		transition:
-			transform 0.8s,
-			box-shadow 0.8s;
-	}
-	@media (hover: hover) and (pointer: fine) {
-		:global(:root[data-motion='on']) .cover:hover {
-			transform: perspective(465px) rotateY(-5deg);
-			box-shadow:
-				var(--shadow),
-				4px 8px 18px rgba(20, 30, 34, 0.16);
-		}
 	}
 	/* Told only for the formats that cannot be read here. */
 	.format {

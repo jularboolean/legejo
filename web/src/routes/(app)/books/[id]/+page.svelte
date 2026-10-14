@@ -202,7 +202,7 @@
 
 <div class="detail">
 	<div class="side">
-		<div class="cover">
+		<div class="cover turning">
 			{#if book.has_cover}
 				<img src={`/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? book.created_at)}`} alt={book.title} />
 			{:else}
@@ -567,22 +567,6 @@
 		border: 1px solid var(--border);
 		display: flex;
 		box-shadow: var(--shadow);
-	}
-	/* With animations on, the book turns a little towards the hand that
-	   comes near it, like one taken off a shelf, and settles back slowly. */
-	:global(:root[data-motion='on']) .cover {
-		transform: perspective(465px) rotateY(0deg);
-		transition:
-			transform 0.8s,
-			box-shadow 0.8s;
-	}
-	@media (hover: hover) and (pointer: fine) {
-		:global(:root[data-motion='on']) .cover:hover {
-			transform: perspective(465px) rotateY(-10deg);
-			box-shadow:
-				var(--shadow),
-				6px 10px 24px rgba(20, 30, 34, 0.18);
-		}
 	}
 	.cover img {
 		width: 100%;

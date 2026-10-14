@@ -73,7 +73,7 @@
 
 <div class="detail">
 	<div class="side">
-		<div class="cover">
+		<div class="cover turning">
 			{#if book.has_cover}
 				<img src={`/api/public/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? book.created_at)}`} alt={book.title} />
 			{:else}
