@@ -238,10 +238,15 @@ pub struct FileLink {
 }
 
 /// `href` as an absolute address. A catalog served over https may still
-/// write http in its links; those are taken as https.
+/// write http in its links, as one behind a proxy that does not know it is
+/// reached over https; those are taken as https, since catalogs are only
+/// fetched over https. A port written out for plain http goes with it.
 fn resolve(base: &Url, href: &str) -> Option<String> {
     let mut url = base.join(href.trim()).ok()?;
     if url.scheme() == "http" && base.scheme() == "https" {
+        if url.port() == Some(80) {
+            url.set_port(None).ok()?;
+        }
         url.set_scheme("https").ok()?;
     }
     matches!(url.scheme(), "http" | "https").then(|| url.to_string())
@@ -451,12 +456,16 @@ pub fn fill_template(template: &str, terms: &str) -> String {
     out
 }
 
-/// As `resolve` does for links: an http template of an https catalog.
+/// As `resolve` does for links: an http template of an https catalog. The
+/// template's braces are kept as they are, so it is not parsed.
 fn upgrade(url: String, base: &Url) -> String {
-    match url.strip_prefix("http://") {
-        Some(rest) if base.scheme() == "https" => format!("https://{rest}"),
-        _ => url,
+    let Some(rest) = url.strip_prefix("http://") else { return url };
+    if base.scheme() != "https" {
+        return url;
     }
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = authority.strip_suffix(":80").unwrap_or(authority);
+    format!("https://{host}{}", &rest[authority.len()..])
 }
 
 pub(crate) async fn fetch_feed(state: &AppState, url: &str) -> Result<(Feed, Url), Response> {

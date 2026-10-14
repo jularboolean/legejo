@@ -359,3 +359,19 @@ async fn an_address_inside_the_network_is_never_fetched() {
     let (status, _) = send(&app, Method::GET, "/api/catalogs", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+#[test]
+fn an_http_link_with_its_port_written_out_is_taken_as_https_without_it() {
+    // As a catalog behind a proxy writes its links: plain http, port 80
+    // spelled out. Over https that port would be the wrong one.
+    let base = Url::parse("https://books.example/api/opds").unwrap();
+    let xml = r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>Behind a proxy</title>
+<entry><title>All</title><id>all</id>
+<link rel="subsection" href="http://books.example:80/api/opds/all" type="application/atom+xml;profile=opds-catalog;kind=acquisition"/></entry>
+<entry><title>New</title><id>new</id>
+<link rel="subsection" href="http://books.example:8080/api/opds/new" type="application/atom+xml;profile=opds-catalog;kind=acquisition"/></entry>
+</feed>"#;
+    let feed = parse_feed(xml.as_bytes(), &base).unwrap();
+    assert_eq!(feed.entries[0].href.as_deref(), Some("https://books.example/api/opds/all"));
+    assert_eq!(feed.entries[1].href.as_deref(), Some("https://books.example:8080/api/opds/new"));
+}
