@@ -499,6 +499,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'book.publisher': 'Kustantaja',
 	'book.category': 'Luokka',
 	'book.isbn': 'ISBN',
+	'book.openLibrary': "Hae Open Librarysta",
 	'book.libris': 'Libris',
 	'book.series': 'Sarja',
 	'book.nextInSeries': "Seuraava sarjassa",

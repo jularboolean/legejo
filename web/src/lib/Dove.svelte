@@ -40,4 +40,13 @@
 	.empty {
 		opacity: 0.3;
 	}
+	/* On a dark page the pale silhouette needs more of itself to be seen. */
+	:global(:root[data-design='dark']) .empty {
+		opacity: 0.55;
+	}
+	@media (prefers-color-scheme: dark) {
+		:global(:root:not([data-design])) .empty {
+			opacity: 0.55;
+		}
+	}
 </style>

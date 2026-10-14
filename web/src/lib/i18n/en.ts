@@ -497,6 +497,7 @@ export const en = {
 	'book.publisher': 'Publisher',
 	'book.category': 'Category',
 	'book.isbn': 'ISBN',
+	'book.openLibrary': "Look it up on Open Library",
 	'book.libris': 'Libris',
 	'book.series': 'Series',
 	'book.nextInSeries': "Next in the series",

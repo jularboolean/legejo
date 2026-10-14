@@ -499,6 +499,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'book.publisher': 'Eldonejo',
 	'book.category': 'Kategorio',
 	'book.isbn': 'ISBN',
+	'book.openLibrary': "Serĉi en Open Library",
 	'book.libris': 'Libris',
 	'book.series': 'Serio',
 	'book.nextInSeries': "Sekva en la serio",

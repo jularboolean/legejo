@@ -499,6 +499,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'book.publisher': 'Förlag',
 	'book.category': 'Kategori',
 	'book.isbn': 'ISBN',
+	'book.openLibrary': "Slå upp i Open Library",
 	'book.libris': 'Libris',
 	'book.series': 'Serie',
 	'book.nextInSeries': "Nästa i serien",

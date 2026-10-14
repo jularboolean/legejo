@@ -1,4 +1,5 @@
 <script lang="ts">
+	import openLibraryIcon from '#lib/assets/openlibrary.svg?raw';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
@@ -184,9 +185,19 @@
 		if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 		return Math.max(1, Math.round(bytes / 1024)) + ' kB';
 	}
+
+	// Open Library's mark, drawn in white in its file, in the colour of the link.
+	const openLibraryMark = openLibraryIcon
+		.replace(/<\?xml[^>]*>\s*/, '')
+		.replace(/fill="#(?:fff|ffffff)"/gi, 'fill="currentColor"')
+		.replace('<svg ', '<svg aria-hidden="true" ');
 </script>
 
-<a class="back" href="/"><ArrowLeft size={13} /> {t('book.back')}</a>
+<div class="topline">
+	<a class="back" href="/"><ArrowLeft size={13} /> {t('book.back')}</a>
+	<!-- On a phone the way to edit stands up here, clear of the title. -->
+	<a class="edit-btn edit-top" href={`/books/${book.id}/edit`}><Pencil size={13} /> {t('book.edit')}</a>
+</div>
 
 <div class="detail">
 	<div class="side">
@@ -405,7 +416,20 @@
 			{#if book.first_published != null}<dt>{t('book.firstPublished')}</dt><dd>{book.first_published}</dd>{/if}
 			{#if book.published}<dt>{t('book.edition')}</dt><dd>{formatPublished(book.published, getLocale())}</dd>{/if}
 			{#if book.publisher}<dt>{t('book.publisher')}</dt><dd>{book.publisher}</dd>{/if}
-			{#if book.isbn}<dt>{t('book.isbn')}</dt><dd>{book.isbn}</dd>{/if}
+			{#if book.isbn}
+				<dt>{t('book.isbn')}</dt>
+				<dd class="isbn">
+					{book.isbn}
+					<a
+						class="open-library"
+						href={`https://openlibrary.org/search?q=${encodeURIComponent(book.isbn.replace(/[^0-9Xx]/g, ''))}`}
+						target="_blank"
+						rel="noopener noreferrer"
+						title={t('book.openLibrary')}
+						aria-label={t('book.openLibrary')}
+					>{@html openLibraryMark}</a>
+				</dd>
+			{/if}
 			{#if book.libris_id}
 				<dt>{t('book.libris')}</dt>
 				<dd><a href={`https://libris.kb.se/bib/${book.libris_id}`} target="_blank" rel="noreferrer">{book.libris_id}</a></dd>
@@ -467,12 +491,56 @@
 </div>
 
 <style>
+	.topline {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1.25rem;
+	}
 	.back {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
-		margin-bottom: 1.25rem;
 		color: var(--muted);
+	}
+	.edit-top {
+		display: none;
+	}
+	@media (max-width: 40rem) {
+		.edit-top {
+			display: inline-flex;
+		}
+		.headline > .edit-btn {
+			display: none;
+		}
+	}
+	.isbn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	/* Open Library's mark in the page's own ink, and in the pigeons'
+	   turquoise when the page is dark. */
+	.open-library {
+		display: inline-flex;
+		color: var(--fg);
+		opacity: 0.85;
+	}
+	.open-library:hover {
+		opacity: 1;
+	}
+	.open-library :global(svg) {
+		width: auto;
+		height: 1rem;
+	}
+	:global(:root[data-design='dark']) .open-library {
+		color: #8ba7b0;
+	}
+	@media (prefers-color-scheme: dark) {
+		:global(:root:not([data-design])) .open-library {
+			color: #8ba7b0;
+		}
 	}
 	.detail {
 		display: grid;
