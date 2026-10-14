@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import portrait from '#lib/assets/librarian.svg';
+	import portrait from '#lib/assets/librarian.png';
 	import { t, type MessageKey } from '#lib/i18n';
 	import { loadView, saveView, type ViewMode } from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
@@ -160,8 +160,8 @@
 	}
 	/* The head stands free on the page, without a frame. */
 	.portrait {
-		width: 18rem;
-		height: 18rem;
+		width: 12rem;
+		height: 12rem;
 		flex-shrink: 0;
 		object-fit: contain;
 	}
@@ -225,8 +225,8 @@
 			gap: 0.75rem;
 		}
 		.portrait {
-			width: 11rem;
-			height: 11rem;
+			width: 8rem;
+			height: 8rem;
 		}
 	}
 	@media (max-width: 40rem) {
