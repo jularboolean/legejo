@@ -4,6 +4,24 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.19.3 (2026-10-14)
+
+- **Open Library beside the ISBN.** A book in English, or in no stated
+  language, links to Open Library from its ISBN. Books in other languages get
+  no link: Open Library finds few of them by ISBN.
+- **Rating doves look like doves again.** Since the pigeons were redrawn in
+  1.17.1, a filled dove in a rating came out black, with its beak, eye and
+  wing in a heap in a corner. It is drawn as the logo is again, and the empty
+  doves are easier to see on a dark page.
+- **Your own shelves can be ordered** like shared ones: by latest added to the
+  shelf, author, title or year, with the choice remembered for both.
+- **Covers turn a little** under the pointer when animations are on, like a
+  book taken off a shelf: on a book's page, and less in the library and on
+  shared shelves.
+- **The edit button on a phone** stands beside the way back to the catalogue,
+  so that the title has the line to itself.
+- **Upgrading:** nothing to do.
+
 ## 1.19.2 (2026-10-14)
 
 - **Catalogs of other libraries that could not be searched now can.** A
