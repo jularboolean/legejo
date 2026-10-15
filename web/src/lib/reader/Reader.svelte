@@ -1151,6 +1151,10 @@
 		height: 100dvh;
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) auto;
+		/* One column the width of the window, whatever its rows hold: without
+		   it a long chapter title in the status line widens the column, and
+		   the page with it, past the edge of a phone. */
+		grid-template-columns: minmax(0, 1fr);
 		overflow: hidden;
 	}
 	/* The margins above and below the page. They scale with the window, so a
