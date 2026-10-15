@@ -3,7 +3,7 @@
 //! books when they are filtered on one author.
 //!
 //! Only a person found for certain is shown: a human of the author's name,
-//! in some language, whose occupation is writing, and either the only one of
+//! in some language, whose occupation is writing or scholarship, and either the only one of
 //! the name that Wikidata's search returns or by far the best known of them.
 //! Anything less gives no line at all.
 //!
@@ -34,13 +34,22 @@ const NONE_HOURS: i64 = 24 * 30;
 const ERROR_HOURS: i64 = 1;
 /// The interface's languages, for names, descriptions and Wikipedia.
 const LANGS: [&str; 7] = ["en", "sv", "fi", "de", "fr", "es", "eo"];
-/// Occupations that make a person an author for this purpose: writer,
-/// novelist, poet, author, playwright, essayist, short story writer,
-/// children's writer, science fiction writer, journalist, translator,
-/// screenwriter, literary critic, philosopher, historian.
-const WRITERS: [&str; 15] = [
+/// Occupations of people who write the books in a library: writers of
+/// every kind, and the scholars and scientists whose books are as many
+/// (a geographer such as David Harvey is a geographer to Wikidata, not a
+/// writer). Writer, novelist, poet, author, playwright, essayist, short
+/// story writer, children's writer, science fiction writer, non-fiction
+/// writer, journalist, translator, screenwriter, literary critic;
+/// philosopher, historian, art historian, theologian, linguist, economist,
+/// sociologist, social scientist, political scientist, anthropologist,
+/// psychologist, geographer, scientist, physicist, chemist, biologist,
+/// astronomer, mathematician, physician, researcher, university teacher.
+const AUTHORLY: [&str; 35] = [
     "Q36180", "Q6625963", "Q49757", "Q482980", "Q214917", "Q11774202", "Q15949613", "Q4853732",
-    "Q18844224", "Q1930187", "Q333634", "Q28389", "Q4263842", "Q4964182", "Q201788",
+    "Q18844224", "Q15980158", "Q1930187", "Q333634", "Q28389", "Q4263842", "Q4964182", "Q201788",
+    "Q1792450", "Q1234713", "Q14467526", "Q188094", "Q2306091", "Q15319501", "Q1238570", "Q4773904",
+    "Q212980", "Q901402", "Q901", "Q169470", "Q593644", "Q864503", "Q11063", "Q170790", "Q39631",
+    "Q1650915", "Q1622272",
 ];
 
 pub async fn enabled(state: &AppState) -> bool {
@@ -88,9 +97,11 @@ fn claim_ids<'a>(entity: &'a Value, property: &str) -> impl Iterator<Item = &'a 
 }
 
 /// An author with others of the same name is taken only when found in at
-/// least this many Wikipedias, and this many times as many as the next.
+/// least this many Wikipedias, this many times as many as the next of the
+/// name who also writes, and twice as many as anyone else of the name.
 const KNOWN: usize = 10;
 const AHEAD: usize = 3;
+const AHEAD_OF_OTHERS: usize = 2;
 
 /// How many Wikipedias have an article on the entity.
 fn articles(entity: &Value) -> usize {
@@ -128,8 +139,8 @@ fn by_language(entity: &Value, field: &str) -> BTreeMap<String, String> {
 }
 
 /// Out of the entities Wikidata's search found, the one person who is
-/// certainly the author: the only human called by the name, and one who
-/// writes. None when there is no such person, or more than one of the name.
+/// certainly the author: the best known human called by the name, and one
+/// who writes or studies. None when there is no such person, or more than one of the name.
 pub fn choose(entities: &Value, key: &str) -> Option<Facts> {
     let all = entities.get("entities")?.as_object()?;
     // Everyone of the name, writer or not, the best known first (by how many
@@ -141,14 +152,21 @@ pub fn choose(entities: &Value, key: &str) -> Option<Facts> {
         .collect();
     named.sort_by_key(|e| std::cmp::Reverse(articles(e)));
     let person = *named.first()?;
-    if !claim_ids(person, "P106").any(|id| WRITERS.contains(&id)) {
+    if !claim_ids(person, "P106").any(|id| AUTHORLY.contains(&id)) {
         return None;
     }
     // Others of the name are no rivals to an author far better known than
     // them: Mary Shelley has 133 articles, the seven others of her name none.
-    if let Some(next) = named.get(1) {
-        let (first, second) = (articles(person), articles(next));
-        if first < KNOWN || first < second * AHEAD {
+    // Another who writes is the closer rival (David Harvey the geographer
+    // against Robert Service the historian and the poet); one who does
+    // something else needs only to be left well behind (the geographer has
+    // 38 articles, the footballer of his name 16).
+    if named.len() > 1 {
+        let first = articles(person);
+        let authorly = |e: &Value| claim_ids(e, "P106").any(|id| AUTHORLY.contains(&id));
+        let writer = named[1..].iter().filter(|e| authorly(e)).map(|e| articles(e)).max().unwrap_or(0);
+        let other = named[1..].iter().filter(|e| !authorly(e)).map(|e| articles(e)).max().unwrap_or(0);
+        if first < KNOWN || first < writer * AHEAD || first < other * AHEAD_OF_OTHERS {
             return None;
         }
     }

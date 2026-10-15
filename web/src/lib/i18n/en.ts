@@ -402,6 +402,8 @@ export const en = {
 	'authors.wrongPerson': "Wrong person?",
 	'authors.hidden': "Hidden",
 	'authors.undo': "Undo",
+	'authors.hiddenByYou': "Details hidden by you",
+	'authors.showAgain': "Show again",
 	'authors.born': "b. {year}",
 	'authors.died': "d. {year}",
 	'authors.bce': "{year} BCE",

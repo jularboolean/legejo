@@ -404,6 +404,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'authors.wrongPerson': "Väärä henkilö?",
 	'authors.hidden': "Piilotettu",
 	'authors.undo': "Kumoa",
+	'authors.hiddenByYou': "Tiedot piilotettu",
+	'authors.showAgain': "Näytä uudelleen",
 	'authors.born': "s. {year}",
 	'authors.died': "k. {year}",
 	'authors.bce': "{year} eaa.",

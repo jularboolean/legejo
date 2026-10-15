@@ -24,12 +24,18 @@
 	/** The line just called the wrong person, for a few seconds' undo. */
 	let undoable = $state<Line | null>(null);
 	let undoTimer: ReturnType<typeof setTimeout> | null = null;
+	/** The user has said, some other time, that this is the wrong person. */
+	let hiddenBefore = $state(false);
+	/** Bumped to ask again from the start, as after "show again". */
+	let round = $state(0);
 	const UNDO_MS = 6000;
 
 	$effect(() => {
 		const asked = name;
+		void round;
 		line = null;
 		undoable = null;
+		hiddenBefore = false;
 		let timer: ReturnType<typeof setTimeout> | null = null;
 		let gone = false;
 		const ask = (attempt: number) => {
@@ -39,6 +45,7 @@
 				.then((got: Line | null) => {
 					if (gone) return;
 					if (got?.state === 'ok') line = got;
+					else if (got?.state === 'hidden') hiddenBefore = true;
 					else if (got?.state === 'pending' && attempt < AGAIN_MS.length) {
 						timer = setTimeout(() => ask(attempt + 1), AGAIN_MS[attempt]);
 					}
@@ -83,6 +90,13 @@
 		undoable = null;
 		hidden('DELETE');
 	}
+
+	/** Hidden some other time: shown again, as it is now. */
+	async function showAgain() {
+		hiddenBefore = false;
+		await hidden('DELETE');
+		round++;
+	}
 </script>
 
 {#if line && (years || line.description || line.wikipedia)}
@@ -97,6 +111,12 @@
 			<a href={line.wikipedia.url} target="_blank" rel="noopener noreferrer" lang={line.wikipedia.lang}>{t('authors.wikipedia')} ↗</a>
 		{/if}
 		<button type="button" class="wrong" onclick={wrongPerson}>{t('authors.wrongPerson')}</button>
+	</span>
+{:else if hiddenBefore}
+	<span class="author-note quiet">
+		<span>{t('authors.hiddenByYou')}</span>
+		<span class="sep">·</span>
+		<button type="button" class="undo" onclick={showAgain}>{t('authors.showAgain')}</button>
 	</span>
 {:else if undoable}
 	<span class="author-note" role="status">
@@ -128,6 +148,11 @@
 	}
 	.sep {
 		opacity: 0.6;
+	}
+	/* A line once hidden says so in a whisper, with the way back. */
+	.quiet {
+		font-size: 0.78rem;
+		opacity: 0.75;
 	}
 	.undo {
 		padding: 0;

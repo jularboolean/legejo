@@ -103,9 +103,27 @@ fn an_author_far_better_known_than_others_of_the_name_is_the_one() {
     // of the name is not a writer, nor when no one is much known.
     let found = entities(vec![
         known(entity("Q1", &[("en", "Anna Berg")], true, &["Q36180"], None), 20),
-        known(entity("Q2", &[("en", "Anna Berg")], true, &["Q82955"], None), 9),
+        known(entity("Q2", &[("en", "Anna Berg")], true, &["Q49757"], None), 9),
     ]);
-    assert_eq!(choose(&found, "anna berg"), None);
+    assert_eq!(choose(&found, "anna berg"), None, "another who writes, not far behind");
+    let found = entities(vec![
+        known(entity("Q1", &[("en", "Anna Berg")], true, &["Q36180"], None), 20),
+        known(entity("Q2", &[("en", "Anna Berg")], true, &["Q82955"], None), 14),
+    ]);
+    assert_eq!(choose(&found, "anna berg"), None, "a politician of the name, nearly as well known");
+    // A scholar is an author as much as a writer is: David Harvey, geographer.
+    let found = entities(vec![
+        known(entity("Q343055", &[("en", "David Harvey")], true, &["Q901402", "Q188094"], None), 38),
+        known(entity("Q1174684", &[("en", "David Harvey")], true, &["Q937857"], None), 16),
+    ]);
+    assert_eq!(choose(&found, "david harvey").unwrap().qid, "Q343055", "a footballer of the name is left well behind");
+    // Robert Service the historian, and Robert Service the poet: two who write.
+    let found = entities(vec![
+        known(entity("Q2749421", &[("en", "Robert Service")], true, &["Q201788"], None), 20),
+        known(entity("Q1392250", &[("en", "Robert Service")], true, &["Q49757"], None), 14),
+    ]);
+    assert_eq!(choose(&found, "robert service"), None);
+
     let found = entities(vec![
         known(entity("Q3", &[("en", "John Smith")], true, &["Q82955"], None), 28),
         known(entity("Q4", &[("en", "John Smith")], true, &["Q4964182"], None), 8),
