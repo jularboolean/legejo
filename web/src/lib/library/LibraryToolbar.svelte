@@ -26,6 +26,7 @@
 	import { fold } from './authors';
 	import Popover from './Popover.svelte';
 	import ViewSwitch from './ViewSwitch.svelte';
+	import type { Snippet } from 'svelte';
 
 	let {
 		filters = $bindable(),
@@ -35,7 +36,8 @@
 		shelves,
 		unshelvedCount,
 		issuesCount = 0,
-		formats = []
+		formats = [],
+		authorNote
 	}: {
 		filters: Filters;
 		prefs: Prefs;
@@ -49,6 +51,8 @@
 		issuesCount?: number;
 		/** The file formats in the library, offered when there is more than one. */
 		formats?: { format: NonNullable<Filters['format']>; count: number }[];
+		/** Shown right after the chip of an author filter: who the author was. */
+		authorNote?: Snippet;
 	} = $props();
 
 	const sortLabel = (key: SortKey) => t(`library.sort.${key}` as MessageKey);
@@ -304,6 +308,7 @@
 				{chip.label}
 				<X size={12} />
 			</button>
+			{#if chip.field === 'author' && authorNote}{@render authorNote()}{/if}
 		{/each}
 		<button
 			type="button"

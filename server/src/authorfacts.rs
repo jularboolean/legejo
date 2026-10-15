@@ -378,7 +378,9 @@ pub async fn line(State(state): State<AppState>, user: AuthUser, Query(q): Query
             "description": description,
             "wikipedia": wikipedia,
         }),
-        "private, max-age=86400",
+        // Not kept by the browser: the server keeps it, and a line the user
+        // has just called the wrong person must not come back from a cache.
+        "private, no-store",
     ))
 }
 

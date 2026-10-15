@@ -1,35 +1,52 @@
 <script lang="ts">
-	// One quiet line about an author above their books, from Wikidata by way
-	// of the server: who they were, when they lived, and where Wikipedia has
-	// more. Shown only once the server knows the person for certain; until
-	// then there is nothing, so the books never move under the reader.
+	// Who an author was, beside the chip that filters the library on them:
+	// years, a description and a link to Wikipedia, from Wikidata by way of
+	// the server. The chip already says the name. It sits in a row that is
+	// there anyway, so nothing below moves when it arrives; the first time
+	// an author is opened the server is still asking, and is asked again a
+	// few times while it does.
 	import { getLocale, t } from '#lib/i18n';
 
 	let { name }: { name: string } = $props();
 
 	type Line = {
 		state: string;
-		name?: string;
 		born?: number | null;
 		died?: number | null;
 		description?: string | null;
 		wikipedia?: { lang: string; url: string } | null;
 	};
 
+	/** How long to wait before asking again while the server looks it up. */
+	const AGAIN_MS = [1200, 2500, 5000];
+
 	let line = $state<Line | null>(null);
 
 	$effect(() => {
 		const asked = name;
 		line = null;
-		const query = new URLSearchParams({ name: asked, lang: getLocale() });
-		fetch(`/api/authors/facts?${query}`)
-			.then((res) => (res.ok ? res.json() : null))
-			.then((got: Line | null) => {
-				if (asked === name && got?.state === 'ok') line = got;
-			})
-			.catch(() => {
-				// Without the server there is no line, and nothing is missed.
-			});
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		let gone = false;
+		const ask = (attempt: number) => {
+			const query = new URLSearchParams({ name: asked, lang: getLocale() });
+			fetch(`/api/authors/facts?${query}`)
+				.then((res) => (res.ok ? res.json() : null))
+				.then((got: Line | null) => {
+					if (gone) return;
+					if (got?.state === 'ok') line = got;
+					else if (got?.state === 'pending' && attempt < AGAIN_MS.length) {
+						timer = setTimeout(() => ask(attempt + 1), AGAIN_MS[attempt]);
+					}
+				})
+				.catch(() => {
+					// Without the server there is no line, and nothing is missed.
+				});
+		};
+		ask(0);
+		return () => {
+			gone = true;
+			if (timer) clearTimeout(timer);
+		};
 	});
 
 	const year = (y: number) => (y < 0 ? t('authors.bce', { year: -y }) : String(y));
@@ -49,52 +66,60 @@
 	}
 </script>
 
-{#if line}
-	<p class="author-line">
-		<span class="who">{line.name}</span>
-		{#if years}<span class="sep">·</span><span>{years}</span>{/if}
-		{#if line.description}<span class="sep">·</span><span>{line.description}</span>{/if}
+{#if line && (years || line.description || line.wikipedia)}
+	<span class="author-note">
+		{#if years}<span>{years}</span>{/if}
+		{#if line.description}
+			{#if years}<span class="sep">·</span>{/if}
+			<span>{line.description}</span>
+		{/if}
 		{#if line.wikipedia}
 			<span class="sep">·</span>
 			<a href={line.wikipedia.url} target="_blank" rel="noopener noreferrer" lang={line.wikipedia.lang}>{t('authors.wikipedia')} ↗</a>
 		{/if}
 		<button type="button" class="wrong" onclick={wrongPerson}>{t('authors.wrongPerson')}</button>
-	</p>
+	</span>
 {/if}
 
 <style>
-	.author-line {
-		display: flex;
+	.author-note {
+		display: inline-flex;
 		flex-wrap: wrap;
 		align-items: baseline;
-		gap: 0.15rem 0.45rem;
-		margin: -0.25rem 0 1.1rem;
-		font-size: 0.86rem;
+		gap: 0.1rem 0.4rem;
+		margin: 0 0.6rem 0 0.2rem;
+		font-size: 0.84rem;
 		color: var(--muted);
 	}
-	.who {
-		color: var(--fg);
-		font-weight: 600;
+	/* With animations on, it comes in slowly, so that it is noticed rather
+	   than jumping out. */
+	:global(:root[data-motion='on']) .author-note {
+		animation: arrive 0.6s ease-out;
+	}
+	@keyframes arrive {
+		from {
+			opacity: 0;
+		}
 	}
 	.sep {
 		opacity: 0.6;
 	}
 	/* The way out is there for whoever looks for it, and quiet otherwise. */
 	.wrong {
-		margin-left: 0.4rem;
+		margin-left: 0.3rem;
 		padding: 0;
 		background: none;
 		border: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 0.8rem;
+		font-size: 0.78rem;
 		font-weight: 400;
 		letter-spacing: 0;
 		text-decoration: underline;
 		opacity: 0;
 		transition: opacity 0.15s;
 	}
-	.author-line:hover .wrong,
+	.author-note:hover .wrong,
 	.wrong:focus-visible {
 		opacity: 1;
 	}

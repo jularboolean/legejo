@@ -341,8 +341,11 @@
 {#if data.books.length === 0}
 	<p class="empty">{t('home.empty')}</p>
 {:else}
-	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats} />
-	{#if data.authorFacts && filteredAuthor}<AuthorLine name={filteredAuthor} />{/if}
+	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats}>
+		{#snippet authorNote()}
+			{#if data.authorFacts && filteredAuthor}<AuthorLine name={filteredAuthor} />{/if}
+		{/snippet}
+	</LibraryToolbar>
 
 	{#if visible.length === 0}
 		<div class="nomatch">
