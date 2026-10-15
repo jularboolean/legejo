@@ -410,9 +410,13 @@
 		if (passage) offer(passage);
 	}
 
+	/** When a highlight was last opened: the same click must not turn the page. */
+	let markOpenedAt = 0;
+
 	function openMark(id: number) {
 		const found = annotations.find((a) => a.id === id);
 		if (!found) return;
+		markOpenedAt = Date.now();
 		pending = null;
 		editing = found;
 		annotateError = null;
@@ -521,7 +525,15 @@
 			if (!paginated || zone === 'center') {
 				if (chrome) hideChrome();
 				else showChrome();
-			} else turn((zone === 'end') !== rtl);
+				return;
+			}
+			// epub.js answers a click on a highlight in a handler of its own,
+			// which may run after this one: the page turns only once that has
+			// had its turn and opened nothing.
+			setTimeout(() => {
+				if (Date.now() - markOpenedAt < 400) return;
+				turn((zone === 'end') !== rtl);
+			}, 0);
 		},
 		onSwipe(forward) {
 			if (hint) dismissHint();

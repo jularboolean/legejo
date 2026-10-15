@@ -34,6 +34,8 @@ const SEARCH_MAX_HITS = 300;
 const SEARCH_CONTEXT_CHARS = 64;
 /** Characters per generated location; ~1 location per page of text. */
 const LOCATION_CHARS = 1600;
+/** How far round a highlight's rectangles a tap still counts as on it. */
+const MARK_SLACK_PX = 4;
 /** How much of the text at a position travels with it: a line or two. */
 const EXCERPT_CHARS = 160;
 const OPEN_TIMEOUT_MS = 30_000;
@@ -1499,13 +1501,16 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		markAt(x, y): number | null {
 			// The highlights are drawn as SVG in this document, over the chapter
 			// frames, each with the id it was given; a point in one of its
-			// rectangles is on it.
+			// rectangles is on it. A little round each counts too: the lines of
+			// a highlight have gaps between them, and letters reach past the
+			// rectangle, and a tap there must not turn the page.
 			for (const g of host.querySelectorAll<SVGGElement>('g.legejo-mark')) {
 				const id = Number(g.dataset.id);
 				if (!Number.isFinite(id)) continue;
 				for (const rect of g.querySelectorAll('rect')) {
 					const r = rect.getBoundingClientRect();
-					if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+					const pad = Math.max(MARK_SLACK_PX, r.height * 0.25);
+					if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) return id;
 				}
 			}
 			return null;
