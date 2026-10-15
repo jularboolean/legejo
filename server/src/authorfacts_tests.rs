@@ -27,6 +27,14 @@ fn entity(id: &str, labels: &[(&str, &str)], humans: bool, occupations: &[&str],
     })
 }
 
+/// The same, found in `n` Wikipedias.
+fn known(mut e: Value, n: usize) -> Value {
+    for i in 0..n {
+        e["sitelinks"][format!("x{i}wiki")] = json!({ "title": "t" });
+    }
+    e
+}
+
 fn entities(list: Vec<Value>) -> Value {
     json!({ "entities": list.into_iter().map(|e| (e["id"].as_str().unwrap().to_string(), e)).collect::<serde_json::Map<_, _>>() })
 }
@@ -44,9 +52,8 @@ fn a_name_is_folded_as_the_web_does_it() {
 fn the_one_writer_with_the_name_is_the_author() {
     let found = entities(vec![
         entity("Q44519", &[("sv", "Selma Lagerlöf"), ("en", "Selma Lagerlöf")], true, &["Q36180", "Q6625963"], Some("+1858-11-20T00:00:00Z")),
-        // A ship named after her, and a person of the name who did not write.
+        // A ship named after her: not a person, so no rival.
         entity("Q99", &[("sv", "Selma Lagerlöf")], false, &[], None),
-        entity("Q98", &[("en", "Selma Lagerlof")], true, &["Q82955"], None),
     ]);
     let facts = choose(&found, &key_of("Selma Lagerlöf")).unwrap();
     assert_eq!(facts.qid, "Q44519");
@@ -67,6 +74,48 @@ fn two_writers_of_the_same_name_give_no_one() {
     // Nor does a writer whose names are all other than the author's.
     let found = entities(vec![entity("Q3", &[("en", "Johan Smith")], true, &["Q36180"], None)]);
     assert_eq!(choose(&found, "john smith"), None);
+    // One writer among people of the same name who did other things is no
+    // proof either: the author may be one of whom Wikidata knows nothing.
+    let found = entities(vec![
+        entity("Q4", &[("en", "John Smith")], true, &["Q4964182"], None),
+        entity("Q5", &[("en", "John Smith")], true, &["Q82955"], None),
+    ]);
+    assert_eq!(choose(&found, "john smith"), None);
+}
+
+#[test]
+fn an_author_far_better_known_than_others_of_the_name_is_the_one() {
+    // Mary Shelley, and seven others of her name of whom no Wikipedia writes.
+    let mut found = vec![known(entity("Q47152", &[("en", "Mary Shelley")], true, &["Q6625963"], None), 130)];
+    for i in 0..7 {
+        found.push(entity(&format!("Q{i}"), &[("en", "Mary Shelley")], true, &[], None));
+    }
+    assert_eq!(choose(&entities(found), "mary shelley").unwrap().qid, "Q47152");
+
+    // William Gibson the novelist, and William Gibson the playwright, less known.
+    let found = entities(vec![
+        known(entity("Q188987", &[("en", "William Gibson")], true, &["Q6625963"], None), 65),
+        known(entity("Q980844", &[("en", "William Gibson")], true, &["Q214917"], None), 17),
+    ]);
+    assert_eq!(choose(&found, "william gibson").unwrap().qid, "Q188987");
+
+    // Not when the other is nearly as well known, nor when the best known
+    // of the name is not a writer, nor when no one is much known.
+    let found = entities(vec![
+        known(entity("Q1", &[("en", "Anna Berg")], true, &["Q36180"], None), 20),
+        known(entity("Q2", &[("en", "Anna Berg")], true, &["Q82955"], None), 9),
+    ]);
+    assert_eq!(choose(&found, "anna berg"), None);
+    let found = entities(vec![
+        known(entity("Q3", &[("en", "John Smith")], true, &["Q82955"], None), 28),
+        known(entity("Q4", &[("en", "John Smith")], true, &["Q4964182"], None), 8),
+    ]);
+    assert_eq!(choose(&found, "john smith"), None);
+    let found = entities(vec![
+        known(entity("Q5", &[("en", "Per Ek")], true, &["Q36180"], None), 6),
+        entity("Q6", &[("en", "Per Ek")], true, &[], None),
+    ]);
+    assert_eq!(choose(&found, "per ek"), None);
 }
 
 #[test]

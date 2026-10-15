@@ -2,10 +2,10 @@
 //! lived, and where Wikipedia has more. The library shows it above the
 //! books when they are filtered on one author.
 //!
-//! Only a person found for certain is shown: a human whose occupation is
-//! writing and whose name, in some language, is the author's name, and who
-//! is the only one of the kind that Wikidata's search returns. Anything
-//! less gives no line at all.
+//! Only a person found for certain is shown: a human of the author's name,
+//! in some language, whose occupation is writing, and either the only one of
+//! the name that Wikidata's search returns or by far the best known of them.
+//! Anything less gives no line at all.
 //!
 //! What is found is kept in `author_facts`, one row per author on the
 //! instance, and asked for again only now and then. A page never waits for
@@ -87,6 +87,20 @@ fn claim_ids<'a>(entity: &'a Value, property: &str) -> impl Iterator<Item = &'a 
         .filter_map(|c| c.pointer("/mainsnak/datavalue/value/id").and_then(Value::as_str))
 }
 
+/// An author with others of the same name is taken only when found in at
+/// least this many Wikipedias, and this many times as many as the next.
+const KNOWN: usize = 10;
+const AHEAD: usize = 3;
+
+/// How many Wikipedias have an article on the entity.
+fn articles(entity: &Value) -> usize {
+    entity
+        .get("sitelinks")
+        .and_then(Value::as_object)
+        .map(|m| m.keys().filter(|site| site.ends_with("wiki") && *site != "commonswiki" && *site != "specieswiki").count())
+        .unwrap_or(0)
+}
+
 /// Every name an entity has, in any language: labels and aliases.
 fn names(entity: &Value) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
@@ -114,18 +128,29 @@ fn by_language(entity: &Value, field: &str) -> BTreeMap<String, String> {
 }
 
 /// Out of the entities Wikidata's search found, the one person who is
-/// certainly the author: a human, who writes, and is called by the name.
-/// None when there is no such person, or more than one.
+/// certainly the author: the only human called by the name, and one who
+/// writes. None when there is no such person, or more than one of the name.
 pub fn choose(entities: &Value, key: &str) -> Option<Facts> {
     let all = entities.get("entities")?.as_object()?;
-    let mut found = all.values().filter(|e| {
-        claim_ids(e, "P31").any(|id| id == "Q5")
-            && claim_ids(e, "P106").any(|id| WRITERS.contains(&id))
-            && names(e).iter().any(|n| key_of(n) == key)
-    });
-    let person = found.next()?;
-    if found.next().is_some() {
+    // Everyone of the name, writer or not, the best known first (by how many
+    // Wikipedias have an article): with two people called John Smith, a
+    // single writer among them is no proof that he is the one.
+    let mut named: Vec<&Value> = all
+        .values()
+        .filter(|e| claim_ids(e, "P31").any(|id| id == "Q5") && names(e).iter().any(|n| key_of(n) == key))
+        .collect();
+    named.sort_by_key(|e| std::cmp::Reverse(articles(e)));
+    let person = *named.first()?;
+    if !claim_ids(person, "P106").any(|id| WRITERS.contains(&id)) {
         return None;
+    }
+    // Others of the name are no rivals to an author far better known than
+    // them: Mary Shelley has 133 articles, the seven others of her name none.
+    if let Some(next) = named.get(1) {
+        let (first, second) = (articles(person), articles(next));
+        if first < KNOWN || first < second * AHEAD {
+            return None;
+        }
     }
     let wiki = person
         .get("sitelinks")
@@ -186,8 +211,9 @@ async fn look_up(state: &AppState, name: &str, key: &str) -> anyhow::Result<Opti
     if ids.is_empty() {
         return Ok(None);
     }
+    // Every sitelink, not just those of the interface's languages: how many
+    // there are tells a well-known author from others of the same name.
     let languages = LANGS.join("|");
-    let sites = LANGS.iter().map(|l| format!("{l}wiki")).collect::<Vec<_>>().join("|");
     let entities = get(
         state,
         &[
@@ -195,7 +221,6 @@ async fn look_up(state: &AppState, name: &str, key: &str) -> anyhow::Result<Opti
             ("ids", &ids.join("|")),
             ("props", "labels|aliases|descriptions|claims|sitelinks"),
             ("languages", &languages),
-            ("sitefilter", &sites),
             ("format", "json"),
         ],
     )
