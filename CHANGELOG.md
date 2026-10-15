@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.20.2 (2026-10-15)
+
+- **The app holds when the server is down, not only the network.** With the
+  network there but the server behind it down, the app installed on a phone
+  showed an error, or asked you to log in, and "Books on this device" did
+  nothing. Now it opens on the books saved on the device, as it does without
+  a network, and finds its way back once the server answers again.
+- On a poor connection just after an upgrade, the app no longer mixes the
+  page of the new version with the files of the old one, which made every
+  page change fail. What could not be fetched is called that, not an
+  internal error, and the links on the error page always do something.
+- **Upgrading:** nothing to do. The app on a phone takes the change the next
+  time it is opened with the server in reach.
+
 ## 1.20.1 (2026-10-15)
 
 - **The page of a book stays inside a phone's screen.** On a narrow screen,
