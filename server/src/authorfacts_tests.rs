@@ -186,6 +186,11 @@ async fn the_library_gets_a_line_only_for_an_author_found_for_certain() {
     assert_eq!(v["state"], "hidden");
     let (_, v) = send(&app, Method::GET, url, Some(&b), None).await;
     assert_eq!(v["state"], "ok");
+    // Undone: hers again.
+    let (status, _) = send(&app, Method::DELETE, "/api/authors/facts/hidden", Some(&a), Some(json!({ "name": "Selma Lagerlöf" }))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, v) = send(&app, Method::GET, url, Some(&a), None).await;
+    assert_eq!(v["state"], "ok");
 
     // No certain match, or Wikidata not answering: no line.
     keep(&db, "john smith", "none", None, &crate::db::now_ts()).await;

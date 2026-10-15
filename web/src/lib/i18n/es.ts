@@ -402,6 +402,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'authors.showBooks': 'Ver libros de {name}',
 	'authors.wikipedia': "Wikipedia",
 	'authors.wrongPerson': "¿Persona equivocada?",
+	'authors.hidden': "Oculto",
+	'authors.undo': "Deshacer",
 	'authors.born': "n. {year}",
 	'authors.died': "m. {year}",
 	'authors.bce': "{year} a. C.",

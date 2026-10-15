@@ -409,6 +409,18 @@ pub async fn hide(State(state): State<AppState>, user: AuthUser, Json(req): Json
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// `DELETE /api/authors/facts/hidden`: it was the right person after all;
+/// the line is shown to this user again.
+pub async fn unhide(State(state): State<AppState>, user: AuthUser, Json(req): Json<HideRequest>) -> Result<StatusCode, Response> {
+    sqlx::query("DELETE FROM author_facts_hidden WHERE user_id = $1 AND author_key = $2")
+        .bind(user.0.id)
+        .bind(key_of(&req.name))
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 fn internal(e: anyhow::Error) -> Response {
     tracing::error!("internal error: {e:#}");
     (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "internal error" }))).into_response()

@@ -400,6 +400,8 @@ export const en = {
 	'authors.showBooks': 'Show books by {name}',
 	'authors.wikipedia': "Wikipedia",
 	'authors.wrongPerson': "Wrong person?",
+	'authors.hidden': "Hidden",
+	'authors.undo': "Undo",
 	'authors.born': "b. {year}",
 	'authors.died': "d. {year}",
 	'authors.bce': "{year} BCE",

@@ -402,6 +402,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'authors.showBooks': 'Näytä kirjailijan {name} kirjat',
 	'authors.wikipedia': "Wikipedia",
 	'authors.wrongPerson': "Väärä henkilö?",
+	'authors.hidden': "Piilotettu",
+	'authors.undo': "Kumoa",
 	'authors.born': "s. {year}",
 	'authors.died': "k. {year}",
 	'authors.bce': "{year} eaa.",

@@ -21,10 +21,15 @@
 	const AGAIN_MS = [1200, 2500, 5000];
 
 	let line = $state<Line | null>(null);
+	/** The line just called the wrong person, for a few seconds' undo. */
+	let undoable = $state<Line | null>(null);
+	let undoTimer: ReturnType<typeof setTimeout> | null = null;
+	const UNDO_MS = 6000;
 
 	$effect(() => {
 		const asked = name;
 		line = null;
+		undoable = null;
 		let timer: ReturnType<typeof setTimeout> | null = null;
 		let gone = false;
 		const ask = (attempt: number) => {
@@ -56,13 +61,27 @@
 		return line.born ? t('authors.born', { year: year(line.born) }) : t('authors.died', { year: year(line.died!) });
 	});
 
-	async function wrongPerson() {
-		line = null;
-		await fetch('/api/authors/facts/hidden', {
-			method: 'POST',
+	function hidden(method: 'POST' | 'DELETE') {
+		return fetch('/api/authors/facts/hidden', {
+			method,
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ name })
 		}).catch(() => {});
+	}
+
+	function wrongPerson() {
+		undoable = line;
+		line = null;
+		hidden('POST');
+		if (undoTimer) clearTimeout(undoTimer);
+		undoTimer = setTimeout(() => (undoable = null), UNDO_MS);
+	}
+
+	function undo() {
+		if (undoTimer) clearTimeout(undoTimer);
+		line = undoable;
+		undoable = null;
+		hidden('DELETE');
 	}
 </script>
 
@@ -78,6 +97,12 @@
 			<a href={line.wikipedia.url} target="_blank" rel="noopener noreferrer" lang={line.wikipedia.lang}>{t('authors.wikipedia')} ↗</a>
 		{/if}
 		<button type="button" class="wrong" onclick={wrongPerson}>{t('authors.wrongPerson')}</button>
+	</span>
+{:else if undoable}
+	<span class="author-note" role="status">
+		<span>{t('authors.hidden')}</span>
+		<span class="sep">·</span>
+		<button type="button" class="undo" onclick={undo}>{t('authors.undo')}</button>
 	</span>
 {/if}
 
@@ -103,6 +128,16 @@
 	}
 	.sep {
 		opacity: 0.6;
+	}
+	.undo {
+		padding: 0;
+		background: none;
+		border: none;
+		color: var(--accent);
+		font: inherit;
+		font-weight: 600;
+		letter-spacing: 0;
+		text-decoration: underline;
 	}
 	/* The way out is there for whoever looks for it, and quiet otherwise. */
 	.wrong {
