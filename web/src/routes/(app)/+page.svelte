@@ -2,6 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { collectAuthors } from '#lib/library/authors';
+	import AuthorLine from '#lib/library/AuthorLine.svelte';
 	import { CheckSquare, Upload } from '@lucide/svelte';
 	import UploadPanel, { type UploadItem } from '#lib/library/UploadPanel.svelte';
 	import SelectionBar from '#lib/library/SelectionBar.svelte';
@@ -51,6 +52,8 @@
 	const authors = $derived(
 		collectAuthors(data.books, getLocale()).map((a) => ({ key: a.key, name: a.name, count: a.books.length }))
 	);
+	// Filtered on one author: their name, for the line about them.
+	const filteredAuthor = $derived(filters.author ? (authors.find((a) => a.key === filters.author)?.name ?? null) : null);
 
 	$effect(() => savePrefs(prefs));
 	$effect(() => saveFilters(filters));
@@ -339,6 +342,7 @@
 	<p class="empty">{t('home.empty')}</p>
 {:else}
 	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats} />
+	{#if data.authorFacts && filteredAuthor}<AuthorLine name={filteredAuthor} />{/if}
 
 	{#if visible.length === 0}
 		<div class="nomatch">

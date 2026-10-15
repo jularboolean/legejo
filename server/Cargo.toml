@@ -43,6 +43,8 @@ lofty = "0.25"
 lopdf = { version = "0.45.0", default-features = false }
 # Already in the tree through the epub crate; here for OPDS feeds.
 xml = "1"
+# Already in the tree through url; here to fold author names as the web does.
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

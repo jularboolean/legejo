@@ -30,6 +30,7 @@
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
 	let whatsNewOpen = $state(false);
 	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
+	let authorFactsEnabled = $state(data.settings.author_facts_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -72,6 +73,7 @@
 					catalogs_enabled: catalogsEnabled,
 					kobo_annotations_enabled: koboAnnotationsEnabled,
 					shelf_links_enabled: shelfLinksEnabled,
+					author_facts_enabled: authorFactsEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -86,12 +88,14 @@
 				catalogs_enabled?: boolean;
 				kobo_annotations_enabled?: boolean;
 				shelf_links_enabled?: boolean;
+				author_facts_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
 			audiobooksEnabled = settings.audiobooks_enabled;
 			catalogsEnabled = settings.catalogs_enabled ?? false;
 			koboAnnotationsEnabled = settings.kobo_annotations_enabled ?? false;
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
+			authorFactsEnabled = settings.author_facts_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -139,6 +143,12 @@
 		const previous = shelfLinksEnabled;
 		shelfLinksEnabled = enabled;
 		if (!(await saveSettings())) shelfLinksEnabled = previous;
+	}
+
+	async function toggleAuthorFacts(enabled: boolean) {
+		const previous = authorFactsEnabled;
+		authorFactsEnabled = enabled;
+		if (!(await saveSettings())) authorFactsEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -234,6 +244,16 @@
 		{t('admin.shelfLinksToggle')}
 	</label>
 	<p class="hint">{t('admin.shelfLinksHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={authorFactsEnabled}
+			disabled={saving}
+			onchange={(e) => toggleAuthorFacts(e.currentTarget.checked)}
+		/>
+		{t('admin.authorFactsToggle')}
+	</label>
+	<p class="hint">{t('admin.authorFactsHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"

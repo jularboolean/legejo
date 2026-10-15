@@ -70,6 +70,8 @@ mod kobo_annotations_tests;
 mod kobospan;
 mod welcome;
 mod shelflinks;
+mod authorfacts;
+mod authorfacts_tests;
 mod changelog;
 mod read_state_tests;
 mod shelflink_tests;
@@ -232,6 +234,8 @@ fn router(state: AppState) -> Router {
         .route("/linked-shelves/{id}", get(shelflinks::linked_shelf).delete(shelflinks::unfollow))
         .route("/linked-shelves/{id}/image", get(shelflinks::linked_image))
         .route("/linked-shelves/{id}/import", post(shelflinks::linked_import))
+        .route("/authors/facts", get(authorfacts::line))
+        .route("/authors/facts/hidden", post(authorfacts::hide))
         .route("/catalogs", get(catalogs::list).post(catalogs::create))
         .route("/catalogs/{id}", axum::routing::delete(catalogs::delete))
         .route("/catalogs/{id}/feed", get(catalogs::feed))
