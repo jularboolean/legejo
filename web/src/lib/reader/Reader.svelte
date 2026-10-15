@@ -51,11 +51,21 @@
 	import TocPanel from './TocPanel.svelte';
 
 	// One reader per book: the page keys this component on the book's id.
-	let { book }: { book: BookDetail } = $props();
+	let {
+		book,
+		at = null,
+		back = null
+	}: {
+		book: BookDetail;
+		/** A highlight to open the book at, by its id, instead of the reading position. */
+		at?: number | null;
+		/** Where the way back leads, when not to the book's page. */
+		back?: string | null;
+	} = $props();
 	// svelte-ignore state_referenced_locally
 	const bookId = book.id;
 	// Without the network the book's own page is out of reach: back is to the books on the device.
-	const backHref = $derived(page.data.offline ? '/offline' : `/books/${bookId}`);
+	const backHref = $derived(page.data.offline ? '/offline' : (back ?? `/books/${bookId}`));
 
 	type Panel = 'toc' | 'settings' | 'search' | 'help' | 'notes';
 
@@ -798,6 +808,21 @@
 
 	let closed = false;
 
+	/** How long a highlight visited from the list of notes stays marked. */
+	const VISIT_MARK_MS = 4000;
+
+	/** Where a highlight of this book is, or null. */
+	async function highlightAt(id: number): Promise<string | null> {
+		try {
+			const res = await fetch(`/api/books/${bookId}/annotations`);
+			if (!res.ok) return null;
+			const list: Annotation[] = await res.json();
+			return list.find((a) => a.id === id)?.cfi ?? null;
+		} catch {
+			return null;
+		}
+	}
+
 	async function open() {
 		status = 'loading';
 		downloaded = null;
@@ -805,13 +830,17 @@
 			const saved = await progress.load();
 			if (closed) return;
 			savedCfi = saved?.cfi ?? null;
+			// Opened at a highlight (from the list of notes): there, not at the
+			// reading position, which is left as it is until the reader moves on.
+			const visit = at == null ? null : await highlightAt(at);
+			if (closed) return;
 			const opened = await openReader({
 				host,
 				url: `/api/books/${bookId}/file`,
 				cacheKey: String(bookId),
 				cacheVersion: `${book.file_size}:${book.updated_at ?? book.created_at}`,
 				settings,
-				initialCfi: saved?.cfi,
+				initialCfi: visit ?? saved?.cfi,
 				initialPercent: saved?.percent,
 				onDownload: (fraction) => (downloaded = fraction),
 				onRelocated,
@@ -829,6 +858,10 @@
 			}
 			engine = opened;
 			loadAnnotations();
+			if (visit) {
+				opened.highlight(visit);
+				setTimeout(() => engine === opened && opened.highlight(null), VISIT_MARK_MS);
+			}
 			toc = opened.toc;
 			location = opened.location;
 			locationsReady = opened.locationsReady;

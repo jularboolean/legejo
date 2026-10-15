@@ -10,6 +10,7 @@ const FIXED: Record<string, MessageKey> = {
 	'/(app)': 'home.title',
 	'/(app)/authors': 'authors.heading',
 	'/(app)/reading': 'reading.heading',
+	'/(app)/notes': 'notes.heading',
 	'/(app)/offline': 'offline.title',
 	'/(app)/search': 'search.heading',
 	'/(app)/public': 'public.heading',

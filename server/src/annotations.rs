@@ -3,7 +3,7 @@
 //! with it, so it can be listed and exported whatever placed it.
 
 use crate::auth::AuthUser;
-use crate::db::now_ts;
+use crate::db::{now_ts, DbFlag};
 use crate::AppState;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
@@ -214,6 +214,76 @@ pub fn markdown(title: &str, author: Option<&str>, annotations: &[Annotation]) -
         }
     }
     out
+}
+
+/// A highlight with the book it is in, for the list of them all.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct InBook {
+    pub id: i64,
+    pub book_id: i64,
+    pub source: String,
+    pub cfi: Option<String>,
+    pub text: String,
+    pub note: Option<String>,
+    pub color: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub book_title: String,
+    pub book_author: Option<String>,
+    pub book_has_cover: DbFlag,
+    /// What a cover's address carries so that a changed cover is fetched anew.
+    pub book_changed_at: String,
+}
+
+/// GET /api/annotations: every highlight and note the user has made, in
+/// every book of their own, with the book. Ordered by book and then as made;
+/// the page orders them as they stand in the book.
+pub async fn all(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<InBook>>, Response> {
+    let rows: Vec<InBook> = sqlx::query_as(
+        "SELECT a.id, a.book_id, a.source, a.cfi, a.text, a.note, a.color, a.created_at, a.updated_at,
+                b.title AS book_title, b.author AS book_author,
+                CAST(CASE WHEN b.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS book_has_cover,
+                COALESCE(b.updated_at, b.created_at) AS book_changed_at
+         FROM annotations a JOIN books b ON b.id = a.book_id
+         WHERE a.user_id = $1 AND b.owner_id = $1
+         ORDER BY a.book_id, a.id",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    Ok(Json(rows))
+}
+
+/// GET /api/annotations/export: every book's highlights in one Markdown file.
+pub async fn export_all(State(state): State<AppState>, user: AuthUser) -> Result<Response, Response> {
+    let books: Vec<(i64, String, Option<String>)> = sqlx::query_as(
+        "SELECT DISTINCT b.id, b.title, b.author FROM books b JOIN annotations a ON a.book_id = b.id
+         WHERE a.user_id = $1 AND b.owner_id = $1 ORDER BY b.title",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    let mut parts = Vec::with_capacity(books.len());
+    for (book_id, title, author) in books {
+        let rows: Vec<Annotation> =
+            sqlx::query_as(&format!("SELECT {COLUMNS} FROM annotations WHERE book_id = $1 AND user_id = $2 ORDER BY id"))
+                .bind(book_id)
+                .bind(user.0.id)
+                .fetch_all(&state.db)
+                .await
+                .map_err(internal)?;
+        parts.push(markdown(&title, author.as_deref(), &rows));
+    }
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/markdown; charset=utf-8".to_string()),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"notes.md\"".to_string()),
+        ],
+        parts.join("\n"),
+    )
+        .into_response())
 }
 
 /// GET /api/books/{id}/annotations/export: a Markdown file to save.

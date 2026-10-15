@@ -19,7 +19,8 @@
 		Settings,
 		Sparkles,
 		Users,
-		X
+		X,
+		Highlighter
 	} from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
@@ -206,6 +207,10 @@
 				<a class="nav-item" href="/reading">
 					<BookOpenCheck size={15} strokeWidth={1.75} />
 					{t('sidebar.reading')}
+				</a>
+				<a class="nav-item" href="/notes">
+					<Highlighter size={15} strokeWidth={1.75} />
+					{t('sidebar.notes')}
 				</a>
 				{#if hasSaved || data.offline}
 					<a class="nav-item" href="/offline">

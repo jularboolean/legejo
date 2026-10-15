@@ -117,3 +117,46 @@ fn a_passage_of_several_lines_is_quoted_line_by_line() {
     };
     assert_eq!(markdown("Bok", None, &[a]), "# Bok\n\n> En rad.\n> En till.\n\nok\n");
 }
+
+#[tokio::test]
+async fn all_of_a_users_notes_come_together_with_their_books() {
+    let (app, db, _) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (bob, b) = add_user(&db, "bob").await;
+    let (rr, _) = add_book(&db, alice, "Röda rummet").await;
+    let (hb, _) = add_book(&db, alice, "Hemsöborna").await;
+    let (bobs, _) = add_book(&db, bob, "Bobs bok").await;
+    for (book, cookie, text, note) in [
+        (rr, &a, "Det var en afton", None),
+        (hb, &a, "Han kom som ett yrväder", Some("Början.")),
+        (bobs, &b, "Bobs mening", None),
+    ] {
+        let (status, _) = send(&app, Method::POST, &format!("/api/books/{book}/annotations"), Some(cookie), Some(json!({ "cfi": "epubcfi(/6/4!/4/2,/1:0,/1:9)", "text": text, "note": note }))).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    // Alice gets hers, each with its book; not Bob's.
+    let (status, v) = send(&app, Method::GET, "/api/annotations", Some(&a), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let list = v.as_array().unwrap();
+    assert_eq!(list.len(), 2, "{v}");
+    let hems = list.iter().find(|n| n["book_id"] == hb).unwrap();
+    assert_eq!(hems["book_title"], "Hemsöborna");
+    assert_eq!(hems["note"], "Början.");
+    assert_eq!(hems["book_has_cover"], false);
+    assert!(hems["book_changed_at"].is_string());
+    assert!(list.iter().all(|n| n["book_id"] != bobs));
+    let (status, _) = send(&app, Method::GET, "/api/annotations", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // One Markdown file with every book that has any, by title.
+    let req = Request::builder().uri("/api/annotations/export").header(header::COOKIE, &a).body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(res.headers()[header::CONTENT_DISPOSITION].to_str().unwrap().contains("notes.md"));
+    let body = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    let (h, r) = (body.find("# Hemsöborna").unwrap(), body.find("# Röda rummet").unwrap());
+    assert!(h < r, "{body}");
+    assert!(body.contains("> Han kom som ett yrväder") && body.contains("Början."));
+    assert!(!body.contains("Bobs"));
+}
