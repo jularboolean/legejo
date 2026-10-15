@@ -4,6 +4,18 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.21.1 (2026-10-15)
+
+- **You see what you pick in Safari.** In Safari, and in the app on a home
+  screen, text could only be picked blind: the reader has to lay a cover over
+  the book there, and the browser draws no selection under it. Now the
+  passage is marked as you drag the mouse, the pointer is a text cursor over
+  the page, and on a phone a finger held on a word and then moved picks from
+  there to where it is, marked as it moves.
+- **From a book to its notes.** The count of highlights on a book's page
+  leads to that book on My notes.
+- **Upgrading:** nothing to do.
+
 ## 1.21.0 (2026-10-15)
 
 - **My notes.** A new page in the sidebar gathers every highlight and note

@@ -82,24 +82,9 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 ## Why not?
 
-Legejo is built around EPUB. That is the format it opens in the browser, checks
-and repairs, writes your corrections back into, converts for Kobo and reads
-aloud.
-
-Legejo keeps its own copy of every book, so that it can repair the file and
-write your corrections back into it. It does not read an existing folder of
-books in place or follow changes made there. If your folder structure should
-stay the source of truth, Legejo is not the right tool.
-
-PDF and CBZ files are welcome, but only looked after: Legejo stores them,
-describes them and hands them out. It does not open them and does not change
-them. A comic does reach a Kobo through Kobo sync, as a book made for the
-device; a PDF does not. If you want to read comics or PDFs in the browser,
-another tool will serve you better.
-
-Audiobooks are an optional extra, and deliberately a small one. Legejo stores
-the files and serves them as a podcast feed; it has no listening app of its
-own, and each file is one part.
+- **No comic or PDF reader.** Legejo keeps those files and hands them to your devices, but only opens EPUB.
+- **No audiobook player.** Audiobooks go to the podcast app you already have.
+- **Not a reader of your folders.** Legejo keeps its own copy of every book, to repair it and write your corrections into it; it does not read an existing folder in place.
 
 ## Features
 
