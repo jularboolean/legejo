@@ -4,6 +4,14 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.20.1 (2026-10-15)
+
+- **The page of a book stays inside a phone's screen.** On a narrow screen,
+  a chapter with a long title made the reader's page a little wider than the
+  screen, and the right edge of every line was cut off. The page now keeps to
+  the width of the screen, whatever the line at the bottom says.
+- **Upgrading:** nothing to do.
+
 ## 1.20.0 (2026-10-15)
 
 - **Who an author was.** Filtered on one author, the library says beside
