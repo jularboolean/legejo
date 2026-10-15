@@ -100,9 +100,10 @@
 		selecting = false;
 		selected = new Set();
 	}
-	// Books that disappear (deleted, filtered away) leave the selection.
+	// Books that disappear (deleted, filtered away) leave the selection, so
+	// that what is done to the selection is done only to books in sight.
 	$effect(() => {
-		const ids = new Set(data.books.map((b) => b.id));
+		const ids = new Set(visible.map((b) => b.id));
 		if ([...selected].some((id) => !ids.has(id))) selected = new Set([...selected].filter((id) => ids.has(id)));
 	});
 
@@ -146,14 +147,15 @@
 					resolve(null);
 				}
 			};
-			xhr.onerror = () => {
+			// Cut off rather than failed (the page is being left, say): the
+			// same as no network, so that the upload never hangs.
+			xhr.onerror = xhr.onabort = xhr.ontimeout = () => {
 				item.message = t('common.network');
 				resolve(null);
 			};
 			xhr.send(form);
 		});
 	}
-	let messages = $state<string[]>([]);
 	type Duplicate = {
 		filename: string;
 		kind: 'same_file' | 'same_isbn';
@@ -172,7 +174,6 @@
 		);
 		if (epubs.length === 0 || uploading) return;
 		uploading = true;
-		messages = [];
 		if (allowDuplicates) {
 			const again = new Set(epubs.map((f) => f.name));
 			duplicates = duplicates.filter((d) => !again.has(d.filename));
@@ -304,17 +305,13 @@
 	/>
 </div>
 
-{#each messages as msg}
-	<p class="error">{msg}</p>
-{/each}
-
 {#if uploads.length > 0}
 	<UploadPanel items={uploads} onclose={() => (uploads = [])} />
 {/if}
 
 {#if duplicates.length > 0}
 	<div class="duplicates">
-		{#each duplicates as d (d.filename + d.kind)}
+		{#each duplicates as d, i (`${i}:${d.filename}:${d.kind}`)}
 			<p>
 				{#if d.kind === 'same_file'}
 					{t('dup.sameFile', { file: d.filename })}

@@ -18,6 +18,7 @@ export type Person = {
 	key: string;
 };
 
+/** Lowercase without diacritics, so "lagerlof" finds "Lagerlöf". */
 export function fold(s: string): string {
 	return s
 		.normalize('NFD')
@@ -140,7 +141,8 @@ export function collectAuthors(books: LibraryBook[], locale: string): AuthorEntr
 		.map(({ spellings, person: p, books: list }) => {
 			const name = [...spellings.entries()].sort((a, b) => b[1] - a[1])[0][0];
 			const best = splitAuthors(name)[0] ?? p;
-			const finished = list.filter((b) => (b.progress_percent ?? 0) >= 0.99).length;
+			// Finished as readStatus() has it: marked read by hand, or read to the end.
+			const finished = list.filter((b) => !!b.read_at || (b.progress_percent ?? 0) >= 0.99).length;
 			return { ...best, key: p.key, books: list, finished };
 		})
 		.sort((a, b) => collator.compare(a.sort, b.sort));

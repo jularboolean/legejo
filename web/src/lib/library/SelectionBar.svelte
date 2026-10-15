@@ -51,8 +51,9 @@
 				message = t('edit.saveFailed');
 				return;
 			}
-			message = done(body.done);
-			skipped = body.skipped ?? [];
+			// Done, whatever the answer says beyond that.
+			message = done(body?.done ?? ids.length);
+			skipped = body?.skipped ?? [];
 			await invalidateAll();
 		} catch {
 			message = t('common.network');

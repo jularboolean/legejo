@@ -4,7 +4,7 @@
 
 import { renderMarkdown } from '../markdown';
 import type { Book, LibraryBook } from '../types';
-import { splitAuthors } from './authors';
+import { fold, splitAuthors } from './authors';
 
 export type SortKey = 'added' | 'title' | 'author' | 'year' | 'progress' | 'rating';
 export type SortDir = 'asc' | 'desc';
@@ -145,14 +145,6 @@ export function finishedAt(book: LibraryBook): string | null {
 /** "Sven Delblanc" sorts under D, "Lagerlöf, Selma" under L: the first author's surname. */
 export function authorSortKey(author: string | null | undefined): string | null {
 	return splitAuthors(author)[0]?.sort ?? null;
-}
-
-/** Lowercase without diacritics, so "lagerlof" finds "Lagerlöf". */
-function fold(s: string): string {
-	return s
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase();
 }
 
 export function filterBooks(books: LibraryBook[], f: Filters): LibraryBook[] {
