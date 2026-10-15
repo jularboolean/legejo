@@ -334,6 +334,8 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'notes.removeTitle': "Poistetaanko korostus?",
 	'notes.note': "Muistiinpano",
 	'notes.export': "Vie kaikki",
+	'notes.page': "s. {page}",
+	'notes.yours': "Oma muistiinpano",
 	'reading.heading': "Lukemiseni",
 	'reading.tile.books': "kirjaa kirjastossa",
 	'reading.tile.finished': "luettu ({percent} %)",

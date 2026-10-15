@@ -332,6 +332,8 @@ export const en = {
 	'notes.removeTitle': "Remove this highlight?",
 	'notes.note': "Note",
 	'notes.export': "Export all",
+	'notes.page': "p. {page}",
+	'notes.yours': "Your note",
 	'reading.heading': "My reading",
 	'reading.tile.books': "books in the library",
 	'reading.tile.finished': "finished ({percent} %)",

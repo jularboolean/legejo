@@ -334,6 +334,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'notes.removeTitle': "Ta bort understrykningen?",
 	'notes.note': "Anteckning",
 	'notes.export': "Exportera allt",
+	'notes.page': "s. {page}",
+	'notes.yours': "Din anteckning",
 	'reading.heading': "Min läsning",
 	'reading.tile.books': "böcker i biblioteket",
 	'reading.tile.finished': "utlästa ({percent} %)",

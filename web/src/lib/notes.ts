@@ -11,6 +11,9 @@ export type Note = {
 	text: string;
 	note: string | null;
 	color: string | null;
+	/** As a device said it, for a highlight from a Kobo. */
+	location?: { span?: { chapterTitle?: string } } | null;
+	place?: import('./types').Place | null;
 	created_at: string;
 	updated_at: string;
 	book_title: string;
@@ -58,6 +61,21 @@ export function byBook(notes: Note[]): BookNotes[] {
 	return [...books.values()]
 		.map((b) => ({ ...b, notes: [...b.notes].sort((p, q) => compareCfi(p.cfi, q.cfi) || p.id - q.id) }))
 		.sort((p, q) => latest(q).localeCompare(latest(p)));
+}
+
+/**
+ * Where a highlight stands, as a short line: "The Dirty Kid · 12 % · p. 34".
+ * A highlight from a Kobo that the reader has not placed yet has at least
+ * the chapter the device named.
+ */
+export function placeLine(n: Note, page: (p: string) => string): string | null {
+	const chapter = n.place?.chapter ?? n.location?.span?.chapterTitle?.trim();
+	const parts = [
+		chapter,
+		n.place?.percent != null ? `${Math.round(n.place.percent * 100)} %` : null,
+		n.place?.page ? page(n.place.page) : null
+	].filter(Boolean);
+	return parts.length ? parts.join(' · ') : null;
 }
 
 /** The notes whose passage, note or book has every word; with notes only when asked. */

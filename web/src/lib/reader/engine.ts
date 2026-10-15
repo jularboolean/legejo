@@ -1515,6 +1515,61 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 			return null;
 		},
+		async placeOf(cfi) {
+			const section = spine.get(cfi);
+			if (!section || destroyed) return null;
+			const wasLoaded = !!section.contents;
+			let doc: Document | null = null;
+			let start: { node: Node; offset: number } | null = null;
+			try {
+				const root = await section.load(book.load.bind(book));
+				doc = root.ownerDocument;
+				const range: Range = new (ePub as unknown as { CFI: new (c: string) => { toRange(d: Document): Range } }).CFI(cfi).toRange(doc);
+				start = { node: range.startContainer, offset: range.startOffset };
+			} catch {
+				// Placed by spine item alone.
+			}
+			// An anchor in this chapter that comes before the passage, or at it.
+			const before = (id: string | null) => {
+				if (!id) return true;
+				const el = doc?.getElementById(id);
+				if (!el || !doc || !start) return false;
+				const r = doc.createRange();
+				r.setStartBefore(el);
+				try {
+					return r.comparePoint(start.node, start.offset) >= 0;
+				} catch {
+					return false;
+				}
+			};
+			const upTo = (index: number, fragment: string | null) =>
+				index >= 0 && (index < section.index || (index === section.index && before(fragment)));
+
+			let chapter: string | undefined;
+			for (const entry of flatToc) if (upTo(entry.index, entry.fragment)) chapter = entry.item.label;
+
+			let page: string | undefined;
+			try {
+				const pages = ((await book.loaded.pageList) ?? []) as { href: string; page: string }[];
+				for (const p of pages) {
+					const at = resolveHref(p.href);
+					if (upTo(at.index, at.fragment)) page = String(p.page).trim() || page;
+				}
+			} catch {
+				// No page list.
+			}
+
+			const percent = locationsReady ? book.locations.percentageFromCfi(cfi) : NaN;
+			if (!wasLoaded) {
+				try {
+					section.unload();
+				} catch {
+					// Left loaded.
+				}
+			}
+			const place = { chapter, page, ...(Number.isFinite(percent) ? { percent: clamp01(percent) } : {}) };
+			return place.chapter || place.page || 'percent' in place ? place : null;
+		},
 		async locate(text, chapter): Promise<string | null> {
 			const wanted = text.replace(/\s+/g, ' ').trim();
 			if (!wanted) return null;

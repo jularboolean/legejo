@@ -45,11 +45,42 @@ pub struct Annotation {
     pub color: Option<String>,
     /// Where a device put it, as the device said (JSON); for placing it.
     pub location: Option<String>,
+    /// Chapter, share of the book and printed page, as the reader found them.
+    #[serde(serialize_with = "as_json")]
+    pub place: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-const COLUMNS: &str = "id, book_id, source, cfi, text, note, color, location, created_at, updated_at";
+const COLUMNS: &str = "id, book_id, source, cfi, text, note, color, location, place, created_at, updated_at";
+
+/// A JSON column given as the value it holds, not as a string of it.
+fn as_json<S: serde::Serializer>(raw: &Option<String>, s: S) -> Result<S::Ok, S::Error> {
+    let value: Option<serde_json::Value> = raw.as_deref().and_then(|r| serde_json::from_str(r).ok());
+    serde::Serialize::serialize(&value, s)
+}
+
+/// What the reader says of a highlight's place, kept to what is shown:
+/// a chapter's name, a share of the book (0-1) and a printed page.
+fn clean_place(place: Option<serde_json::Value>) -> Option<String> {
+    let place = place?;
+    let mut out = serde_json::Map::new();
+    if let Some(chapter) = place.get("chapter").and_then(|v| v.as_str()).map(str::trim).filter(|c| !c.is_empty()) {
+        out.insert("chapter".into(), json!(chapter.chars().take(200).collect::<String>()));
+    }
+    if let Some(percent) = place.get("percent").and_then(|v| v.as_f64()).filter(|p| (0.0..=1.0).contains(p)) {
+        out.insert("percent".into(), json!((percent * 1000.0).round() / 1000.0));
+    }
+    let page = match place.get("page") {
+        Some(serde_json::Value::String(p)) => Some(p.trim().to_string()),
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        _ => None,
+    };
+    if let Some(page) = page.filter(|p| !p.is_empty() && p.chars().count() <= 20) {
+        out.insert("page".into(), json!(page));
+    }
+    (!out.is_empty()).then(|| serde_json::Value::Object(out).to_string())
+}
 
 fn clean_note(note: Option<String>) -> Result<Option<String>, Response> {
     let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
@@ -107,6 +138,8 @@ pub struct Create {
     cfi: String,
     text: String,
     note: Option<String>,
+    #[serde(default)]
+    place: Option<serde_json::Value>,
 }
 
 /// POST /api/books/{id}/annotations: a highlight, with a note when given.
@@ -128,8 +161,8 @@ pub async fn create(
     let note = clean_note(req.note)?;
     let now = now_ts();
     let id: i64 = sqlx::query_scalar(
-        "INSERT INTO annotations (book_id, user_id, source, cfi, text, note, created_at, updated_at)
-         VALUES ($1, $2, 'web', $3, $4, $5, $6, $6) RETURNING id",
+        "INSERT INTO annotations (book_id, user_id, source, cfi, text, note, place, created_at, updated_at)
+         VALUES ($1, $2, 'web', $3, $4, $5, $7, $6, $6) RETURNING id",
     )
     .bind(book_id)
     .bind(user.0.id)
@@ -137,6 +170,7 @@ pub async fn create(
     .bind(&text)
     .bind(&note)
     .bind(&now)
+    .bind(clean_place(req.place))
     .fetch_one(&state.db)
     .await
     .map_err(internal)?;
@@ -151,6 +185,9 @@ pub struct Update {
     /// Where the reader found a passage that came without a place (from a
     /// device). Absent: unchanged.
     cfi: Option<String>,
+    /// Chapter, share and page, as the reader found them. Absent: unchanged.
+    #[serde(default)]
+    place: Option<serde_json::Value>,
 }
 
 /// PUT /api/annotations/{id}: the note, or the place.
@@ -161,6 +198,19 @@ pub async fn update(
     Json(req): Json<Update>,
 ) -> Result<Json<Annotation>, Response> {
     let current = fetch(&state, user.0.id, id).await?;
+    // The place is the reader's bookkeeping, not a change to the highlight:
+    // written without touching updated_at, which devices go by.
+    if let Some(place) = clean_place(req.place) {
+        sqlx::query("UPDATE annotations SET place = $1 WHERE id = $2")
+            .bind(place)
+            .bind(id)
+            .execute(&state.db)
+            .await
+            .map_err(internal)?;
+        if req.note.is_none() && req.cfi.is_none() {
+            return Ok(Json(fetch(&state, user.0.id, id).await?));
+        }
+    }
     let note = match req.note {
         Some(note) => clean_note(note)?,
         None => current.note,
@@ -226,6 +276,11 @@ pub struct InBook {
     pub text: String,
     pub note: Option<String>,
     pub color: Option<String>,
+    /// As the device said it, for a highlight from a Kobo (JSON).
+    #[serde(serialize_with = "as_json")]
+    pub location: Option<String>,
+    #[serde(serialize_with = "as_json")]
+    pub place: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub book_title: String,
@@ -240,7 +295,7 @@ pub struct InBook {
 /// the page orders them as they stand in the book.
 pub async fn all(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<InBook>>, Response> {
     let rows: Vec<InBook> = sqlx::query_as(
-        "SELECT a.id, a.book_id, a.source, a.cfi, a.text, a.note, a.color, a.created_at, a.updated_at,
+        "SELECT a.id, a.book_id, a.source, a.cfi, a.text, a.note, a.color, a.location, a.place, a.created_at, a.updated_at,
                 b.title AS book_title, b.author AS book_author,
                 CAST(CASE WHEN b.cover_mime IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) AS book_has_cover,
                 COALESCE(b.updated_at, b.created_at) AS book_changed_at

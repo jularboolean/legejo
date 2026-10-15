@@ -218,6 +218,11 @@ export interface ReaderEngine {
 	/** The id of the highlight drawn under a point of the top window, if any. */
 	markAt(x: number, y: number): number | null;
 	/**
+	 * Where a passage stands: its chapter, how far through the book, and its
+	 * page in the printed edition when the book has a page list.
+	 */
+	placeOf(cfi: string): Promise<import('#lib/types').Place | null>;
+	/**
 	 * Where a passage is, as a range CFI: the first place its text occurs,
 	 * in the chapter named (a file path inside the EPUB, matched from the
 	 * end) or anywhere in the book. Null when it is not found.

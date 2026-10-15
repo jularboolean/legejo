@@ -3,11 +3,11 @@
 	// the order they stand in the book, with a search over them all. A note
 	// can be written or changed here, a highlight removed, and each opens the
 	// book at its place.
-	import { Download, Highlighter, Pencil, Search, Trash2 } from '@lucide/svelte';
+	import { Download, Highlighter, NotebookPen, Pencil, Search, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { cover } from '#lib/cover';
 	import { t } from '#lib/i18n';
-	import { byBook, search, type Note } from '#lib/notes';
+	import { byBook, placeLine, search, type Note } from '#lib/notes';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -102,8 +102,13 @@
 			</a>
 			<ol>
 				{#each book.notes as n (n.id)}
-					<li class="note" class:has-color={n.color} style:--mark={n.color ?? undefined}>
-						<blockquote>{n.text}</blockquote>
+					{@const where = placeLine(n, (p) => t('notes.page', { page: p }))}
+					<li class="note" style:--mark={n.color ?? undefined}>
+						<!-- The book's words, as a quotation; the reader's own below, set apart. -->
+						<figure class="passage">
+							<blockquote>{n.text}</blockquote>
+							{#if where}<figcaption class="where">{where}</figcaption>{/if}
+						</figure>
 						{#if editing === n.id}
 							<textarea bind:value={draft} rows="3" aria-label={t('notes.note')}></textarea>
 							<div class="actions">
@@ -112,7 +117,12 @@
 								{#if failed === n.id}<span class="error">{t('edit.saveFailed')}</span>{/if}
 							</div>
 						{:else}
-							{#if n.note}<p class="text">{n.note}</p>{/if}
+							{#if n.note}
+								<div class="own">
+									<NotebookPen size={14} aria-hidden="true" />
+									<p><span class="visually-hidden">{t('notes.yours')}: </span>{n.note}</p>
+								</div>
+							{/if}
 							<div class="actions">
 								{#if n.source === 'kobo'}<span class="tag">Kobo</span>{/if}
 								{#if n.cfi}
@@ -254,21 +264,58 @@
 		gap: 0.75rem;
 	}
 	.note {
-		padding: 0.7rem 0.9rem;
+		padding: 0.8rem 0.95rem;
 		border: 1px solid var(--border);
-		border-left: 3px solid var(--mark, var(--gold));
-		border-radius: 6px;
+		border-radius: 8px;
 		background: var(--card);
+	}
+	/* The book's words: in a book face, behind a bar in the highlight's
+	   colour, as they are marked in the reader. */
+	.passage {
+		margin: 0;
+		padding-left: 0.8rem;
+		border-left: 3px solid var(--mark, var(--gold));
 	}
 	blockquote {
 		margin: 0;
-		font-family: Georgia, serif;
+		font-family: Georgia, 'Iowan Old Style', serif;
+		font-size: 1.02rem;
 		line-height: 1.5;
 	}
-	.text {
-		margin: 0.5rem 0 0;
+	.where {
+		margin-top: 0.25rem;
+		font-size: 0.76rem;
+		color: var(--muted);
+	}
+	/* One's own words: in the interface's face, on a tint of its colour,
+	   with a pen before them. */
+	.own {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		margin-top: 0.65rem;
+		padding: 0.5rem 0.7rem;
+		border-radius: 6px;
+		background: color-mix(in srgb, var(--accent) 9%, transparent);
+		color: var(--fg);
 		font-size: 0.92rem;
+	}
+	.own :global(svg) {
+		flex-shrink: 0;
+		margin-top: 0.2rem;
+		color: var(--accent);
+	}
+	.own p {
+		margin: 0;
 		white-space: pre-wrap;
+	}
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	textarea {
 		width: 100%;

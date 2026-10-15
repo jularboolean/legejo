@@ -372,6 +372,45 @@
 		}
 	}
 
+	/** A passage's place, or nothing when the engine cannot tell. */
+	async function placeOf(cfi: string) {
+		try {
+			return (await engine?.placeOf(cfi)) ?? null;
+		} catch {
+			return null;
+		}
+	}
+
+	// Highlights made before places were kept, or before the book's
+	// positions were worked out, get theirs once both are there. Written
+	// apart from the highlight, so a device does not see it as changed.
+	let placing = false;
+	$effect(() => {
+		if (!engine || !locationsReady || placing) return;
+		const waiting = annotations.filter((a) => a.cfi && a.place?.percent == null);
+		if (waiting.length === 0) return;
+		placing = true;
+		(async () => {
+			for (const a of waiting) {
+				const place = await placeOf(a.cfi as string);
+				if (!place) continue;
+				try {
+					const res = await fetch(`/api/annotations/${a.id}`, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ place })
+					});
+					if (res.ok) {
+						const saved: Annotation = await res.json();
+						annotations = annotations.map((x) => (x.id === saved.id ? saved : x));
+					}
+				} catch {
+					// Next time the book is opened.
+				}
+			}
+		})().finally(() => (placing = false));
+	});
+
 	// What the page shows follows the list.
 	$effect(() => {
 		engine?.setMarks(annotations.filter((a) => a.cfi).map((a) => ({ id: a.id, cfi: a.cfi as string })));
@@ -439,7 +478,7 @@
 			const res = await fetch(`/api/books/${bookId}/annotations`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cfi: pending.cfi, text: pending.text, note })
+				body: JSON.stringify({ cfi: pending.cfi, text: pending.text, note, place: await placeOf(pending.cfi) })
 			});
 			if (!res.ok) throw new Error(String(res.status));
 			const made: Annotation = await res.json();

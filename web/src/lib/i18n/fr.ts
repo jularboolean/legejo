@@ -334,6 +334,8 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'notes.removeTitle': "Supprimer ce surlignage ?",
 	'notes.note': "Note",
 	'notes.export': "Tout exporter",
+	'notes.page': "p. {page}",
+	'notes.yours': "Votre note",
 	'reading.heading': "Mes lectures",
 	'reading.tile.books': "livres dans la bibliothèque",
 	'reading.tile.finished': "terminés ({percent} %)",

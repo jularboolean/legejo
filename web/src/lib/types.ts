@@ -103,8 +103,19 @@ export type Annotation = {
 	color: string | null;
 	/** Where a device put it, as the device said (JSON); null for the reader's own. */
 	location: string | null;
+	/** Chapter, share of the book and printed page, as the reader found them. */
+	place?: Place | null;
 	created_at: string;
 	updated_at: string;
+};
+
+/** Where a passage stands in a book, for reading off a list. */
+export type Place = {
+	chapter?: string;
+	/** 0–1 through the book. */
+	percent?: number;
+	/** The page of the printed edition, for a book with a page list. */
+	page?: string;
 };
 
 export type SeriesNeighbour = {

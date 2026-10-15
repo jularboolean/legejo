@@ -112,6 +112,7 @@ fn a_passage_of_several_lines_is_quoted_line_by_line() {
         note: Some("  ok  ".into()),
         color: None,
         location: None,
+        place: None,
         created_at: String::new(),
         updated_at: String::new(),
     };
@@ -159,4 +160,37 @@ async fn all_of_a_users_notes_come_together_with_their_books() {
     assert!(h < r, "{body}");
     assert!(body.contains("> Han kom som ett yrväder") && body.contains("Början."));
     assert!(!body.contains("Bobs"));
+}
+
+#[tokio::test]
+async fn a_highlight_knows_its_chapter_share_and_page_without_seeming_changed() {
+    let (app, db, _) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (book, _) = add_book(&db, alice, "Röda rummet").await;
+    let url = format!("/api/books/{book}/annotations");
+
+    // Made with its place; what is not a place is left out.
+    let (status, h) = send(&app, Method::POST, &url, Some(&a), Some(json!({
+        "cfi": "epubcfi(/6/4!/4/2,/1:0,/1:9)", "text": "Det var en afton",
+        "place": { "chapter": " Första kapitlet ", "percent": 0.12345, "page": 7, "secret": "x" }
+    }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{h}");
+    assert_eq!(h["place"], json!({ "chapter": "Första kapitlet", "percent": 0.123, "page": "7" }));
+
+    // One made before places were kept is given its place later, and does
+    // not count as changed: a device goes by updated_at.
+    let (_, old) = send(&app, Method::POST, &url, Some(&a), Some(json!({ "cfi": "epubcfi(/6/8!/4/2,/1:0,/1:5)", "text": "Stockholm" }))).await;
+    assert!(old["place"].is_null());
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let (status, placed) = send(&app, Method::PUT, &format!("/api/annotations/{}", old["id"]), Some(&a), Some(json!({ "place": { "chapter": "Andra", "percent": 0.5 } }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(placed["place"]["chapter"], "Andra");
+    assert_eq!(placed["updated_at"], old["updated_at"]);
+    // Nonsense is no place, and changes nothing.
+    let (_, same) = send(&app, Method::PUT, &format!("/api/annotations/{}", old["id"]), Some(&a), Some(json!({ "place": { "percent": 7 } }))).await;
+    assert_eq!(same["place"]["chapter"], "Andra");
+
+    // The list of all of them carries it.
+    let (_, all) = send(&app, Method::GET, "/api/annotations", Some(&a), None).await;
+    assert!(all.as_array().unwrap().iter().any(|n| n["place"]["page"] == "7"));
 }
