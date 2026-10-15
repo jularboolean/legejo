@@ -11,7 +11,9 @@
 //    (lib/offline/store.ts). This worker only reads it and keeps it fresh.
 //
 // The network always comes first for anything that can change. The caches
-// answer when it does not, and say so with a header the app looks for.
+// answer when it does not, and say so with a header the app looks for. A
+// server that answers with an error of its own (5xx, as a proxy in front of
+// a server that is down does) counts as not answering.
 
 import { assets, immutable } from '$app/manifest';
 import { BOOKS_CACHE, CACHED_HEADER, DATA_CACHE, SESSION_PATHS, bookKey } from '../lib/offline/keys';
@@ -94,6 +96,8 @@ async function networkFirst(request: Request, cacheName: string, key: string, ke
 		if (keep && response.status === 200 && (cacheName !== BOOKS_CACHE || (await cache.match(key)))) {
 			await cache.put(key, response.clone());
 		}
+		// The server is down behind its proxy: what is kept answers instead.
+		if (cached && response.status >= 500) throw new Error(`the server answered ${response.status}`);
 		return response;
 	});
 	if (!cached) return fresh;
@@ -135,17 +139,27 @@ async function cacheFirst(request: Request, cacheName: string, key: string, keep
 async function navigation(request: Request): Promise<Response> {
 	const shell = async () => (await caches.open(SHELL_CACHE)).match('/');
 	const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), PATIENCE_MS));
-	const fresh = fetch(request);
+	// A page of this version only: the app's own files for it are on the
+	// device. A server that is down, or a page of a newer version whose
+	// files are not (the new worker is still being installed), gives way
+	// to the page this worker has.
+	const fresh = fetch(request).then(async (response) => {
+		if (!response.ok) throw new Error(`the page answered ${response.status}`);
+		const html = await response.clone().text();
+		const wanted = html.match(/\/_app\/immutable\/[^"'\s)]+/g) ?? [];
+		if (wanted.some((path) => !ASSETS.has(path))) throw new Error('the page is of another version');
+		return response;
+	});
 	try {
 		const first = await Promise.race([fresh, late]);
 		if (first) return first;
 	} catch {
 		const page = await shell();
 		if (page) return page;
-		throw new Error('offline, and the app is not on this device yet');
+		return fetch(request);
 	}
 	fresh.catch(() => {});
-	return (await shell()) ?? fresh;
+	return (await shell()) ?? fetch(request);
 }
 
 sw.addEventListener('fetch', (event) => {
@@ -200,6 +214,8 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 	if (path.startsWith('/_app/immutable/')) {
-		event.respondWith(cacheFirst(request, SHELL_CACHE, path, true));
+		// One of another version's files: a page opened before this worker
+		// took over may still ask for it; any cache that has it answers.
+		event.respondWith(caches.match(path).then((kept) => kept ?? cacheFirst(request, SHELL_CACHE, path, true)));
 	}
 });

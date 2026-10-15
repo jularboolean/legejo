@@ -9,7 +9,8 @@
 	<h1>{page.status}</h1>
 	<p>{page.error?.message}</p>
 	<p>
-		<a href="/offline">{t('offline.toSaved')}</a>
+		<!-- Whole loads, not the app's own navigation: that is what failed. -->
+		<a href="/offline" data-sveltekit-reload>{t('offline.toSaved')}</a>
 		&ensp;·&ensp;
 		<a href="/" data-sveltekit-reload>{t('offline.retry')}</a>
 	</p>
