@@ -3,6 +3,7 @@
 	// the order they stand in the book, with a search over them all. A note
 	// can be written or changed here, a highlight removed, and each opens the
 	// book at its place.
+	import { page } from '$app/state';
 	import { Download, Highlighter, NotebookPen, Pencil, Search, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { cover } from '#lib/cover';
@@ -18,6 +19,9 @@
 	let withNotesOnly = $state(false);
 
 	const shown = $derived(byBook(search(notes, query, withNotesOnly)));
+	// The book asked for in the address (#book-12), as from its own page.
+	// Not :target, which the app's own navigation does not set.
+	const wanted = $derived(page.url.hash.slice(1));
 	const count = $derived(shown.reduce((n, b) => n + b.notes.length, 0));
 
 	let editing = $state<number | null>(null);
@@ -90,7 +94,7 @@
 	{/if}
 
 	{#each shown as book (book.bookId)}
-		<section class="book">
+		<section class="book" id={`book-${book.bookId}`} class:arrived={wanted === `book-${book.bookId}`}>
 			<a class="book-head" href={`/books/${book.bookId}`}>
 				<span class="thumb">
 					{#if book.hasCover}<img use:cover src={coverUrl(book)} alt="" loading="lazy" />{/if}
@@ -220,6 +224,22 @@
 	}
 	.book {
 		margin-bottom: 2rem;
+		/* Reached from the book's page (#book-12): clear of the bar above,
+		   and picked out for a moment. */
+		scroll-margin-top: 4.5rem;
+	}
+	.book.arrived .book-head .title {
+		color: var(--accent);
+	}
+	:global(:root[data-motion='on']) .book.arrived {
+		animation: arrived 1.6s ease-out;
+	}
+	@keyframes arrived {
+		from {
+			background: color-mix(in srgb, var(--accent) 12%, transparent);
+			box-shadow: 0 0 0 0.6rem color-mix(in srgb, var(--accent) 12%, transparent);
+			border-radius: 8px;
+		}
 	}
 	.book-head {
 		display: flex;

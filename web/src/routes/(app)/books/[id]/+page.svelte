@@ -339,7 +339,8 @@
 				{#if book.annotation_count > 0}
 					<p class="notes">
 						<Highlighter size={13} />
-						{book.annotation_count === 1 ? t('book.annotationsOne') : t('book.annotations', { count: book.annotation_count })}
+						<!-- To this book's highlights among all of them, on My notes. -->
+						<a href={`/notes#book-${book.id}`}>{book.annotation_count === 1 ? t('book.annotationsOne') : t('book.annotations', { count: book.annotation_count })}</a>
 						·
 						<a href={`/api/books/${book.id}/annotations/export`} download>{t('book.annotationsExport')}</a>
 					</p>
