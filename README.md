@@ -143,6 +143,7 @@ picture and a description of its own, and you decide how far it reaches.
 ### Reading
 - A web reader with themes, font settings and saved position.
 - Highlights and notes in the web reader, listed in a panel and exported as Markdown. With a Kobo they sync both ways, once an admin turns that on.
+- My notes: every highlight and note from all your books on one page, with chapter, place in the book and printed page where the book has one, to search, edit, export or open at the passage.
 - Legejo can be added to the home screen of a phone or tablet, where it opens as an app of its own. Books saved on the device can be read there without the network, and your place in them is sent when it is back.
 - Reading aloud in the web reader, with the device's own voices: the sentence being read is marked, and the pages turn along.
 - A reading page with what you are reading, what you want to read, and statistics. A book can be marked as read by hand, or started over, which forgets the place in it on a Kobo too.

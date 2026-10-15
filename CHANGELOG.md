@@ -4,6 +4,27 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.21.0 (2026-10-15)
+
+- **My notes.** A new page in the sidebar gathers every highlight and note
+  from all your books: book by book, in the order they come in the text, the
+  book you last changed something in first. Each shows the passage, your
+  note set apart below it, and in small grey the chapter, how far through
+  the book it is, and the page of the printed edition when the book has a
+  page list. Search them all, show only those with notes, write or change a
+  note right there, or remove a highlight. **Show in the book** opens the
+  reader at the passage, marked for a moment, without moving your place in
+  the book, and leads back to your notes. **Export all** gives every book's
+  notes in one Markdown file. Highlights from a Kobo are there too.
+- Highlights made before this version get their chapter and place the next
+  time their book is opened in the reader.
+- **A click on a highlight opens it.** On a computer, a click just beside a
+  highlight's lines, or in the gap between them, could turn the page
+  instead.
+- *The Legejo Cookbook* tells of My notes, in Going Through Your Notes.
+- **Upgrading:** nothing to do. A column is added for where a highlight
+  stands.
+
 ## 1.20.2 (2026-10-15)
 
 - **The app holds when the server is down, not only the network.** With the

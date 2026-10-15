@@ -412,8 +412,14 @@ highlights and notes a book has.</p>"""),
   """<p>Open <strong>Highlights and notes</strong> (the <code>N</code> key). Each entry shows
 the passage and the note; a click takes you there. The download button at the top of the panel
 gives you all of them as a Markdown file, and so does <strong>Export as Markdown</strong> on the
-book page.</p>""",
-  "<p>Markdown opens in any note-taking app and any text editor.</p>"),
+book page.</p>
+<p>For every book at once, open <strong>My notes</strong> in the sidebar. The highlights stand
+book by book, in the order they come in the text, each with its chapter and how far through the
+book it is, and the page of the printed edition when the book has one. Search them, write or
+change a note right there, or choose <strong>Show in the book</strong> to open the reader at the
+passage; your place in the book stays where it was. <strong>Export all</strong> gives every
+book's notes in one file.</p>""",
+  "<p>Markdown opens in any note-taking app and any text editor. Notes made on a Kobo are on the list too, marked Kobo.</p>"),
 
  ("Reading with the Keyboard",
   "<p>You prefer keys to the mouse.</p>",
