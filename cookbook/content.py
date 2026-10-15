@@ -265,7 +265,13 @@ beside it. The two buttons next to it switch between covers and a list.</p>""",
  ("Browsing by Author",
   "<p>You want to see everything by one writer.</p>",
   "<p>Open <strong>Authors</strong>, or click an author's name on any book page.</p>",
-  "<p>A book with several authors appears under each of them.</p>"),
+  """<p>A book with several authors appears under each of them.</p>
+<p><em>Optional: an admin turns on <strong>Authors from Wikidata</strong>.</em> Then a line
+beside the author's name says who the person was: when they lived, a few words about them, and a
+link to Wikipedia in your language. It appears only when Wikidata knows the person for certain,
+so a writer with a common name, or one Wikidata does not know, gets none. If the line is about
+someone else, choose <strong>Wrong person?</strong>; the line is gone for you, and
+<strong>Show again</strong> brings it back.</p>"""),
 
  ("Asking the Librarian",
   "<p>You do not know what you want to read, only what kind of thing.</p>",

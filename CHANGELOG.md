@@ -4,6 +4,30 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.20.0 (2026-10-15)
+
+- **Who an author was.** Filtered on one author, the library says beside
+  their name when they lived, who they were in a few words, and links to
+  Wikipedia in your language, from Wikidata. It appears only for a person
+  Wikidata knows for certain: an author with a common name, or one it does
+  not know, gets no line rather than the wrong one. If it is about someone
+  else after all, **Wrong person?** hides it for you, with a moment to undo
+  it, and **Show again** brings it back. Off until an admin turns on
+  **Authors from Wikidata**: the server then asks Wikidata about the authors
+  whose books are opened, by name, and keeps the answers for months. Your
+  browser never asks Wikidata itself, and a page never waits for it.
+- **The selection is only what you see.** Books selected and then filtered
+  out of sight left the selection only in name: a change to the selection,
+  such as removing it, reached them too. Now they leave it.
+- Two files of the same name among an upload's duplicates no longer stop
+  the list from showing, an upload cut off no longer leaves the upload
+  button locked, a change to many books that worked is no longer reported
+  as a network error, and the authors page counts a book marked read by
+  hand as read.
+- *The Legejo Cookbook* tells of the line about an author, in Browsing by
+  Author.
+- **Upgrading:** nothing to do. Two tables are added for what Wikidata says.
+
 ## 1.19.3 (2026-10-14)
 
 - **Open Library beside the ISBN.** A book in English, or in no stated

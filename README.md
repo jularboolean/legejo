@@ -112,6 +112,7 @@ own, and each file is one part.
 - A book whose file claims copyright is marked as protected from the start.
 - Series, tags, ratings, a want-to-read list and an edition date picker.
 - Full-text search, filters, sorting, an authors page and duplicate detection on upload.
+- Who an author was, from Wikidata (optional): filtered on one author, a line gives their years, a short description and a link to Wikipedia in your language, for authors found for certain. The server asks Wikidata and keeps the answers; your browser never does.
 - Select many books at once to tag, shelve, mark as want-to-read or delete them.
 
 ### Shelves to share
