@@ -30,6 +30,11 @@
 	let round = $state(0);
 	const UNDO_MS = 6000;
 
+	// The undo's timer goes with the line, whenever the line goes.
+	$effect(() => () => {
+		if (undoTimer) clearTimeout(undoTimer);
+	});
+
 	$effect(() => {
 		const asked = name;
 		void round;
