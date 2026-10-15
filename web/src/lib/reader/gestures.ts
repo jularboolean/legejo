@@ -34,6 +34,8 @@ export type GestureHandlers = {
 	onLongPress?: (point: { x: number; y: number }) => void;
 	/** The mouse was dragged from one point of the top window to another. */
 	onDragSelect?: (from: { x: number; y: number }, to: { x: number; y: number }) => void;
+	/** The mouse is being dragged: where it started and where it is now. */
+	onDragMove?: (from: { x: number; y: number }, to: { x: number; y: number }) => void;
 };
 
 const LONG_PRESS_MS = 550;
@@ -65,6 +67,10 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	let touch: { x: number; y: number; time: number } | null = null;
 	let lastSwipe = 0;
 	let press: { x: number; y: number; timer: number } | null = null;
+	// A finger held long and still on a word, and then moved without being
+	// lifted: it picks from there to where it is, as a mouse drag does.
+	let held: { x: number; y: number; moved: boolean } | null = null;
+	let heldFrame = 0;
 
 	// A long press: held still for a moment, on a touch screen or with a
 	// mouse button. The tap or swipe that would follow is then not one.
@@ -72,7 +78,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		if (press) window.clearTimeout(press.timer);
 		press = null;
 	};
-	const pressStart = (x: number, y: number) => {
+	const pressStart = (x: number, y: number, byTouch = false) => {
 		pressEnd();
 		press = {
 			x,
@@ -81,6 +87,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 				press = null;
 				touch = null;
 				lastSwipe = Date.now();
+				if (byTouch && handlers.onDragMove) held = { x, y, moved: false };
 				const offset = frameOffset(doc);
 				handlers.onLongPress?.({ x: x + offset.x, y: y + offset.y });
 			}, LONG_PRESS_MS)
@@ -124,16 +131,41 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	on('touchstart', (event) => {
 		const t = event.touches.length === 1 ? event.touches[0] : null;
 		touch = t ? { x: t.screenX, y: t.screenY, time: Date.now() } : null;
-		if (t && handlers.onLongPress) pressStart(t.clientX, t.clientY);
+		held = null;
+		if (t && handlers.onLongPress) pressStart(t.clientX, t.clientY, true);
 		else pressEnd();
 	});
 	on('touchmove', (event) => {
 		handlers.onActivity?.();
 		const t = event.touches[0];
-		if (t) pressMove(t.clientX, t.clientY);
+		if (!t) return;
+		pressMove(t.clientX, t.clientY);
+		const from = held;
+		if (!from || heldFrame) return;
+		if (Math.abs(t.clientX - from.x) < LONG_PRESS_SLOP_PX && Math.abs(t.clientY - from.y) < LONG_PRESS_SLOP_PX) return;
+		from.moved = true;
+		const { clientX, clientY } = t;
+		heldFrame = requestAnimationFrame(() => {
+			heldFrame = 0;
+			if (held !== from) return;
+			const offset = frameOffset(doc);
+			handlers.onDragMove?.({ x: from.x + offset.x, y: from.y + offset.y }, { x: clientX + offset.x, y: clientY + offset.y });
+		});
 	});
 	on('touchend', (event) => {
 		pressEnd();
+		const picked = held;
+		held = null;
+		if (picked?.moved) {
+			const t = event.changedTouches[0];
+			if (t) {
+				lastSwipe = Date.now();
+				const offset = frameOffset(doc);
+				handlers.onDragSelect?.({ x: picked.x + offset.x, y: picked.y + offset.y }, { x: t.clientX + offset.x, y: t.clientY + offset.y });
+			}
+			touch = null;
+			return;
+		}
 		const start = touch;
 		touch = null;
 		const t = event.changedTouches[0];
@@ -149,6 +181,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	});
 	on('touchcancel', () => {
 		pressEnd();
+		held = null;
 		touch = null;
 	});
 	// A mouse drag: from where the button went down to where it came up. The
@@ -159,7 +192,21 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		if (handlers.onLongPress) pressStart(event.clientX, event.clientY);
 		drag = handlers.onDragSelect ? { x: event.clientX, y: event.clientY } : null;
 	});
-	on('mousemove', (event) => pressMove(event.clientX, event.clientY));
+	// While a drag goes on, where it has reached, once a frame at most.
+	let dragFrame = 0;
+	on('mousemove', (event) => {
+		pressMove(event.clientX, event.clientY);
+		const from = drag;
+		if (!from || !handlers.onDragMove || dragFrame) return;
+		const { clientX, clientY } = event;
+		if (Math.abs(clientX - from.x) < LONG_PRESS_SLOP_PX && Math.abs(clientY - from.y) < LONG_PRESS_SLOP_PX) return;
+		dragFrame = requestAnimationFrame(() => {
+			dragFrame = 0;
+			if (!drag) return;
+			const offset = frameOffset(doc);
+			handlers.onDragMove?.({ x: from.x + offset.x, y: from.y + offset.y }, { x: clientX + offset.x, y: clientY + offset.y });
+		});
+	});
 	on('mouseup', (event) => {
 		pressEnd();
 		const from = drag;

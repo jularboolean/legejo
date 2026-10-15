@@ -442,6 +442,17 @@
 		if (passage) offer(passage);
 	}
 
+	/**
+	 * With the shield up the browser draws no selection while the mouse is
+	 * dragged: the passage it would be is marked as the drag goes, so that
+	 * one sees what is being picked.
+	 */
+	function previewDrag(from: { x: number; y: number }, to: { x: number; y: number }) {
+		if (!engine || panel || !shield) return;
+		const passage = engine.passageBetween(from, to);
+		if (passage) engine.highlight(passage.cfi);
+	}
+
 	/** With the shield up a drag cannot select; the text between its ends is the passage. */
 	function offerDrag(from: { x: number; y: number }, to: { x: number; y: number }) {
 		if (!engine || panel || !shield) return;
@@ -584,6 +595,7 @@
 		onSelect: offerSelection,
 		onLongPress: offerSentence,
 		onDragSelect: offerDrag,
+		onDragMove: previewDrag,
 		onWheel(deltaY) {
 			// One page per wheel gesture; trackpads keep sending events while coasting.
 			if (!paginated || Math.abs(deltaY) < 20 || Date.now() - wheelAt < 450) return;
@@ -1278,6 +1290,13 @@
 	}
 	.stage.shield :global(iframe) {
 		pointer-events: none;
+	}
+	/* Over the shield the pointer is the text cursor it would be over the
+	   text itself, so that it looks like text that can be picked. */
+	@media (pointer: fine) {
+		.stage.shield {
+			cursor: text;
+		}
 	}
 	.page {
 		width: 100%;
