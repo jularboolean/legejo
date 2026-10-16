@@ -3,7 +3,9 @@
 //! Content-Type: the bytes must decode as a bitmap, and the type stored is
 //! the one the decoder found. An SVG never decodes, so script never gets
 //! onto the app's origin that way; the response carries nosniff, so a
-//! browser does not second-guess the type either.
+//! browser does not second-guess the type either. The one SVG that can be
+//! stored is a cover an EPUB declares as such: it is served as an SVG, but
+//! under a policy that lets it draw and nothing more.
 
 use crate::AppState;
 use axum::extract::multipart::{Multipart, MultipartError};
@@ -25,15 +27,28 @@ const AVATAR_PIXELS: u32 = 512;
 const MAX_DECODE_ALLOC: u64 = 256 * 1024 * 1024;
 const MAX_PIXELS_EACH_WAY: u32 = 12_000;
 
-/// The types a browser is told. Anything else that happens to be stored (an
-/// EPUB may declare its cover as it likes) goes out as plain bytes.
+/// The types a browser is told. An SVG is a cover format an EPUB may use,
+/// so one stored from a book keeps its type; anything else that happens to
+/// be stored goes out as plain bytes.
 const BITMAP_TYPES: [&str; 4] = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const SVG_TYPE: &str = "image/svg+xml";
 
-/// Content-Type and X-Content-Type-Options for a stored picture.
-pub(crate) fn headers(mime: &str) -> [(HeaderName, String); 2] {
+/// For a picture opened on its own: it may draw, with its own styles and
+/// the images it embeds, and nothing else may run, load from elsewhere or
+/// be submitted. Shown inside a page, a picture is not a document and the
+/// policy does not come into it.
+const PICTURE_POLICY: &str = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox";
+
+/// Content-Type, X-Content-Type-Options and Content-Security-Policy for a
+/// stored picture.
+pub(crate) fn headers(mime: &str) -> [(HeaderName, String); 3] {
     let plain = mime.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
-    let served = if BITMAP_TYPES.contains(&plain.as_str()) { plain } else { "application/octet-stream".to_string() };
-    [(header::CONTENT_TYPE, served), (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string())]
+    let served = if BITMAP_TYPES.contains(&plain.as_str()) || plain == SVG_TYPE { plain } else { "application/octet-stream".to_string() };
+    [
+        (header::CONTENT_TYPE, served),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+        (header::CONTENT_SECURITY_POLICY, PICTURE_POLICY.to_string()),
+    ]
 }
 
 fn bitmap_type(format: ImageFormat) -> Option<&'static str> {
@@ -147,13 +162,15 @@ mod tests {
     use tower::ServiceExt;
 
     #[test]
-    fn only_bitmap_types_are_served_as_such() {
+    fn only_picture_types_are_served_as_such() {
         let kind = |mime: &str| super::headers(mime)[0].1.clone();
         assert_eq!(kind("image/png"), "image/png");
         assert_eq!(kind("IMAGE/JPEG; charset=utf-8"), "image/jpeg");
-        assert_eq!(kind("image/svg+xml"), "application/octet-stream");
+        assert_eq!(kind("image/svg+xml"), "image/svg+xml", "an EPUB's own cover may be an SVG");
         assert_eq!(kind("text/html"), "application/octet-stream");
-        assert_eq!(super::headers("image/gif")[1], (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()));
+        let rest = &super::headers("image/gif")[1..];
+        assert_eq!(rest[0], (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()));
+        assert!(rest[1].1.contains("sandbox") && rest[1].1.contains("default-src 'none'"), "{}", rest[1].1);
     }
 
     /// A picture of one colour, as the bytes of a PNG file.
@@ -239,7 +256,7 @@ mod tests {
         assert_eq!(image::load_from_memory(&body).unwrap().width(), 10);
 
         // A type stored before this check is served as plain bytes.
-        sqlx::query("UPDATE users SET avatar_mime = 'image/svg+xml' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
+        sqlx::query("UPDATE users SET avatar_mime = 'text/html' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
         let (status, headers, _) = get(&app, &uri, &cookie).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(header(&headers, "content-type"), "application/octet-stream");
@@ -286,10 +303,16 @@ mod tests {
         assert_eq!(header(&headers, "content-type"), "image/jpeg");
         assert_eq!(header(&headers, "x-content-type-options"), "nosniff");
 
-        // A cover declared by an EPUB as something else goes out as plain bytes.
+        // A cover an EPUB declares as an SVG is served as one, under the
+        // policy that lets it draw and nothing else; any other type stored
+        // goes out as plain bytes.
         sqlx::query("UPDATE books SET cover_mime = 'image/svg+xml' WHERE id = ?").bind(book).execute(&db).await.unwrap();
         let (status, headers, _) = get(&app, &book_cover, &cookie).await;
         assert_eq!(status, StatusCode::OK);
+        assert_eq!(header(&headers, "content-type"), "image/svg+xml");
+        assert!(header(&headers, "content-security-policy").contains("sandbox"));
+        sqlx::query("UPDATE books SET cover_mime = 'text/html' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+        let (_, headers, _) = get(&app, &book_cover, &cookie).await;
         assert_eq!(header(&headers, "content-type"), "application/octet-stream");
     }
 }
