@@ -80,10 +80,9 @@ pub async fn create(
     headers: HeaderMap,
     Json(req): Json<CreateInvite>,
 ) -> Result<(StatusCode, Json<InviteResult>), Response> {
-    let username = req.username.trim().to_string();
-    if username.is_empty() || username.chars().count() > 60 {
-        return Err(err(StatusCode::UNPROCESSABLE_ENTITY, "username must be 1-60 characters"));
-    }
+    let username = crate::auth::validate_username(&req.username)
+        .map_err(|why| err(StatusCode::UNPROCESSABLE_ENTITY, why))?
+        .to_string();
     let email = req.email.map(|e| e.trim().to_string()).filter(|e| !e.is_empty());
     if let Some(e) = &email {
         if !crate::register::looks_like_email(e) {
@@ -262,6 +261,11 @@ mod tests {
         // Only admins invite.
         let (status, _) = send(&app, Method::POST, "/api/admin/invites", Some(&plain_cookie), Some(json!({ "username": "x" }))).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
+        // The username rule applies here as everywhere.
+        for bad in ["", " ", &"a".repeat(61), "ca\u{7}rol"] {
+            let (status, _) = send(&app, Method::POST, "/api/admin/invites", Some(&admin_cookie), Some(json!({ "username": bad }))).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bad:?}");
+        }
 
         let (status, v) = send(&app, Method::POST, "/api/admin/invites", Some(&admin_cookie), Some(json!({ "username": "Carol" }))).await;
         assert_eq!(status, StatusCode::CREATED, "{v}");

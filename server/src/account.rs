@@ -175,10 +175,7 @@ pub async fn update(
     jar: CookieJar,
     Json(req): Json<UpdateAccount>,
 ) -> Result<Json<Account>, Response> {
-    let username = req.username.trim();
-    if username.is_empty() {
-        return Err(unprocessable("username must not be empty"));
-    }
+    let username = crate::auth::validate_username(&req.username).map_err(unprocessable)?;
     let new_password = req.new_password.filter(|p| !p.is_empty());
     if new_password.as_deref().is_some_and(|p| p.len() < 8) {
         return Err(unprocessable("password must be at least 8 characters"));
@@ -475,6 +472,37 @@ pub async fn delete_account(
     let mut removal = axum_extra::extract::cookie::Cookie::from(auth::SESSION_COOKIE);
     removal.set_path("/");
     Ok(jar.remove(removal))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testutil::{add_user, send, test_app};
+    use axum::http::{Method, StatusCode};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn renaming_follows_the_username_rule() {
+        let (app, db, _) = test_app().await;
+        let (ada, cookie) = add_user(&db, "ada").await;
+        let hash = crate::db::hash_password("adas lösenord").await.unwrap();
+        sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?").bind(&hash).bind(ada).execute(&db).await.unwrap();
+        let rename = |name: String| {
+            let app = app.clone();
+            let cookie = cookie.clone();
+            async move {
+                send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "current_password": "adas lösenord", "username": name }))).await
+            }
+        };
+        for bad in ["", "   ", &"a".repeat(61), "ada\u{1f}"] {
+            let (status, _) = rename(bad.to_string()).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bad:?}");
+        }
+        let (status, v) = rename("  Ada Lovelace ".into()).await;
+        assert_eq!((status, v["username"].clone()), (StatusCode::OK, json!("Ada Lovelace")));
+        // The wrong password changes nothing.
+        let (status, _) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "current_password": "fel", "username": "x" }))).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+    }
 }
 
 /// GET /api/account/kobo/devices: the Kobo devices that have synced with

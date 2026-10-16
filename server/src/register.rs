@@ -85,11 +85,8 @@ pub async fn register(
             .into_response());
     }
 
-    let username = req.username.trim();
+    let username = crate::auth::validate_username(&req.username).map_err(unprocessable)?;
     let email = req.email.trim().to_string();
-    if username.is_empty() || username.len() > 60 {
-        return Err(unprocessable("username must be 1-60 characters"));
-    }
     if !looks_like_email(&email) {
         return Err(unprocessable("that does not look like an email address"));
     }

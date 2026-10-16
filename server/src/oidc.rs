@@ -591,19 +591,20 @@ async fn link_identity(state: &AppState, issuer: &str, subject: &str, user_id: i
 
 /// Base username for a new account: preferred_username, else name, else the
 /// email's local part. The caller appends -2, -3, ... to make it unique.
+/// Control characters are dropped and the rest is cut short enough for the
+/// suffix to fit the username rule (auth::validate_username).
 fn username_base(claims: &Claims) -> String {
     let candidates = [
         claims.preferred_username.as_deref(),
         claims.name.as_deref(),
         claims.email.as_deref().and_then(|e| e.split('@').next()),
     ];
-    let base = candidates
+    candidates
         .into_iter()
         .flatten()
-        .map(|s| s.trim().chars().filter(|c| !c.is_control()).take(50).collect::<String>())
-        .find(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "user".into());
-    base.trim().to_string()
+        .map(|s| s.chars().filter(|c| !c.is_control()).take(crate::auth::USERNAME_MAX_CHARS - 10).collect::<String>())
+        .find_map(|s| crate::auth::validate_username(&s).ok().map(str::to_string))
+        .unwrap_or_else(|| "user".into())
 }
 
 async fn create_user(state: &AppState, oidc: &Oidc, claims: &Claims) -> Result<i64, Failure> {
@@ -882,6 +883,10 @@ mod tests {
         assert_eq!(username_base(&c), "Carol von Essen");
         c.preferred_username = Some("  ".into());
         assert_eq!(username_base(&c), "Carol von Essen");
+        c.preferred_username = Some("car\u{7}ol\n".into());
+        assert_eq!(username_base(&c), "carol");
+        c.preferred_username = Some("c".repeat(80));
+        assert_eq!(username_base(&c), "c".repeat(50));
         c.groups = Some(json!(["readers", "legejo-admins"]));
         assert!(in_group(&c, "legejo-admins"));
         assert!(!in_group(&c, "admins"));

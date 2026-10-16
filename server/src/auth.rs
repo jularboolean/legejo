@@ -193,3 +193,37 @@ pub(crate) fn new_token() -> String {
     rand::thread_rng().fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
+
+/// The longest username, in characters.
+pub(crate) const USERNAME_MAX_CHARS: usize = 60;
+
+/// The one rule for a username, wherever one is chosen: registration, an
+/// invitation, a rename, an account made from an OIDC login. Trimmed, 1 to
+/// USERNAME_MAX_CHARS characters, no control characters. Returns the trimmed
+/// name, or what to tell the user.
+pub(crate) fn validate_username(name: &str) -> Result<&str, &'static str> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > USERNAME_MAX_CHARS {
+        return Err("username must be 1-60 characters");
+    }
+    if name.chars().any(char::is_control) {
+        return Err("username must not contain control characters");
+    }
+    Ok(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_username;
+
+    #[test]
+    fn the_username_rule() {
+        assert_eq!(validate_username("  Ada Lovelace "), Ok("Ada Lovelace"));
+        assert_eq!(validate_username(&"ä".repeat(60)), Ok("ä".repeat(60).as_str()));
+        assert!(validate_username("").is_err());
+        assert!(validate_username("   ").is_err());
+        assert!(validate_username(&"a".repeat(61)).is_err());
+        assert!(validate_username("ada\u{7}").is_err());
+        assert!(validate_username("ada\nlovelace").is_err());
+    }
+}
