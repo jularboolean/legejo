@@ -22,6 +22,7 @@ mod catalogs;
 mod epubfix;
 mod db;
 mod export;
+mod follows;
 mod fed;
 mod formats;
 mod healthcheck;
@@ -148,6 +149,7 @@ fn router(state: AppState) -> Router {
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))
         .route("/admin/users/{id}/admin", axum::routing::put(admin::set_admin))
+        .route("/admin/users/{id}/reset", post(register::admin_reset))
         .route("/admin/test-mail", post(admin::test_mail))
         .route("/admin/invites", post(invite::create))
         .route("/admin/invites/{id}", axum::routing::delete(invite::withdraw))
@@ -260,6 +262,9 @@ fn router(state: AppState) -> Router {
         .route("/admin/federation/rejections", axum::routing::delete(fed::admin::clear_rejections))
         .route("/public/shelves", get(public::shelves))
         .route("/public/shelves/{id}/cover", get(public::shelf_cover))
+        .route("/public/shelves/{id}/follow", axum::routing::put(follows::follow).delete(follows::unfollow))
+        .route("/follows/news", get(follows::news))
+        .route("/follows/seen", post(follows::seen_all))
         .route("/public/books/{id}/cover", get(public::book_cover))
         .route("/public/books/{id}/import", post(public::import_book))
         .route("/public/{owner}/{shelf}", get(public::shelf))
@@ -323,6 +328,7 @@ fn router(state: AppState) -> Router {
         .nest("/api", api)
         .nest("/api/opds", opds)
         .nest("/podcast", audiobooks::podcast_router())
+        .nest("/feeds", follows::router())
         .nest("/api/kobo/{token}", kobo)
         .nest("/api/kosync", kosync::router())
         .route("/metrics", get(metrics::metrics))
@@ -358,6 +364,28 @@ async fn main() -> anyhow::Result<()> {
         let listen = settings::var("LEGEJO_ADDR")?.unwrap_or_else(|| "127.0.0.1:3000".into());
         let ok = healthcheck::target(&listen).is_some_and(healthcheck::healthy);
         std::process::exit(if ok { 0 } else { 1 });
+    }
+    if std::env::args().nth(1).as_deref() == Some("reset-password") {
+        let Some(username) = std::env::args().nth(2) else {
+            eprintln!("usage: legejo reset-password <username>");
+            std::process::exit(2);
+        };
+        let data_dir = PathBuf::from(settings::var("LEGEJO_DATA_DIR")?.unwrap_or_else(|| "data".into()));
+        let (db, _) = db::connect(&data_dir).await?;
+        match register::reset_password_command(&db, &username).await {
+            Ok((name, link)) => {
+                println!("A link for {name} to choose a new password, valid for {} hours:", register::HANDED_RESET_HOURS);
+                println!("{link}");
+                if link.starts_with('/') {
+                    println!("(LEGEJO_PUBLIC_URL is not set: put the address of this Legejo in front of it.)");
+                }
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("{e:#}");
+                std::process::exit(1);
+            }
+        }
     }
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "legejo=debug,tower_http=info".into());

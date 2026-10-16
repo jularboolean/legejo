@@ -25,6 +25,7 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
 	import WhatsNew from '#lib/WhatsNew.svelte';
+	import { newBookCount, refreshFollowNews } from '#lib/follows.svelte';
 	import { t } from '#lib/i18n';
 	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
 	import { sendUnsent } from '#lib/reader/progress';
@@ -107,6 +108,8 @@
 	});
 	afterNavigate(() => {
 		if (data.user && availability() !== 'unsupported') savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
+		// After opening a followed shelf, its books are no longer new.
+		if (data.user) refreshFollowNews();
 	});
 
 	async function logout() {
@@ -256,6 +259,11 @@
 				<a class="nav-item lower" href="/public">
 					<Globe size={15} strokeWidth={1.75} />
 					{t('sidebar.public')}
+					{#if newBookCount() > 0}
+						<span class="badge new" title={t('follow.badge', { count: newBookCount() })} aria-label={t('follow.badge', { count: newBookCount() })}>
+							{newBookCount()}
+						</span>
+					{/if}
 				</a>
 				{#if data.fed.available && data.fed.enabled}
 					<a class="nav-item" href="/fediverse">
@@ -612,6 +620,13 @@
 		border-radius: 99px;
 		padding: 0.05rem 0.5rem;
 		flex-shrink: 0;
+	}
+	/* Books not yet seen on followed shelves. */
+	.badge.new {
+		margin-left: auto;
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 	@media (max-width: 48rem) {
 		.topbar {

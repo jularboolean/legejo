@@ -39,6 +39,16 @@
 		shelf.book_count === 1 ? t('shelf.book') : t('shelf.books', { count: shelf.book_count });
 </script>
 
+{#snippet followMark(shelf: PublicShelf)}
+	{#if shelf.follow.followed}
+		<span class="followed" class:fresh={shelf.follow.new_books > 0}>
+			{shelf.follow.new_books > 0
+				? t('follow.newCount', { count: shelf.follow.new_books })
+				: t('follow.following')}
+		</span>
+	{/if}
+{/snippet}
+
 <div class="head">
 	<h1>{t('public.heading')}</h1>
 	{#if data.publicShelves.length > 0}
@@ -55,7 +65,7 @@
 				<a class="row" href={shelfHref(shelf)}>
 					<img class="thumb" src={shelfCover(shelf)} alt="" loading="lazy" />
 					<div class="info">
-						<span class="name">{shelf.name}</span>
+						<span class="name">{shelf.name}{@render followMark(shelf)}</span>
 						<span class="owner">
 							<Avatar userId={shelf.owner_id} hasAvatar={shelf.owner_has_avatar} size={16} alt="" />
 							{t('public.by', { owner: shelf.owner })} · {count(shelf)}
@@ -86,7 +96,7 @@
 					<img src={shelfCover(shelf)} alt="" loading="lazy" />
 				</div>
 				<div class="meta">
-					<span class="name">{shelf.name}</span>
+					<span class="name">{shelf.name}{@render followMark(shelf)}</span>
 					<span class="owner">
 						<Avatar userId={shelf.owner_id} hasAvatar={shelf.owner_has_avatar} size={18} alt="" />
 						{t('public.by', { owner: shelf.owner })} · {shelf.book_count}
@@ -105,6 +115,21 @@
 {/if}
 
 <style>
+	.followed {
+		margin-left: 0.45rem;
+		font-size: 0.7rem;
+		font-weight: 500;
+		color: var(--accent);
+		border: 1px solid var(--accent);
+		border-radius: 99px;
+		padding: 0 0.45rem;
+		white-space: nowrap;
+		vertical-align: 0.1em;
+	}
+	.followed.fresh {
+		color: var(--bg);
+		background: var(--accent);
+	}
 	.head {
 		display: flex;
 		align-items: center;

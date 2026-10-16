@@ -491,7 +491,7 @@ fn shared_shelf_summary(shelf: &crate::public::PublicShelf) -> Value {
 }
 
 async fn list_shared_shelves(state: &AppState, user: &UserInfo) -> ToolResult {
-    let Json(shelves) = crate::public::shelves(State(state.clone()), as_user(user)).await.map_err(handler_error)?;
+    let Json(shelves) = crate::public::shelves(State(state.clone()), as_user(user), axum::http::HeaderMap::new()).await.map_err(handler_error)?;
     Ok(json!({ "shelves": shelves.iter().map(shared_shelf_summary).collect::<Vec<_>>() }))
 }
 
@@ -503,7 +503,7 @@ async fn get_shared_shelf(state: &AppState, user: &UserInfo, args: &Map<String, 
         args.get(name).and_then(Value::as_str).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string).ok_or_else(|| format!("{name} is required"))
     };
     let (owner, name) = (text("owner")?, text("name")?);
-    let Json(detail) = crate::public::shelf(State(state.clone()), as_user(user), Path((owner, name))).await.map_err(handler_error)?;
+    let detail = crate::public::shelf_detail(state, &as_user(user), &axum::http::HeaderMap::new(), &owner, &name).await.map_err(handler_error)?;
     let books: Vec<Value> = detail
         .books
         .iter()

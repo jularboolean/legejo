@@ -56,6 +56,22 @@
 		};
 	}
 
+	// A reset link for the admin to pass on, for instances without mail.
+	let resetMsg = $state<{ id: number; text: string; link?: string } | null>(null);
+
+	async function resetLink(id: number) {
+		resetMsg = null;
+		try {
+			const res = await fetch(`/api/admin/users/${id}/reset`, { method: 'POST' });
+			const body = await res.json().catch(() => null);
+			resetMsg = res.ok
+				? { id, text: t('adminUsers.resetCopy', { username: body.username, hours: body.hours }), link: body.link }
+				: { id, text: t('edit.saveFailed') };
+		} catch {
+			resetMsg = { id, text: t('common.network') };
+		}
+	}
+
 	async function withdrawInvite() {
 		if (!withdrawing) return;
 		const id = withdrawing.id;
@@ -109,6 +125,16 @@
 							<div class="invite-msg">
 								{inviteMsg.text}
 								{#if inviteMsg.link}<input readonly value={inviteMsg.link} onfocus={(e) => e.currentTarget.select()} />{/if}
+							</div>
+						{/if}
+					{:else if user.id !== me}
+						<div class="invite-actions">
+							<button type="button" class="linkish" onclick={() => resetLink(user.id)}>{t('adminUsers.resetLink')}</button>
+						</div>
+						{#if resetMsg?.id === user.id}
+							<div class="invite-msg">
+								{resetMsg.text}
+								{#if resetMsg.link}<input readonly value={resetMsg.link} onfocus={(e) => e.currentTarget.select()} />{/if}
 							</div>
 						{/if}
 					{/if}

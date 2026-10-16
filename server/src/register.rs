@@ -1,10 +1,16 @@
 //! Self-registration with email verification, gated by the
 //! `registration_enabled` setting, plus password reset by mail. Mail is sent
 //! over SMTP as configured in mail.rs.
+//!
+//! Without mail, a reset link can be handed over instead: an admin makes one
+//! for a user on the Admin page, and `legejo reset-password <user>` makes one
+//! from the shell, for when no admin can log in. Both lead to the same reset
+//! page as the mailed link, and are valid for HANDED_RESET_HOURS.
 
+use crate::auth::AdminUser;
 use crate::db::now_ts;
 use crate::AppState;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -220,14 +226,7 @@ pub async fn forgot(
     .map_err(|e| internal(e.into()))?;
 
     if let Some((id, username)) = row {
-        let token = crate::auth::new_token();
-        sqlx::query("UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3")
-            .bind(&token)
-            .bind(crate::db::ts_in_hours(1))
-            .bind(id)
-            .execute(&state.db)
-            .await
-            .map_err(|e| internal(e.into()))?;
+        let token = issue_reset_token(&state.db, id, 1).await.map_err(|e| internal(e.into()))?;
         let link = format!("{}/reset?token={token}", base_url(&headers));
         let html = format!(
             "<p>Hello {username},</p>\
@@ -302,4 +301,134 @@ pub async fn reset(
         .unwrap_or_default();
     crate::audit::log(&state, Some((id, &name)), "user.password_reset", json!({})).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// A link given by hand may wait a while before it is used.
+pub(crate) const HANDED_RESET_HOURS: i64 = 24;
+
+/// A new reset token for the user, replacing any earlier one.
+pub(crate) async fn issue_reset_token(db: &sqlx::AnyPool, user_id: i64, hours: i64) -> Result<String, sqlx::Error> {
+    let token = crate::auth::new_token();
+    sqlx::query("UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3")
+        .bind(&token)
+        .bind(crate::db::ts_in_hours(hours))
+        .bind(user_id)
+        .execute(db)
+        .await?;
+    Ok(token)
+}
+
+/// POST /api/admin/users/{id}/reset: a reset link for the admin to pass on.
+/// It is never mailed: this is the way for an instance without mail, and
+/// with mail the user can ask for one at the login page. An invited user
+/// who has not chosen a password gets a renewed invitation instead.
+pub async fn admin_reset(
+    State(state): State<AppState>,
+    admin: AdminUser,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, Response> {
+    let row: Option<(String, i64)> = sqlx::query_as(
+        "SELECT username, CAST(CASE WHEN invite_token IS NOT NULL THEN 1 ELSE 0 END AS BIGINT) FROM users WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let Some((username, invited)) = row else {
+        return Err((StatusCode::NOT_FOUND, Json(json!({ "error": "not found" }))).into_response());
+    };
+    if invited != 0 {
+        return Err((StatusCode::CONFLICT, Json(json!({ "error": "the invitation is still open" }))).into_response());
+    }
+    let token = issue_reset_token(&state.db, id, HANDED_RESET_HOURS).await.map_err(|e| internal(e.into()))?;
+    let link = format!("{}/reset?token={token}", crate::invite::base(&state, &headers));
+    tracing::info!("reset: {} made a reset link for {username}", admin.0.username);
+    crate::audit::log(&state, crate::audit::by(&admin.0), "user.reset_link", json!({ "user_id": id, "username": username })).await;
+    Ok(Json(json!({ "username": username, "link": link, "hours": HANDED_RESET_HOURS })))
+}
+
+/// `legejo reset-password <user>`: prints a reset link for the user, made
+/// straight in the database, for when nobody can log in as admin. The link
+/// starts with LEGEJO_PUBLIC_URL when it is set; otherwise only its path is
+/// printed, to be put after the instance's address.
+/// Returns the user's name as stored and the link.
+pub async fn reset_password_command(db: &sqlx::AnyPool, username: &str) -> anyhow::Result<(String, String)> {
+    let row: Option<(i64, String)> = sqlx::query_as("SELECT id, username FROM users WHERE LOWER(username) = LOWER($1)")
+        .bind(username.trim())
+        .fetch_optional(db)
+        .await?;
+    let Some((id, name)) = row else {
+        anyhow::bail!("no user named {username}");
+    };
+    let token = issue_reset_token(db, id, HANDED_RESET_HOURS).await?;
+    crate::audit::log_db(db, None, "user.reset_link", json!({ "user_id": id, "username": name, "from": "command line" })).await;
+    let base = crate::settings::var_lossy("LEGEJO_PUBLIC_URL").map(|u| u.trim().trim_end_matches('/').to_string()).unwrap_or_default();
+    Ok((name, format!("{base}/reset?token={token}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testutil::{add_user, send, test_app};
+    use axum::http::{Method, StatusCode};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn reset_link_without_mail() {
+        let (app, db, _) = test_app().await;
+        let (admin, admin_cookie) = add_user(&db, "chef").await;
+        sqlx::query("UPDATE users SET is_admin = 1 WHERE id = ?").bind(admin).execute(&db).await.unwrap();
+        let (ada, ada_cookie) = add_user(&db, "ada").await;
+
+        // Only an admin makes one, and not for an invitation still open.
+        let (status, _) = send(&app, Method::POST, &format!("/api/admin/users/{admin}/reset"), Some(&ada_cookie), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _) = send(&app, Method::POST, "/api/admin/users/9999/reset", Some(&admin_cookie), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (_, invite) = send(&app, Method::POST, "/api/admin/invites", Some(&admin_cookie), Some(json!({ "username": "ny" }))).await;
+        let invited = invite["id"].as_i64().unwrap();
+        let (status, _) = send(&app, Method::POST, &format!("/api/admin/users/{invited}/reset"), Some(&admin_cookie), None).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+
+        let (status, v) = send(&app, Method::POST, &format!("/api/admin/users/{ada}/reset"), Some(&admin_cookie), None).await;
+        assert_eq!(status, StatusCode::OK, "{v}");
+        assert_eq!((v["username"].clone(), v["hours"].clone()), (json!("ada"), json!(24)));
+        let link = v["link"].as_str().unwrap();
+        assert!(link.contains("/reset?token="), "{link}");
+        let token = link.split("token=").nth(1).unwrap();
+
+        // The link is the one the reset page takes: a new password, and the
+        // old sessions end.
+        let (status, _) = send(&app, Method::POST, "/api/register/reset", None, Some(json!({ "token": token, "password": "ett nytt lösenord" }))).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, _) = send(&app, Method::GET, "/api/account", Some(&ada_cookie), None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let (status, _) = send(&app, Method::POST, "/api/auth/login", None, Some(json!({ "username": "ada", "password": "ett nytt lösenord" }))).await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _) = send(&app, Method::POST, "/api/register/reset", None, Some(json!({ "token": token, "password": "ett tredje lösenord" }))).await;
+        assert_eq!(status, StatusCode::GONE, "used once");
+
+        // A link not used within the day stops working.
+        let (_, v) = send(&app, Method::POST, &format!("/api/admin/users/{ada}/reset"), Some(&admin_cookie), None).await;
+        let token = v["link"].as_str().unwrap().split("token=").nth(1).unwrap().to_string();
+        sqlx::query("UPDATE users SET reset_expires = '2000-01-01T00:00:00.000Z' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
+        let (status, _) = send(&app, Method::POST, "/api/register/reset", None, Some(json!({ "token": token, "password": "ett tredje lösenord" }))).await;
+        assert_eq!(status, StatusCode::GONE);
+
+        // From the shell: a link for any user, named in any case.
+        let (name, path) = super::reset_password_command(&db, "ADA").await.unwrap();
+        assert_eq!(name, "ada");
+        let token = path.split("token=").nth(1).unwrap();
+        let (status, _) = send(&app, Method::POST, "/api/register/reset", None, Some(json!({ "token": token, "password": "ett tredje lösenord" }))).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(super::reset_password_command(&db, "ingen").await.is_err());
+
+        // Both are in the log, the one from the shell without an actor.
+        let (_, log) = send(&app, Method::GET, "/api/admin/log?action=user.reset_link", Some(&admin_cookie), None).await;
+        let entries = log["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), 3);
+        assert!(entries[0]["actor_name"].is_null());
+        assert_eq!(entries[0]["details"]["from"], "command line");
+        assert_eq!(entries[2]["actor_name"], "chef");
+    }
 }

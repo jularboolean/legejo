@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Download, FileJson, FileSpreadsheet, PackageOpen, Trash2 } from '@lucide/svelte';
+	import { BookCheck, Download, FileJson, FileSpreadsheet, PackageOpen, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { getLocale, t } from '#lib/i18n';
 
@@ -123,7 +123,12 @@
 			<FileJson size={14} />
 			{t('leave.json')}
 		</a>
+		<a class="button ghost" href="/api/account/metadata?format=goodreads" download>
+			<BookCheck size={14} />
+			{t('leave.goodreads')}
+		</a>
 	</div>
+	<p class="hint">{t('leave.goodreadsHint')}</p>
 
 	<div class="export">
 		{#if !current || current.status === 'expired'}

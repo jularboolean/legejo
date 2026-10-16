@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { ArrowLeft, Check, Download } from '@lucide/svelte';
+	import { untrack } from 'svelte';
+	import { ArrowLeft, Bell, BellOff, Check, Download, Rss } from '@lucide/svelte';
+	import { refreshFollowNews } from '#lib/follows.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { renderMarkdown } from '#lib/markdown';
@@ -52,6 +54,50 @@
 		saveSharedSort(sort, dir);
 	}
 
+	// Following. Opening the page marks the shelf as seen on the server, so
+	// a reload (after an import, say) says nothing is new any more: what
+	// was new is decided once, from the first load of this shelf.
+	const initial = untrack(() => data.publicShelf);
+	let follow = $state(initial.follow);
+	let feedOpen = $state(false);
+	let followBusy = $state(false);
+	let firstLook = $state<{ shelf: number; seenAt: string | null }>({
+		shelf: initial.id,
+		seenAt: initial.follow.followed ? initial.follow.seen_at : null
+	});
+	$effect.pre(() => {
+		if (firstLook.shelf !== shelf.id) {
+			firstLook = { shelf: shelf.id, seenAt: shelf.follow.followed ? shelf.follow.seen_at : null };
+			follow = shelf.follow;
+			feedOpen = false;
+		}
+	});
+	const isNew = (book: PublicBook) =>
+		!!firstLook.seenAt && !!book.added_to_shelf && book.added_to_shelf > firstLook.seenAt;
+
+	async function toggleFollow() {
+		followBusy = true;
+		errorMsg = '';
+		try {
+			const res = await fetch(`/api/public/shelves/${shelf.id}/follow`, {
+				method: follow.followed ? 'DELETE' : 'PUT'
+			});
+			if (!res.ok) {
+				errorMsg = t('edit.saveFailed');
+			} else if (follow.followed) {
+				follow = { followed: false, new_books: 0, seen_at: null, feed: null };
+				feedOpen = false;
+			} else {
+				follow = await res.json();
+			}
+			refreshFollowNews();
+		} catch {
+			errorMsg = t('common.network');
+		} finally {
+			followBusy = false;
+		}
+	}
+
 	let importing = $state<Set<number>>(new Set());
 	let imported = $state<Set<number>>(new Set());
 	let errorMsg = $state('');
@@ -101,6 +147,31 @@
 	<div class="description">{@html descriptionHtml}</div>
 {/if}
 
+<div class="follow">
+	{#if follow.followed}
+		<span class="following"><Check size={13} /> {t('follow.following')}</span>
+		{#if follow.feed}
+			<button type="button" class="link" onclick={() => (feedOpen = !feedOpen)} aria-expanded={feedOpen}>
+				<Rss size={13} /> {t('follow.feed')}
+			</button>
+		{/if}
+		<button type="button" class="link quiet" disabled={followBusy} onclick={toggleFollow}>
+			<BellOff size={13} /> {t('follow.unfollow')}
+		</button>
+	{:else}
+		<button type="button" disabled={followBusy} onclick={toggleFollow}>
+			<Bell size={13} /> {t('follow.follow')}
+		</button>
+		<span class="hint">{t('follow.hint')}</span>
+	{/if}
+</div>
+{#if feedOpen && follow.feed}
+	<div class="feed">
+		<input readonly value={follow.feed} onfocus={(e) => e.currentTarget.select()} aria-label={t('follow.feed')} />
+		<p class="hint">{t('follow.feedHint')}</p>
+	</div>
+{/if}
+
 <div class="bar">
 	<p class="hint">{t('public.importHint')}</p>
 	{#if shelf.books.length > 0}
@@ -115,6 +186,7 @@
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
 {#snippet importAction(book: PublicBook)}
+	{#if isNew(book)}<span class="new">{t('follow.new')}</span>{/if}
 	{#if book.owned}
 		<span class="done"><Check size={13} /> {t('public.owned')}</span>
 	{:else if imported.has(book.id)}
@@ -315,6 +387,63 @@
 		font-size: 0.78rem;
 		padding: 0.3rem 0.6rem;
 		justify-content: center;
+		white-space: nowrap;
+	}
+	.follow {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.9rem;
+		margin: 0 0 1rem;
+	}
+	.follow > button:first-child {
+		font-size: 0.85rem;
+	}
+	.following {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.85rem;
+		color: var(--accent);
+	}
+	.follow .link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--accent);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.follow .link.quiet {
+		color: var(--muted);
+	}
+	.follow .link:hover {
+		text-decoration: underline;
+		filter: none;
+	}
+	.feed {
+		margin: -0.4rem 0 1.25rem;
+		max-width: 36rem;
+	}
+	.feed input {
+		width: 100%;
+		font-size: 0.78rem;
+	}
+	.feed .hint {
+		margin-top: 0.3rem;
+	}
+	.new {
+		align-self: flex-start;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--bg);
+		background: var(--accent);
+		border-radius: 99px;
+		padding: 0 0.45rem;
 		white-space: nowrap;
 	}
 	.done {

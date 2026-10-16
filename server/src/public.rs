@@ -40,6 +40,9 @@ pub struct PublicShelf {
     /// first, for a glimpse of the shelf in the list. Filled in by `shelves`.
     #[sqlx(skip)]
     pub cover_books: Vec<i64>,
+    /// Whether the caller follows the shelf, and what is new on it to them.
+    #[sqlx(skip)]
+    pub follow: crate::follows::FollowState,
 }
 
 const GLIMPSE: i64 = 4;
@@ -69,6 +72,7 @@ pub(crate) const PUBLIC_SHELF_COLUMNS: &str = "s.id, s.name, s.description,
 pub async fn shelves(
     State(state): State<AppState>,
     user: AuthUser,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<PublicShelf>>, Response> {
     let mut shelves: Vec<PublicShelf> = sqlx::query_as(&format!(
         "SELECT {PUBLIC_SHELF_COLUMNS}
@@ -86,6 +90,7 @@ pub async fn shelves(
     .map_err(|e| internal(e.into()))?;
     for shelf in &mut shelves {
         shelf.cover_books = glimpse(&state, shelf.id).await?;
+        shelf.follow = crate::follows::state_of(&state, &headers, user.0.id, shelf.id).await.map_err(|e| internal(e.into()))?;
     }
     Ok(Json(shelves))
 }
@@ -115,6 +120,9 @@ pub struct PublicBook {
     pub book: Book,
     /// Whether the requesting user already has this book in their library.
     pub owned: DbFlag,
+    /// When the book was put on the shelf, on a shelf's list of books.
+    #[sqlx(default)]
+    pub added_to_shelf: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -145,14 +153,34 @@ async fn fetch_public_shelf(state: &AppState, user_id: i64, owner: &str, name: &
     shelf.ok_or_else(not_found)
 }
 
+/// A shared shelf with its books. Opening it is looking at it: for a
+/// follower, what is on it now counts as seen (the response still says what
+/// was new, so the page can mark it).
 pub async fn shelf(
     State(state): State<AppState>,
     user: AuthUser,
+    headers: axum::http::HeaderMap,
     Path((owner, name)): Path<(String, String)>,
 ) -> Result<Json<PublicShelfDetail>, Response> {
-    let shelf = fetch_public_shelf(&state, user.0.id, &owner, &name).await?;
+    let detail = shelf_detail(&state, &user, &headers, &owner, &name).await?;
+    if detail.shelf.follow.followed {
+        crate::follows::mark_seen(&state, user.0.id, detail.shelf.id).await.map_err(|e| internal(e.into()))?;
+    }
+    Ok(Json(detail))
+}
+
+/// The shelf and its books, without counting as a look at it.
+pub(crate) async fn shelf_detail(
+    state: &AppState,
+    user: &AuthUser,
+    headers: &axum::http::HeaderMap,
+    owner: &str,
+    name: &str,
+) -> Result<PublicShelfDetail, Response> {
+    let mut shelf = fetch_public_shelf(state, user.0.id, owner, name).await?;
+    shelf.follow = crate::follows::state_of(state, headers, user.0.id, shelf.id).await.map_err(|e| internal(e.into()))?;
     let books: Vec<PublicBook> = sqlx::query_as(&format!(
-        "SELECT {BOOK_COLUMNS_B}, {owned} AS owned FROM books b
+        "SELECT {BOOK_COLUMNS_B}, {owned} AS owned, sb.added_at AS added_to_shelf FROM books b
          JOIN shelf_books sb ON sb.book_id = b.id
          WHERE sb.shelf_id = $1
          ORDER BY sb.added_at DESC, b.id DESC",
@@ -163,7 +191,7 @@ pub async fn shelf(
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    Ok(Json(PublicShelfDetail { shelf, books }))
+    Ok(PublicShelfDetail { shelf, books })
 }
 
 pub async fn shelf_cover(

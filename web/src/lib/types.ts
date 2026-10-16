@@ -176,9 +176,35 @@ export type PublicShelf = {
 	restricted: boolean;
 	/** A few of the shelf's books with covers, newest on the shelf first. */
 	cover_books: number[];
+	/** Whether the viewer follows the shelf, and what is new on it to them. */
+	follow: ShelfFollow;
 };
 
-export type PublicBook = Book & { owned: boolean };
+export type ShelfFollow = {
+	followed: boolean;
+	/** Books put on the shelf since the viewer last looked. */
+	new_books: number;
+	/** When the viewer last looked before this visit. */
+	seen_at: string | null;
+	/** The viewer's own Atom feed of the shelf. */
+	feed: string | null;
+};
+
+/** A followed shelf with books on it the viewer has not seen. */
+export type ShelfNews = {
+	id: number;
+	name: string;
+	owner: string;
+	new_books: number;
+	latest: string;
+	titles: { id: number; title: string; author: string | null }[];
+};
+
+export type PublicBook = Book & {
+	owned: boolean;
+	/** When the book was put on the shelf. */
+	added_to_shelf?: string | null;
+};
 
 export type PublicShelfDetail = PublicShelf & { books: PublicBook[] };
 

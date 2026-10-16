@@ -26,13 +26,19 @@ pub fn by(user: &UserInfo) -> Actor<'_> {
 }
 
 pub async fn log(state: &AppState, actor: Actor<'_>, action: &str, details: Value) {
+    log_db(&state.db, actor, action, details).await
+}
+
+/// `log()` for code that has the database but no running server, such as
+/// a command run from the shell.
+pub async fn log_db(db: &sqlx::AnyPool, actor: Actor<'_>, action: &str, details: Value) {
     let result = sqlx::query("INSERT INTO activity_log (at, actor_id, actor_name, action, details) VALUES ($1, $2, $3, $4, $5)")
         .bind(now_ts())
         .bind(actor.map(|(id, _)| id))
         .bind(actor.map(|(_, name)| name))
         .bind(action)
         .bind(details.to_string())
-        .execute(&state.db)
+        .execute(db)
         .await;
     if let Err(e) = result {
         tracing::warn!("audit log: could not write {action}: {e}");

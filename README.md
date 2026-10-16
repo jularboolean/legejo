@@ -113,6 +113,9 @@ picture and a description of its own, and you decide how far it reaches.
 - **Easy to browse.** A shared shelf can be seen as covers or as a list, and
   ordered by latest added, author, title or year. Search finds books on shared
   shelves alongside your own.
+- **Worth following.** Follow a shelf shared with you, and your library tells
+  you when books come onto it, with the new ones marked on the shelf. Each
+  follower also gets an Atom feed of the shelf for a feed reader.
 - **With someone on another Legejo (optional).** Make a private link to a
   shelf, one for each person. Pasted into their Legejo it becomes a shelf
   there, with its books to add to their library. Each link can be given a
@@ -169,6 +172,8 @@ picture and a description of its own, and you decide how far it reaches.
 - Multiple users with admin roles, invitations and optional self-registration with email verification.
 - Optional single sign-on through any OpenID Connect provider (Pocket ID, Authentik, Keycloak, Forgejo, ...).
 - An export of the whole library (book files, covers, CSV and JSON) and account deletion.
+- Your reading as a CSV in Goodreads' format, for StoryGraph, BookWyrm or Goodreads.
+- Password resets without mail: an admin makes a link to pass on, and `legejo reset-password <user>` makes one from the shell when no admin can log in.
 - A system log of everything that happens on the instance, and a note of what is new after each upgrade.
 - Interface in English, Swedish, Finnish, German, French, Spanish and Esperanto.
 - A choice of design for each device: light, dark, following the system, or Zamenhof, in the browns of an old textbook with the green star of Esperanto. Animations can be turned on.

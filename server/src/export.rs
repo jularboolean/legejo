@@ -64,6 +64,8 @@ pub struct ExportBook {
     rating: Option<i64>,
     progress_percent: Option<f64>,
     want_to_read: bool,
+    /// Marked as read by hand.
+    read_at: Option<String>,
     license: Option<String>,
     license_source_url: Option<String>,
     author_death_year: Option<i64>,
@@ -72,6 +74,9 @@ pub struct ExportBook {
     file: String,
     #[serde(skip)]
     uuid: String,
+    /// When the latest reading position was saved, from web, Kobo or KOReader.
+    #[serde(skip)]
+    last_read_at: Option<String>,
     #[serde(skip)]
     cover_mime: Option<String>,
     #[serde(skip)]
@@ -120,7 +125,9 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
         description: Option<String>,
         rating: Option<i64>,
         progress_percent: Option<f64>,
+        last_read_at: Option<String>,
         want_to_read: i64,
+        read_at: Option<String>,
         license: Option<String>,
         license_source_url: Option<String>,
         author_death_year: Option<i64>,
@@ -132,11 +139,13 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
     let rows: Vec<Row> = sqlx::query_as(&format!(
         "SELECT b.id, b.uuid, b.title, b.author, b.series, b.series_index, b.isbn, b.identifier, b.language,
                 b.publisher, b.published, b.first_published, b.category, b.description, b.rating, {percent} AS progress_percent,
-                b.want_to_read, b.license, b.license_source_url, b.author_death_year, b.created_at, b.cover_mime,
+                {last_read} AS last_read_at, b.want_to_read, b.read_at, b.license, b.license_source_url, b.author_death_year,
+                b.created_at, b.cover_mime,
                 b.file_size, b.format
          FROM books b {joins}
          WHERE b.owner_id = $1 ORDER BY b.id",
         percent = progress::progress_percent(state.backend),
+        last_read = progress::last_read_at(state.backend),
         joins = progress::PROGRESS_JOINS,
     ))
     .bind(user_id)
@@ -185,6 +194,8 @@ pub async fn collect(state: &AppState, user_id: i64) -> anyhow::Result<(Vec<Expo
                 rating: r.rating,
                 progress_percent: r.progress_percent,
                 want_to_read: r.want_to_read != 0,
+                read_at: r.read_at,
+                last_read_at: r.last_read_at,
                 license: r.license,
                 license_source_url: r.license_source_url,
                 author_death_year: r.author_death_year,
@@ -261,6 +272,192 @@ pub fn to_csv(books: &[ExportBook]) -> String {
     out
 }
 
+// ------------------------------------------------------- Goodreads CSV
+
+/// The columns of a Goodreads library export, which StoryGraph, BookWyrm
+/// and Goodreads itself all take in when importing.
+const GOODREADS_HEADER: [&str; 24] = [
+    "Book Id", "Title", "Author", "Author l-f", "Additional Authors", "ISBN", "ISBN13", "My Rating", "Average Rating", "Publisher",
+    "Binding", "Number of Pages", "Year Published", "Original Publication Year", "Date Read", "Date Added", "Bookshelves",
+    "Bookshelves with positions", "Exclusive Shelf", "My Review", "Spoiler", "Private Notes", "Read Count", "Owned Copies",
+];
+
+/// Read, being read or wanted, as Goodreads' exclusive shelves name them.
+/// A book with none of these is left out of the export. Finished follows
+/// the web: marked read by hand, or at 99 % or more.
+fn exclusive_shelf(b: &ExportBook) -> Option<&'static str> {
+    let p = b.progress_percent.unwrap_or(0.0);
+    if b.read_at.is_some() || p >= 0.99 {
+        Some("read")
+    } else if p > 0.0 {
+        Some("currently-reading")
+    } else if b.want_to_read {
+        Some("to-read")
+    } else {
+        None
+    }
+}
+
+/// "2026-10-15T08:00:00.000Z" as Goodreads writes dates, "2026/10/15".
+fn goodreads_date(ts: &str) -> String {
+    match ts.get(..10) {
+        Some(d) if d.as_bytes().get(4) == Some(&b'-') => d.replace('-', "/"),
+        _ => String::new(),
+    }
+}
+
+/// A shelf name as a Goodreads shelf: lowercase, words joined by hyphens.
+fn goodreads_shelf(name: &str) -> String {
+    name.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Words that belong to the surname: "Le Guin", "van Gogh", "af Klint".
+const PARTICLES: [&str; 23] = [
+    "le", "la", "de", "del", "della", "der", "den", "des", "di", "da", "du", "van", "von", "af", "av", "ten", "ter", "zu", "dos",
+    "das", "st.", "mac", "o",
+];
+
+fn is_particle(w: &str) -> bool {
+    PARTICLES.contains(&w.to_lowercase().as_str())
+}
+
+/// Life dates and roles that catalogs append: "1858-1940", "(red.)".
+fn is_noise(segment: &str) -> bool {
+    let s = segment.trim();
+    let digits = s.chars().filter(char::is_ascii_digit).count();
+    s.is_empty()
+        || digits >= 3
+        || (s.starts_with('(') && s.ends_with(')'))
+        || ["red", "ed", "eds", "övers", "transl", "ill", "förf", "author", "editor"]
+            .contains(&s.trim_end_matches('.').to_lowercase().as_str())
+}
+
+/// (first names, surname) of one name in natural order.
+fn natural(raw: &str) -> Option<(String, String)> {
+    let mut words: Vec<&str> = raw.split_whitespace().collect();
+    let mut surname = vec![words.pop()?];
+    while words.len() > 1 && is_particle(words[words.len() - 1]) {
+        surname.insert(0, words.pop()?);
+    }
+    Some((words.join(" "), surname.join(" ")))
+}
+
+fn from_commas(part: &str) -> Vec<(String, String)> {
+    let segments: Vec<&str> = part.split(',').map(str::trim).filter(|s| !is_noise(s)).collect();
+    let one_word = |s: &&str| !s.contains(char::is_whitespace);
+    let surname_like = |s: &str| {
+        let words: Vec<&str> = s.split_whitespace().collect();
+        words[..words.len().saturating_sub(1)].iter().all(|w| is_particle(w))
+    };
+    match segments.len() {
+        0 => vec![],
+        1 => natural(segments[0]).into_iter().collect(),
+        // "Lagerlöf, Selma": surname first.
+        2 if surname_like(segments[0]) => vec![(segments[1].to_string(), segments[0].to_string())],
+        // "Strindberg, August, Lagerlöf, Selma": surname and first name in pairs.
+        n if n % 2 == 0 && segments.iter().all(one_word) => {
+            segments.chunks(2).map(|pair| (pair[1].to_string(), pair[0].to_string())).collect()
+        }
+        // "Maj Sjöwall, Per Wahlöö": several names in natural order.
+        _ => segments.iter().filter_map(|s| natural(s)).collect(),
+    }
+}
+
+/// The people in an author field as (first names, surname), in the order
+/// written and without repeats. The same reading of the field as the web's
+/// list of authors.
+fn people(author: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut part = String::new();
+    let mut parts = Vec::new();
+    // Split on ";" and "&", and on "och", "and", "und", "et" and "y" as words.
+    for word in author.split_inclusive(char::is_whitespace) {
+        let bare = word.trim();
+        if ["och", "and", "und", "et", "y"].contains(&bare.to_lowercase().as_str()) {
+            parts.push(std::mem::take(&mut part));
+        } else {
+            part.push_str(word);
+        }
+    }
+    parts.push(part);
+    for p in parts.iter().flat_map(|p| p.split([';', '&'])).flat_map(from_commas) {
+        let key = format!("{} {}", p.0, p.1).to_lowercase();
+        if !out.iter().any(|q| format!("{} {}", q.0, q.1).to_lowercase() == key) {
+            out.push(p);
+        }
+    }
+    out
+}
+
+fn full_name((first, surname): &(String, String)) -> String {
+    format!("{first} {surname}").trim().to_string()
+}
+
+fn surname_first((first, surname): &(String, String)) -> String {
+    if first.is_empty() { surname.clone() } else { format!("{surname}, {first}") }
+}
+
+/// The reading as a Goodreads library export: one row per book read, being
+/// read or wanted, with ratings, dates and shelves. Goodreads' own book id
+/// and average rating are left empty, so an importer matches on ISBN, title
+/// and author.
+pub fn to_goodreads_csv(books: &[ExportBook]) -> String {
+    let mut out = GOODREADS_HEADER.join(",");
+    out.push_str("\r\n");
+    let o = |v: &Option<String>| v.clone().unwrap_or_default();
+    for b in books {
+        let Some(shelf) = exclusive_shelf(b) else { continue };
+        let names = people(b.author.as_deref().unwrap_or(""));
+        let isbn: String = b.isbn.as_deref().unwrap_or("").chars().filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x').collect();
+        let year = b.published.as_deref().and_then(|p| p.get(..4)).filter(|y| y.chars().all(|c| c.is_ascii_digit()));
+        let date_read = match shelf {
+            "read" => b.read_at.as_deref().or(b.last_read_at.as_deref()).map(goodreads_date).unwrap_or_default(),
+            _ => String::new(),
+        };
+        let mut shelves = vec![shelf.to_string()];
+        shelves.extend(b.shelves.iter().map(|s| goodreads_shelf(s)).filter(|s| !s.is_empty() && !shelves_contains(s)));
+        let fields = [
+            String::new(),
+            b.title.clone(),
+            names.first().map(full_name).unwrap_or_else(|| o(&b.author)),
+            names.first().map(surname_first).unwrap_or_default(),
+            names.iter().skip(1).map(full_name).collect::<Vec<_>>().join(", "),
+            if isbn.len() == 10 { isbn.clone() } else { String::new() },
+            if isbn.len() == 13 { isbn.clone() } else { String::new() },
+            b.rating.unwrap_or(0).to_string(),
+            String::new(),
+            o(&b.publisher),
+            String::new(),
+            String::new(),
+            year.unwrap_or("").to_string(),
+            b.first_published.map(|v| v.to_string()).unwrap_or_default(),
+            date_read,
+            goodreads_date(&b.added),
+            shelves.join(", "),
+            String::new(),
+            shelf.to_string(),
+            String::new(),
+            String::new(),
+            String::new(),
+            if shelf == "read" { "1" } else { "0" }.to_string(),
+            "1".to_string(),
+        ];
+        out.push_str(&fields.iter().map(|f| csv_field(f)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    out
+}
+
+/// A user's shelf named like one of Goodreads' exclusive shelves is not
+/// listed twice.
+fn shelves_contains(s: &str) -> bool {
+    ["read", "currently-reading", "to-read"].contains(&s)
+}
+
 pub fn to_json(username: &str, books: &[ExportBook], shelves: &[ExportShelf]) -> Value {
     json!({
         "format": "legejo-export-1",
@@ -276,9 +473,20 @@ pub struct FormatParam {
     format: Option<String>,
 }
 
-/// GET /api/account/metadata?format=csv|json: the metadata alone, synchronously.
+/// GET /api/account/metadata?format=csv|json|goodreads: the metadata alone,
+/// synchronously. `goodreads` is the reading in Goodreads' export format.
 pub async fn metadata(State(state): State<AppState>, user: AuthUser, Query(q): Query<FormatParam>) -> Result<Response, Response> {
     let (books, shelves) = collect(&state, user.0.id).await.map_err(internal)?;
+    if q.format.as_deref() == Some("goodreads") {
+        return Ok((
+            [
+                (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+                (header::CONTENT_DISPOSITION, "attachment; filename=\"legejo-reading.csv\"".to_string()),
+            ],
+            to_goodreads_csv(&books),
+        )
+            .into_response());
+    }
     if q.format.as_deref() == Some("json") {
         let body = serde_json::to_string_pretty(&to_json(&user.0.username, &books, &shelves)).map_err(internal)?;
         return Ok((
@@ -659,5 +867,28 @@ mod tests {
         assert_eq!(csv_field("Han sa \"hej\""), "\"Han sa \"\"hej\"\"\"");
         assert_eq!(file_base(Some("Selma Lagerlöf"), "Nils Holgerssons / resa"), "Selma Lagerlöf - Nils Holgerssons _ resa");
         assert_eq!(file_base(None, "..."), "book");
+    }
+
+    #[test]
+    fn authors_are_read_as_people() {
+        let names = |a: &str| people(a).iter().map(|p| (full_name(p), surname_first(p))).collect::<Vec<_>>();
+        let one = |n: &str, lf: &str| (n.to_string(), lf.to_string());
+        assert_eq!(names("Selma Lagerlöf"), [one("Selma Lagerlöf", "Lagerlöf, Selma")]);
+        assert_eq!(names("Lagerlöf, Selma, 1858-1940"), [one("Selma Lagerlöf", "Lagerlöf, Selma")]);
+        assert_eq!(names("Le Guin, Ursula K."), [one("Ursula K. Le Guin", "Le Guin, Ursula K.")]);
+        assert_eq!(names("Vincent van Gogh"), [one("Vincent van Gogh", "van Gogh, Vincent")]);
+        assert_eq!(names("Maj Sjöwall, Per Wahlöö"), [one("Maj Sjöwall", "Sjöwall, Maj"), one("Per Wahlöö", "Wahlöö, Per")]);
+        assert_eq!(names("Sjöwall & Wahlöö"), [one("Sjöwall", "Sjöwall"), one("Wahlöö", "Wahlöö")]);
+        assert_eq!(names("Strindberg, August, Lagerlöf, Selma"), [one("August Strindberg", "Strindberg, August"), one("Selma Lagerlöf", "Lagerlöf, Selma")]);
+        assert_eq!(names("Selma Lagerlöf och Selma Lagerlöf"), [one("Selma Lagerlöf", "Lagerlöf, Selma")]);
+        assert!(people("").is_empty());
+    }
+
+    #[test]
+    fn goodreads_dates_and_shelves() {
+        assert_eq!(goodreads_date("2026-10-15T08:00:00.000Z"), "2026/10/15");
+        assert_eq!(goodreads_date("okänt"), "");
+        assert_eq!(goodreads_shelf("Svenska klassiker!"), "svenska-klassiker");
+        assert_eq!(goodreads_shelf("Läst 2026, del 2"), "läst-2026-del-2");
     }
 }

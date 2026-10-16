@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FollowNews from '#lib/FollowNews.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { collectAuthors } from '#lib/library/authors';
@@ -304,6 +305,8 @@
 		onchange={(e) => uploadFiles(e.currentTarget.files)}
 	/>
 </div>
+
+<FollowNews />
 
 {#if uploads.length > 0}
 	<UploadPanel items={uploads} onclose={() => (uploads = [])} />

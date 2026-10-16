@@ -137,6 +137,66 @@ async fn want_to_read_and_bulk_actions() {
 }
 
 #[tokio::test]
+async fn export_reading_as_goodreads_csv() {
+    let (app, db, _) = test_app().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (read, _) = add_book(&db, alice, "Gösta Berlings saga").await;
+    let (reading, _) = add_book(&db, alice, "Röda rummet").await;
+    let (wanted, _) = add_book(&db, alice, "Hemsöborna").await;
+    let (untouched, _) = add_book(&db, alice, "Okänd bok").await;
+    let (finished, _) = add_book(&db, alice, "Nils Holgersson").await;
+    sqlx::query("UPDATE books SET author = 'Lagerlöf, Selma', isbn = '978-91-0-012345-6', rating = 5, published = '1891',
+                 created_at = '2026-01-02T03:04:05.000Z', read_at = '2026-03-04T10:00:00.000Z' WHERE id = ?")
+        .bind(read).execute(&db).await.unwrap();
+    sqlx::query("UPDATE books SET author = 'Maj Sjöwall, Per Wahlöö', isbn = '9100123456' WHERE id = ?").bind(reading).execute(&db).await.unwrap();
+    sqlx::query("UPDATE books SET want_to_read = 1 WHERE id = ?").bind(wanted).execute(&db).await.unwrap();
+    sqlx::query("UPDATE books SET author = 'Selma Lagerlöf' WHERE id = ?").bind(finished).execute(&db).await.unwrap();
+    for (book, percent, at) in [(reading, 0.4, "2026-05-01T08:00:00.000Z"), (finished, 1.0, "2026-06-07T08:00:00.000Z")] {
+        sqlx::query("INSERT INTO reading_progress (user_id, book_id, cfi, percent, updated_at) VALUES (?, ?, 'epubcfi(/6/2)', ?, ?)")
+            .bind(alice).bind(book).bind(percent).bind(at).execute(&db).await.unwrap();
+    }
+    let shelf: i64 = sqlx::query_scalar("INSERT INTO shelves (owner_id, name) VALUES (?, 'Svenska klassiker') RETURNING id")
+        .bind(alice).fetch_one(&db).await.unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(read).execute(&db).await.unwrap();
+    let _ = untouched;
+
+    let req = Request::builder().uri("/api/account/metadata?format=goodreads").header(header::COOKIE, &cookie).body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let disposition = res.headers()[header::CONTENT_DISPOSITION].to_str().unwrap().to_string();
+    assert!(disposition.contains("legejo-reading.csv"), "{disposition}");
+    let csv = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    let lines: Vec<&str> = csv.lines().collect();
+    // No byte-order mark: importers read the header as the first column name.
+    assert!(lines[0].starts_with("Book Id,Title,Author,Author l-f,Additional Authors,ISBN,ISBN13,My Rating"), "{}", lines[0]);
+    assert_eq!(lines.len(), 5, "header and four books; the untouched one is left out:\n{csv}");
+    assert!(!csv.contains("Okänd bok"));
+    let row = |title: &str| lines.iter().find(|l| l.contains(title)).copied().unwrap_or_else(|| panic!("{title} missing:\n{csv}"));
+
+    // Marked read by hand: the date is that of the mark, the shelf a Goodreads one.
+    assert_eq!(
+        row("Gösta Berlings saga"),
+        ",Gösta Berlings saga,Selma Lagerlöf,\"Lagerlöf, Selma\",,,9789100123456,5,,,,,1891,,2026/03/04,2026/01/02,\"read, svenska-klassiker\",,read,,,,1,1"
+    );
+    // Being read: two authors, an ISBN-10, no date read.
+    let r = row("Röda rummet");
+    assert!(r.contains(",Maj Sjöwall,\"Sjöwall, Maj\",Per Wahlöö,9100123456,,0,"), "{r}");
+    assert!(r.contains(",currently-reading,,currently-reading,"), "{r}");
+    assert!(r.ends_with(",0,1"), "{r}");
+    // Wanted, and finished by the position (dated by it).
+    assert!(row("Hemsöborna").contains(",to-read,,to-read,"));
+    let f = row("Nils Holgersson");
+    assert!(f.contains(",2026/06/07,") && f.contains(",read,,read,"), "{f}");
+
+    // Only one's own books.
+    let (_, bob_cookie) = add_user(&db, "bob").await;
+    let req = Request::builder().uri("/api/account/metadata?format=goodreads").header(header::COOKIE, &bob_cookie).body(Body::empty()).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let csv = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    assert_eq!(csv.lines().count(), 1);
+}
+
+#[tokio::test]
 async fn export_metadata_and_whole_library() {
     let (app, db, state) = test_app().await;
     let (alice, cookie) = add_user(&db, "alice").await;
