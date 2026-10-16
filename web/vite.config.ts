@@ -40,7 +40,9 @@ export default defineConfig(({ mode }) => ({
 		proxy: {
 			'/api': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API,
 			// Podcast feeds of audiobooks: fetched by podcast apps, not by the web app.
-			'/podcast': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API
+			'/podcast': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API,
+			// Atom feeds of followed shelves, likewise for feed readers.
+			'/feeds': loadEnv(mode, '.', 'LEGEJO_').LEGEJO_API || DEFAULT_API
 		}
 	}
 }));

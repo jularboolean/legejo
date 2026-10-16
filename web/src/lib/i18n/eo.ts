@@ -297,7 +297,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'ol.coverFailed': "Ne eblis preni la kovrilon.",
 	'ol.failed': "Ne eblis atingi Open Library.",
 	'ol.credit': "Datumoj kaj kovriloj el Open Library (openlibrary.org), Internet Archive.",
-	'leave.exportHeading': "Kunportu vian bibliotekon",
+	'leave.exportHeading': "Eksportu vian bibliotekon",
 	'leave.exportIntro': "Elŝutu la datumojn pri viaj libroj tuj, aŭ la tutan bibliotekon kun la dosieroj, ekzemple por translokiĝi al alia programo.",
 	'leave.csv': "Metadatumoj kiel CSV",
 	'leave.json': "Metadatumoj kiel JSON",

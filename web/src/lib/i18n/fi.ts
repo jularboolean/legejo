@@ -297,7 +297,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'ol.coverFailed': "Kantta ei voitu hakea.",
 	'ol.failed': "Open Librarya ei tavoitettu.",
 	'ol.credit': "Tiedot ja kannet: Open Library (openlibrary.org), Internet Archive.",
-	'leave.exportHeading': "Ota kirjastosi mukaan",
+	'leave.exportHeading': "Vie kirjastosi",
 	'leave.exportIntro': "Lataa kirjojesi tiedot heti tai koko kirjasto tiedostoineen, esimerkiksi jos haluat siirtyä toiseen ohjelmaan.",
 	'leave.csv': "Metatiedot CSV:nä",
 	'leave.json': "Metatiedot JSON:na",

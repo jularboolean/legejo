@@ -295,7 +295,7 @@ export const en = {
 	'ol.coverFailed': "Could not fetch the cover.",
 	'ol.failed': "Could not reach Open Library.",
 	'ol.credit': "Data and covers from Open Library (openlibrary.org), Internet Archive.",
-	'leave.exportHeading': "Take your library with you",
+	'leave.exportHeading': "Export your library",
 	'leave.exportIntro': "Download the details of your books at once, or the whole library with the files, for instance to move to another program.",
 	'leave.csv': "Metadata as CSV",
 	'leave.json': "Metadata as JSON",

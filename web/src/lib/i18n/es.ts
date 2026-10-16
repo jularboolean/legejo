@@ -297,7 +297,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'ol.coverFailed': "No se pudo obtener la portada.",
 	'ol.failed': "No se pudo contactar con Open Library.",
 	'ol.credit': "Datos y portadas de Open Library (openlibrary.org), Internet Archive.",
-	'leave.exportHeading': "Llévate tu biblioteca",
+	'leave.exportHeading': "Exporta tu biblioteca",
 	'leave.exportIntro': "Descarga ahora los datos de tus libros, o toda la biblioteca con los archivos, por ejemplo para mudarte a otro programa.",
 	'leave.csv': "Metadatos en CSV",
 	'leave.json': "Metadatos en JSON",
