@@ -1162,7 +1162,13 @@ fn parse_epub(bytes: &[u8], fallback_title: &str) -> anyhow::Result<ParsedEpub> 
     let publisher = multi("publisher");
     let published = multi("date").as_deref().and_then(crate::pubdate::normalize);
     let identifier = multi("identifier");
-    let cover = doc.get_cover();
+    // The epub crate looks only for the EPUB 3 marking in an EPUB 3 file,
+    // and some files name a page rather than an image; Legejo's own lookup
+    // also reads `<meta name="cover">`.
+    let cover = match doc.get_cover() {
+        Some((data, mime)) if mime.starts_with("image/") => Some((data, mime)),
+        other => epubfix::cover(bytes).filter(|(_, mime)| mime.starts_with("image/")).or(other),
+    };
 
     let mut subjects: Vec<String> = Vec::new();
     for item in metadata.iter().filter(|item| item.property == "subject") {
@@ -2170,6 +2176,7 @@ pub async fn backfill_health(state: AppState) {
     let total = rows.len();
     for (id, uuid) in rows {
         refresh_health(&state, id, &uuid, &[]).await;
+        recover_cover(&state, id, &uuid).await;
         // A book with no licence stated gets the one its file claims.
         let path = book_path(&state, &uuid, Format::Epub);
         let claimed = tokio::task::spawn_blocking(move || std::fs::read(path).map(|b| epubfix::claims_copyright(&b)).unwrap_or(false)).await;
@@ -2182,6 +2189,44 @@ pub async fn backfill_health(state: AppState) {
         }
     }
     tracing::info!("health check: {total} books checked");
+}
+
+/// A book without a cover in the catalog whose file has one after all
+/// (books uploaded before Legejo read `<meta name="cover">` in EPUB 3
+/// files) gets it. A cover chosen in the catalog is never replaced.
+async fn recover_cover(state: &AppState, id: i64, uuid: &str) {
+    let missing: Option<i64> = sqlx::query_scalar("SELECT id FROM books WHERE id = $1 AND cover_mime IS NULL AND format = 'epub'")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+    if missing.is_none() {
+        return;
+    }
+    let path = book_path(state, uuid, Format::Epub);
+    let found = tokio::task::spawn_blocking(move || std::fs::read(path).ok().and_then(|b| epubfix::cover(&b))).await.ok().flatten();
+    let Some((data, mime)) = found.filter(|(_, mime)| mime.starts_with("image/")) else {
+        return;
+    };
+    let target = state.data_dir.join("covers").join(uuid);
+    let written = tokio::task::spawn_blocking(move || {
+        std::fs::create_dir_all(target.parent().unwrap_or(std::path::Path::new(".")))?;
+        write_atomic(&target, &data)
+    })
+    .await;
+    if !matches!(written, Ok(Ok(()))) {
+        tracing::warn!("cover for {uuid} could not be written");
+        return;
+    }
+    let _ = sqlx::query("UPDATE books SET cover_mime = $1, updated_at = $2 WHERE id = $3 AND cover_mime IS NULL")
+        .bind(&mime)
+        .bind(crate::db::now_ts())
+        .bind(id)
+        .execute(&state.db)
+        .await;
+    drop_thumb(state, uuid).await;
+    tracing::info!("cover recovered from the file of book {id}");
 }
 
 /// Lowercase hex SHA-256, the form federation compares.

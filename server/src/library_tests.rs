@@ -835,3 +835,52 @@ async fn the_shared_shelf_list_shows_a_few_covers() {
     }
 }
 
+
+/// An EPUB 3 file whose cover is named only by `<meta name="cover">`.
+fn unmarked_cover_epub() -> Vec<u8> {
+    use crate::epubfix::tests::{build, UNMARKED_COVER_OPF};
+    let chapter = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>T</title></head><body><p>Text.</p></body></html>";
+    build(UNMARKED_COVER_OPF, &[("one.xhtml", chapter), ("nav.xhtml", chapter), ("images/cover.jpg", "jpeg bytes")], true)
+}
+
+#[tokio::test]
+async fn an_epub3_cover_named_only_the_old_way_is_kept() {
+    let (app, db, state) = test_app().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+
+    // On upload: the cover is read, and the file marked so readers find it.
+    let v = upload(&app, &cookie, &[("misslyckas.epub", unmarked_cover_epub())], "").await;
+    let book = &v["added"][0];
+    assert_eq!(book["has_cover"], true, "{v}");
+    let uuid = book["uuid"].as_str().unwrap();
+    assert_eq!(std::fs::read(state.data_dir.join("covers").join(uuid)).unwrap(), b"jpeg bytes");
+    let stored = std::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap();
+    let mut doc = epub::doc::EpubDoc::from_reader(std::io::Cursor::new(stored)).unwrap();
+    assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
+
+    // Uploaded before this version: no cover in the catalog, the file as it
+    // came. The health check run after an upgrade finds the cover, offers
+    // to mark it, and leaves a cover already in the catalog alone.
+    let (old, old_uuid) = add_book(&db, alice, "Om att misslyckas").await;
+    std::fs::write(state.data_dir.join("books").join(format!("{old_uuid}.epub")), unmarked_cover_epub()).unwrap();
+    let (kept, kept_uuid) = add_book(&db, alice, "Med eget omslag").await;
+    std::fs::write(state.data_dir.join("books").join(format!("{kept_uuid}.epub")), unmarked_cover_epub()).unwrap();
+    std::fs::write(state.data_dir.join("covers").join(&kept_uuid), b"chosen").unwrap();
+    sqlx::query("UPDATE books SET cover_mime = 'image/png' WHERE id = ?").bind(kept).execute(&db).await.unwrap();
+    crate::books::backfill_health(state.clone()).await;
+
+    let (mime, health): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT cover_mime, health FROM books WHERE id = ?").bind(old).fetch_one(&db).await.unwrap();
+    assert_eq!(mime.as_deref(), Some("image/jpeg"));
+    assert_eq!(std::fs::read(state.data_dir.join("covers").join(&old_uuid)).unwrap(), b"jpeg bytes");
+    assert!(health.unwrap().contains("\"cover_unmarked\""));
+    let mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = ?").bind(kept).fetch_one(&db).await.unwrap();
+    assert_eq!(mime.as_deref(), Some("image/png"));
+    assert_eq!(std::fs::read(state.data_dir.join("covers").join(&kept_uuid)).unwrap(), b"chosen");
+
+    // Repairing the file marks the cover; nothing is left to attend to.
+    let (status, v) = send(&app, Method::POST, &format!("/api/books/{old}/repair"), Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let codes: Vec<&str> = v["health"]["issues"].as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap()).collect();
+    assert!(!codes.contains(&"cover_unmarked"), "{v}");
+}

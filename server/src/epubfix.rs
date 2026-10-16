@@ -40,7 +40,7 @@ fn issue(code: &str, fixable: bool) -> Issue {
 
 /// Raised when the check learns something new, so that stored results from
 /// an older check are made again.
-pub const CHECK_VERSION: u32 = 2;
+pub const CHECK_VERSION: u32 = 3;
 
 /// The result of the health check, as stored with a book.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, PartialEq)]
@@ -501,6 +501,16 @@ impl Package {
             .find_map(|id| self.items.iter().find(|i| i.id == id));
         by_property.or(by_meta).filter(|i| i.media_type.starts_with("image/") && self.has(&i.path))
     }
+    /// In an EPUB 3 package, a cover declared only the EPUB 2 way, by
+    /// `<meta name="cover">`, without `properties="cover-image"` on its
+    /// manifest item. Readers that follow EPUB 3 (and the epub crate) then
+    /// find no cover.
+    fn cover_unmarked(&self) -> Option<&Item> {
+        if !self.version3 || self.items.iter().any(|i| i.properties.split_whitespace().any(|p| p == "cover-image")) {
+            return None;
+        }
+        self.cover_item()
+    }
     /// An image that is a cover by its name, though nothing declares it.
     fn cover_candidate(&self) -> Option<&Item> {
         self.items.iter().find(|i| {
@@ -735,6 +745,8 @@ pub fn inspect(bytes: &[u8]) -> anyhow::Result<Vec<Issue>> {
     }
     if package.cover_item().is_none() {
         issues.push(issue("no_cover", package.cover_candidate().is_some()));
+    } else if package.cover_unmarked().is_some() {
+        issues.push(issue("cover_unmarked", true));
     }
     if package.nav_item().is_none() && package.ncx_item().is_none() {
         issues.push(issue("no_toc", !package.spine_items().is_empty()));
@@ -886,6 +898,11 @@ pub fn repair(bytes: &[u8]) -> anyhow::Result<(Option<Vec<u8>>, Vec<String>)> {
             );
         }
         fixed.push("no_identifier".into());
+    }
+    if let Some(item) = package.cover_unmarked() {
+        let properties = format!("{} cover-image", item.properties).trim().to_string();
+        edits.replace(item.tag.start, item.tag.end, with_attr(item.tag.raw(&package.opf), "properties", &properties));
+        fixed.push("cover_unmarked".into());
     }
     if package.cover_item().is_none() {
         if let Some(item) = package.cover_candidate() {
@@ -1180,6 +1197,16 @@ fn extension(mime: &str) -> &'static str {
 }
 
 /// Whether the file declares a cover image that is in it.
+/// The declared cover image and its media type, found by either
+/// convention, for files whose cover the epub crate does not see.
+pub fn cover(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
+    let package = load(bytes).ok()?;
+    let item = package.cover_item()?;
+    let mut archive = open_archive(bytes).ok()?;
+    let data = read_entry(&mut archive, &item.path)?;
+    Some((data, item.media_type.clone()))
+}
+
 pub fn has_cover(bytes: &[u8]) -> bool {
     load(bytes).is_ok_and(|package| package.cover_item().is_some())
 }
@@ -1445,6 +1472,35 @@ pub(crate) mod tests {
         assert!(!codes(&inspect(&out).unwrap()).contains(&"no_cover"));
         let mut doc = epub::doc::EpubDoc::from_reader(Cursor::new(out)).unwrap();
         assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
+    }
+
+    /// An EPUB 3 file that declares its cover only the EPUB 2 way, as some
+    /// publishers' files do (and with `content` before `name`).
+    pub(crate) const UNMARKED_COVER_OPF: &str = r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="p1"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Om att misslyckas</dc:title><dc:identifier id="p1">9789127160194</dc:identifier><dc:language>sv</dc:language><meta content="cover-image" name="cover"/></metadata><manifest><item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/><item href="one.xhtml" id="one" media-type="application/xhtml+xml"/><item href="images/cover.jpg" id="cover-image" media-type="image/jpeg"/></manifest><spine><itemref idref="one"/></spine></package>"#;
+
+    #[test]
+    fn an_epub3_cover_named_only_by_meta_is_found_and_marked() {
+        let bytes = build(UNMARKED_COVER_OPF, &[("one.xhtml", CHAPTER), ("nav.xhtml", CHAPTER), ("images/cover.jpg", "jpeg bytes")], true);
+        // The epub crate does not see it; Legejo does.
+        let mut doc = epub::doc::EpubDoc::from_reader(Cursor::new(bytes.clone())).unwrap();
+        assert!(doc.get_cover().is_none());
+        assert_eq!(cover(&bytes), Some((b"jpeg bytes".to_vec(), "image/jpeg".to_string())));
+        let issues = inspect(&bytes).unwrap();
+        assert!(codes(&issues).contains(&"cover_unmarked") && !codes(&issues).contains(&"no_cover"));
+        assert!(issues.iter().find(|i| i.code == "cover_unmarked").unwrap().fixable);
+
+        let (out, fixed) = repair(&bytes).unwrap();
+        let out = out.unwrap();
+        assert!(fixed.contains(&"cover_unmarked".to_string()), "{fixed:?}");
+        assert!(load(&out).unwrap().opf.contains(r#"id="cover-image" media-type="image/jpeg" properties="cover-image""#));
+        let mut doc = epub::doc::EpubDoc::from_reader(Cursor::new(out.clone())).unwrap();
+        assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
+        assert!(!codes(&inspect(&out).unwrap()).contains(&"cover_unmarked"));
+
+        // An EPUB 2 file is right as it is, and so is one with both markings.
+        let epub2 = build(&UNMARKED_COVER_OPF.replace(r#"version="3.0""#, r#"version="2.0""#), &[("one.xhtml", CHAPTER), ("nav.xhtml", CHAPTER), ("images/cover.jpg", "jpeg bytes")], true);
+        assert!(!codes(&inspect(&epub2).unwrap()).contains(&"cover_unmarked"));
+        assert!(!codes(&inspect(&healthy()).unwrap()).contains(&"cover_unmarked"));
     }
 
     #[test]
