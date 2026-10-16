@@ -4,6 +4,22 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.22.1 (2026-10-16)
+
+- **Covers that went missing.** Some EPUB 3 files name their cover only in
+  the older way, and such a book came into the library without one. Legejo
+  now finds the cover on upload, and marks it in the file so that a Kobo and
+  other reading apps find it too. Books already in the library get their
+  cover back after the upgrade, by themselves; their page offers **Repair
+  the file** to mark it in the file as well. A cover you chose yourself is
+  left as it is.
+- **Lists look like the fields beside them.** In Safari, the lists for
+  language, licence and federation were drawn as Safari's own small grey
+  controls. Every list in the app is now drawn alike, in every browser and
+  design.
+- **Upgrading:** nothing to do. Every book's file is checked once more after
+  the upgrade, which takes a moment on a large library.
+
 ## 1.22.0 (2026-10-16)
 
 - **Following a shelf.** A shelf someone shares with you has a **Follow**
