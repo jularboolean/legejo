@@ -93,10 +93,14 @@
 		if (data.user && availability() !== 'unsupported') {
 			savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
 			if (!dev) {
+				// A worker already in charge of the page kept what the layout just
+				// fetched (service-worker/index.ts). Only one that takes over now,
+				// on the first visit, needs to be handed it.
+				const controlled = !!navigator.serviceWorker.controller;
 				navigator.serviceWorker
 					.register('/service-worker.js')
 					.then(() => navigator.serviceWorker.ready)
-					.then(() => warmSession())
+					.then(() => (controlled ? undefined : warmSession()))
 					.catch(() => {});
 			}
 			if (!data.offline) sendUnsent();
