@@ -4,6 +4,51 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.22.2 (2026-10-16)
+
+- **Book files are sent as they are read.** A download to a Kobo, to the
+  browser, through OPDS or through a private link no longer loads the whole
+  book into the server's memory first. A comic made into a book for the
+  device can be hundreds of megabytes, and two devices fetching at once held
+  two such files; now each takes a small buffer, whatever its size.
+- **A file that cannot be read no longer drops the connection.** An EPUB with
+  a stray unclosed tag in its package document made the server's file check
+  fail in a way that cut the upload off without a word. The check now reads
+  past such a tag, and the reading of an uploaded book runs off the request
+  threads, so a bad file ends in a message to the uploader, and a large one
+  no longer holds up other requests while it is read.
+- **Mailed links use the instance's address.** The links in verification and
+  password-reset mails are built from `LEGEJO_PUBLIC_URL` when it is set, as
+  invitation links already were, rather than from the address the request
+  came in on.
+- **One round of requests per page load.** The app installed on a device
+  asked the server for the session, settings and shelves twice each time a
+  page loaded, once for the page and once to warm its offline cache; the
+  cache already had them. Now once.
+- **Pictures are checked before they are kept.** A cover or an avatar must
+  decode as a picture (JPEG, PNG, WebP or GIF), is stored under the type
+  found in the file rather than the one the browser claimed, and is served
+  with headers that keep a browser from treating it as anything but a
+  picture. An avatar is scaled to 512 pixels and stripped of its metadata. A
+  cover an EPUB declares as an SVG is served as one, under a policy that
+  lets it draw and nothing more.
+- **Only the routes that take files accept large bodies.** Books, audio
+  files and pictures have their own limits; every other request is capped
+  at a megabyte. Past the limit an upload is told it is too large.
+- **Passwords are checked off the request threads**, so a burst of logins
+  no longer slows down Kobo sync and downloads, and a login for a name that
+  does not exist takes as long as a wrong password.
+- **Mails from the login page are rationed:** three verification or reset
+  mails per address within the login window, and twenty per client address
+  when the instance knows client addresses. Asking for a reset twice within
+  the hour sends the same link again instead of voiding the first, and the
+  mail goes out after the answer. A name is text in a mail, never markup.
+- **Expired sessions and unconfirmed registrations are removed daily**, so
+  a name registered but never confirmed is free again after two days.
+- **One rule for usernames** wherever one is chosen or changed: 1 to 60
+  characters, none of them control characters.
+- **Upgrading:** nothing to do.
+
 ## 1.22.1 (2026-10-16)
 
 - **Covers that went missing.** Some EPUB 3 files name their cover only in

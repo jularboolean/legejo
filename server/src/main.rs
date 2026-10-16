@@ -207,10 +207,10 @@ fn router(state: AppState) -> Router {
             "/audiobooks/{id}",
             get(audiobooks::get_one).put(audiobooks::update).delete(audiobooks::delete),
         )
-        .route("/audiobooks/{id}/files", post(audiobooks::add_files).layer(upload.clone()))
+        .route("/audiobooks/{id}/files", post(audiobooks::add_files).layer(upload))
         .route("/audiobooks/{id}/files/{file}", axum::routing::delete(audiobooks::delete_file))
         .route("/audiobooks/{id}/files/{file}/audio", get(audiobooks::audio))
-        .route("/audiobooks/{id}/cover", get(audiobooks::cover).post(audiobooks::upload_cover).layer(cover.clone()))
+        .route("/audiobooks/{id}/cover", get(audiobooks::cover).post(audiobooks::upload_cover).layer(cover))
         .route("/audiobooks/{id}/feed-key", post(audiobooks::new_feed_key))
         .route("/books", get(books::list).post(books::upload).layer(upload))
         .route("/libris/search", get(libris::search))
@@ -223,7 +223,7 @@ fn router(state: AppState) -> Router {
         .route("/books/bulk", post(books::bulk))
         .route("/books/archive", get(books::archive))
         .route("/books/{id}", get(books::get_one).put(books::update).delete(books::delete))
-        .route("/books/{id}/cover", get(books::cover).post(books::upload_cover).layer(cover.clone()))
+        .route("/books/{id}/cover", get(books::cover).post(books::upload_cover).layer(cover))
         .route("/books/{id}/repair", post(books::repair))
         .route("/books/{id}/kindle", post(books::send_to_kindle))
         .route("/books/{id}/cover/openlibrary", post(openlibrary::use_cover))
