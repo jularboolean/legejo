@@ -56,8 +56,10 @@ pub(crate) fn looks_like_email(s: &str) -> bool {
     !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
 }
 
-/// External base URL derived from X-Forwarded-Proto and Host, as the Kobo
-/// endpoints do.
+/// The base URL guessed from X-Forwarded-Proto and Host, for an instance
+/// without LEGEJO_PUBLIC_URL. Only a fallback: a link built from request
+/// headers is whatever the sender put there, so anything mailed goes through
+/// invite::base, which takes LEGEJO_PUBLIC_URL first.
 pub(crate) fn base_url(headers: &HeaderMap) -> String {
     let proto = headers
         .get("x-forwarded-proto")
@@ -138,7 +140,7 @@ pub async fn register(
         Err(e) => return Err(internal(e.into())),
     };
 
-    let link = format!("{}/verify?token={token}", base_url(&headers));
+    let link = format!("{}/verify?token={token}", crate::invite::base(&state, &headers));
     let html = format!(
         "<p>Welcome to Legejo, {username}!</p>\
          <p>Confirm your email address to activate the account:</p>\
@@ -227,7 +229,7 @@ pub async fn forgot(
 
     if let Some((id, username)) = row {
         let token = issue_reset_token(&state.db, id, 1).await.map_err(|e| internal(e.into()))?;
-        let link = format!("{}/reset?token={token}", base_url(&headers));
+        let link = format!("{}/reset?token={token}", crate::invite::base(&state, &headers));
         let html = format!(
             "<p>Hello {username},</p>\
              <p>Someone asked to reset the password for your Legejo account. \
@@ -372,6 +374,37 @@ mod tests {
     use crate::testutil::{add_user, send, test_app};
     use axum::http::{Method, StatusCode};
     use serde_json::json;
+
+    #[tokio::test]
+    async fn mailed_links_come_from_the_public_url_not_the_host_header() {
+        use axum::body::Body;
+        use axum::http::{header, Request};
+        use tower::ServiceExt;
+        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (port, sink) = crate::kindle_tests::mail_sink().await;
+        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        let app = crate::router(state.clone());
+        let (ada, _) = add_user(&db, "ada").await;
+        sqlx::query("UPDATE users SET email = 'ada@example.org' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
+
+        // A request with a forged Host must not decide where the link points.
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/register/forgot")
+            .header(header::HOST, "evil.example")
+            .header("x-forwarded-proto", "http")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json!({ "email": "ada@example.org" }).to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+        let (to, message) = sink.await.unwrap();
+        assert_eq!(to, "ada@example.org");
+        // Quoted-printable undone, in case the mailer wrapped the lines.
+        let text = message.replace("=\n", "").replace("=3D", "=");
+        assert!(text.contains("https://a.test/reset?token="), "{text}");
+        assert!(!text.contains("evil.example"), "{text}");
+    }
 
     #[tokio::test]
     async fn reset_link_without_mail() {

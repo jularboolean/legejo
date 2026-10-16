@@ -1452,30 +1452,19 @@ pub(crate) async fn store_book(
             Err(e) => Ok(Err(e)),
         };
     }
-    // A copy-protected file cannot be read here or sent on to a device.
-    if epubfix::encrypted(bytes) {
-        return Ok(Err("copy-protected".to_string()));
-    }
-    // A repair is kept only when the result still reads as a book.
-    let repaired = match epubfix::repair(bytes) {
-        Ok((Some(out), fixed)) if parse_epub(&out, &fallback_title).is_ok() => Some((out, fixed)),
-        Ok(_) => None,
-        Err(e) => {
-            tracing::debug!("no repair of {filename}: {e:#}");
-            None
-        }
+    // Reading, repairing and checking the file is zip and XML work on a file
+    // that may be large or malformed: off the request threads, where a
+    // panic on a hostile file ends in an error rather than a dropped
+    // connection.
+    let (data, title, name) = (bytes.to_vec(), fallback_title.clone(), filename.to_string());
+    let read = tokio::task::spawn_blocking(move || read_epub(&data, &title, &name)).await.map_err(|e| internal(e.into()))?;
+    let ReadEpub { repaired, parsed, health, copyright } = match read {
+        Ok(read) => read,
+        Err(e) => return Ok(Err(e)),
     };
-    let (bytes, fixed) = match &repaired {
-        Some((out, fixed)) => (out.as_slice(), fixed.clone()),
-        None => (bytes, Vec::new()),
-    };
-    let parsed = match parse_epub(bytes, &fallback_title) {
-        Ok(p) => p,
-        Err(e) => return Ok(Err(e.to_string())),
-    };
-    let health = epubfix::inspect(bytes).ok().map(|issues| Health { v: epubfix::CHECK_VERSION, issues, fixed });
+    let bytes = repaired.as_deref().unwrap_or(bytes);
     let mut book = insert_book(state, owner_id, bytes, format, parsed, health, &upload_sha256).await?;
-    if epubfix::claims_copyright(bytes) {
+    if copyright {
         let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2")
             .bind(License::Copyright.as_str())
             .bind(book.id)
@@ -1484,6 +1473,42 @@ pub(crate) async fn store_book(
         book.license = Some(License::Copyright.as_str().to_string());
     }
     Ok(Ok(book))
+}
+
+/// What reading an uploaded EPUB gives: the repaired file when a repair was
+/// made and kept, the metadata, the health check and whether the file claims
+/// copyright.
+struct ReadEpub {
+    repaired: Option<Vec<u8>>,
+    parsed: ParsedEpub,
+    health: Option<Health>,
+    copyright: bool,
+}
+
+/// Reads an uploaded EPUB: refuses a copy-protected one, repairs what can be
+/// repaired (kept only when the result still reads as a book), parses the
+/// metadata and runs the health check. Synchronous: call it off the runtime.
+fn read_epub(bytes: &[u8], fallback_title: &str, filename: &str) -> Result<ReadEpub, String> {
+    // A copy-protected file cannot be read here or sent on to a device.
+    if epubfix::encrypted(bytes) {
+        return Err("copy-protected".to_string());
+    }
+    let repaired = match epubfix::repair(bytes) {
+        Ok((Some(out), fixed)) if parse_epub(&out, fallback_title).is_ok() => Some((out, fixed)),
+        Ok(_) => None,
+        Err(e) => {
+            tracing::debug!("no repair of {filename}: {e:#}");
+            None
+        }
+    };
+    let (current, fixed) = match &repaired {
+        Some((out, fixed)) => (out.as_slice(), fixed.clone()),
+        None => (bytes, Vec::new()),
+    };
+    let parsed = parse_epub(current, fallback_title).map_err(|e| e.to_string())?;
+    let health = epubfix::inspect(current).ok().map(|issues| Health { v: epubfix::CHECK_VERSION, issues, fixed });
+    let copyright = epubfix::claims_copyright(current);
+    Ok(ReadEpub { repaired: repaired.map(|(out, _)| out), parsed, health, copyright })
 }
 
 /// The row, the file, the cover and the tags of a new book.

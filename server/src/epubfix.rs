@@ -291,6 +291,15 @@ fn children(text: &str, all: &[Tag], open: usize, close: usize) -> Vec<Element> 
                     }
                     j += 1;
                 }
+                if depth > 0 {
+                    // No end tag before the parent closes: an HTML-style
+                    // void tag such as <meta ...> without the slash, or a
+                    // tag closed outside its parent. Taken as empty, so the
+                    // tags after it are still read as siblings.
+                    out.push(Element { tag: tag.clone(), start: tag.start, end: tag.end, text: String::new(), content: None });
+                    i += 1;
+                    continue;
+                }
                 let end_tag = &all[j - 1];
                 let inner = &text[tag.end..end_tag.start];
                 let plain = inner.trim().strip_prefix("<![CDATA[").and_then(|s| s.strip_suffix("]]>")).map(str::to_string);
@@ -1501,6 +1510,24 @@ pub(crate) mod tests {
         let epub2 = build(&UNMARKED_COVER_OPF.replace(r#"version="3.0""#, r#"version="2.0""#), &[("one.xhtml", CHAPTER), ("nav.xhtml", CHAPTER), ("images/cover.jpg", "jpeg bytes")], true);
         assert!(!codes(&inspect(&epub2).unwrap()).contains(&"cover_unmarked"));
         assert!(!codes(&inspect(&healthy()).unwrap()).contains(&"cover_unmarked"));
+    }
+
+    #[test]
+    fn an_unclosed_element_is_read_as_empty() {
+        // An HTML-style void tag in the metadata, as hand-made files have.
+        let opf = r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>T</dc:title><meta name="cover" content="c"><dc:language>sv</dc:language></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/></spine></package>"#;
+        let bytes = build(opf, &[("one.xhtml", CHAPTER)], true);
+        let package = load(&bytes).unwrap();
+        assert_eq!(package.text_of("title").as_deref(), Some("T"));
+        assert_eq!(package.text_of("language").as_deref(), Some("sv"), "the tags after the void one are siblings, not its content");
+        let issues = inspect(&bytes).unwrap();
+        assert!(codes(&issues).contains(&"no_cover"), "{issues:?}");
+        assert!(!codes(&issues).contains(&"no_title"));
+        // A tag closed outside its parent is taken the same way.
+        let crossed = opf.replace("<dc:language>sv</dc:language></metadata>", "<dc:language>sv</metadata></dc:language>");
+        let bytes = build(&crossed, &[("one.xhtml", CHAPTER)], true);
+        assert!(load(&bytes).is_ok());
+        let _ = repair(&bytes).unwrap();
     }
 
     #[test]

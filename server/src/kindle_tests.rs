@@ -7,7 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// A mail server that accepts one message and hands back what it was sent:
 /// the recipient and the message itself.
-async fn mail_sink() -> (u16, tokio::task::JoinHandle<(String, String)>) {
+pub(crate) async fn mail_sink() -> (u16, tokio::task::JoinHandle<(String, String)>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let task = tokio::spawn(async move {

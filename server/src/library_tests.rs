@@ -884,3 +884,21 @@ async fn an_epub3_cover_named_only_the_old_way_is_kept() {
     let codes: Vec<&str> = v["health"]["issues"].as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap()).collect();
     assert!(!codes.contains(&"cover_unmarked"), "{v}");
 }
+
+#[tokio::test]
+async fn an_epub_with_a_void_tag_in_its_package_uploads() {
+    use crate::epubfix::tests::build;
+    let (app, db, _) = test_app().await;
+    let (_, cookie) = add_user(&db, "alice").await;
+    let chapter = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>T</title></head><body><p>Text.</p></body></html>";
+    let opf = r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="i"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Void</dc:title><dc:identifier id="i">void-1</dc:identifier><meta name="cover" content="c"></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/></spine></package>"#;
+    let file = build(opf, &[("one.xhtml", chapter)], true);
+    // The request must answer, whatever it makes of the file (today the
+    // epub crate refuses it, with a message): the reading runs off the
+    // request threads, so a panic there is an error, not a dropped
+    // connection.
+    let v = upload(&app, &cookie, &[("void.epub", file)], "").await;
+    let added = v["added"].as_array().map(|a| a.len()).unwrap_or(0);
+    let errors = v["errors"].as_array().map(|a| a.len()).unwrap_or(0);
+    assert_eq!(added + errors, 1, "{v}");
+}
