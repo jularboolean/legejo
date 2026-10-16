@@ -178,13 +178,31 @@ async fn metrics_are_off_open_or_behind_a_token() {
 }
 
 #[tokio::test]
-async fn upload_limit_is_configurable() {
+async fn bodies_are_capped_and_the_upload_limit_is_configurable() {
     let mut s = Settings::default();
     s.max_upload_bytes = 1024;
-    let (app, _, _) = app_with(s).await;
+    let (app, db, _) = app_with(s).await;
+    let (_, cookie) = add_user(&db, "carol").await;
+
+    // A JSON route takes a megabyte whatever the upload limit, and not more.
     let (status, _) = send(&app, Method::POST, "/api/auth/login", None, Some(json!({ "username": "x".repeat(2000), "password": "y" }))).await;
-    // Bodies over the limit are refused before any handler runs.
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = send(&app, Method::POST, "/api/register/forgot", None, Some(json!({ "email": "x".repeat(1024 * 1024) }))).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+
+    // Where files arrive, LEGEJO_MAX_UPLOAD_MB decides.
+    let boundary = "legejo-test-boundary";
+    let mut body = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"x.epub\"\r\nContent-Type: application/epub+zip\r\n\r\n").into_bytes();
+    body.extend_from_slice(&[0u8; 2000]);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/books")
+        .header(header::COOKIE, &cookie)
+        .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={boundary}"))
+        .body(Body::from(body))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(req).await.unwrap().status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
 
 #[tokio::test]

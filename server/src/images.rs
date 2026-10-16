@@ -63,20 +63,25 @@ fn refused(msg: &str) -> Response {
     (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": msg }))).into_response()
 }
 
-fn unreadable(e: MultipartError) -> Response {
-    tracing::warn!("upload: could not read the multipart body: {e}");
-    (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "could not read the upload" }))).into_response()
+/// A multipart body that could not be read: 413 past the route's body
+/// limit, 400 for anything else.
+pub(crate) fn multipart_error(e: MultipartError) -> Response {
+    let status = e.status();
+    if status != StatusCode::PAYLOAD_TOO_LARGE {
+        tracing::warn!("upload: could not read the multipart body: {e}");
+    }
+    (status, Json(serde_json::json!({ "error": e.body_text() }))).into_response()
 }
 
 /// The picture in a multipart upload: the first field sent as an image,
 /// read up to `max` bytes and not a byte further.
 async fn picture_field(multipart: &mut Multipart, max: usize) -> Result<Vec<u8>, Response> {
-    while let Some(mut field) = multipart.next_field().await.map_err(unreadable)? {
+    while let Some(mut field) = multipart.next_field().await.map_err(multipart_error)? {
         if !field.content_type().unwrap_or("").starts_with("image/") {
             continue;
         }
         let mut bytes = Vec::new();
-        while let Some(chunk) = field.chunk().await.map_err(unreadable)? {
+        while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
             if bytes.len() + chunk.len() > max {
                 return Err(refused(&format!("image too large (max {} MB)", max / (1024 * 1024))));
             }

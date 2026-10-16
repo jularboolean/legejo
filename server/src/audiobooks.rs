@@ -677,7 +677,7 @@ pub async fn add_files(
     tokio::fs::create_dir_all(&dir).await.map_err(|e| internal(e.into()))?;
     let mut errors = Vec::new();
 
-    while let Some(mut field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
+    while let Some(mut field) = multipart.next_field().await.map_err(crate::images::multipart_error)? {
         let filename = field.file_name().unwrap_or("audio").to_string();
         let Some((ext, mime)) = audio_type(&filename) else {
             errors.push(format!("{filename}: not an audio format that podcast apps play (mp3, m4a, m4b)"));
@@ -699,6 +699,12 @@ pub async fn add_files(
                     }
                 }
                 Ok(None) => break,
+                // Past the body limit (LEGEJO_MAX_UPLOAD_MB) nothing more can be read.
+                Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&path).await;
+                    return Err(crate::images::multipart_error(e));
+                }
                 Err(e) => {
                     failed = Some(e.to_string());
                     break;

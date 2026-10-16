@@ -1328,10 +1328,12 @@ pub async fn upload(
     tokio::fs::create_dir_all(&books_dir).await.map_err(|e| internal(e.into()))?;
     tokio::fs::create_dir_all(&covers_dir).await.map_err(|e| internal(e.into()))?;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
+    while let Some(field) = multipart.next_field().await.map_err(crate::images::multipart_error)? {
         let filename = field.file_name().unwrap_or("book").to_string();
         let bytes = match field.bytes().await {
             Ok(b) => b,
+            // Past the body limit (LEGEJO_MAX_UPLOAD_MB) nothing more can be read.
+            Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => return Err(crate::images::multipart_error(e)),
             Err(e) => {
                 errors.push(format!("{filename}: could not read the upload ({e})"));
                 continue;

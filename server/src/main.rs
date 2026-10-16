@@ -136,7 +136,20 @@ async fn api_not_found() -> StatusCode {
     StatusCode::NOT_FOUND
 }
 
+/// What a request body may hold unless the route says otherwise: the JSON
+/// of a login, a search, an annotation. Only the routes that take files
+/// raise it, so that nobody can make the server buffer a book-sized body
+/// at an endpoint that wants a line of text.
+const API_BODY_LIMIT: usize = 1024 * 1024;
+/// Room for the multipart framing around a picture.
+const MULTIPART_SLACK: usize = 64 * 1024;
+
 fn router(state: AppState) -> Router {
+    // Books and audio files up to LEGEJO_MAX_UPLOAD_MB; a picture up to its
+    // own cap (images.rs).
+    let upload = DefaultBodyLimit::max(state.settings.max_upload_bytes);
+    let cover = DefaultBodyLimit::max(images::MAX_COVER_BYTES + MULTIPART_SLACK);
+    let avatar = DefaultBodyLimit::max(images::MAX_AVATAR_BYTES + MULTIPART_SLACK);
     let api = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route(
@@ -178,7 +191,7 @@ fn router(state: AppState) -> Router {
         .route("/account/librarian", axum::routing::put(account::set_librarian))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
         .route("/account/catalogs", axum::routing::put(account::set_catalogs))
-        .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar))
+        .route("/account/avatar", post(account::upload_avatar).delete(account::delete_avatar).layer(avatar))
         .route("/users/{id}/avatar", get(account::avatar))
         .route("/users/search", get(shelves::search_users))
         .route("/auth/config", get(oidc::config))
@@ -194,12 +207,12 @@ fn router(state: AppState) -> Router {
             "/audiobooks/{id}",
             get(audiobooks::get_one).put(audiobooks::update).delete(audiobooks::delete),
         )
-        .route("/audiobooks/{id}/files", post(audiobooks::add_files))
+        .route("/audiobooks/{id}/files", post(audiobooks::add_files).layer(upload.clone()))
         .route("/audiobooks/{id}/files/{file}", axum::routing::delete(audiobooks::delete_file))
         .route("/audiobooks/{id}/files/{file}/audio", get(audiobooks::audio))
-        .route("/audiobooks/{id}/cover", get(audiobooks::cover).post(audiobooks::upload_cover))
+        .route("/audiobooks/{id}/cover", get(audiobooks::cover).post(audiobooks::upload_cover).layer(cover.clone()))
         .route("/audiobooks/{id}/feed-key", post(audiobooks::new_feed_key))
-        .route("/books", get(books::list).post(books::upload))
+        .route("/books", get(books::list).post(books::upload).layer(upload))
         .route("/libris/search", get(libris::search))
         .route("/libris/summary", get(libris::summary))
         .route("/openlibrary/search", get(openlibrary::search))
@@ -210,7 +223,7 @@ fn router(state: AppState) -> Router {
         .route("/books/bulk", post(books::bulk))
         .route("/books/archive", get(books::archive))
         .route("/books/{id}", get(books::get_one).put(books::update).delete(books::delete))
-        .route("/books/{id}/cover", get(books::cover).post(books::upload_cover))
+        .route("/books/{id}/cover", get(books::cover).post(books::upload_cover).layer(cover.clone()))
         .route("/books/{id}/repair", post(books::repair))
         .route("/books/{id}/kindle", post(books::send_to_kindle))
         .route("/books/{id}/cover/openlibrary", post(openlibrary::use_cover))
@@ -277,10 +290,10 @@ fn router(state: AppState) -> Router {
         )
         .route(
             "/shelves/{id}/cover",
-            get(shelves::cover).post(shelves::upload_cover).delete(shelves::delete_cover),
+            get(shelves::cover).post(shelves::upload_cover).delete(shelves::delete_cover).layer(cover),
         )
         .fallback(api_not_found)
-        .layer(DefaultBodyLimit::max(state.settings.max_upload_bytes));
+        .layer(DefaultBodyLimit::max(API_BODY_LIMIT));
 
     let opds = Router::new()
         .fallback(api_not_found)
