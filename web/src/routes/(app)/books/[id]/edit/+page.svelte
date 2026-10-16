@@ -655,12 +655,6 @@
 		gap: 0.75rem;
 	}
 	.license select {
-		font: inherit;
-		background: var(--card);
-		color: var(--fg);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 0.45rem 0.7rem;
 		max-width: 18rem;
 	}
 	.license .year input {

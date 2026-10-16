@@ -566,18 +566,6 @@
 	label.narrow input {
 		max-width: 8rem;
 	}
-	select {
-		font: inherit;
-		background: var(--card);
-		color: var(--fg);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 0.45rem 0.6rem;
-	}
-	select:focus {
-		outline: 2px solid var(--accent);
-		outline-offset: 1px;
-	}
 	.row {
 		display: flex;
 		align-items: center;

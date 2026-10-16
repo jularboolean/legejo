@@ -220,25 +220,6 @@
 		flex: 1;
 		min-width: 12rem;
 	}
-	/* The list in the manner of the text fields beside it, with an arrow of its own. */
-	select {
-		appearance: none;
-		-webkit-appearance: none;
-		font: inherit;
-		color: var(--fg);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 0.45rem 2rem 0.45rem 0.7rem;
-		background:
-			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236c7a7e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
-				no-repeat right 0.65rem center,
-			var(--card);
-		cursor: pointer;
-	}
-	select:focus {
-		outline: 2px solid var(--accent);
-		outline-offset: 1px;
-	}
 	form button {
 		padding: 0.5rem 0.9rem;
 	}

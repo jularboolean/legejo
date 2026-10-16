@@ -129,15 +129,15 @@
 		font-variant-numeric: tabular-nums;
 		color: var(--r-muted);
 	}
+	/* The shared select (app.css), smaller and in the reader's colours. */
 	select {
 		max-width: 9rem;
 		margin-left: 0.2rem;
-		padding: 0.25rem 0.4rem;
+		padding: 0.25rem 1.5rem 0.25rem 0.4rem;
 		border-radius: 6px;
-		border: 1px solid var(--r-border);
-		background: var(--r-surface);
+		border-color: var(--r-border);
+		background: var(--select-arrow) no-repeat right 0.4rem center, var(--r-surface);
 		color: var(--r-fg);
-		font: inherit;
 		font-size: 0.82rem;
 	}
 	/* A phone's width: everything on one row, the way out included. */

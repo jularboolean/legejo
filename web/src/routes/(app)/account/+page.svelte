@@ -599,12 +599,6 @@
 		max-width: 24rem;
 	}
 	.language select {
-		font: inherit;
-		background: var(--card);
-		color: var(--fg);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 0.45rem 0.7rem;
 		width: 100%;
 	}
 	.language .hint {
