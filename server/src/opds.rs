@@ -4,7 +4,6 @@
 
 use crate::books::{search_expr, search_parts, Book, BOOK_COLUMNS, BOOK_COLUMNS_B};
 use crate::AppState;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::extract::{Path, Query, State};
 use axum::http::{header, request::Parts, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -46,15 +45,19 @@ impl axum::extract::FromRequestParts<AppState> for BasicUser {
                 .fetch_optional(&state.db)
                 .await
                 .map_err(|e| internal(e.into()))?;
-        let (id, hash) = row.ok_or_else(challenge)?;
+        let Some((id, hash)) = row else {
+            // As long as a wrong password, so the time does not say whether
+            // the name exists.
+            crate::db::verify_dummy(password).await;
+            return Err(challenge());
+        };
         // App passwords first: a cheap lookup compared to Argon2.
         if crate::app_passwords::matches(state, id, password).await {
             return Ok(BasicUser { id });
         }
-        let parsed = PasswordHash::new(&hash).map_err(|e| internal(anyhow::anyhow!("{e}")))?;
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed)
-            .map_err(|_| challenge())?;
+        if !crate::db::verify_password(&hash, password).await.map_err(internal)? {
+            return Err(challenge());
+        }
         Ok(BasicUser { id })
     }
 }

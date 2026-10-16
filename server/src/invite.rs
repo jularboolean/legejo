@@ -92,7 +92,7 @@ pub async fn create(
     }
     let token = crate::auth::new_token();
     // An unusable password until the invitee picks one.
-    let placeholder = crate::db::hash_password(&crate::auth::new_token()).map_err(internal)?;
+    let placeholder = crate::db::hash_password(&crate::auth::new_token()).await.map_err(internal)?;
     let id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (username, password_hash, is_admin, email, invite_token, invite_expires)
          VALUES ($1, $2, 0, $3, $4, $5) RETURNING id",
@@ -220,7 +220,7 @@ pub async fn accept(
     .await
     .map_err(internal)?;
     let (id, username, locale) = row.ok_or_else(gone)?;
-    let hash = crate::db::hash_password(&req.password).map_err(internal)?;
+    let hash = crate::db::hash_password(&req.password).await.map_err(internal)?;
     // The admin supplied the address, so it counts as verified.
     sqlx::query(
         "UPDATE users SET password_hash = $1, invite_token = NULL, invite_expires = NULL,

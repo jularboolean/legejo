@@ -21,7 +21,7 @@ async fn app_with(settings: Settings) -> (Router, AnyPool, crate::AppState) {
 async fn user_with_password(db: &AnyPool, name: &str, password: &str) {
     let (id, _) = add_user(db, name).await;
     sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
-        .bind(crate::db::hash_password(password).unwrap())
+        .bind(crate::db::hash_password(password).await.unwrap())
         .bind(id)
         .execute(db)
         .await

@@ -1,5 +1,5 @@
 use argon2::password_hash::{rand_core::OsRng, SaltString};
-use argon2::{Argon2, PasswordHasher};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rand::Rng;
 use sqlx::any::AnyPoolOptions;
 use sqlx::migrate::Migrator;
@@ -121,12 +121,49 @@ pub async fn connect(data_dir: &Path) -> anyhow::Result<(AnyPool, Backend)> {
     Ok((pool, backend))
 }
 
-pub fn hash_password(password: &str) -> anyhow::Result<String> {
+/// Argon2 takes tens of milliseconds of CPU per call, so hashing and
+/// verifying run on the blocking pool: a burst of logins must not stall the
+/// worker threads that serve everything else.
+pub async fn hash_password(password: &str) -> anyhow::Result<String> {
+    let password = password.to_string();
+    tokio::task::spawn_blocking(move || hash_blocking(&password))
+        .await
+        .map_err(|e| anyhow::anyhow!("password hashing failed: {e}"))?
+}
+
+fn hash_blocking(password: &str) -> anyhow::Result<String> {
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| anyhow::anyhow!("password hashing failed: {e}"))?;
     Ok(hash.to_string())
+}
+
+/// Whether the password is the one behind the stored hash. Err only for a
+/// hash that cannot be read, which is a broken row, not a wrong password.
+pub async fn verify_password(hash: &str, password: &str) -> anyhow::Result<bool> {
+    let (hash, password) = (hash.to_string(), password.to_string());
+    tokio::task::spawn_blocking(move || {
+        let parsed = PasswordHash::new(&hash).map_err(|e| anyhow::anyhow!("unreadable password hash: {e}"))?;
+        Ok(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("password verification failed: {e}"))?
+}
+
+/// A hash with the same parameters as every stored one, made once. A login
+/// for a name that does not exist verifies against it, so that the answer
+/// takes as long as a wrong password for a real account: the time taken must
+/// not tell the two apart.
+static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| hash_blocking("no such account").unwrap_or_default());
+
+pub async fn verify_dummy(password: &str) {
+    let password = password.to_string();
+    let _ = tokio::task::spawn_blocking(move || {
+        let parsed = PasswordHash::new(&DUMMY_HASH).ok()?;
+        Argon2::default().verify_password(password.as_bytes(), &parsed).ok()
+    })
+    .await;
 }
 
 /// If no users exist, create the initial admin account.
@@ -147,7 +184,7 @@ pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<Option<i64>> {
         None => (random_password(16), true),
     };
 
-    let hash = hash_password(&password)?;
+    let hash = hash_password(&password).await?;
     let id: i64 = sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, 1) RETURNING id")
         .bind(&username)
         .bind(&hash)

@@ -1,6 +1,5 @@
 use crate::auth::{self, AuthUser};
 use crate::AppState;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::extract::{Multipart, Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -191,8 +190,7 @@ pub async fn update(
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let parsed = PasswordHash::new(&hash).map_err(|e| internal(anyhow::anyhow!("{e}")))?;
-    if Argon2::default().verify_password(req.current_password.as_bytes(), &parsed).is_err() {
+    if !crate::db::verify_password(&hash, &req.current_password).await.map_err(internal)? {
         return Err((
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({ "error": "wrong current password" })),
@@ -219,7 +217,7 @@ pub async fn update(
 
     let password_changed = new_password.is_some();
     if let Some(password) = new_password {
-        let new_hash = crate::db::hash_password(&password).map_err(internal)?;
+        let new_hash = crate::db::hash_password(&password).await.map_err(internal)?;
         sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
             .bind(&new_hash)
             .bind(user.0.id)
@@ -399,8 +397,7 @@ pub async fn delete_account(
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let parsed = PasswordHash::new(&hash).map_err(|e| internal(anyhow::anyhow!("{e}")))?;
-    if Argon2::default().verify_password(req.password.as_bytes(), &parsed).is_err() {
+    if !crate::db::verify_password(&hash, &req.password).await.map_err(internal)? {
         return Err((
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({ "error": "wrong current password" })),

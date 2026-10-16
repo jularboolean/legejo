@@ -638,7 +638,7 @@ async fn create_user(state: &AppState, oidc: &Oidc, claims: &Claims) -> Result<i
     };
     // Random unknown password: the account logs in through the provider
     // (and uses app passwords for OPDS) until the owner sets one.
-    let hash = crate::db::hash_password(&random_hex(32)).map_err(internal)?;
+    let hash = crate::db::hash_password(&random_hex(32)).await.map_err(internal)?;
     let is_admin = oidc.config.admin_group.as_deref().is_some_and(|g| in_group(claims, g));
     let insert = match &email {
         Some(email) => sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin, email) VALUES ($1, $2, $3, $4) RETURNING id")

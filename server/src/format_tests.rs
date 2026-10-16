@@ -106,7 +106,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     // A reading app is told what kind of file each book is, and gets that file.
     {
         use base64::Engine;
-        let hash = crate::db::hash_password("opds password").unwrap();
+        let hash = crate::db::hash_password("opds password").await.unwrap();
         sqlx::query("UPDATE users SET password_hash = ? WHERE username = 'alice'").bind(&hash).execute(&db).await.unwrap();
         let auth = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("alice:opds password"));
         let fetch = |uri: String| {

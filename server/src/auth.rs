@@ -1,5 +1,4 @@
 use crate::AppState;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::extract::{FromRequestParts, State};
 use axum::http::{request::Parts, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -79,8 +78,9 @@ fn unauthorized() -> Response {
 }
 
 /// Like AuthUser, but the session must belong to an admin; 403 otherwise.
-/// The payload is currently unused; handlers only need the gate.
-pub struct AdminUser(#[allow(dead_code)] pub UserInfo);
+/// Handlers that only need the gate bind it as `_admin`; the ones that write
+/// to the audit log read the admin out of it.
+pub struct AdminUser(pub UserInfo);
 
 impl FromRequestParts<AppState> for AdminUser {
     type Rejection = Response;
@@ -129,12 +129,15 @@ pub async fn login(
     .await
     .map_err(|e| internal(e.into()))?;
 
-    let user = user.ok_or_else(invalid_credentials)?;
-
-    let parsed = PasswordHash::new(&user.password_hash).map_err(|e| internal(anyhow::anyhow!("{e}")))?;
-    Argon2::default()
-        .verify_password(req.password.as_bytes(), &parsed)
-        .map_err(|_| invalid_credentials())?;
+    // An unknown name costs the same as a wrong password: the response time
+    // must not say whether the account exists.
+    let Some(user) = user else {
+        crate::db::verify_dummy(&req.password).await;
+        return Err(invalid_credentials());
+    };
+    if !crate::db::verify_password(&user.password_hash, &req.password).await.map_err(internal)? {
+        return Err(invalid_credentials());
+    }
 
     if user.verify_token.is_some() {
         return Err((

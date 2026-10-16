@@ -262,7 +262,7 @@ async fn export_metadata_and_whole_library() {
 #[tokio::test]
 async fn deleting_an_account_takes_everything() {
     let (app, db, state) = test_app().await;
-    let hash = crate::db::hash_password("rätt lösenord").unwrap();
+    let hash = crate::db::hash_password("rätt lösenord").await.unwrap();
     let (alice, cookie) = add_user(&db, "alice").await;
     let (admin, admin_cookie) = add_user(&db, "chef").await;
     for id in [alice, admin] {
@@ -425,7 +425,7 @@ async fn opds_takes_the_account_password_and_app_passwords() {
     use base64::Engine;
     let (app, db, _) = test_app().await;
     let (alice, cookie) = add_user(&db, "alice").await;
-    let hash = crate::db::hash_password("kontots lösenord").unwrap();
+    let hash = crate::db::hash_password("kontots lösenord").await.unwrap();
     sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?").bind(&hash).bind(alice).execute(&db).await.unwrap();
     let opds = |user: &str, pass: &str| {
         let auth = base64::engine::general_purpose::STANDARD.encode(format!("{user}:{pass}"));

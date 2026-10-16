@@ -113,7 +113,7 @@ pub async fn register(
             .into_response());
     }
 
-    let hash = crate::db::hash_password(&req.password).map_err(internal)?;
+    let hash = crate::db::hash_password(&req.password).await.map_err(internal)?;
     let token = crate::auth::new_token();
     let user_id: i64 = match sqlx::query_scalar(
         "INSERT INTO users (username, password_hash, is_admin, email, verify_token, verify_expires)
@@ -276,7 +276,7 @@ pub async fn reset(
             .into_response());
     };
 
-    let hash = crate::db::hash_password(&req.password).map_err(internal)?;
+    let hash = crate::db::hash_password(&req.password).await.map_err(internal)?;
     // Following a link mailed to the address proves ownership, so the reset
     // also completes a pending email verification.
     sqlx::query(
