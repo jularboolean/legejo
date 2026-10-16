@@ -45,19 +45,39 @@ pub async fn log_db(db: &sqlx::AnyPool, actor: Actor<'_>, action: &str, details:
     }
 }
 
-/// Drop entries older than a year, once a day.
+/// Once a day: drop what has run out, here and in openlibrary.rs and
+/// ratelimit.rs. Two server processes doing it at the same time, as during
+/// a rolling update, do no harm: every step is a plain delete.
 pub async fn prune_daily(state: AppState) {
     loop {
-        let cutoff = (time::OffsetDateTime::now_utc() - time::Duration::days(365))
-            .format(time::macros::format_description!("[year]-[month]-[day]T00:00:00.000Z"))
-            .unwrap_or_default();
-        if let Err(e) = sqlx::query("DELETE FROM activity_log WHERE at < $1").bind(cutoff).execute(&state.db).await {
-            tracing::warn!("audit log: pruning failed: {e}");
-        }
-        crate::openlibrary::prune(&state).await;
-        crate::ratelimit::prune(&state).await;
+        prune(&state).await;
         tokio::time::sleep(std::time::Duration::from_secs(24 * 3600)).await;
     }
+}
+
+/// Log entries older than a year, sessions past their expiry, and
+/// self-registrations never confirmed, whose names become free again. An
+/// invitation is not touched: it stays listed until an admin withdraws or
+/// renews it.
+pub(crate) async fn prune(state: &AppState) {
+    let year_ago = (time::OffsetDateTime::now_utc() - time::Duration::days(365))
+        .format(time::macros::format_description!("[year]-[month]-[day]T00:00:00.000Z"))
+        .unwrap_or_default();
+    let now = now_ts();
+    let steps = [
+        ("log entries", "DELETE FROM activity_log WHERE at < $1", year_ago),
+        ("sessions", "DELETE FROM sessions WHERE expires_at < $1", now.clone()),
+        ("unconfirmed registrations", "DELETE FROM users WHERE verify_token IS NOT NULL AND verify_expires < $1", now),
+    ];
+    for (what, sql, cutoff) in steps {
+        match sqlx::query(sql).bind(cutoff).execute(&state.db).await {
+            Ok(done) if done.rows_affected() > 0 => tracing::info!("pruned {} expired {what}", done.rows_affected()),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("pruning {what} failed: {e}"),
+        }
+    }
+    crate::openlibrary::prune(state).await;
+    crate::ratelimit::prune(state).await;
 }
 
 #[derive(Deserialize)]
@@ -130,4 +150,34 @@ pub async fn list(State(state): State<AppState>, _admin: AdminUser, Query(q): Qu
         e.details_json = serde_json::from_str(&e.details).unwrap_or(Value::Null);
     }
     Ok(Json(Page { entries, next }))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testutil::{add_user, test_app};
+
+    #[tokio::test]
+    async fn pruning_drops_expired_sessions_and_unconfirmed_registrations() {
+        let (_, db, state) = test_app().await;
+        let (ada, _) = add_user(&db, "ada").await;
+        let past = "2000-01-01T00:00:00.000Z";
+        let future = "2999-01-01T00:00:00.000Z";
+        sqlx::query("INSERT INTO sessions (token, user_id, expires_at) VALUES ('old', ?, ?)").bind(ada).bind(past).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO users (username, password_hash, verify_token, verify_expires) VALUES ('pending', 'x', 't1', ?)").bind(future).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO users (username, password_hash, verify_token, verify_expires) VALUES ('stale', 'x', 't2', ?)").bind(past).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO users (username, password_hash, invite_token, invite_expires) VALUES ('invited', 'x', 't3', ?)").bind(past).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO activity_log (at, action, details) VALUES (?, 'user.registered', '{}')").bind(past).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO activity_log (at, action, details) VALUES (?, 'user.registered', '{}')").bind(crate::db::now_ts()).execute(&db).await.unwrap();
+
+        super::prune(&state).await;
+
+        let sessions: Vec<String> = sqlx::query_scalar("SELECT token FROM sessions ORDER BY token").fetch_all(&db).await.unwrap();
+        assert_eq!(sessions, ["session-ada"]);
+        // The stale registration is gone; the pending one and the expired
+        // invitation stay.
+        let users: Vec<String> = sqlx::query_scalar("SELECT username FROM users ORDER BY username").fetch_all(&db).await.unwrap();
+        assert_eq!(users, ["ada", "invited", "pending"]);
+        let log: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM activity_log").fetch_one(&db).await.unwrap();
+        assert_eq!(log, 1);
+    }
 }
