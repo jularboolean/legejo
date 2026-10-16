@@ -26,6 +26,7 @@ mod follows;
 mod fed;
 mod formats;
 mod healthcheck;
+mod images;
 mod invite;
 mod kobo;
 mod kosync;

@@ -212,11 +212,7 @@ pub async fn shelf_cover(
     let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(id.to_string()))
         .await
         .map_err(|_| not_found())?;
-    Ok((
-        [(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "private, no-cache".into())],
-        data,
-    )
-        .into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
 
 /// A book is visible to a user when it sits on at least one shelf shared

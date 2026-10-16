@@ -1780,18 +1780,14 @@ pub(crate) async fn cover_response(
     if params.size.as_deref() == Some("thumb") {
         if let Some(path) = ensure_thumb(state, uuid).await {
             if let Ok(data) = tokio::fs::read(path).await {
-                return Ok((
-                    [(header::CONTENT_TYPE, "image/jpeg".to_string()), (header::CACHE_CONTROL, cache.into())],
-                    data,
-                )
-                    .into_response());
+                return Ok((crate::images::headers("image/jpeg"), [(header::CACHE_CONTROL, cache)], data).into_response());
             }
         }
     }
     let data = tokio::fs::read(state.data_dir.join("covers").join(uuid))
         .await
         .map_err(|_| not_found())?;
-    Ok(([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, cache.into())], data).into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, cache)], data).into_response())
 }
 
 pub async fn cover(
@@ -1926,8 +1922,6 @@ pub(crate) async fn remove_book(state: &AppState, owner_id: i64, id: i64, uuid: 
     Ok(())
 }
 
-const MAX_COVER_BYTES: usize = 10 * 1024 * 1024;
-
 #[derive(Serialize)]
 pub struct CoverResult {
     #[serde(flatten)]
@@ -1943,32 +1937,7 @@ pub async fn upload_cover(
     mut multipart: Multipart,
 ) -> Result<Json<CoverResult>, Response> {
     let (uuid, _, _) = owned_book(&state, user.0.id, id).await?;
-
-    let mut uploaded: Option<(Vec<u8>, String)> = None;
-    while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
-        let mime = field.content_type().unwrap_or("").to_string();
-        if !mime.starts_with("image/") {
-            continue;
-        }
-        let bytes = field.bytes().await.map_err(|e| internal(e.into()))?;
-        if bytes.len() > MAX_COVER_BYTES {
-            return Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({ "error": "image too large (max 10 MB)" })),
-            )
-                .into_response());
-        }
-        uploaded = Some((bytes.to_vec(), mime));
-        break;
-    }
-    let (bytes, mime) = uploaded.ok_or_else(|| {
-        (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "no image file in upload" })),
-        )
-            .into_response()
-    })?;
-
+    let (bytes, mime) = crate::images::cover(&state, &mut multipart).await?;
     apply_cover(&state, &user, id, &uuid, bytes, mime).await
 }
 

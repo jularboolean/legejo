@@ -342,7 +342,7 @@ pub async fn cover(State(state): State<AppState>, Path((key, book_id)): Path<(St
     let (uuid, mime) = row.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
     let mime = mime.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
     let data = tokio::fs::read(state.data_dir.join("covers").join(&uuid)).await.map_err(|_| StatusCode::NOT_FOUND.into_response())?;
-    Ok(([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "private, max-age=3600".to_string())], data).into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, max-age=3600")], data).into_response())
 }
 
 pub fn router() -> axum::Router<AppState> {

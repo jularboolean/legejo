@@ -1831,7 +1831,7 @@ async fn serve_cover(state: &AppState, token: &str, image_id: &str) -> Result<Re
     let data = tokio::fs::read(state.data_dir.join("covers").join(&book.uuid))
         .await
         .map_err(|_| not_found())?;
-    Ok(([(header::CONTENT_TYPE, mime)], data).into_response())
+    Ok((crate::images::headers(&mime), data).into_response())
 }
 
 /// One info line per cover request, without the token. TraceLayer only logs

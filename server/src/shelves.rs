@@ -70,7 +70,6 @@ const SHELF_COLUMNS: &str = "s.id, s.name, \
      COUNT(sb.book_id) AS book_count, s.ap_slug, \
      (SELECT COUNT(*) FROM ap_followers f WHERE f.shelf_id = s.id) AS followers";
 
-const MAX_COVER_BYTES: usize = 10 * 1024 * 1024;
 
 fn internal(e: anyhow::Error) -> Response {
     tracing::error!("internal error: {e:#}");
@@ -487,21 +486,7 @@ pub async fn upload_cover(
 ) -> Result<Json<Shelf>, Response> {
     // Ensure the shelf exists and is ours before accepting data.
     fetch_shelf(&state, user.0.id, id).await?;
-
-    let mut uploaded: Option<(Vec<u8>, String)> = None;
-    while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
-        let mime = field.content_type().unwrap_or("").to_string();
-        if !mime.starts_with("image/") {
-            continue;
-        }
-        let bytes = field.bytes().await.map_err(|e| internal(e.into()))?;
-        if bytes.len() > MAX_COVER_BYTES {
-            return Err(unprocessable("image too large (max 10 MB)"));
-        }
-        uploaded = Some((bytes.to_vec(), mime));
-        break;
-    }
-    let (bytes, mime) = uploaded.ok_or_else(|| unprocessable("no image file in upload"))?;
+    let (bytes, mime) = crate::images::cover(&state, &mut multipart).await?;
 
     tokio::fs::create_dir_all(state.data_dir.join("shelf_covers"))
         .await
@@ -553,9 +538,5 @@ pub async fn cover(
             .map_err(|e| internal(e.into()))?;
     let mime = mime.flatten().ok_or_else(not_found)?;
     let data = tokio::fs::read(shelf_cover_path(&state, id)).await.map_err(|_| not_found())?;
-    Ok((
-        [(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "private, no-cache".into())],
-        data,
-    )
-        .into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }

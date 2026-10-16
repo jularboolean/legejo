@@ -247,7 +247,7 @@ async fn shelf_icon(State(state): State<AppState>, Path(slug): Path<String>) -> 
         .map_err(|_| not_found())?;
     let mime = mime.ok_or_else(not_found)?;
     let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(shelf.id.to_string())).await.map_err(|_| not_found())?;
-    Ok(([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "public, max-age=3600".into())], data).into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "public, max-age=3600")], data).into_response())
 }
 
 /// A book on some federated shelf, gated again (defence in depth).
@@ -328,7 +328,7 @@ async fn book_cover(State(state): State<AppState>, Path(uuid): Path<String>) -> 
     if b.book.cover_is_free.as_bool() {
         if let Some(mime) = b.cover_mime.filter(|m| m.starts_with("image/")) {
             if let Ok(data) = tokio::fs::read(state.data_dir.join("covers").join(&uuid)).await {
-                return Ok(([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "public, max-age=3600".into())], data).into_response());
+                return Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "public, max-age=3600")], data).into_response());
             }
         }
     }

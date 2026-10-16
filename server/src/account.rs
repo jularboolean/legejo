@@ -242,8 +242,6 @@ pub async fn update(
     Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
-const MAX_AVATAR_BYTES: usize = 5 * 1024 * 1024;
-
 fn avatar_path(state: &AppState, user_id: i64) -> std::path::PathBuf {
     state.data_dir.join("avatars").join(user_id.to_string())
 }
@@ -253,21 +251,7 @@ pub async fn upload_avatar(
     user: AuthUser,
     mut multipart: Multipart,
 ) -> Result<StatusCode, Response> {
-    let mut uploaded: Option<(Vec<u8>, String)> = None;
-    while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
-        let mime = field.content_type().unwrap_or("").to_string();
-        if !mime.starts_with("image/") {
-            continue;
-        }
-        let bytes = field.bytes().await.map_err(|e| internal(e.into()))?;
-        if bytes.len() > MAX_AVATAR_BYTES {
-            return Err(unprocessable("image too large (max 5 MB)"));
-        }
-        uploaded = Some((bytes.to_vec(), mime));
-        break;
-    }
-    let (bytes, mime) = uploaded.ok_or_else(|| unprocessable("no image file in upload"))?;
-
+    let (bytes, mime) = crate::images::avatar(&state, &mut multipart).await?;
     tokio::fs::create_dir_all(state.data_dir.join("avatars"))
         .await
         .map_err(|e| internal(e.into()))?;
@@ -315,11 +299,7 @@ pub async fn avatar(
     let data = tokio::fs::read(avatar_path(&state, id)).await.map_err(|_| {
         (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))).into_response()
     })?;
-    Ok((
-        [(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "private, no-cache".into())],
-        data,
-    )
-        .into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
 
 const LOCALES: [&str; 7] = ["en", "sv", "fi", "eo", "fr", "de", "es"];

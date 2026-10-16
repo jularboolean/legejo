@@ -19,8 +19,6 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-const MAX_COVER_BYTES: usize = 10 * 1024 * 1024;
-
 pub async fn enabled(state: &AppState) -> bool {
     crate::admin::setting_bool(state, "audiobooks_enabled", false).await.unwrap_or(false)
 }
@@ -484,7 +482,7 @@ fn read_tags(path: &std::path::Path) -> Tags {
         tags.artist = text(tag.artist());
         tags.cover = tag.pictures().first().and_then(|p| {
             let mime = p.mime_type()?.as_str().to_string();
-            (mime.starts_with("image/") && p.data().len() <= MAX_COVER_BYTES).then(|| (p.data().to_vec(), mime))
+            (mime.starts_with("image/") && p.data().len() <= crate::images::MAX_COVER_BYTES).then(|| (p.data().to_vec(), mime))
         });
     }
     tags
@@ -647,7 +645,7 @@ pub(crate) async fn import_folder(state: &AppState, owner_id: i64, found: &Folde
     if let Some(cover) = &found.cover {
         let mime = if cover.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("png")) { "image/png" } else { "image/jpeg" };
         match tokio::fs::read(cover).await {
-            Ok(data) if !data.is_empty() && data.len() <= MAX_COVER_BYTES => {
+            Ok(data) if !data.is_empty() && data.len() <= crate::images::MAX_COVER_BYTES => {
                 store_cover(state, id, &book_uuid, &data, mime).await.map_err(|_| anyhow::anyhow!("the cover could not be stored"))?;
             }
             _ => {}
@@ -804,19 +802,9 @@ pub async fn upload_cover(
 ) -> Result<Json<Detail>, Response> {
     on(&state).await?;
     let book = fetch_own(&state, user.0.id, id).await?;
-    while let Some(field) = multipart.next_field().await.map_err(|e| internal(e.into()))? {
-        let mime = field.content_type().unwrap_or("").to_string();
-        if !mime.starts_with("image/") {
-            continue;
-        }
-        let bytes = field.bytes().await.map_err(|e| internal(e.into()))?;
-        if bytes.len() > MAX_COVER_BYTES {
-            return Err(unprocessable("image too large (max 10 MB)"));
-        }
-        store_cover(&state, book.id, &book.uuid, &bytes, &mime).await?;
-        return detail(&state, &headers, user.0.id, id).await;
-    }
-    Err(unprocessable("no image file in upload"))
+    let (bytes, mime) = crate::images::cover(&state, &mut multipart).await?;
+    store_cover(&state, book.id, &book.uuid, &bytes, &mime).await?;
+    detail(&state, &headers, user.0.id, id).await
 }
 
 async fn cover_response(state: &AppState, uuid: &str) -> Result<Response, Response> {
@@ -828,7 +816,7 @@ async fn cover_response(state: &AppState, uuid: &str) -> Result<Response, Respon
         .flatten();
     let mime = mime.ok_or_else(not_found)?;
     let data = tokio::fs::read(cover_path(state, uuid)).await.map_err(|_| not_found())?;
-    Ok(([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "private, no-cache".into())], data).into_response())
+    Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
 
 pub async fn cover(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<Response, Response> {

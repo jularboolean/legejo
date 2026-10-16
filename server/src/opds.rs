@@ -417,7 +417,7 @@ pub async fn cover(
     let data = tokio::fs::read(state.data_dir.join("covers").join(&uuid))
         .await
         .map_err(|_| not_found())?;
-    Ok(([(header::CONTENT_TYPE, mime)], data).into_response())
+    Ok((crate::images::headers(&mime), data).into_response())
 }
 
 pub async fn download(

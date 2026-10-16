@@ -116,14 +116,16 @@ async fn an_audiobook_is_a_podcast_feed() {
     assert!(xml.find("01 Jan 2020").unwrap() < xml.find("02 Jan 2020").unwrap());
 
     // With a cover, the feed names it twice, at an address that ends in its type.
-    let (status, _) = post_files(&app, &format!("/api/audiobooks/{id}/cover"), &alice, &[("c.png", "image/png", b"png")]).await;
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(2, 2, image::Rgb([0, 0, 0])).write_with_encoder(image::codecs::png::PngEncoder::new(&mut png)).unwrap();
+    let (status, _) = post_files(&app, &format!("/api/audiobooks/{id}/cover"), &alice, &[("c.png", "image/png", &png)]).await;
     assert_eq!(status, StatusCode::OK);
     let (_, _, body) = fetch(&app, &path, None).await;
     let with_cover = String::from_utf8(body).unwrap();
     let cover = with_cover.split("<itunes:image href=\"").nth(1).unwrap().split('"').next().unwrap();
     assert!(cover.ends_with("/cover.png") && with_cover.contains(&format!("<image>\n      <url>{cover}</url>")));
     let (status, headers, body) = fetch(&app, &cover[cover.find("/podcast/").unwrap()..], None).await;
-    assert_eq!((status, body.as_slice()), (StatusCode::OK, b"png".as_slice()));
+    assert_eq!((status, body), (StatusCode::OK, png));
     assert_eq!(headers[header::CONTENT_TYPE], "image/png");
 
     // The search over everything also finds the user's own shelves by name.
