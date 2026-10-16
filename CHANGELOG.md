@@ -4,6 +4,34 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.22.0 (2026-10-16)
+
+- **Following a shelf.** A shelf someone shares with you has a **Follow**
+  button. Books that come onto a shelf you follow are then announced above
+  your library, with the shelf, how many and their titles, and the number
+  shows beside **Shared shelves** in the sidebar. On the shelf itself, the new
+  ones are marked **New**. Opening the shelf counts as having seen them, and
+  **Mark as seen** clears them all at once.
+  - Each shelf you follow has an **Atom feed** of its own, for a feed reader:
+    an address only you have, which needs no login and stops working when you
+    stop following, or when the shelf is no longer shared with you.
+- **Your reading, to take elsewhere.** The Account page gives **Reading as
+  CSV (Goodreads)**: the books you have read, are reading or want to read,
+  with ratings, the date you finished and your shelves, in the form that
+  StoryGraph, BookWyrm and Goodreads take in when importing.
+- **A new password without mail.** An admin can make a **password reset
+  link** for a user on the Admin page, under Users, and pass it on; it works
+  once, for a day. When no admin can log in, `legejo reset-password <user>`
+  run on the server (with Docker Compose: `docker compose exec legejo legejo
+  reset-password <user>`) prints such a link. Both are noted in the system
+  log.
+- The export on the Account page is now headed **Export your library**.
+- *The Legejo Cookbook* has three new recipes: Following a Shared Shelf,
+  Taking Your Reading Elsewhere, and Helping Someone Who Has Lost Their
+  Password.
+- **Upgrading:** nothing to do. A table is added for the shelves people
+  follow.
+
 ## 1.21.1 (2026-10-15)
 
 - **You see what you pick in Safari.** In Safari, and in the app on a home

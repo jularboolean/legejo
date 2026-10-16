@@ -312,6 +312,20 @@ inside.</p>"""),
   """<p>The copy is yours: your place in it, your tags, your shelves. It takes no extra room on
 the disk, since both copies point at the same file until one of them is changed.</p>"""),
 
+ ("Following a Shared Shelf",
+  "<p>A friend keeps adding books to a shelf they share with you, and you would like to know when, without going to look.</p>",
+  """<p>Open the shelf under <strong>Shared shelves</strong> and press <strong>Follow</strong>.
+From then on, books that come onto it are announced above your library, under <strong>New on
+shelves you follow</strong>, and their number shows beside <strong>Shared shelves</strong> in
+the sidebar. On the shelf itself the new ones are marked <strong>New</strong>.</p>
+<p>Opening the shelf counts as having seen them; <strong>Mark as seen</strong> above the
+library clears them all at once. <strong>Stop following</strong> is on the shelf.</p>""",
+  """<p>A shelf you follow also has an <strong>Atom feed</strong>, an address for a feed reader
+that shows each book as it arrives. The address is yours alone and needs no login, so keep it
+to yourself. It stops working when you stop following, or when the shelf is no longer shared
+with you. Shelves you follow from other instances (the next recipes) are not announced this
+way.</p>"""),
+
  ("Giving a Shelf to Someone on Another Instance",
   "<p>A friend has a Legejo of their own, or reads in an app, and you want them to have one of your shelves. Not the whole fediverse; just them.</p>",
   """<p><em>Optional: an admin turns on <strong>Shelves by private link</strong> on the Admin
@@ -618,6 +632,15 @@ if you mean it.</p>
 <p>Marking as read also tells a Kobo the book is finished. And it works the other way: a
 book marked as unread on the Kobo is unread here after the next sync, and a place read in the
 web before that is forgotten. The book itself is not touched by any of this.</p>"""),
+ ("Taking Your Reading Elsewhere",
+  "<p>You keep track of your reading on StoryGraph, BookWyrm or Goodreads too, and do not want to enter it all again.</p>",
+  """<p>On the Account page, under <strong>Export your library</strong>, press <strong>Reading as
+CSV (Goodreads)</strong>. Import the file where you want your reading: StoryGraph, BookWyrm and
+Goodreads all take a file in Goodreads' own export format, which this is.</p>""",
+  """<p>The file holds the books you have read, are reading or want to read, with your ratings,
+the day you finished (the day you marked it read, or last read in it), the day you added it,
+and your shelves. Books you have not touched are left out. The other service matches books on
+ISBN, title and author, so a book without an ISBN may need a hand there.</p>"""),
  ]),
 
 ("Audiobooks",
@@ -698,10 +721,12 @@ menus, dialogs, covers and pages come in softly instead of all at once.</p>""",
 are off until you turn them on. The reader has themes of its own, in its
 <strong>Reading settings</strong> (Recipe 6.2), and is not changed by the design.</p>"""),
 
- ("Taking Your Library with You",
+ ("Exporting Your Library",
   "<p>You want a copy of everything, or you are leaving.</p>",
-  """<p>On the Account page, ask for an export. It holds your book files, the covers, and the catalogue as CSV and
-JSON. Your account can be deleted from the same page.</p>""",
+  """<p>On the Account page, under <strong>Export your library</strong>, ask for an export. It
+holds your book files, the covers, and the catalogue as CSV and JSON. Your account can be
+deleted from the same page. For your reading alone, in a form other services take in, see
+Recipe 9.5.</p>""",
   """<p>Because corrections are written back into EPUB files (Recipe 3.1), the exported books
 carry your work with them. Deleting an account removes its books for good.</p>"""),
  ]),
@@ -722,7 +747,8 @@ address. Any user can be made an admin.</p>"""),
 <code>LEGEJO_SMTP_PORT</code> (587), <code>LEGEJO_SMTP_USER</code>,
 <code>LEGEJO_SMTP_PASSWORD</code> and <code>LEGEJO_SMTP_TLS</code> (<code>starttls</code>,
 <code>tls</code> or <code>none</code>).</p>""",
-  "<p>Mail is off when the host is unset, and everything that depends on it is hidden.</p>"),
+  """<p>Mail is off when the host is unset, and everything that depends on it is hidden. A
+forgotten password can still be put right without it (Recipe 12.8).</p>"""),
 
  ("Signing In with Single Sign-On",
   "<p>Your household already has one login for everything.</p>",
@@ -772,6 +798,19 @@ is for private networks only.</p>"""),
 usernames. <code>LEGEJO_LOGIN_MAX_FAILURES</code>, <code>LEGEJO_LOGIN_MAX_FAILURES_IP</code> and
 <code>LEGEJO_LOGIN_WINDOW_MINUTES</code> change them. Behind a reverse proxy, name the header
 that carries the client's address (Recipe 1.4), or every visitor looks like the proxy.</p>"""),
+
+ ("Helping Someone Who Has Lost Their Password",
+  "<p>A user has forgotten their password, and the instance sends no mail, so the link on the login page does nothing for them.</p>",
+  """<p>On the Admin page, under <strong>Users</strong>, press <strong>Password reset link</strong>
+beside them and send them the link. It works once, for a day; with it they choose a new
+password and are logged out everywhere else.</p>
+<p>If it is the admin who has lost the password, run beside the instance's
+<code>docker-compose.yml</code>:</p>
+<pre>docker compose exec legejo legejo reset-password &lt;username&gt;</pre>
+<p>It prints such a link for any user.</p>""",
+  """<p>The link begins with <code>LEGEJO_PUBLIC_URL</code> when it is set; otherwise put the
+instance's address in front of it. Until the link is used, the old password keeps working.
+Both ways are noted in the system log (Recipe 12.5).</p>"""),
 
  ("Looking Up a Setting",
   "<p>You remember that there is a variable for it, but not its name.</p>",
