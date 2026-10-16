@@ -53,6 +53,7 @@ pub struct InviteResult {
 }
 
 async fn send_invite(state: &AppState, email: &str, username: &str, inviter: &str, link: &str) -> Result<(), String> {
+    let (username, inviter) = (crate::booktext::esc(username), crate::booktext::esc(inviter));
     let html = format!(
         "<p>Hello {username},</p>\
          <p>{inviter} has invited you to Legejo, an e-book library with OPDS and Kobo sync.</p>\

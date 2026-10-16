@@ -11,6 +11,10 @@
 //!
 //! Counts are stored in the database so they are shared between server
 //! processes, e.g. during a rolling deploy.
+//!
+//! The same table rations the mail sent on request from the login page
+//! (`mail_allowed`): a verification or a reset link, per address and per
+//! client IP, within the same window.
 
 use crate::db::now_ts;
 use crate::AppState;
@@ -93,7 +97,7 @@ async fn record_failure(state: &AppState, username: &str, keys: &[(String, i64)]
     }
 }
 
-fn too_many(state: &AppState, json_body: bool) -> Response {
+pub(crate) fn too_many(state: &AppState, json_body: bool) -> Response {
     let retry = (state.settings.limits.window_minutes * 60).to_string();
     if json_body {
         (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, retry)], Json(json!({ "error": "too many attempts" }))).into_response()
@@ -160,6 +164,31 @@ pub async fn basic(State(state): State<AppState>, req: Request, next: Next) -> R
         record_failure(&state, &username, &keys).await;
     }
     res
+}
+
+/// Mail to one address within the window, and from one client IP (only
+/// with LEGEJO_CLIENT_IP_HEADER). Always on: nobody needs more.
+const MAIL_PER_ADDRESS: i64 = 3;
+const MAIL_PER_IP: i64 = 20;
+
+/// Whether a mail to `address` may go out now, and the request counted if
+/// so. Called before the address is looked up, so a refusal says nothing
+/// about whether an account exists.
+pub async fn mail_allowed(state: &AppState, headers: &HeaderMap, address: &str) -> bool {
+    let mut keys = vec![(format!("mail:{}", address.trim().to_lowercase()), MAIL_PER_ADDRESS)];
+    if let Some(ip) = client_ip(state, headers) {
+        keys.push((format!("mail-ip:{ip}"), MAIL_PER_IP));
+    }
+    if blocked(state, &keys).await {
+        return false;
+    }
+    let now = now_ts();
+    for (key, _) in &keys {
+        if let Err(e) = sqlx::query("INSERT INTO auth_failures (key, at) VALUES ($1, $2)").bind(key).bind(&now).execute(&state.db).await {
+            tracing::warn!("ratelimit: could not record a mail: {e}");
+        }
+    }
+    true
 }
 
 /// Delete failures older than a day. Called by the daily prune task.

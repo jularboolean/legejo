@@ -8,41 +8,52 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 /// A mail server that accepts one message and hands back what it was sent:
 /// the recipient and the message itself.
 pub(crate) async fn mail_sink() -> (u16, tokio::task::JoinHandle<(String, String)>) {
+    let (port, task) = mail_sink_many(1).await;
+    (port, tokio::spawn(async move { task.await.unwrap().remove(0) }))
+}
+
+/// As mail_sink, for `count` messages on one connection each, in the order
+/// they arrive.
+pub(crate) async fn mail_sink_many(count: usize) -> (u16, tokio::task::JoinHandle<Vec<(String, String)>>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let task = tokio::spawn(async move {
-        let (stream, _) = listener.accept().await.unwrap();
-        let (read, mut write) = stream.into_split();
-        let mut lines = BufReader::new(read).lines();
-        write.write_all(b"220 sink\r\n").await.unwrap();
-        let (mut to, mut message, mut in_data) = (String::new(), String::new(), false);
-        while let Some(line) = lines.next_line().await.unwrap() {
-            if in_data {
-                if line == "." {
-                    in_data = false;
-                    write.write_all(b"250 ok\r\n").await.unwrap();
+        let mut messages = Vec::new();
+        for _ in 0..count {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (read, mut write) = stream.into_split();
+            let mut lines = BufReader::new(read).lines();
+            write.write_all(b"220 sink\r\n").await.unwrap();
+            let (mut to, mut message, mut in_data) = (String::new(), String::new(), false);
+            while let Some(line) = lines.next_line().await.unwrap() {
+                if in_data {
+                    if line == "." {
+                        in_data = false;
+                        write.write_all(b"250 ok\r\n").await.unwrap();
+                    } else {
+                        message.push_str(&line);
+                        message.push('\n');
+                    }
+                    continue;
+                }
+                let command = line.to_uppercase();
+                let reply: &[u8] = if command.starts_with("DATA") {
+                    in_data = true;
+                    b"354 go on\r\n"
+                } else if command.starts_with("QUIT") {
+                    write.write_all(b"221 bye\r\n").await.unwrap();
+                    break;
                 } else {
-                    message.push_str(&line);
-                    message.push('\n');
-                }
-                continue;
+                    if command.starts_with("RCPT TO:") {
+                        to = line[8..].trim().trim_matches(['<', '>']).to_string();
+                    }
+                    b"250 ok\r\n"
+                };
+                write.write_all(reply).await.unwrap();
             }
-            let command = line.to_uppercase();
-            let reply: &[u8] = if command.starts_with("DATA") {
-                in_data = true;
-                b"354 go on\r\n"
-            } else if command.starts_with("QUIT") {
-                write.write_all(b"221 bye\r\n").await.unwrap();
-                break;
-            } else {
-                if command.starts_with("RCPT TO:") {
-                    to = line[8..].trim().trim_matches(['<', '>']).to_string();
-                }
-                b"250 ok\r\n"
-            };
-            write.write_all(reply).await.unwrap();
+            messages.push((to, message));
         }
-        (to, message)
+        messages
     });
     (port, task)
 }

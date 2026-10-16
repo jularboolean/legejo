@@ -113,6 +113,34 @@ async fn with_a_client_ip_an_attacker_does_not_lock_out_the_owner() {
     assert_eq!(login(&app, "nobody", "x", Some("203.0.113.9")).await, StatusCode::TOO_MANY_REQUESTS);
 }
 
+#[tokio::test]
+async fn mail_from_one_client_address_is_rationed() {
+    let (_, _, mut state) = test_app().await;
+    state.settings = Arc::new(limits(3, Some("x-real-ip")));
+    // Nothing is sent for an address nobody has, so the server need not exist.
+    state.mail = Some(crate::mail::MailConfig::local(1, "Legejo <mail@legejo.test>"));
+    let app = crate::router(state);
+    let forgot = |email: String, ip: &'static str| {
+        let app = app.clone();
+        async move {
+            let req = Request::builder()
+                .method(Method::POST)
+                .uri("/api/register/forgot")
+                .header("x-real-ip", ip)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "email": email }).to_string()))
+                .unwrap();
+            app.oneshot(req).await.unwrap().status()
+        }
+    };
+    for n in 0..20 {
+        assert_eq!(forgot(format!("p{n}@example.org"), "203.0.113.9").await, StatusCode::NO_CONTENT);
+    }
+    assert_eq!(forgot("p20@example.org".into(), "203.0.113.9").await, StatusCode::TOO_MANY_REQUESTS);
+    // Another client is unaffected.
+    assert_eq!(forgot("p20@example.org".into(), "198.51.100.4").await, StatusCode::NO_CONTENT);
+}
+
 async fn get_metrics(app: &Router, token: Option<&str>) -> (StatusCode, String) {
     let mut req = Request::builder().uri("/metrics");
     if let Some(t) = token {

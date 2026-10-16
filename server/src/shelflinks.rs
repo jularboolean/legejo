@@ -217,7 +217,7 @@ pub async fn feed(State(state): State<AppState>, Path(token): Path<String>) -> R
         .await;
 
     let base = format!("{PATH_MARK}{token}");
-    let esc = crate::opds::esc;
+    let esc = crate::booktext::esc;
     let mut xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/" xmlns:opds="http://opds-spec.org/2010/catalog">

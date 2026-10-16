@@ -149,6 +149,17 @@ fn attribute(tag: &str, name: &str) -> Option<String> {
     None
 }
 
+/// Text for HTML or XML: the characters that would otherwise be read as
+/// markup, escaped. Used for feeds, pages and mail. The opposite of
+/// decode_entities.
+pub(crate) fn esc(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 /// Text with its character references decoded.
 pub(crate) fn decode_entities(text: &str) -> String {
     let mut out = String::with_capacity(text.len());

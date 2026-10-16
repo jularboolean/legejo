@@ -3,6 +3,7 @@
 //! the account password.
 
 use crate::books::{search_expr, search_parts, Book, BOOK_COLUMNS, BOOK_COLUMNS_B};
+use crate::booktext::esc;
 use crate::AppState;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, request::Parts, StatusCode};
@@ -69,14 +70,6 @@ fn internal(e: anyhow::Error) -> Response {
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "not found").into_response()
-}
-
-pub(crate) fn esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
 }
 
 const NAV_TYPE: &str = "application/atom+xml;profile=opds-catalog;kind=navigation";

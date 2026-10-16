@@ -14,7 +14,7 @@
 
 use crate::auth::AuthUser;
 use crate::db::now_ts;
-use crate::opds::esc;
+use crate::booktext::esc;
 use crate::shelves::visible_to;
 use crate::AppState;
 use axum::extract::{Path, State};

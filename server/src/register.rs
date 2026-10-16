@@ -110,6 +110,12 @@ pub async fn register(
             .into_response());
     }
 
+    // Mail to one address is rationed (ratelimit.rs); refused before the
+    // row exists.
+    if !crate::ratelimit::mail_allowed(&state, &headers, &email).await {
+        return Err(crate::ratelimit::too_many(&state, true));
+    }
+
     let hash = crate::db::hash_password(&req.password).await.map_err(internal)?;
     let token = crate::auth::new_token();
     let user_id: i64 = match sqlx::query_scalar(
@@ -139,10 +145,11 @@ pub async fn register(
 
     let link = format!("{}/verify?token={token}", crate::invite::base(&state, &headers));
     let html = format!(
-        "<p>Welcome to Legejo, {username}!</p>\
+        "<p>Welcome to Legejo, {name}!</p>\
          <p>Confirm your email address to activate the account:</p>\
          <p><a href=\"{link}\">{link}</a></p>\
-         <p>The link is valid for 48 hours. If you did not create this account, ignore this mail.</p>"
+         <p>The link is valid for 48 hours. If you did not create this account, ignore this mail.</p>",
+        name = crate::booktext::esc(username),
     );
     if let Err(e) = send_mail(&state, &email, "Confirm your Legejo account", &html).await {
         // Without the mail the account can never be verified, so remove it.
@@ -201,8 +208,11 @@ pub struct ForgotRequest {
     email: String,
 }
 
-/// Always answers 204 whether or not the address exists, so the endpoint
-/// cannot be used to enumerate accounts. 503 only when mail is not configured.
+/// Answers 204 whether or not the address exists, and in the same time: the
+/// mail goes out after the response, so the SMTP round trip does not show.
+/// Mail to one address is rationed (ratelimit.rs), counted for unknown
+/// addresses as well, so a 429 says nothing either. 503 only when mail is
+/// not configured.
 pub async fn forgot(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -216,6 +226,9 @@ pub async fn forgot(
             .into_response());
     }
     let email = req.email.trim().to_string();
+    if !crate::ratelimit::mail_allowed(&state, &headers, &email).await {
+        return Err(crate::ratelimit::too_many(&state, true));
+    }
     let row: Option<(i64, String)> = sqlx::query_as(
         "SELECT id, username FROM users WHERE email IS NOT NULL AND LOWER(email) = LOWER($1)",
     )
@@ -225,21 +238,24 @@ pub async fn forgot(
     .map_err(|e| internal(e.into()))?;
 
     if let Some((id, username)) = row {
-        let token = issue_reset_token(&state.db, id, 1).await.map_err(|e| internal(e.into()))?;
+        let token = mailed_reset_token(&state.db, id).await.map_err(|e| internal(e.into()))?;
         let link = format!("{}/reset?token={token}", crate::invite::base(&state, &headers));
         let html = format!(
-            "<p>Hello {username},</p>\
+            "<p>Hello {name},</p>\
              <p>Someone asked to reset the password for your Legejo account. \
              Follow the link to choose a new one:</p>\
              <p><a href=\"{link}\">{link}</a></p>\
              <p>The link is valid for one hour. If this wasn't you, ignore this mail; \
-             your password is unchanged.</p>"
+             your password is unchanged.</p>",
+            name = crate::booktext::esc(&username),
         );
         crate::audit::log(&state, Some((id, &username)), "user.reset_requested", json!({})).await;
-        if let Err(e) = send_mail(&state, &email, "Reset your Legejo password", &html).await {
-            tracing::warn!("password reset mail failed: {e:#}");
-            // Still 204: the response must not reveal whether the address exists.
-        }
+        let state = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = send_mail(&state, &email, "Reset your Legejo password", &html).await {
+                tracing::warn!("password reset mail failed: {e:#}");
+            }
+        });
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -304,6 +320,22 @@ pub async fn reset(
 
 /// A link given by hand may wait a while before it is used.
 pub(crate) const HANDED_RESET_HOURS: i64 = 24;
+
+/// The token for a mailed reset link: the one from an earlier mail while it
+/// is still valid, so that asking again does not void that link; otherwise
+/// a new one, valid for an hour.
+pub(crate) async fn mailed_reset_token(db: &sqlx::AnyPool, user_id: i64) -> Result<String, sqlx::Error> {
+    let live: Option<Option<String>> =
+        sqlx::query_scalar("SELECT reset_token FROM users WHERE id = $1 AND reset_expires > $2")
+            .bind(user_id)
+            .bind(now_ts())
+            .fetch_optional(db)
+            .await?;
+    match live.flatten() {
+        Some(token) => Ok(token),
+        None => issue_reset_token(db, user_id, 1).await,
+    }
+}
 
 /// A new reset token for the user, replacing any earlier one.
 pub(crate) async fn issue_reset_token(db: &sqlx::AnyPool, user_id: i64, hours: i64) -> Result<String, sqlx::Error> {
@@ -401,6 +433,91 @@ mod tests {
         let text = message.replace("=\n", "").replace("=3D", "=");
         assert!(text.contains("https://a.test/reset?token="), "{text}");
         assert!(!text.contains("evil.example"), "{text}");
+    }
+
+    /// The token in a mailed link, with the quoted-printable wrapping undone.
+    fn token_in(message: &str) -> String {
+        let text = message.replace("=\n", "").replace("=3D", "=");
+        text.split("token=").nth(1).unwrap().chars().take_while(|c| c.is_ascii_hexdigit()).collect()
+    }
+
+    #[tokio::test]
+    async fn a_reset_link_is_kept_while_it_lasts_and_mail_is_rationed() {
+        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (port, sink) = crate::kindle_tests::mail_sink_many(2).await;
+        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        let app = crate::router(state.clone());
+        let (ada, _) = add_user(&db, "ada").await;
+        sqlx::query("UPDATE users SET email = 'ada@example.org' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
+        let forgot = |email: &str| {
+            let (app, body) = (app.clone(), json!({ "email": email }));
+            async move { send(&app, Method::POST, "/api/register/forgot", None, Some(body)).await.0 }
+        };
+
+        // Asking twice mails the same link: the first mail is not voided by
+        // the second.
+        assert_eq!(forgot("ada@example.org").await, StatusCode::NO_CONTENT);
+        assert_eq!(forgot("Ada@Example.org").await, StatusCode::NO_CONTENT);
+        let mails = sink.await.unwrap();
+        let token = token_in(&mails[0].1);
+        assert_eq!(token_in(&mails[1].1), token);
+        let stored: String = sqlx::query_scalar("SELECT reset_token FROM users WHERE id = ?").bind(ada).fetch_one(&db).await.unwrap();
+        assert_eq!(stored, token);
+
+        // Three mails to one address within the window, whether or not the
+        // address is anyone's; the fourth is refused.
+        assert_eq!(forgot("ada@example.org").await, StatusCode::NO_CONTENT);
+        assert_eq!(forgot("ada@example.org").await, StatusCode::TOO_MANY_REQUESTS);
+        for _ in 0..3 {
+            assert_eq!(forgot("nobody@example.org").await, StatusCode::NO_CONTENT);
+        }
+        assert_eq!(forgot("nobody@example.org").await, StatusCode::TOO_MANY_REQUESTS);
+
+        // Once the window has passed and the link has run out, a new one is made.
+        sqlx::query("UPDATE auth_failures SET at = '2000-01-01T00:00:00.000Z'").execute(&db).await.unwrap();
+        sqlx::query("UPDATE users SET reset_expires = '2000-01-01T00:00:00.000Z' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
+        assert_eq!(forgot("ada@example.org").await, StatusCode::NO_CONTENT);
+        let renewed: String = sqlx::query_scalar("SELECT reset_token FROM users WHERE id = ?").bind(ada).fetch_one(&db).await.unwrap();
+        assert_ne!(renewed, token);
+    }
+
+    #[tokio::test]
+    async fn registration_mails_the_name_as_text_and_shares_the_ration() {
+        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (port, sink) = crate::kindle_tests::mail_sink().await;
+        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        let app = crate::router(state.clone());
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('registration_enabled', 'true')").execute(&db).await.unwrap();
+        let register = |name: &str, email: &str| {
+            let (app, body) = (app.clone(), json!({ "username": name, "email": email, "password": "ett bra lösenord" }));
+            async move { send(&app, Method::POST, "/api/register", None, Some(body)).await.0 }
+        };
+        let forgot = |email: &str| {
+            let (app, body) = (app.clone(), json!({ "email": email }));
+            async move { send(&app, Method::POST, "/api/register/forgot", None, Some(body)).await.0 }
+        };
+
+        // The username rule holds here too.
+        assert_eq!(register("ada\u{7}", "ada@example.org").await, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(register(&"a".repeat(61), "ada@example.org").await, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(register("Ada <b>&", "ada@example.org").await, StatusCode::CREATED);
+
+        // What was typed as a name is text in the mail, never markup.
+        let (to, message) = sink.await.unwrap();
+        assert_eq!(to, "ada@example.org");
+        let text = message.replace("=\n", "").replace("=3D", "=");
+        assert!(text.contains("Welcome to Legejo, Ada &lt;b&gt;&amp;!"), "{text}");
+        assert!(!text.contains("<b>"), "{text}");
+
+        // An address has one ration for verification and reset mails
+        // together: three in the window, then no more, and a refused
+        // registration stores nothing.
+        for _ in 0..3 {
+            assert_eq!(forgot("new@example.org").await, StatusCode::NO_CONTENT);
+        }
+        assert_eq!(register("x", "new@example.org").await, StatusCode::TOO_MANY_REQUESTS);
+        let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE username = 'x'").fetch_one(&db).await.unwrap();
+        assert_eq!(stored, 0);
     }
 
     #[tokio::test]
