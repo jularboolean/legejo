@@ -427,16 +427,17 @@ pub async fn download(
 ) -> Result<Response, Response> {
     let (uuid, _, title) = owned_book(&state, user.id, id).await?;
     let (path, format) = crate::books::book_file(&state, &uuid).await;
-    let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
+    let (len, body) = crate::books::file_body(&path).await.map_err(|e| internal(e.into()))?;
     Ok((
         [
             (header::CONTENT_TYPE, format.mime().to_string()),
+            (header::CONTENT_LENGTH, len.to_string()),
             (
                 header::CONTENT_DISPOSITION,
                 format!("attachment; filename=\"{}\"", crate::books::download_name(&title, format)),
             ),
         ],
-        data,
+        body,
     )
         .into_response())
 }

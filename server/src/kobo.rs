@@ -1805,8 +1805,7 @@ async fn download_file(state: &AppState, token: &str, filename: &str) -> Result<
         // A comic has no file a device can read but the one made here.
         let path = ensure_comic(state, &book).await.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
         crate::kosync::remember_file_id(state, book.id, path.clone()).await;
-        let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
-        return Ok((([(header::CONTENT_TYPE, "application/epub+zip")], data).into_response(), book.title, "kepub"));
+        return Ok((epub_response(&path).await?, book.title, "kepub"));
     }
     let epub_path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
     let kepub = if want_kepub { ensure_kepub(state, &book.uuid).await } else { None };
@@ -1815,8 +1814,14 @@ async fn download_file(state: &AppState, token: &str, filename: &str) -> Result<
         crate::kosync::remember_file_id(state, book.id, path.clone()).await;
     }
     let format = if kepub.is_some() { "kepub" } else { "epub" };
-    let data = tokio::fs::read(kepub.unwrap_or(epub_path)).await.map_err(|e| internal(e.into()))?;
-    Ok((([(header::CONTENT_TYPE, "application/epub+zip")], data).into_response(), book.title, format))
+    Ok((epub_response(&kepub.unwrap_or(epub_path)).await?, book.title, format))
+}
+
+/// The file streamed from disk, with its length: a comic made into a book
+/// for the device can be hundreds of MB.
+async fn epub_response(path: &std::path::Path) -> Result<Response, Response> {
+    let (len, body) = crate::books::file_body(path).await.map_err(|e| internal(e.into()))?;
+    Ok(([(header::CONTENT_TYPE, "application/epub+zip".to_string()), (header::CONTENT_LENGTH, len.to_string())], body).into_response())
 }
 
 async fn serve_cover(state: &AppState, token: &str, image_id: &str) -> Result<Response, Response> {

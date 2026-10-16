@@ -193,6 +193,16 @@ pub(crate) async fn book_file(state: &AppState, uuid: &str) -> (std::path::PathB
 }
 
 /// A title as a file name, for a download.
+/// A file on disk as a response body, read as it is sent rather than loaded
+/// whole: a book can be hundreds of MB, and several devices may fetch at
+/// once. The length goes in the headers, so the receiver knows what to
+/// expect and nothing is sent chunked.
+pub(crate) async fn file_body(path: &std::path::Path) -> std::io::Result<(u64, axum::body::Body)> {
+    let file = tokio::fs::File::open(path).await?;
+    let len = file.metadata().await?.len();
+    Ok((len, axum::body::Body::from_stream(tokio_util::io::ReaderStream::new(file))))
+}
+
 pub(crate) fn download_name(title: &str, format: Format) -> String {
     let safe: String = title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
     format!("{safe}.{}", format.as_str())
@@ -1810,13 +1820,14 @@ pub async fn download(
 ) -> Result<Response, Response> {
     let (uuid, _, title) = owned_book(&state, user.0.id, id).await?;
     let (path, format) = book_file(&state, &uuid).await;
-    let data = tokio::fs::read(path).await.map_err(|e| internal(e.into()))?;
+    let (len, body) = file_body(&path).await.map_err(|e| internal(e.into()))?;
     Ok((
         [
             (header::CONTENT_TYPE, format.mime().to_string()),
+            (header::CONTENT_LENGTH, len.to_string()),
             (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", download_name(&title, format))),
         ],
-        data,
+        body,
     )
         .into_response())
 }

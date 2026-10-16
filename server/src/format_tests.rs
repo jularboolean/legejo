@@ -193,3 +193,37 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     let formats: Vec<&str> = list.as_array().unwrap().iter().map(|b| b["format"].as_str().unwrap()).collect();
     assert_eq!(formats.iter().filter(|f| **f == "pdf").count(), 2);
 }
+
+/// The book files are streamed from disk rather than read whole; the
+/// receiver is still told the length, and gets every byte.
+#[tokio::test]
+async fn downloads_are_streamed_with_their_length() {
+    let (app, db, _) = test_app().await;
+    let (_, a) = add_user(&db, "alice").await;
+    let cbz_bytes = cbz("The Broken Ear");
+    let v = upload(&app, &a, &[("ear.cbz", cbz_bytes.clone())], "").await;
+    let id = v["added"][0]["id"].as_i64().unwrap();
+    let uuid: String = sqlx::query_scalar("SELECT uuid FROM books WHERE id = ?").bind(id).fetch_one(&db).await.unwrap();
+    let (_, account) = send(&app, Method::POST, "/api/account/kobo-token", Some(&a), None).await;
+    let token = account["kobo_token"].as_str().unwrap().to_string();
+
+    let length_and_body = |uri: String| {
+        let app = app.clone();
+        let a = a.clone();
+        async move {
+            let req = Request::builder().uri(uri).header(header::COOKIE, a).body(Body::empty()).unwrap();
+            let res = app.oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::OK);
+            let length = res.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).map(|v| v.to_string());
+            let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec();
+            (length, body)
+        }
+    };
+    let (length, body) = length_and_body(format!("/api/books/{id}/file")).await;
+    assert_eq!(length.as_deref(), Some(cbz_bytes.len().to_string().as_str()));
+    assert_eq!(body, cbz_bytes);
+    // The device gets the comic made into a book, streamed the same way.
+    let (length, body) = length_and_body(format!("/api/kobo/{token}/v1/download/{uuid}.kepub.epub")).await;
+    assert_eq!(length.as_deref(), Some(body.len().to_string().as_str()));
+    assert!(body.starts_with(b"PK"), "a zip, {} bytes", body.len());
+}

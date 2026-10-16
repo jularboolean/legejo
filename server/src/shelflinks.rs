@@ -279,14 +279,15 @@ pub async fn cover(State(state): State<AppState>, Path((token, id)): Path<(Strin
 pub async fn file(State(state): State<AppState>, Path((token, id)): Path<(String, i64)>) -> Result<Response, Response> {
     let (uuid, _, title) = shared_book(&state, &token, id).await?;
     let (path, format) = crate::books::book_file(&state, &uuid).await;
-    let data = tokio::fs::read(path).await.map_err(internal)?;
+    let (len, body) = crate::books::file_body(&path).await.map_err(internal)?;
     Ok((
         [
             (header::CONTENT_TYPE, format.mime().to_string()),
+            (header::CONTENT_LENGTH, len.to_string()),
             (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", crate::books::download_name(&title, format))),
             (header::CACHE_CONTROL, "private, no-store".to_string()),
         ],
-        data,
+        body,
     )
         .into_response())
 }
