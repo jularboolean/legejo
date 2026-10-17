@@ -75,8 +75,9 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
             .await
             .map_err(|e| internal(e.into()))?,
         mail_configured: state.mail.is_some(),
+        // Only information: if it cannot be had, the settings still can.
         fulltext: if crate::fulltext::enabled(state) {
-            Some(crate::fulltext::status(state).await.map_err(internal)?)
+            crate::fulltext::status(state).await.map_err(|e| tracing::warn!("full-text status: {e:#}")).ok()
         } else {
             None
         },

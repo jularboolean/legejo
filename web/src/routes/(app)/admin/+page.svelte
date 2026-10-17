@@ -194,7 +194,7 @@
 		{t('admin.librisToggle')}
 	</label>
 	<p class="hint">{t('admin.librisHint')}</p>
-	<label class="toggle reg">
+	<label class="toggle">
 		<input
 			type="checkbox"
 			checked={openLibraryEnabled}
@@ -204,7 +204,7 @@
 		{t('admin.openLibraryToggle')}
 	</label>
 	<p class="hint">{t('admin.openLibraryHint')}</p>
-	<label class="toggle reg">
+	<label class="toggle">
 		<input
 			type="checkbox"
 			checked={audiobooksEnabled}
@@ -214,7 +214,7 @@
 		{t('admin.audiobooksToggle')}
 	</label>
 	<p class="hint">{t('admin.audiobooksHint')}</p>
-	<label class="toggle reg">
+	<label class="toggle">
 		<input
 			type="checkbox"
 			checked={catalogsEnabled}
@@ -224,7 +224,7 @@
 		{t('admin.catalogsToggle')}
 	</label>
 	<p class="hint">{t('admin.catalogsHint')}</p>
-	<label class="toggle reg">
+	<label class="toggle">
 		<input
 			type="checkbox"
 			checked={koboAnnotationsEnabled}
@@ -268,7 +268,7 @@
 		{/if}
 	</p>
 	<p class="hint">{t('admin.fulltextHint')}</p>
-	<label class="toggle reg">
+	<label class="toggle">
 		<input
 			type="checkbox"
 			checked={registrationEnabled}
@@ -359,8 +359,11 @@
 		gap: 0.5rem;
 		font-size: 0.95rem;
 	}
-	.toggle.reg {
-		margin-top: 1rem;
+	/* Each feature: its switch (or status line) and its explanation, the same
+	   distance from the one before. */
+	.hint + .toggle,
+	.hint + .fulltext {
+		margin-top: 1.1rem;
 	}
 	.mailtest {
 		margin-top: 0.75rem;
@@ -376,8 +379,8 @@
 		margin: 0;
 	}
 	.fulltext {
-		margin: 0.9rem 0 0;
-		font-size: 0.9rem;
+		margin: 0;
+		font-size: 0.95rem;
 	}
 	.hint {
 		margin: 0.4rem 0 0;

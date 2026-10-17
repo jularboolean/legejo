@@ -59,9 +59,10 @@ pub struct Status {
 
 pub async fn status(state: &AppState) -> anyhow::Result<Status> {
     let (books, pending): (i64, i64) = sqlx::query_as(
+        // Postgres sums to NUMERIC, which the Any driver cannot read: cast.
         "SELECT
-             COALESCE(SUM(CASE WHEN text_sha256 = COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0),
-             COALESCE(SUM(CASE WHEN text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0)
+             CAST(COALESCE(SUM(CASE WHEN text_sha256 = COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0) AS BIGINT),
+             CAST(COALESCE(SUM(CASE WHEN text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0) AS BIGINT)
          FROM books WHERE format = 'epub'",
     )
     .fetch_one(&state.db)
@@ -71,7 +72,7 @@ pub async fn status(state: &AppState) -> anyhow::Result<Status> {
         Backend::Postgres => "OCTET_LENGTH(body)",
     };
     let (texts, bytes): (i64, i64) =
-        sqlx::query_as(&format!("SELECT COUNT(DISTINCT text_hash), COALESCE(SUM(CAST({octets} AS BIGINT)), 0) FROM book_text"))
+        sqlx::query_as(&format!("SELECT COUNT(DISTINCT text_hash), CAST(COALESCE(SUM({octets}), 0) AS BIGINT) FROM book_text"))
             .fetch_one(&state.db)
             .await?;
     Ok(Status { books, pending, texts, bytes })

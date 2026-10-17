@@ -4,6 +4,17 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.23.1 (2026-10-17)
+
+- **The admin page works with PostgreSQL and the text search on.** Its
+  account of the search inside the books came back from PostgreSQL in a form
+  the server could not read, so the whole settings page failed to load and
+  showed defaults instead. The account is read correctly now, and should it
+  ever fail again, the rest of the settings load all the same.
+- **The features on the admin page are evenly spaced.** Some switches sat
+  close under the explanation before them and others further down; now each
+  feature is the same distance from the one before.
+
 ## 1.23.0 (2026-10-17)
 
 - **Searching inside the books.** Set `LEGEJO_FULLTEXT=true` and the search
