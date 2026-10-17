@@ -97,6 +97,9 @@ pub struct Settings {
     pub secure_cookies: bool,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
     pub mcp: bool,
+    /// Keep the text of the books for searching inside them (fulltext.rs).
+    /// Off unless LEGEJO_FULLTEXT=true: it takes room in the database.
+    pub fulltext: bool,
     /// The language model behind the librarian (librarian.rs). None unless
     /// LEGEJO_AI_API_KEY is set.
     pub ai: Option<Ai>,
@@ -136,6 +139,7 @@ impl Default for Settings {
             audio_import: None,
             secure_cookies: false,
             mcp: false,
+            fulltext: false,
             ai: None,
         }
     }
@@ -179,6 +183,7 @@ impl Settings {
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
         };
         let mcp = flag("LEGEJO_MCP")?;
+        let fulltext = flag("LEGEJO_FULLTEXT")?;
         let ai = match var("LEGEJO_AI_API_KEY")? {
             None => None,
             Some(key) => Some(Ai {
@@ -189,7 +194,7 @@ impl Settings {
                 model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, ai })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai })
     }
 }
 

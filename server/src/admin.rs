@@ -52,6 +52,10 @@ pub struct Settings {
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
+    /// How far the search inside the books has come; absent unless the
+    /// operator has turned it on (LEGEJO_FULLTEXT).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fulltext: Option<crate::fulltext::Status>,
     /// The model behind the librarian and its use over the last 30 days;
     /// absent when the operator has set none up (LEGEJO_AI_API_KEY).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,6 +75,11 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
             .await
             .map_err(|e| internal(e.into()))?,
         mail_configured: state.mail.is_some(),
+        fulltext: if crate::fulltext::enabled(state) {
+            Some(crate::fulltext::status(state).await.map_err(internal)?)
+        } else {
+            None
+        },
         librarian: crate::librarian::summary(state).await,
     }))
 }
@@ -298,6 +307,8 @@ pub struct Config {
     shelf_links: bool,
     /// Whether the library says who an author was, from Wikidata.
     author_facts: bool,
+    /// Whether the search can look inside the books.
+    fulltext: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -315,6 +326,7 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         catalogs_available: crate::catalogs::enabled(&state).await,
         shelf_links: crate::shelflinks::enabled(&state).await,
         author_facts: crate::authorfacts::enabled(&state).await,
+        fulltext: crate::fulltext::enabled(&state),
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

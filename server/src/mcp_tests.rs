@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 /// An EPUB with a cover page without text and two chapters named in the NCX.
-fn novel(title: &str) -> Vec<u8> {
+pub(crate) fn novel(title: &str) -> Vec<u8> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -89,15 +89,19 @@ impl Client {
 /// An app with the endpoint turned on, user alice, an app password for her
 /// and a client using it.
 async fn setup() -> (Client, AnyPool, String) {
+    let (client, db, cookie, _) = setup_with(false).await;
+    (client, db, cookie)
+}
+
+/// As setup, with LEGEJO_FULLTEXT set as given; also returns the state.
+async fn setup_with(fulltext: bool) -> (Client, AnyPool, String, crate::AppState) {
     let (_, db, mut state) = test_app().await;
-    let mut settings = Settings::default();
-    settings.mcp = true;
-    state.settings = Arc::new(settings);
-    let app = crate::router(state);
+    state.settings = Arc::new(Settings { mcp: true, fulltext, ..Settings::default() });
+    let app = crate::router(state.clone());
     let (_, cookie) = add_user(&db, "alice").await;
     let (status, v) = send(&app, Method::POST, "/api/account/app-passwords", Some(&cookie), Some(json!({ "name": "Assistant" }))).await;
     assert_eq!(status, StatusCode::CREATED);
-    (Client { app, token: v["secret"].as_str().unwrap().to_string() }, db, cookie)
+    (Client { app, token: v["secret"].as_str().unwrap().to_string() }, db, cookie, state)
 }
 
 #[tokio::test]
@@ -367,4 +371,60 @@ async fn shared_shelves_can_be_listed_but_not_read() {
     assert_eq!(client.call_error("get_shared_shelf", json!({ "owner": "carol", "name": "Inte Alice" })).await, "not found in this library");
     assert_eq!(client.call_error("get_table_of_contents", json!({ "book_id": theirs })).await, "not found in this library");
     assert_eq!(client.call_error("get_book", json!({ "book_id": theirs })).await, "not found in this library");
+}
+
+#[tokio::test]
+async fn searches_the_text_of_all_books_when_the_operator_keeps_it() {
+    let list = |client: &Client| {
+        let client = Client { app: client.app.clone(), token: client.token.clone() };
+        async move {
+            let (_, v) = client.post(&[("mcp-protocol-version", "2025-06-18")], json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" })).await;
+            v["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+        }
+    };
+
+    // Without LEGEJO_FULLTEXT the tool is neither offered nor callable.
+    let (client, _, _, _) = setup_with(false).await;
+    assert!(!list(&client).await.contains(&"search_text".to_string()));
+    let (_, v) = client
+        .post(&[("mcp-protocol-version", "2025-06-18")], json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": "search_text", "arguments": { "query": "storm" } } }))
+        .await;
+    assert!(v["error"].is_object(), "{v}");
+
+    let (client, db, cookie, state) = setup_with(true).await;
+    assert!(list(&client).await.contains(&"search_text".to_string()));
+    upload(&client.app, &cookie, &[("sea.epub", novel("The Sea"))], "").await;
+    // Bob shares a book of his with everyone.
+    let (bob, bob_cookie) = add_user(&db, "bob").await;
+    upload(&client.app, &bob_cookie, &[("shore.epub", novel("The Shore"))], "").await;
+    let shore: i64 = sqlx::query_scalar("SELECT id FROM books WHERE owner_id = ?").bind(bob).fetch_one(&db).await.unwrap();
+    let shelf: i64 = sqlx::query_scalar("INSERT INTO shelves (owner_id, name, visibility) VALUES (?, 'Coast', 'instance') RETURNING id")
+        .bind(bob)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(shore).execute(&db).await.unwrap();
+
+    let v = client.call("search_text", json!({ "query": "lighthouse" })).await;
+    assert_eq!(v["not_yet_searchable"], 1, "{v}");
+    crate::fulltext::index_pending(&state, 10).await.unwrap();
+
+    let v = client.call("search_text", json!({ "query": "\"lighthouse keeper\"" })).await;
+    assert!(v.get("not_yet_searchable").is_none(), "{v}");
+    let book = &v["books"][0];
+    assert_eq!(book["title"], "The Sea", "{v}");
+    assert_eq!(book["status"], "unread");
+    let passage = &book["passages"][0];
+    // SQLite marks a phrase as one stretch, Postgres word by word.
+    let text = passage["text"].as_str().unwrap();
+    assert!(text.contains("**lighthouse") && text.replace("**", "").contains("lighthouse keeper"), "{passage}");
+    // The section is the one read_section reads.
+    let section = client.call("read_section", json!({ "book_id": book["id"], "section": passage["section"] })).await;
+    assert_eq!(section["title"], passage["title"]);
+    assert!(section["text"].as_str().unwrap().contains("lighthouse keeper"));
+
+    let shared = &v["shared_books"][0];
+    assert_eq!((shared["title"].as_str(), shared["owner"].as_str(), shared["shelf"].as_str()), (Some("The Shore"), Some("bob"), Some("Coast")), "{v}");
+    assert!(shared.get("id").is_none(), "a shared book has no id to read it by");
+    assert!(shared["passages"][0]["text"].as_str().unwrap().contains("**"));
 }

@@ -54,13 +54,16 @@
 	let {
 		book,
 		at = null,
-		back = null
+		back = null,
+		find = null
 	}: {
 		book: BookDetail;
 		/** A highlight to open the book at, by its id, instead of the reading position. */
 		at?: number | null;
 		/** Where the way back leads, when not to the book's page. */
 		back?: string | null;
+		/** Words to search the book for once it is open. */
+		find?: string | null;
 	} = $props();
 	// svelte-ignore state_referenced_locally
 	const bookId = book.id;
@@ -931,6 +934,11 @@
 			status = 'ready';
 			// Settings may have been changed while the book was loading.
 			opened.applySettings(settings).catch(() => {});
+			if (find) {
+				openPanel('search');
+				search(find);
+				return;
+			}
 			hideChromeLater(CHROME_INTRO_MS);
 			await tick();
 			stage.focus({ preventScroll: true });

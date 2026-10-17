@@ -27,6 +27,11 @@
 	let input = $state<HTMLInputElement | null>(null);
 	let draft = $state('');
 
+	// A search started from outside (the reader opened with ?q=) shows its words.
+	$effect(() => {
+		if (query && query !== draft.trim()) draft = query;
+	});
+
 	$effect(() => {
 		if (!open) return;
 		tick().then(() => {

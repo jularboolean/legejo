@@ -49,6 +49,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	let catalogsAvailable = false;
 	let shelfLinks = false;
 	let authorFacts = false;
+	let fulltext = false;
 	// Federation UI stays hidden unless the server says it is available.
 	let fed: FedStatus = { available: false, enabled: false, mode: 'off', host: null };
 	if (user) {
@@ -73,6 +74,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 				catalogs_available?: boolean;
 				shelf_links?: boolean;
 				author_facts?: boolean;
+				fulltext?: boolean;
 			} = await configRes.json();
 			audiobooksEnabled = config.audiobooks_enabled ?? false;
 			sendToKindle = config.send_to_kindle ?? false;
@@ -81,11 +83,12 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 			catalogsAvailable = config.catalogs_available ?? false;
 			shelfLinks = config.shelf_links ?? false;
 			authorFacts = config.author_facts ?? false;
+			fulltext = config.fulltext ?? false;
 			mcpEnabled = config.mcp_enabled ?? false;
 			librisEnabled = config.libris_enabled;
 			openLibraryEnabled = config.openlibrary_enabled ?? false;
 		}
 	}
 
-	return { user, offline, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, audiobooksEnabled, sendToKindle, librarian, catalogs, catalogsAvailable, shelfLinks, authorFacts, fed };
+	return { user, offline, shelves, librisEnabled, openLibraryEnabled, mcpEnabled, audiobooksEnabled, sendToKindle, librarian, catalogs, catalogsAvailable, shelfLinks, authorFacts, fulltext, fed };
 };

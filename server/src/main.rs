@@ -25,6 +25,7 @@ mod export;
 mod follows;
 mod fed;
 mod formats;
+mod fulltext;
 mod healthcheck;
 mod images;
 mod invite;
@@ -55,6 +56,8 @@ mod oidc_tests;
 mod selfhost_tests;
 #[cfg(test)]
 mod mcp_tests;
+#[cfg(test)]
+mod fulltext_tests;
 #[cfg(test)]
 mod audioimport_tests;
 #[cfg(test)]
@@ -240,6 +243,7 @@ fn router(state: AppState) -> Router {
         .route("/annotations/export", get(annotations::export_all))
         .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))
         .route("/search", get(search::search))
+        .route("/search/text", get(fulltext::search))
         .route("/librarian", post(librarian::ask))
         // A Kobo's highlights and notes, which the device sends to the site
         // root (kobo::reading_services); the same routes exist under the token.
@@ -467,6 +471,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(fed::deliver::worker(state.clone()));
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
+    tokio::spawn(fulltext::worker(state.clone()));
     // A new instance: its library begins with the manual.
     if let Some(admin) = first_admin {
         welcome::shelve(&state, admin).await;

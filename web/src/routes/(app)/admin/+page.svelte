@@ -3,7 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Tabs from '#lib/Tabs.svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
 	import { isNewer, latestRelease, type Release } from '#lib/version';
 	import Federation from './Federation.svelte';
 	import Users from './Users.svelte';
@@ -254,6 +254,20 @@
 		{t('admin.authorFactsToggle')}
 	</label>
 	<p class="hint">{t('admin.authorFactsHint')}</p>
+	<p class="fulltext">
+		<strong>{t('admin.fulltextToggle')}:</strong>
+		{#if data.settings.fulltext}
+			{@const ft = data.settings.fulltext}
+			{t('admin.fulltextOn', {
+				books: ft.books,
+				pending: ft.pending,
+				size: (ft.bytes / 1_000_000).toLocaleString(getLocale(), { maximumFractionDigits: 1 })
+			})}
+		{:else}
+			{t('admin.fulltextOff')}
+		{/if}
+	</p>
+	<p class="hint">{t('admin.fulltextHint')}</p>
 	<label class="toggle reg">
 		<input
 			type="checkbox"
@@ -360,6 +374,10 @@
 		color: var(--accent);
 		font-size: 0.85rem;
 		margin: 0;
+	}
+	.fulltext {
+		margin: 0.9rem 0 0;
+		font-size: 0.9rem;
 	}
 	.hint {
 		margin: 0.4rem 0 0;

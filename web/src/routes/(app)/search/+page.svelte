@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Check, Download, Headphones, Search } from '@lucide/svelte';
+	import { BookOpen, Check, Download, Headphones, Search } from '@lucide/svelte';
 	import { formatLength } from '#lib/audio';
 	import Avatar from '#lib/Avatar.svelte';
 	import { defaultShelfCover } from '#lib/shelfCovers';
@@ -9,7 +9,7 @@
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
-	import type { PublicHit } from '#lib/types';
+	import type { PublicHit, TextPassage } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -22,21 +22,64 @@
 		input?.focus();
 	});
 
+	function target(q: string, inText: boolean): string {
+		const params = new URLSearchParams();
+		if (q) params.set('q', q);
+		if (inText) params.set('in', 'text');
+		const rest = params.toString();
+		return rest ? `/search?${rest}` : '/search';
+	}
+
 	function onInput() {
 		clearTimeout(debounce);
 		debounce = setTimeout(() => {
-			const target = query.trim()
-				? `/search?q=${encodeURIComponent(query.trim())}`
-				: '/search';
 			// reset: false keeps the caret in the box (and the scroll position)
 			// while the results change under it.
-			goto(target, { replace: true, reset: false });
+			goto(target(query.trim(), data.inText), { replace: true, reset: false });
 		}, 250);
 	}
 
+	function setInText(on: boolean) {
+		clearTimeout(debounce);
+		goto(target(query.trim(), on), { replace: true, reset: false });
+		input?.focus();
+	}
+
+	const MARK_START = '\uE000';
+	const MARK_END = '\uE001';
+
+	/** A passage cut into plain and matched stretches. */
+	function stretches(text: string): { text: string; mark: boolean }[] {
+		const out: { text: string; mark: boolean }[] = [];
+		for (const piece of text.split(MARK_START)) {
+			const end = piece.indexOf(MARK_END);
+			if (end < 0) {
+				if (piece) out.push({ text: piece, mark: false });
+				continue;
+			}
+			out.push({ text: piece.slice(0, end), mark: true });
+			if (end + 1 < piece.length) out.push({ text: piece.slice(end + 1), mark: false });
+		}
+		return out;
+	}
+
+	/** The reader looks for one string: the first phrase in quotes, else the
+	 *  query when it is one word, else the first word that matched in this
+	 *  passage. */
+	function readerLink(bookId: number, passage: TextPassage): string {
+		const phrase = data.q.match(/"([^"]+)"?/)?.[1]?.trim();
+		const words = data.q.split(/\s+/).filter(Boolean);
+		const marked = stretches(passage.text).find((s) => s.mark)?.text;
+		const find = phrase || (words.length === 1 ? words[0] : (marked ?? words[0] ?? ''));
+		return `/books/${bookId}/read?q=${encodeURIComponent(find)}`;
+	}
+
 	const result = $derived(data.result);
+	const text = $derived(data.text);
 	const nothing = $derived(
 		data.q !== '' &&
+			(text?.books.length ?? 0) === 0 &&
+			(text?.shared.length ?? 0) === 0 &&
 			result.mine.length === 0 &&
 			result.my_shelves.length === 0 &&
 			result.public.length === 0 &&
@@ -115,6 +158,18 @@
 	{/if}
 {/snippet}
 
+{#snippet textPassage(passage: TextPassage, href: string, title: string)}
+	<a class="passage" {href} {title}>
+		<span class="where">
+			<BookOpen size={12} aria-hidden="true" />
+			{[passage.title, t('search.textAt', { percent: Math.round(passage.percent) })].filter(Boolean).join(' · ')}
+		</span>
+		<span class="quote"
+			>{#each stretches(passage.text) as s, j (j)}{#if s.mark}<mark>{s.text}</mark>{:else}{s.text}{/if}{/each}</span
+		>
+	</a>
+{/snippet}
+
 <h1>{t('search.heading')}</h1>
 
 <div class="top">
@@ -122,7 +177,7 @@
 		<Search size={15} class="search-icon" aria-hidden="true" />
 		<input
 			type="search"
-			placeholder={t('search.placeholder')}
+			placeholder={data.inText ? t('search.textPlaceholder') : t('search.placeholder')}
 			bind:value={query}
 			bind:this={input}
 			oninput={onInput}
@@ -132,6 +187,13 @@
 		<ViewSwitch {view} onchange={setView} />
 	{/if}
 </div>
+{#if data.fulltext}
+	<label class="intext">
+		<input type="checkbox" checked={data.inText} onchange={(e) => setInText(e.currentTarget.checked)} />
+		{t('search.inText')}
+	</label>
+	{#if data.inText}<p class="note phrases">{t('search.textPhrases')}</p>{/if}
+{/if}
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
@@ -139,6 +201,67 @@
 	<p class="empty">{t('search.none')}</p>
 	{#if data.librarian}
 		<a class="ask" href={`/librarian?q=${encodeURIComponent(data.q)}`}>{t('librarian.askInstead')}</a>
+	{/if}
+{/if}
+
+{#if text}
+	{#if text.pending > 0}<p class="note">{t('search.textPending', { count: text.pending })}</p>{/if}
+	{#if text.truncated}<p class="note">{t('search.textTruncated')}</p>{/if}
+	{#if text.books.length > 0}
+		<section>
+			<h2>{t('search.mine')}</h2>
+			<ul class="texthits">
+				{#each text.books as hit (hit.book.id)}
+					<li>
+						<a class="textcover" href={`/books/${hit.book.id}`}>
+							{#if hit.book.has_cover}
+								<img
+									src={`/api/books/${hit.book.id}/cover?size=thumb&v=${encodeURIComponent(hit.book.updated_at ?? hit.book.created_at)}`}
+									alt=""
+									loading="lazy"
+								/>
+							{/if}
+						</a>
+						<div class="textbody">
+							<a class="title" href={`/books/${hit.book.id}`}>{hit.book.title}</a>
+							<span class="sub">
+								{[hit.book.author, t('search.textHits', { count: hit.hits })].filter(Boolean).join(' · ')}
+							</span>
+							{#each hit.passages as passage, i (i)}
+								{@render textPassage(passage, readerLink(hit.book.id, passage), t('search.textOpen'))}
+							{/each}
+						</div>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+	{#if text.shared.length > 0}
+		<section>
+			<h2>{t('search.public')}</h2>
+			<ul class="texthits">
+				{#each text.shared as hit (hit.book.id)}
+					<li>
+						<a class="textcover" href={publicBookPath(hit.book)}>
+							{#if hit.book.has_cover}
+								<img src={publicCover(hit.book)} alt="" loading="lazy" />
+							{/if}
+						</a>
+						<div class="textbody">
+							<a class="title" href={publicBookPath(hit.book)}>{hit.book.title}</a>
+							<span class="sub">
+								{[hit.book.author, t('search.textHits', { count: hit.hits })].filter(Boolean).join(' · ')}
+							</span>
+							<span class="context">{@render hitContext(hit.book)}</span>
+							{#each hit.passages as passage, i (i)}
+								{@render textPassage(passage, publicBookPath(hit.book), t('search.textShared'))}
+							{/each}
+							<div>{@render hitAction(hit.book)}</div>
+						</div>
+					</li>
+				{/each}
+			</ul>
+		</section>
 	{/if}
 {/if}
 
@@ -304,6 +427,91 @@
 	}
 	.empty {
 		color: var(--muted);
+	}
+	.intext {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.9rem;
+		margin: -1rem 0 1.5rem;
+		cursor: pointer;
+	}
+	.intext input {
+		width: auto;
+		margin: 0;
+	}
+	.note {
+		color: var(--muted);
+		font-size: 0.85rem;
+	}
+	.phrases {
+		margin: -1.1rem 0 1.5rem;
+	}
+	.texthits {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+	.texthits li {
+		display: flex;
+		gap: 0.9rem;
+		align-items: flex-start;
+	}
+	.textcover {
+		flex-shrink: 0;
+		width: 3.4rem;
+		aspect-ratio: 2 / 3;
+		border-radius: 2px 4px 4px 2px;
+		overflow: hidden;
+		background: var(--card);
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow);
+	}
+	.textcover img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.textbody {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-width: 0;
+		flex: 1;
+	}
+	.passage {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.45rem 0.65rem;
+		border-left: 2px solid var(--border);
+		color: var(--fg);
+		font-size: 0.9rem;
+		line-height: 1.45;
+	}
+	.passage:hover {
+		text-decoration: none;
+		border-left-color: var(--accent);
+		background: var(--card);
+	}
+	.where {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.75rem;
+		color: var(--muted);
+	}
+	.quote {
+		overflow-wrap: anywhere;
+	}
+	.quote mark {
+		background: color-mix(in srgb, var(--gold) 30%, transparent);
+		color: inherit;
+		border-radius: 2px;
+		padding: 0 0.1em;
 	}
 	.ask {
 		font-size: 0.9rem;

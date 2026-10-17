@@ -36,8 +36,10 @@ const HEADER_MISMATCH: i64 = -32020;
 const UNSUPPORTED_VERSION: i64 = -32022;
 
 const INSTRUCTIONS: &str = "Legejo is the user's personal EPUB library. Use these tools to look up their books, \
-shelves and reading progress, and to read or search the text of a book. Shelves that other users share with them \
-can be listed too, to suggest what to import; those books are not theirs to read here. Everything is read-only. Positions are \
+shelves and reading progress, and to read or search the text of a book. When search_text is offered, it finds \
+words in the text of all the books at once. Shelves that other users share with them can be listed too, to suggest \
+what to import; those books are not theirs to read here, though search_text shows short passages from them. \
+Everything is read-only. Positions are \
 percentages of the book; when summarising for a reader who is partway through, do not reveal what comes after \
 their reading position unless asked.";
 
@@ -156,7 +158,7 @@ async fn legacy_request(state: &AppState, user: &UserInfo, id: &Value, method: &
             })
         }
         "ping" => json!({}),
-        "tools/list" => json!({ "tools": tool_definitions() }),
+        "tools/list" => json!({ "tools": tool_definitions(state) }),
         "tools/call" => match call_tool(state, user, params).await {
             Ok(result) => result,
             Err(message) => return reply(StatusCode::OK, rpc_error(id, INVALID_PARAMS, &message, None)),
@@ -215,7 +217,7 @@ async fn modern_request(
             "capabilities": { "tools": {} },
             "instructions": INSTRUCTIONS,
         })),
-        "tools/list" => cacheable(json!({ "tools": tool_definitions() })),
+        "tools/list" => cacheable(json!({ "tools": tool_definitions(state) })),
         "tools/call" => match call_tool(state, user, params).await {
             Ok(result) => result,
             Err(message) => return reply(StatusCode::BAD_REQUEST, rpc_error(id, INVALID_PARAMS, &message, None)),
@@ -239,9 +241,9 @@ fn tool(name: &str, title: &str, description: &str, properties: Value, required:
     })
 }
 
-fn tool_definitions() -> Value {
+fn tool_definitions(state: &AppState) -> Value {
     let book_id = json!({ "type": "integer", "description": "The book's id, from search_books." });
-    json!([
+    let mut tools = json!([
         tool(
             "search_books",
             "Search the library",
@@ -320,7 +322,27 @@ fn tool_definitions() -> Value {
             }),
             &["book_id", "query"],
         ),
-    ])
+    ]);
+    // Only where the operator keeps the text of the books (LEGEJO_FULLTEXT).
+    if crate::fulltext::enabled(state) {
+        if let Some(list) = tools.as_array_mut() {
+            list.push(tool(
+                "search_text",
+                "Search inside all books",
+                "Find words in the text of every book in the library at once, and on the shelves other users share with \
+                 the user. Returns the books with the most matching passages first, each with a few passages: the matched \
+                 words between ** and **, the section (for read_section) and where in the book. Every word must occur; \
+                 a word also matches longer words it begins; words in double quotes must stand in a row, as a phrase. \
+                 Books on shared shelves can only be quoted, not read, until the user imports them.",
+                json!({
+                    "query": { "type": "string", "description": "The words to find, e.g. garlic \"van helsing\"." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Most books to return. Default 10." },
+                }),
+                &["query"],
+            ));
+        }
+    }
+    tools
 }
 
 /// Err is a protocol error (unknown tool, bad arguments); a tool that runs
@@ -339,6 +361,7 @@ async fn call_tool(state: &AppState, user: &UserInfo, params: &Value) -> Result<
         "get_table_of_contents" => table_of_contents(state, user, args).await,
         "read_section" => read_section(state, user, args).await,
         "search_in_book" => search_in_book(state, user, args).await,
+        "search_text" if crate::fulltext::enabled(state) => search_text(state, user, args).await,
         _ => return Err(format!("unknown tool: {name}")),
     };
     Ok(match outcome {
@@ -623,6 +646,58 @@ async fn read_section(state: &AppState, user: &UserInfo, args: &Map<String, Valu
         "to_percent": at(next),
         "next_offset": if next < section.text.len() { json!(next) } else { Value::Null },
     }))
+}
+
+/// A passage from the full-text index, its marks as Markdown bold.
+fn passage(p: &crate::fulltext::Passage) -> Value {
+    json!({
+        "section": p.section,
+        "title": p.title,
+        "at_percent": p.percent,
+        "text": p.text.replace(['\u{E000}', '\u{E001}'], "**"),
+    })
+}
+
+async fn search_text(state: &AppState, user: &UserInfo, args: &Map<String, Value>) -> ToolResult {
+    let query = args.get("query").and_then(Value::as_str).map(str::trim).filter(|q| !q.is_empty()).ok_or("query is required")?;
+    let limit = int_arg(args, "limit").unwrap_or(10).clamp(1, 50) as usize;
+    let Json(found) = crate::fulltext::search(State(state.clone()), as_user(user), Query(crate::fulltext::Params::new(query)))
+        .await
+        .map_err(handler_error)?;
+    let own: Vec<Value> = found
+        .books
+        .iter()
+        .take(limit)
+        .map(|hit| {
+            let mut v = book_summary(&hit.book, None);
+            v["matching_passages"] = json!(hit.hits);
+            v["passages"] = json!(hit.passages.iter().map(passage).collect::<Vec<_>>());
+            v
+        })
+        .collect();
+    let shared: Vec<Value> = found
+        .shared
+        .iter()
+        .take(limit)
+        .map(|hit| {
+            json!({
+                "title": hit.book.book.title,
+                "author": hit.book.book.author,
+                "owner": hit.book.owner,
+                "shelf": hit.book.shelf_name,
+                "matching_passages": hit.hits,
+                "passages": hit.passages.iter().map(passage).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    let mut v = json!({ "books": own, "shared_books": shared });
+    if found.pending > 0 {
+        v["not_yet_searchable"] = json!(found.pending);
+    }
+    if found.truncated {
+        v["truncated"] = json!(true);
+    }
+    Ok(v)
 }
 
 async fn search_in_book(state: &AppState, user: &UserInfo, args: &Map<String, Value>) -> ToolResult {

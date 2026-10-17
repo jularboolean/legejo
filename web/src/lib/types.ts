@@ -214,6 +214,26 @@ export type PublicHit = Book & {
 	owned: boolean;
 };
 
+/** A passage of a book that matches a search in the books' text. */
+export type TextPassage = {
+	section: number;
+	title: string | null;
+	/** Where in the book, 0–100. */
+	percent: number;
+	/** The matched words are between U+E000 and U+E001. */
+	text: string;
+};
+
+export type TextSearchResult = {
+	books: { book: Book; hits: number; passages: TextPassage[] }[];
+	/** Books on shelves shared with the user, which the user has no copy of. */
+	shared: { book: PublicHit; hits: number; passages: TextPassage[] }[];
+	/** Books not yet read into the index. */
+	pending: number;
+	/** More parts matched than the server looked at. */
+	truncated: boolean;
+};
+
 export type SearchResult = {
 	mine: Book[];
 	/** The user's own shelves whose name matches. */
