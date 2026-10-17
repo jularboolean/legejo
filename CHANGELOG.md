@@ -4,6 +4,26 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.23.0 (2026-10-17)
+
+- **Searching inside the books.** Set `LEGEJO_FULLTEXT=true` and the search
+  page gets a box for searching the text of the EPUBs, not only their titles
+  and authors. Each book comes with the passages that match and where they
+  are; choose one to open the book with the search already in it. Every word
+  must occur, a word also finds longer words it begins, and words in double
+  quotes must stand in a row. Books on shelves shared with you are searched
+  too, and quoted, until you take them.
+- **The text is kept once.** The server reads the books in the background
+  and keeps their text in the database: once per text, so an imported copy
+  takes no room of its own, and a book whose details are edited is not
+  stored again. The admin page shows how far it has come and how much text
+  is kept. Started without the variable, the server drops the text again.
+- **An assistant can search all the books.** With the search turned on, the
+  MCP server offers `search_text`, which finds words in the text of the whole
+  library at once. It is still read-only.
+- **The reader opens with a search.** A link to a book can carry the words to
+  look for; the reader opens with the search panel showing them.
+
 ## 1.22.2 (2026-10-16)
 
 - **Book files are sent as they are read.** A download to a Kobo, to the

@@ -253,8 +253,13 @@ cover, follow the link to the edit page.</p>""",
   "<p>You remember a title, an author, or a phrase.</p>",
   """<p>Press <code>/</code> anywhere outside a text field, or choose <strong>Search</strong>,
 and type.</p>""",
-  """<p>The search covers the catalogue and the text of the books. It also finds books on shelves
-that others share with you.</p>"""),
+  """<p>The search covers the catalogue: titles, authors, descriptions and tags. It also finds books
+on shelves that others share with you.</p>
+<p>Where whoever runs the instance has set <code>LEGEJO_FULLTEXT=true</code>, tick <strong>Search
+inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
+the passages that match; choose one to open the book with the search in it. Every word must occur, a
+word also finds longer words it begins, and words in double quotes must stand in a row. Books on
+shared shelves are searched too, and quoted, but are read only once you take them.</p>"""),
 
  ("Filtering and Sorting",
   "<p>You want the unread crime novels in French, newest first.</p>",
@@ -704,7 +709,9 @@ without anything else being disturbed. Your normal password still works everywhe
   --header "Authorization: Bearer &lt;app password&gt;"</pre>""",
   """<p>This is a Model Context Protocol server, and it is read-only. The assistant can search
 your library, look at a book, your shelves and your reading, read a book's table of contents and
-its sections, search inside a book, and see the shelves others share with you. It sees your
+its sections, search inside a book, and see the shelves others share with you. Where the instance
+keeps the text of the books (<code>LEGEJO_FULLTEXT</code>), it can also search the text of them all
+at once. It sees your
 library and nothing else, and the text of a book only leaves the server when the assistant asks
 for it.</p>
 <p>Clients that keep the <code>Authorization</code> header for themselves can send the app
@@ -828,6 +835,7 @@ Both ways are noted in the system log (Recipe 12.5).</p>"""),
 <tr><td><code>LEGEJO_IMPORT_DIR</code></td><td></td><td>Folder watched for books</td></tr>
 <tr><td><code>LEGEJO_AUDIOBOOK_IMPORT_DIR</code></td><td></td><td>Folder watched for audiobooks</td></tr>
 <tr><td><code>LEGEJO_MCP</code></td><td><code>false</code></td><td>The server for AI assistants</td></tr>
+<tr><td><code>LEGEJO_FULLTEXT</code></td><td><code>false</code></td><td>Searching inside the books</td></tr>
 <tr><td><code>LEGEJO_AI_API_KEY</code></td><td></td><td>Turns on the librarian</td></tr>
 <tr><td><code>LEGEJO_SMTP_HOST</code></td><td></td><td>Mail server; mail is off when unset</td></tr>
 <tr><td><code>LEGEJO_OIDC_ISSUER</code></td><td></td><td>Single sign-on; off when unset</td></tr>
