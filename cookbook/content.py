@@ -530,9 +530,10 @@ something does not arrive on the device.</p>"""),
  ("Knowing What Syncs with a Kobo",
   "<p>You wonder what will show up, and what will come back.</p>",
   """<p>Your EPUB books arrive, converted on the way to Kobo's own format so that the device's
-reader works fully. Shelves arrive as collections. Your place in each book goes both ways: read
-on the Kobo, continue in the browser; read in the browser, and the Kobo opens the book at that
-sentence once it has synced. Comics arrive as books with one page per picture.</p>""",
+reader works fully. Shelves arrive as collections. Your place in each book goes both ways, to the sentence: read
+on the Kobo, and the browser opens the book at the line you stopped at; read in the browser, and
+the Kobo opens the book at that sentence once it has synced. The time the Kobo counts reading a
+book shows on the book's page. Comics arrive as books with one page per picture.</p>""",
   """<p>PDF files do not sync. A book counts as finished at 99&#160;% read, on the Kobo as in the
 web reader. A place read in the browser reaches a book the Kobo has downloaded; a book still
 waiting to be downloaded gets it with the download. Removing a book on the Kobo removes it from
@@ -618,7 +619,8 @@ library and mark them together. They are listed on <strong>My reading</strong>.<
   "<p>You wonder how much you read last year, and what.</p>",
   """<p>Further down <strong>My reading</strong> are <strong>Recently finished</strong> and
 <strong>Statistics</strong>: books finished per month, books added per month, the authors you
-have read most, the languages, and your ratings.</p>""",
+have read most, the languages, and your ratings. With a Kobo, the time it has counted reading is
+there too, added up over the books.</p>""",
   """<p>A book counts as finished at 99&#160;% read, or when you mark it so (the next recipe).
 Its month is the one in which it was last read, or marked. Nothing here leaves your
 instance.</p>"""),

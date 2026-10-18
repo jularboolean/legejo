@@ -4,6 +4,17 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.24.0 (2026-10-18)
+
+- **The Kobo's reading time.** The time a Kobo counts reading a book shows on
+  the book's page, and the time over all books on My reading. AI assistants
+  see it in the book details too. Marking a book read or unread in the web no
+  longer resets the count on the device.
+- **The browser opens at the Kobo's line.** Read on a Kobo, then open the book
+  in the browser: it opens at the sentence you stopped at on the device, not
+  only at the same percentage. This works for books the Kobo got from
+  Legejo; for others the percentage stands, as before.
+
 ## 1.23.1 (2026-10-17)
 
 - **The admin page works with PostgreSQL and the text search on.** Its
