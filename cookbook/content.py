@@ -520,6 +520,11 @@ copied.</li>
   """<p>Legejo then stands where the Kobo store stood: the device asks Legejo what books there
 are. The address holds your token, which is what tells Legejo whose library to send. Keep it to
 yourself; <strong>Regenerate</strong> makes a new one and the old one stops working.</p>
+<p><strong>The Kobo store no longer works on the device</strong> while it syncs with Legejo:
+browsing, searching, deals and the wishlist come up empty, and books bought from Kobo, or
+borrowed through Kobo Plus, do not arrive. Books already on the device stay, and your Kobo
+account stays signed in. To shop on the device again, set <code>api_endpoint=</code> back to
+<code>https://storeapi.kobo.com</code>.</p>
 <p>The instance must be reachable from the Kobo at the address in
 <code>LEGEJO_PUBLIC_URL</code> (Recipe 1.4).</p>
 <p>Once the device has synced, the same place on the Account page lists it under
