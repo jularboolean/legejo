@@ -436,6 +436,7 @@ fn book_summary(book: &Book, shelf_ids: Option<&[i64]>) -> Value {
     set("rating", json!(book.rating));
     set("progress_percent", json!(book.progress_percent.map(percent)));
     set("last_read_at", json!(book.last_read_at));
+    set("kobo_reading_minutes", json!(book.kobo_minutes.filter(|m| *m > 0)));
     if book.want_to_read.as_bool() {
         set("want_to_read", json!(true));
     }

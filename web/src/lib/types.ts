@@ -26,6 +26,8 @@ export type Book = {
 	updated_at: string | null;
 	/** Reading progress 0–1 (web or Kobo, latest wins); absent when the book is unread. */
 	progress_percent?: number;
+	/** Minutes the user's Kobo counted reading it; absent when none. */
+	kobo_minutes?: number;
 	/** Marked as read by hand, whatever the position says. */
 	read_at?: string | null;
 	/** For imported copies: uuid of the original book. */

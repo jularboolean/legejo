@@ -82,6 +82,50 @@ pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Place
     }))
 }
 
+/// The words at a place the device names, by its span and chapter file:
+/// the span's text and what follows it in the same paragraph, up to about
+/// `PLACE_TEXT_CHARS`, whitespace squeezed. The web reader looks for them to
+/// open the book at that line. A paragraph's spans share the `kobo.<n>.`
+/// prefix; the text stops at the paragraph's end, where kepubify and the web
+/// reader's copy may break lines differently. None when the chapter or the
+/// span is not in this KEPUB.
+pub fn text_at(kepub: &[u8], chapter: &str, span_id: &str) -> anyhow::Result<Option<String>> {
+    let mut doc = EpubDoc::from_reader(Cursor::new(kepub)).map_err(|e| anyhow::anyhow!("could not read the kepub: {e}"))?;
+    let wanted = chapter.trim_start_matches('/');
+    let id = doc
+        .resources
+        .iter()
+        .find(|(_, r)| {
+            let path = r.path.to_string_lossy().replace('\\', "/");
+            path == wanted || path.ends_with(&format!("/{wanted}")) || wanted.ends_with(&format!("/{path}"))
+        })
+        .map(|(id, _)| id.clone());
+    let Some(id) = id else { return Ok(None) };
+    let Some((html, _)) = doc.get_resource_str(&id) else { return Ok(None) };
+    let spans = spans_of(&html);
+    let Some(start) = spans.iter().position(|s| s.id == span_id) else { return Ok(None) };
+    let paragraph = span_id.rsplit_once('.').map(|(p, _)| format!("{p}.")).unwrap_or_default();
+    let mut text = String::new();
+    for span in spans[start..].iter().take_while(|s| s.id.starts_with(&paragraph)) {
+        text.push(' ');
+        text.push_str(&span.text);
+        if text.chars().count() >= PLACE_TEXT_CHARS {
+            break;
+        }
+    }
+    let squeezed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let cut: String = squeezed.chars().take(PLACE_TEXT_CHARS).collect();
+    // Not in the middle of a word: a cut word would not be found.
+    let cut = match (cut.chars().count() < squeezed.chars().count(), cut.rfind(' ')) {
+        (true, Some(space)) if space > 0 => cut[..space].to_string(),
+        _ => cut,
+    };
+    Ok((!cut.is_empty()).then_some(cut))
+}
+
+/// About how much of a paragraph `text_at` hands back.
+const PLACE_TEXT_CHARS: usize = 120;
+
 struct Span {
     id: String,
     text: String,
@@ -289,6 +333,24 @@ mod tests {
 
     fn utf16_at(text: &str, needle: &str) -> usize {
         text[..text.find(needle).unwrap()].encode_utf16().count()
+    }
+
+    #[test]
+    fn the_text_at_a_span_runs_to_the_end_of_its_paragraph() {
+        let kepub = sample_kepub();
+        let text = text_at(&kepub, "OEBPS/xhtml/ch1.xhtml", "kobo.4.1").unwrap().unwrap();
+        assert_eq!(text, "“No, indeed,” said Alice. “What sort of a dance is it?”");
+        // The chapter may be named without the archive's folder.
+        assert_eq!(text_at(&kepub, "xhtml/ch1.xhtml", "kobo.5.1").unwrap().unwrap(), "“Why,” said the Gryphon, “you first form into a line along the sea-shore—”");
+        // Markup inside the paragraph (the <i>) is dropped, lines squeezed, and a
+        // long paragraph cut between words.
+        let long = text_at(&kepub, "OEBPS/xhtml/ch1.xhtml", "kobo.31.2").unwrap().unwrap();
+        assert!(long.starts_with("But they have their tails in their mouths; and the reason is"), "{long}");
+        assert!(long.chars().count() <= PLACE_TEXT_CHARS);
+        assert!(!long.contains('\n'));
+        // Unknown spans and chapters.
+        assert_eq!(text_at(&kepub, "OEBPS/xhtml/ch1.xhtml", "kobo.99.1").unwrap(), None);
+        assert_eq!(text_at(&kepub, "OEBPS/xhtml/nope.xhtml", "kobo.4.1").unwrap(), None);
     }
 
     #[test]

@@ -21,6 +21,10 @@ export type Progress = {
 export type SavedProgress = {
 	cfi: string | null;
 	percent: number;
+	/** When a Kobo read last: the words at its line and the chapter file, to
+	 *  look up so the book opens at that line rather than the percentage. */
+	koboText?: string;
+	koboChapter?: string;
 };
 
 type Stored = Progress & { updatedAt: number; unsent?: boolean };
@@ -32,6 +36,8 @@ type RemoteProgress = {
 	cfi: string | null;
 	percent: number | null;
 	updated_at: string | null;
+	kobo_text?: string;
+	kobo_chapter?: string;
 };
 
 export interface ProgressStore {
@@ -161,7 +167,12 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 			if (server && serverHasPosition) {
 				const serverTime = parseTimestamp(server.updated_at);
 				if (!local || serverTime >= local.updatedAt) {
-					return { cfi: server.cfi, percent: server.percent ?? 0 };
+					const opened: SavedProgress = { cfi: server.cfi, percent: server.percent ?? 0 };
+					if (!server.cfi && server.kobo_text) {
+						opened.koboText = server.kobo_text;
+						opened.koboChapter = server.kobo_chapter;
+					}
+					return opened;
 				}
 			}
 			if (local) {

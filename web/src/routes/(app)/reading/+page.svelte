@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getLocale, t } from '#lib/i18n';
+	import { formatLength } from '#lib/audio';
 	import { languageLabel } from '#lib/library';
 	import ReadingRow from '#lib/library/ReadingRow.svelte';
 	import { readingStats, type Month, type Tally } from '#lib/readingStats';
@@ -91,6 +92,9 @@
 		<section class="card wide">
 			<h3>{t('reading.finishedPerMonth')}</h3>
 			<p class="sub">{t('reading.finishedThisYear', { count: s.finishedThisYear })}</p>
+			{#if s.koboMinutes > 0}
+				<p class="sub">{t('reading.koboTime', { time: formatLength(s.koboMinutes * 60) })}</p>
+			{/if}
 			{@render bars(s.finishedPerMonth, t('reading.finishedPerMonth'))}
 		</section>
 		<section class="card wide">

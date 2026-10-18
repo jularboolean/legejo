@@ -97,6 +97,24 @@ fn kobo_unread(backend: Backend) -> &'static str {
     }
 }
 
+/// The minutes the Kobo has counted reading the book (its
+/// Statistics.SpentReadingMinutes), or NULL; needs `PROGRESS_JOINS`. Cast to
+/// a plain integer: Postgres would otherwise hand back NUMERIC.
+pub(crate) fn kobo_minutes(backend: Backend) -> &'static str {
+    match backend {
+        Backend::Sqlite => {
+            "(CASE WHEN ks.state IS NOT NULL AND json_valid(ks.state) \
+              AND json_type(ks.state, '$.Statistics.SpentReadingMinutes') IN ('integer', 'real') \
+              THEN CAST(json_extract(ks.state, '$.Statistics.SpentReadingMinutes') AS BIGINT) END)"
+        }
+        Backend::Postgres => {
+            "(CASE WHEN ks.state IS NOT NULL AND try_jsonb(ks.state) IS NOT NULL \
+              AND jsonb_typeof(try_jsonb(ks.state) #> '{Statistics,SpentReadingMinutes}') = 'number' \
+              THEN CAST(CAST(try_jsonb(ks.state) #>> '{Statistics,SpentReadingMinutes}' AS NUMERIC) AS BIGINT) END)"
+        }
+    }
+}
+
 /// Latest known progress (0–1) across web, Kobo and KOReader; needs `PROGRESS_JOINS`.
 pub(crate) fn progress_percent(backend: Backend) -> String {
     let kobo = kobo_percent(backend);
@@ -152,6 +170,38 @@ pub struct Progress {
     /// 0–1, from whichever of web, Kobo and KOReader was updated last.
     percent: Option<f64>,
     updated_at: Option<String>,
+    /// When the Kobo's position is the latest: the words at its line, from
+    /// the KEPUB it reads, and the chapter file, for the web reader to look
+    /// up and open the book there rather than at the percentage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kobo_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kobo_chapter: Option<String>,
+}
+
+/// The words at the line a Kobo reading state points to, and the chapter,
+/// from the book's cached KEPUB. None when the state names no KoboSpan, or
+/// there is no KEPUB (the device has not downloaded the book from here).
+async fn kobo_line(state: &AppState, uuid: &str, reading_state: &str) -> Option<(String, String)> {
+    let reading_state: serde_json::Value = serde_json::from_str(reading_state).ok()?;
+    let location = reading_state.pointer("/CurrentBookmark/Location")?;
+    if location.get("Type").and_then(|t| t.as_str()) != Some("KoboSpan") {
+        return None;
+    }
+    let span = location.get("Value")?.as_str()?.to_string();
+    let chapter = location.get("Source")?.as_str()?.to_string();
+    let path = state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub"));
+    let bytes = tokio::fs::read(&path).await.ok()?;
+    let (in_chapter, at) = (chapter.clone(), span.clone());
+    let text = tokio::task::spawn_blocking(move || crate::kobospan::text_at(&bytes, &in_chapter, &at)).await.ok()?;
+    match text {
+        Ok(Some(text)) => Some((text, chapter)),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!("kobo: could not read the kepub of {uuid} to find {span}: {e:#}");
+            None
+        }
+    }
 }
 
 pub async fn get(
@@ -159,10 +209,12 @@ pub async fn get(
     user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<Progress>, Response> {
-    let row: Option<(Option<String>, Option<f64>, Option<String>)> = sqlx::query_as(&format!(
+    let row: Option<(Option<String>, Option<f64>, Option<String>, Option<String>, String)> = sqlx::query_as(&format!(
         "SELECT CASE WHEN {kobo_wins} OR {ko_wins} THEN NULL ELSE rp.cfi END,
                 {percent},
-                {last}
+                {last},
+                CASE WHEN {kobo_wins} THEN ks.state END,
+                b.uuid
          FROM books b {PROGRESS_JOINS}
          WHERE b.owner_id = $1 AND b.id = $2",
         kobo_wins = kobo_wins(state.backend),
@@ -175,8 +227,13 @@ pub async fn get(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    let (cfi, percent, updated_at) = row.ok_or_else(not_found)?;
-    Ok(Json(Progress { cfi, percent, updated_at }))
+    let (cfi, percent, updated_at, kobo_state, uuid) = row.ok_or_else(not_found)?;
+    let line = match &kobo_state {
+        Some(reading_state) => kobo_line(&state, &uuid, reading_state).await,
+        None => None,
+    };
+    let (kobo_text, kobo_chapter) = line.map_or((None, None), |(text, chapter)| (Some(text), Some(chapter)));
+    Ok(Json(Progress { cfi, percent, updated_at, kobo_text, kobo_chapter }))
 }
 
 #[derive(Deserialize)]
@@ -606,7 +663,18 @@ pub async fn set_read(
         }
     }
     if has_kobo {
-        let kobo_state = crate::kobo::reading_state_set_here(&uuid, &created_at, req.read).to_string();
+        let mut kobo_state = crate::kobo::reading_state_set_here(&uuid, &created_at, req.read);
+        // The time the device counted stays with the book.
+        let before: Option<String> = sqlx::query_scalar("SELECT state FROM kobo_reading_state WHERE user_id = $1 AND book_id = $2")
+            .bind(user.0.id)
+            .bind(book_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        if let Some(minutes) = crate::kobo::spent_minutes(before.as_deref()) {
+            kobo_state["Statistics"]["SpentReadingMinutes"] = minutes;
+        }
+        let kobo_state = kobo_state.to_string();
         sqlx::query(
             "INSERT INTO kobo_reading_state (user_id, book_id, state, updated_at) VALUES ($1, $2, $3, $4)
              ON CONFLICT (user_id, book_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at",

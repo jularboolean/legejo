@@ -334,3 +334,94 @@ async fn a_place_read_in_the_web_points_the_device_to_the_same_sentence() {
     let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
     assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
 }
+
+#[tokio::test]
+async fn the_kobo_reading_time_is_kept_and_the_web_opens_at_the_kobo_line() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let uuid = "7a2c3b4d5e6f40718293a4b5c6d7e8f9";
+    let book: i64 = sqlx::query_scalar("INSERT INTO books (uuid, owner_id, title, file_size) VALUES (?, ?, 'Alice', 1) RETURNING id")
+        .bind(uuid)
+        .bind(alice)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join(format!("{uuid}.kepub.epub")), crate::kobospan::sample_kepub()).await.unwrap();
+    let token = kobo_token(&app, &a).await;
+    let dashed = format!("{}-{}-{}-{}-{}", &uuid[0..8], &uuid[8..12], &uuid[12..16], &uuid[16..20], &uuid[20..32]);
+    let state_url = format!("/api/kobo/{token}/v1/library/{dashed}/state");
+    let progress_url = format!("/api/books/{book}/progress");
+
+    // The device reads, counts 42 minutes, and stops at the Gryphon's line.
+    let now = crate::db::now_ts().replace(".000Z", "Z");
+    let device = json!({ "ReadingStates": [{
+        "StatusInfo": { "Status": "Reading", "LastModified": now, "TimesStartedReading": 1 },
+        "Statistics": { "LastModified": now, "SpentReadingMinutes": 42, "RemainingTimeMinutes": 90 },
+        "CurrentBookmark": { "LastModified": now, "ProgressPercent": 40, "ContentSourceProgressPercent": 30,
+                             "Location": { "Value": "kobo.5.1", "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" } },
+    }] });
+    let (status, _) = send(&app, Method::PUT, &state_url, None, Some(device)).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // The time is on the book, in the library and with the book.
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["kobo_minutes"], 42, "{v}");
+    let (_, list) = send(&app, Method::GET, "/api/books", Some(&a), None).await;
+    let listed = list.as_array().unwrap().iter().find(|b| b["id"] == book).unwrap();
+    assert_eq!(listed["kobo_minutes"], 42);
+
+    // The web is told the words at the device's line, to open there.
+    let (_, p) = send(&app, Method::GET, &progress_url, Some(&a), None).await;
+    assert!(p["cfi"].is_null(), "{p}");
+    assert_eq!(p["percent"], 0.4);
+    assert_eq!(p["kobo_text"], "“Why,” said the Gryphon, “you first form into a line along the sea-shore—”", "{p}");
+    assert_eq!(p["kobo_chapter"], "OEBPS/xhtml/ch1.xhtml");
+
+    // A state without statistics keeps the count.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let now = crate::db::now_ts().replace(".000Z", "Z");
+    let bare = json!({ "ReadingStates": [{
+        "StatusInfo": { "Status": "Reading", "LastModified": now, "TimesStartedReading": 1 },
+        "CurrentBookmark": { "LastModified": now, "ProgressPercent": 45,
+                             "Location": { "Value": "kobo.31.2", "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" } },
+    }] });
+    send(&app, Method::PUT, &state_url, None, Some(bare)).await;
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["kobo_minutes"], 42);
+    let (_, p) = send(&app, Method::GET, &progress_url, Some(&a), None).await;
+    assert!(p["kobo_text"].as_str().unwrap().starts_with("But they have their tails"), "{p}");
+
+    // Marked as read in the web: the device is told so, with its count kept.
+    let (status, _) = send(&app, Method::PUT, &format!("/api/books/{book}/read"), Some(&a), Some(json!({ "read": true }))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["StatusInfo"]["Status"], "Finished");
+    assert_eq!(v[0]["Statistics"]["SpentReadingMinutes"], 42, "{v}");
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["kobo_minutes"], 42);
+
+    // Read further in the web: its own place wins, and no Kobo line is sent.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/6/1:0)", "percent": 0.9, "text": "crumbs would all wash off in the sea" });
+    send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
+    let (_, p) = send(&app, Method::GET, &progress_url, Some(&a), None).await;
+    assert_eq!(p["cfi"], "epubcfi(/6/4[ch1]!/4/6/1:0)");
+    assert!(p.get("kobo_text").is_none(), "{p}");
+
+    // A book without a KEPUB in the cache (the device has not downloaded it
+    // from here) gives the percentage only.
+    tokio::fs::remove_file(dir.join(format!("{uuid}.kepub.epub"))).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let now = crate::db::now_ts().replace(".000Z", "Z");
+    let device = json!({ "ReadingStates": [{
+        "StatusInfo": { "Status": "Reading", "LastModified": now, "TimesStartedReading": 2 },
+        "CurrentBookmark": { "LastModified": now, "ProgressPercent": 95,
+                             "Location": { "Value": "kobo.31.4", "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" } },
+    }] });
+    send(&app, Method::PUT, &state_url, None, Some(device)).await;
+    let (_, p) = send(&app, Method::GET, &progress_url, Some(&a), None).await;
+    assert_eq!(p["percent"], 0.95, "{p}");
+    assert!(p.get("kobo_text").is_none(), "{p}");
+}

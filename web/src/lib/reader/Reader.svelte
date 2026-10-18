@@ -934,6 +934,13 @@
 			status = 'ready';
 			// Settings may have been changed while the book was loading.
 			opened.applySettings(settings).catch(() => {});
+			// Last read on a Kobo: opened at its percentage, then moved to the
+			// line the device was on, found by its words. Not saved back: the
+			// reader has not moved yet.
+			if (!visit && !saved?.cfi && saved?.koboText) {
+				const line = await opened.locate(saved.koboText, saved.koboChapter ?? null).catch(() => null);
+				if (line && !closed && engine === opened && !moved) await opened.goTo(line).catch(() => {});
+			}
 			if (find) {
 				openPanel('search');
 				search(find);

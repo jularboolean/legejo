@@ -2,6 +2,7 @@
 	import openLibraryIcon from '#lib/assets/openlibrary.svg?raw';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
+	import { formatLength } from '#lib/audio';
 	import { canRepair, fixedList, issueText, needsAttention } from '#lib/health';
 	import { getLocale, t } from '#lib/i18n';
 	import { onOpenLibrary } from '#lib/library';
@@ -221,6 +222,9 @@
 			>
 				<span style:width={`${Math.round(progress * 100)}%`}></span>
 			</div>
+		{/if}
+		{#if (book.kobo_minutes ?? 0) > 0}
+			<p class="elsewhere">{t('book.koboTime', { time: formatLength((book.kobo_minutes ?? 0) * 60) })}</p>
 		{/if}
 		{#if book.format !== 'epub'}<p class="elsewhere">{t('book.readElsewhere', { format: book.format.toUpperCase() })}</p>{/if}
 		{#if book.format === 'epub'}

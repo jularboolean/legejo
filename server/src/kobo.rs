@@ -873,6 +873,13 @@ fn book_metadata(book: &Book, base: &str, kepub: bool) -> Value {
     metadata
 }
 
+/// The minutes a stored reading state says the device spent reading, kept
+/// when a state is set here so the device's count is not reset.
+pub(crate) fn spent_minutes(stored: Option<&str>) -> Option<Value> {
+    let state: Value = serde_json::from_str(stored?).ok()?;
+    state.pointer("/Statistics/SpentReadingMinutes").filter(|v| v.is_number()).cloned()
+}
+
 /// A reading state set here rather than on the device: finished, or back
 /// to unread. Every part is dated now, so that the device takes it over its
 /// own at the next sync.
@@ -1602,6 +1609,14 @@ pub async fn reading_state_put(
     if let Some(obj) = incoming.as_object_mut() {
         obj.insert("EntitlementId".into(), json!(dashed(&book.uuid)));
         obj.insert("LastModified".into(), json!(now()));
+    }
+    // A state without statistics keeps the ones already counted.
+    if incoming.get("Statistics").is_none() {
+        if let Some((stored, _)) = stored_reading_state(&state, user_id, book.id).await? {
+            if let Some(statistics) = stored.get("Statistics") {
+                incoming["Statistics"] = statistics.clone();
+            }
+        }
     }
 
     sqlx::query(

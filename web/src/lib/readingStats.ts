@@ -54,6 +54,10 @@ export function readingStats(books: LibraryBook[]) {
 		if (code) languages.set(code, (languages.get(code) ?? 0) + 1);
 	}
 
+	// Time the Kobo counted, over all the books it has been reading.
+	const timed = books.filter((b) => (b.kobo_minutes ?? 0) > 0);
+	const koboMinutes = timed.reduce((sum, b) => sum + (b.kobo_minutes ?? 0), 0);
+
 	const rated = books.filter((b) => b.rating);
 	const ratings = [1, 2, 3, 4, 5].map((r) => rated.filter((b) => b.rating === r).length);
 	const thisYear = String(new Date().getFullYear());
@@ -72,6 +76,8 @@ export function readingStats(books: LibraryBook[]) {
 		topAuthorsOwned: top(authorsOwned, 5),
 		languages: top(languages, 6),
 		ratings,
+		koboMinutes,
+		koboBooks: timed.length,
 		ratedCount: rated.length,
 		averageRating: rated.length ? rated.reduce((s, b) => s + (b.rating ?? 0), 0) / rated.length : null
 	};

@@ -65,6 +65,11 @@ pub struct Book {
     /// Marked as read by hand, whatever the position says.
     #[sqlx(default)]
     pub read_at: Option<String>,
+    /// Minutes the requesting user's Kobo has counted reading it; only filled
+    /// in by the web API's queries; omitted when there is none.
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kobo_minutes: Option<i64>,
     /// Reading progress 0–1 for the requesting user (web or Kobo, latest wins).
     /// Only filled in by the web API's queries; omitted when there is none.
     #[sqlx(default)]
@@ -314,12 +319,13 @@ pub async fn list(
     // When it was last read: the timestamp of whichever source wins the progress.
     let last_read = progress::last_read_at(state.backend);
     let joins = progress::PROGRESS_JOINS;
+    let minutes = progress::kobo_minutes(state.backend);
 
     let books: Vec<Book> = match query {
         Some(match_expr) => {
             let s = search_parts(state.backend);
             sqlx::query_as(&format!(
-                "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent, {last_read} AS last_read_at FROM books b
+                "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent, {last_read} AS last_read_at, {minutes} AS kobo_minutes FROM books b
                  {search_join}
                  {joins}
                  WHERE b.owner_id = $1 AND {condition}
@@ -335,7 +341,7 @@ pub async fn list(
         }
         None => {
             sqlx::query_as(&format!(
-                "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent, {last_read} AS last_read_at FROM books b
+                "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent, {last_read} AS last_read_at, {minutes} AS kobo_minutes FROM books b
                  {joins}
                  WHERE b.owner_id = $1
                  ORDER BY b.created_at DESC, b.id DESC"
@@ -380,10 +386,11 @@ pub async fn get_one(
 ) -> Result<Json<BookDetail>, Response> {
     let percent = progress::progress_percent(state.backend);
     let book: Option<Book> = sqlx::query_as(&format!(
-        "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent FROM books b
+        "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent, {minutes} AS kobo_minutes FROM books b
          {joins}
          WHERE b.owner_id = $1 AND b.id = $2",
         joins = progress::PROGRESS_JOINS,
+        minutes = progress::kobo_minutes(state.backend),
     ))
     .bind(user.0.id)
     .bind(id)
