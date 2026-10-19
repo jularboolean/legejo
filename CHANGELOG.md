@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.24.1 (2026-10-19)
+
+- **Searching the text sits beside the search box.** On a wide screen the box
+  for searching inside the books stands next to the search field instead of
+  below it; on a phone it wraps below.
+- **The admin page fits a phone.** The buttons under Version go onto a line
+  each when there is no room, instead of making the page wider than the
+  screen.
+- **What a Kobo gives up, said plainly.** The handbook and the README now
+  say that the Kobo store does not work on a Kobo while it syncs with Legejo,
+  and that books bought from Kobo do not arrive; the handbook says how to
+  switch back.
+
 ## 1.24.0 (2026-10-18)
 
 - **The Kobo's reading time.** The time a Kobo counts reading a book shows on
