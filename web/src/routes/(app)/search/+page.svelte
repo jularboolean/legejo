@@ -183,17 +183,17 @@
 			oninput={onInput}
 		/>
 	</div>
+	{#if data.fulltext}
+		<label class="intext">
+			<input type="checkbox" checked={data.inText} onchange={(e) => setInText(e.currentTarget.checked)} />
+			{t('search.inText')}
+		</label>
+	{/if}
 	{#if result.mine.length > 0 || result.public.length > 0}
-		<ViewSwitch {view} onchange={setView} />
+		<span class="view"><ViewSwitch {view} onchange={setView} /></span>
 	{/if}
 </div>
-{#if data.fulltext}
-	<label class="intext">
-		<input type="checkbox" checked={data.inText} onchange={(e) => setInText(e.currentTarget.checked)} />
-		{t('search.inText')}
-	</label>
-	{#if data.inText}<p class="note phrases">{t('search.textPhrases')}</p>{/if}
-{/if}
+{#if data.fulltext && data.inText}<p class="note phrases">{t('search.textPhrases')}</p>{/if}
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
@@ -402,17 +402,22 @@
 		font-size: 1.4rem;
 		margin: 0 0 1rem;
 	}
+	/* The search box, the box for searching the text beside it, and the view
+	   switch at the far end; on a narrow screen the text box wraps below. */
 	.top {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
+		gap: 0.75rem 1rem;
 		margin-bottom: 1.75rem;
 	}
 	.searchbox {
 		position: relative;
-		flex: 1;
+		flex: 1 1 18rem;
 		max-width: 28rem;
+	}
+	.view {
+		margin-left: auto;
 	}
 	.searchbox :global(.search-icon) {
 		position: absolute;
@@ -433,7 +438,7 @@
 		align-items: center;
 		gap: 0.45rem;
 		font-size: 0.9rem;
-		margin: -1rem 0 1.5rem;
+		white-space: nowrap;
 		cursor: pointer;
 	}
 	.intext input {

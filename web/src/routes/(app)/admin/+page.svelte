@@ -368,6 +368,7 @@
 	.mailtest {
 		margin-top: 0.75rem;
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 	}
 	.mailtest button {
