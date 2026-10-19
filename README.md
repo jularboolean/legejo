@@ -28,10 +28,10 @@ becomes a private podcast feed for the podcast app you already use.
 It runs as a single container with SQLite or PostgreSQL and is built with Rust
 (Axum) and SvelteKit.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/library-dark.jpg">
-  <img src="docs/screenshots/library.jpg" alt="The library view">
-</picture>
+<p>
+  <img src="docs/screenshots/library.jpg" alt="The library view, light" width="49%">
+  <img src="docs/screenshots/library-dark.jpg" alt="The library view, dark" width="49%">
+</p>
 
 ## Contents
 
