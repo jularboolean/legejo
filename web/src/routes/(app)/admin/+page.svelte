@@ -193,7 +193,7 @@
 
 {#if tab === 'settings'}
 <section>
-	<h2>{t('admin.features')}</h2>
+	<h2>{t('admin.group.metadata')}</h2>
 	<label class="toggle">
 		<input
 			type="checkbox"
@@ -217,23 +217,17 @@
 	<label class="toggle">
 		<input
 			type="checkbox"
-			checked={audiobooksEnabled}
+			checked={authorFactsEnabled}
 			disabled={saving}
-			onchange={(e) => toggleAudiobooks(e.currentTarget.checked)}
+			onchange={(e) => toggleAuthorFacts(e.currentTarget.checked)}
 		/>
-		{t('admin.audiobooksToggle')}
+		{t('admin.authorFactsToggle')}
 	</label>
-	<p class="hint">{t('admin.audiobooksHint')}</p>
-	<label class="toggle">
-		<input
-			type="checkbox"
-			checked={catalogsEnabled}
-			disabled={saving}
-			onchange={(e) => toggleCatalogs(e.currentTarget.checked)}
-		/>
-		{t('admin.catalogsToggle')}
-	</label>
-	<p class="hint">{t('admin.catalogsHint')}</p>
+	<p class="hint">{t('admin.authorFactsHint')}</p>
+</section>
+
+<section>
+	<h2>{t('admin.group.kobo')}</h2>
 	<label class="toggle">
 		<input
 			type="checkbox"
@@ -254,26 +248,20 @@
 		{t('admin.koboStoreToggle')}
 	</label>
 	<p class="hint">{t('admin.koboStoreHint')}</p>
+</section>
+
+<section>
+	<h2>{t('admin.group.library')}</h2>
 	<label class="toggle">
 		<input
 			type="checkbox"
-			checked={shelfLinksEnabled}
+			checked={audiobooksEnabled}
 			disabled={saving}
-			onchange={(e) => toggleShelfLinks(e.currentTarget.checked)}
+			onchange={(e) => toggleAudiobooks(e.currentTarget.checked)}
 		/>
-		{t('admin.shelfLinksToggle')}
+		{t('admin.audiobooksToggle')}
 	</label>
-	<p class="hint">{t('admin.shelfLinksHint')}</p>
-	<label class="toggle">
-		<input
-			type="checkbox"
-			checked={authorFactsEnabled}
-			disabled={saving}
-			onchange={(e) => toggleAuthorFacts(e.currentTarget.checked)}
-		/>
-		{t('admin.authorFactsToggle')}
-	</label>
-	<p class="hint">{t('admin.authorFactsHint')}</p>
+	<p class="hint">{t('admin.audiobooksHint')}</p>
 	<p class="fulltext">
 		<strong>{t('admin.fulltextToggle')}:</strong>
 		{#if data.settings.fulltext}
@@ -288,6 +276,34 @@
 		{/if}
 	</p>
 	<p class="hint">{t('admin.fulltextHint')}</p>
+</section>
+
+<section>
+	<h2>{t('admin.group.sharing')}</h2>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={catalogsEnabled}
+			disabled={saving}
+			onchange={(e) => toggleCatalogs(e.currentTarget.checked)}
+		/>
+		{t('admin.catalogsToggle')}
+	</label>
+	<p class="hint">{t('admin.catalogsHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={shelfLinksEnabled}
+			disabled={saving}
+			onchange={(e) => toggleShelfLinks(e.currentTarget.checked)}
+		/>
+		{t('admin.shelfLinksToggle')}
+	</label>
+	<p class="hint">{t('admin.shelfLinksHint')}</p>
+</section>
+
+<section>
+	<h2>{t('admin.group.accounts')}</h2>
 	<label class="toggle">
 		<input
 			type="checkbox"
