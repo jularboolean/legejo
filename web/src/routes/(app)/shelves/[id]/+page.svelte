@@ -181,10 +181,12 @@
 		color: var(--fg);
 		background: var(--card);
 	}
+	/* On a narrow screen the sort and view buttons wrap below the description. */
 	.intro {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: flex-start;
-		gap: 1.5rem;
+		gap: 1rem 1.5rem;
 		margin: 0.25rem 0 1.25rem;
 	}
 	.switch {
@@ -194,7 +196,10 @@
 		gap: 0.5rem;
 	}
 	.description {
+		flex: 1 1 20rem;
+		min-width: 0;
 		max-width: 42rem;
+		overflow-wrap: anywhere;
 		padding-left: 1rem;
 		border-left: 3px solid var(--gold);
 		color: var(--muted);

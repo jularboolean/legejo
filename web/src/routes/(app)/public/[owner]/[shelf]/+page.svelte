@@ -283,6 +283,7 @@
 	.description {
 		margin: 0.25rem 0 1.75rem;
 		max-width: 42rem;
+		overflow-wrap: anywhere;
 		padding-left: 1rem;
 		border-left: 3px solid var(--gold);
 		color: var(--muted);
