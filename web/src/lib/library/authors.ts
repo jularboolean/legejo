@@ -148,8 +148,16 @@ export function collectAuthors(books: LibraryBook[], locale: string): AuthorEntr
 		.sort((a, b) => collator.compare(a.sort, b.sort));
 }
 
-/** The letter an author is filed under: "Ö" for Öberg, "#" for digits. */
+/**
+ * The letter an author is filed under: "Ö" for Öberg in Swedish, "#" for
+ * digits. A letter the language sorts as another, as Swedish sorts Ž with
+ * Z, is filed under that one, so that the letters follow the order of the
+ * authors and each comes once: Žižek under Z, between Zamenhof and Zweig.
+ */
 export function initial(sort: string, locale: string): string {
 	const c = sort.trim().charAt(0).toLocaleUpperCase(locale);
-	return /\p{L}/u.test(c) ? c : '#';
+	if (!/\p{L}/u.test(c)) return '#';
+	const base = fold(c).toLocaleUpperCase(locale).charAt(0);
+	const collator = new Intl.Collator(locale, { sensitivity: 'base' });
+	return base !== c && collator.compare(c, base) === 0 ? base : c;
 }

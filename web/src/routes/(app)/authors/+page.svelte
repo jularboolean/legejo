@@ -13,12 +13,14 @@
 		const q = fold(query.trim());
 		return q ? all.filter((a) => fold(a.name).includes(q)) : all;
 	});
+	// One group per letter, also should the same letter come apart in the
+	// order: each letter is a key below and must be there once.
 	const groups = $derived.by(() => {
 		const out: { letter: string; authors: AuthorEntry[] }[] = [];
 		for (const a of shown) {
 			const letter = initial(a.sort, getLocale());
-			const last = out[out.length - 1];
-			if (last?.letter === letter) last.authors.push(a);
+			const group = out.find((g) => g.letter === letter);
+			if (group) group.authors.push(a);
 			else out.push({ letter, authors: [a] });
 		}
 		return out;
