@@ -20,6 +20,7 @@ export const load: PageLoad = async ({ fetch }) => {
 		audiobooks_enabled?: boolean;
 		catalogs_enabled?: boolean;
 		kobo_annotations_enabled?: boolean;
+		kobo_store_enabled?: boolean;
 		shelf_links_enabled?: boolean;
 		author_facts_enabled?: boolean;
 		fulltext?: { books: number; pending: number; texts: number; bytes: number };

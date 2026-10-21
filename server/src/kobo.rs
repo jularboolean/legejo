@@ -7,7 +7,7 @@
 use crate::books::{Book, BOOK_COLUMNS};
 use crate::AppState;
 use axum::extract::{Path, State};
-use axum::http::{header, HeaderMap, StatusCode, Uri};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use base64::Engine;
@@ -136,16 +136,27 @@ struct SyncToken {
     state_updated: String,
     #[serde(default)]
     tags_updated: String,
+    /// Kobo's own sync token, as Kobo last sent it, when the Kobo store is
+    /// kept beside Legejo (kobostore.rs).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    kobo: String,
 }
 
 impl SyncToken {
+    /// Legejo's token as the device hands it back. A token that is not
+    /// Legejo's is Kobo's, from a device that synced with Kobo until now:
+    /// kept, so that Kobo's sync goes on from where the device is.
     fn from_headers(headers: &HeaderMap) -> Self {
-        headers
-            .get("x-kobo-synctoken")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(v).ok())
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+        let Some(raw) = headers.get("x-kobo-synctoken").and_then(|v| v.to_str().ok()).map(str::trim).filter(|v| !v.is_empty()) else {
+            return SyncToken::default();
+        };
+        let ours = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(raw)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+            .filter(|v| v.get("books_created").is_some())
+            .and_then(|v| serde_json::from_value(v).ok());
+        ours.unwrap_or_else(|| SyncToken { kobo: raw.to_string(), ..SyncToken::default() })
     }
 
     fn encode(&self) -> String {
@@ -157,6 +168,25 @@ impl SyncToken {
 // ---------------------------------------------------------------------------
 // Initialization: tells the device where everything lives.
 
+/// The keys that point here also when the rest of the list is Kobo's: the
+/// library, its collections and covers. Requests under them about what is
+/// not Legejo's are passed on to Kobo (kobostore.rs).
+const LEGEJO_RESOURCES: [&str; 13] = [
+    "image_host",
+    "image_url_template",
+    "image_url_quality_template",
+    "library_book",
+    "library_metadata",
+    "library_sync",
+    "reading_state",
+    "tags",
+    "create_tag",
+    "delete_tag",
+    "rename_tag",
+    "tag_items",
+    "delete_tag_items",
+];
+
 pub async fn initialization(
     State(state): State<AppState>,
     Path(token): Path<String>,
@@ -165,6 +195,7 @@ pub async fn initialization(
     user_from_token(&state, &token).await?;
     let base = base_url(&state, &headers, &token);
     let host = base_url(&state, &headers, &token);
+    let store = if crate::kobostore::enabled(&state).await { crate::kobostore::resources(&state, &headers).await } else { None };
 
     let mut resources = json!({
         "device_auth": format!("{base}/v1/auth/device"),
@@ -226,6 +257,16 @@ pub async fn initialization(
         "kobo_superpoints_enabled": "False",
         "kobo_wishlist_enabled": "False",
     });
+
+    // The store beside Legejo: Kobo's own list, with only what concerns
+    // Legejo's books pointing here. Sign-in, the store's pages and products
+    // stay Kobo's. Without Kobo's list (unreachable), Legejo's alone.
+    if let Some(mut kobo) = store {
+        for key in LEGEJO_RESOURCES {
+            kobo.insert(key.to_string(), resources[key].clone());
+        }
+        resources = Value::Object(kobo);
+    }
 
     if annotations_enabled(&state).await {
         // The device sends its highlights and notes to its "reading
@@ -626,20 +667,24 @@ async fn serve_highlights(state: &AppState, device_id: &str, user_id: i64, book_
 /// highlights here differ from what this device was last handed. The device
 /// fetches those again and takes the changes; told nothing, it keeps its own
 /// copy and may hand that back.
-async fn changed_books(state: &AppState, device_id: &str, user_id: i64, body: &[u8]) -> Response {
-    let asked: Vec<String> = serde_json::from_slice::<Value>(body)
-        .ok()
-        .and_then(|v| v.as_array().cloned())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|i| i.as_str().or_else(|| i.get("ContentId").and_then(Value::as_str)).map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
+///
+/// With the store beside Legejo (`store`: the device's headers and the path
+/// at Kobo), the books that are not Legejo's are asked about at Kobo, and
+/// its answer is added. Kobo out of reach adds nothing: told nothing, the
+/// device keeps what it has.
+async fn changed_books(state: &AppState, device_id: &str, user_id: i64, body: &[u8], store: Option<(&HeaderMap, &str)>) -> Response {
+    let items: Vec<Value> = serde_json::from_slice::<Value>(body).ok().and_then(|v| v.as_array().cloned()).unwrap_or_default();
+    let asked: Vec<(String, &Value)> = items
+        .iter()
+        .filter_map(|i| i.as_str().or_else(|| i.get("ContentId").and_then(Value::as_str)).map(|c| (c.to_string(), i)))
+        .collect();
     let mut changed = Vec::new();
-    for content in asked.iter().take(1000) {
-        let Some(book_id) = book_of(state, user_id, content).await else { continue };
+    let mut kobos = Vec::new();
+    for (content, item) in asked.iter().take(1000) {
+        let Some(book_id) = book_of(state, user_id, content).await else {
+            kobos.push((*item).clone());
+            continue;
+        };
         place_web_highlights(state, user_id, book_id).await;
         let Ok((_, etag, count)) = highlights_body(state, user_id, book_id).await else { continue };
         let handed: Option<String> = sqlx::query_scalar("SELECT etag FROM kobo_served WHERE device_id = $1 AND book_id = $2")
@@ -659,6 +704,18 @@ async fn changed_books(state: &AppState, device_id: &str, user_id: i64, body: &[
     }
     if !changed.is_empty() {
         tracing::info!("kobo: {} of {} books have changed highlights for user {user_id}", changed.len(), asked.len());
+    }
+    if let (Some((headers, upstream)), false) = (store, kobos.is_empty()) {
+        let body = axum::body::Bytes::from(Value::Array(kobos).to_string());
+        let answer = crate::kobostore::forward(&state.settings.kobo.reading, &axum::http::Method::POST, upstream, headers, body, None).await;
+        match answer {
+            Ok(answer) if answer.status.is_success() => match serde_json::from_slice::<Vec<Value>>(&answer.body) {
+                Ok(theirs) => changed.extend(theirs.iter().filter_map(|c| c.as_str().map(str::to_string))),
+                Err(e) => tracing::warn!("kobo store: changed highlights in a shape not understood: {e}"),
+            },
+            Ok(answer) => tracing::warn!("kobo store: changed highlights answered HTTP {}", answer.status.as_u16()),
+            Err(e) => tracing::warn!("kobo store: changed highlights could not be asked for: {e:#}"),
+        }
     }
     Json(changed).into_response()
 }
@@ -705,12 +762,40 @@ pub async fn reading_services(
 
     let device = device_of(&headers);
     let user = user_of_device(&state, &headers).await;
+    let store = crate::kobostore::enabled(&state).await;
+    // The path and query as Kobo's reading services know them: without the
+    // token, when the request came under it.
+    let upstream = {
+        let full = original.0.path();
+        let path = match full.strip_prefix("/api/kobo/").and_then(|rest| rest.split_once('/')) {
+            Some((_, after)) => format!("/{after}"),
+            None => full.to_string(),
+        };
+        match original.0.query() {
+            Some(query) => format!("{path}?{query}"),
+            None => path,
+        }
+    };
     if let Some(content) = highlights {
         let (Some(device_id), Some(user_id)) = (device, user) else {
             tracing::warn!("kobo: highlights {method} from a device that has not synced here ({}): told to come back", device_label(&headers));
             return StatusCode::UNAUTHORIZED.into_response();
         };
         let Some(book_id) = book_of(&state, user_id, &content).await else {
+            // A book from the Kobo store: its highlights are Kobo's. Kobo
+            // out of reach is an error, never "none", which would wipe them.
+            if store {
+                return match crate::kobostore::forward(&state.settings.kobo.reading, &method, &upstream, &headers, body, None).await {
+                    Ok(answer) => {
+                        tracing::info!("kobo store: highlights {method} for {content}: {}", answer.status.as_u16());
+                        answer.into_response()
+                    }
+                    Err(e) => {
+                        tracing::warn!("kobo store: highlights {method} for {content} could not be passed on: {e:#}");
+                        StatusCode::BAD_GATEWAY.into_response()
+                    }
+                };
+            }
             tracing::warn!("kobo: highlights for a book the device's user does not have ({content})");
             return StatusCode::NOT_FOUND.into_response();
         };
@@ -737,9 +822,18 @@ pub async fn reading_services(
     }
     if path.ends_with("/content/checkforchanges") && method == axum::http::Method::POST {
         return match (device, user) {
-            (Some(device_id), Some(user_id)) => changed_books(&state, &device_id, user_id, &body).await,
+            (Some(device_id), Some(user_id)) => changed_books(&state, &device_id, user_id, &body, store.then_some((&headers, upstream.as_str()))).await,
             _ => Json(json!([])).into_response(),
         };
+    }
+
+    // The rest is Kobo's, with the store beside Legejo; Kobo out of reach
+    // gets the empty answer, as without the store.
+    if store {
+        match crate::kobostore::forward(&state.settings.kobo.reading, &method, &upstream, &headers, body, None).await {
+            Ok(answer) => return answer.into_response(),
+            Err(e) => tracing::warn!("kobo store: {method} {path} could not be passed on: {e:#}"),
+        }
     }
 
     // What a device takes as "nothing here" on each of its other paths.
@@ -1091,8 +1185,15 @@ pub async fn library_sync(
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(0)
             };
-            Ok(json!({ "new": sent("new"), "changed": sent("changed"), "collections": sent("collections"),
-                       "states": sent("states"), "more": response.headers().contains_key("x-kobo-sync") }))
+            let mut details = json!({ "new": sent("new"), "changed": sent("changed"), "collections": sent("collections"),
+                       "states": sent("states"), "more": response.headers().contains_key("x-kobo-sync") });
+            if response.headers().contains_key("x-legejo-store") {
+                details["store"] = json!(sent("store"));
+            }
+            if response.headers().contains_key("x-legejo-store-failed") {
+                details["store_failed"] = json!(true);
+            }
+            Ok(details)
         }
         Err(response) => Err(response.status().as_u16()),
     };
@@ -1107,7 +1208,7 @@ pub async fn library_sync(
         }
     }
     result.map(|mut response| {
-        for kind in ["new", "changed", "collections", "states"] {
+        for kind in ["new", "changed", "collections", "states", "store", "store-failed"] {
             response.headers_mut().remove(format!("x-legejo-{kind}"));
         }
         response
@@ -1282,7 +1383,40 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         ("collections", count(&["NewTag", "ChangedTag", "DeletedTag"])),
         ("states", count(&["ChangedReadingState"])),
     ];
+    // 5. Kobo's own sync for the same device, when the store is kept beside
+    //    Legejo: once Legejo has nothing more this round. Kobo's entries go
+    //    to the device as Kobo sent them. A failure leaves Kobo's token as
+    //    it was, so that the next round asks Kobo again from there.
+    let mut store_headers = Vec::new();
+    let mut store_count: Option<usize> = None;
+    let mut store_failed = false;
+    if !continue_sync && crate::kobostore::enabled(&state).await {
+        match crate::kobostore::sync(&state, &headers, &sync_token.kobo).await {
+            Ok(store) => {
+                store_count = Some(store.items.len());
+                items.extend(store.items);
+                if let Some(next) = store.token {
+                    sync_token.kobo = next;
+                }
+                store_headers = store.headers;
+            }
+            Err(e) => {
+                tracing::warn!("kobo store: the library sync could not be fetched: {e:#}");
+                store_failed = true;
+            }
+        }
+    }
+
     let mut response = Json(items).into_response();
+    if let Some(n) = store_count {
+        response.headers_mut().insert("x-legejo-store", axum::http::HeaderValue::from(n as u64));
+    }
+    if store_failed {
+        response.headers_mut().insert("x-legejo-store-failed", axum::http::HeaderValue::from_static("1"));
+    }
+    for (name, value) in store_headers {
+        response.headers_mut().insert(name, value);
+    }
     for (kind, n) in counts {
         if let Ok(name) = axum::http::HeaderName::from_bytes(format!("x-legejo-{kind}").as_bytes()) {
             response.headers_mut().insert(name, axum::http::HeaderValue::from(n as u64));
@@ -1305,7 +1439,7 @@ fn tag_id(shelf_id: i64) -> String {
     format!("beefbeef-0000-4000-a000-{shelf_id:012x}")
 }
 
-fn parse_tag_id(tag: &str) -> Option<i64> {
+pub(crate) fn parse_tag_id(tag: &str) -> Option<i64> {
     tag.strip_prefix("beefbeef-0000-4000-a000-")
         .and_then(|h| i64::from_str_radix(h, 16).ok())
 }
@@ -1889,12 +2023,6 @@ pub async fn image_quality(
     let result = serve_cover(&state, &token, &image_id).await;
     log_cover(&image_id, &format!("{w}x{h} q{q}"), &result);
     result
-}
-
-/// Fallback for unimplemented endpoints: an empty object.
-pub async fn dummy(uri: Uri) -> Json<Value> {
-    tracing::debug!("kobo: dummy response for {uri}");
-    Json(json!({}))
 }
 
 /// One info line per device request: user, method, path, status and timing.

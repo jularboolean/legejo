@@ -28,6 +28,7 @@
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
+	let koboStoreEnabled = $state(data.settings.kobo_store_enabled ?? false);
 	let whatsNewOpen = $state(false);
 	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
 	let authorFactsEnabled = $state(data.settings.author_facts_enabled ?? false);
@@ -72,6 +73,7 @@
 					audiobooks_enabled: audiobooksEnabled,
 					catalogs_enabled: catalogsEnabled,
 					kobo_annotations_enabled: koboAnnotationsEnabled,
+					kobo_store_enabled: koboStoreEnabled,
 					shelf_links_enabled: shelfLinksEnabled,
 					author_facts_enabled: authorFactsEnabled,
 					registration_enabled: registrationEnabled
@@ -87,6 +89,7 @@
 				audiobooks_enabled: boolean;
 				catalogs_enabled?: boolean;
 				kobo_annotations_enabled?: boolean;
+				kobo_store_enabled?: boolean;
 				shelf_links_enabled?: boolean;
 				author_facts_enabled?: boolean;
 				registration_enabled: boolean;
@@ -94,6 +97,7 @@
 			audiobooksEnabled = settings.audiobooks_enabled;
 			catalogsEnabled = settings.catalogs_enabled ?? false;
 			koboAnnotationsEnabled = settings.kobo_annotations_enabled ?? false;
+			koboStoreEnabled = settings.kobo_store_enabled ?? false;
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			authorFactsEnabled = settings.author_facts_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
@@ -137,6 +141,12 @@
 		const previous = koboAnnotationsEnabled;
 		koboAnnotationsEnabled = enabled;
 		if (!(await saveSettings())) koboAnnotationsEnabled = previous;
+	}
+
+	async function toggleKoboStore(enabled: boolean) {
+		const previous = koboStoreEnabled;
+		koboStoreEnabled = enabled;
+		if (!(await saveSettings())) koboStoreEnabled = previous;
 	}
 
 	async function toggleShelfLinks(enabled: boolean) {
@@ -234,6 +244,16 @@
 		{t('admin.koboAnnotationsToggle')}
 	</label>
 	<p class="hint">{t('admin.koboAnnotationsHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={koboStoreEnabled}
+			disabled={saving}
+			onchange={(e) => toggleKoboStore(e.currentTarget.checked)}
+		/>
+		{t('admin.koboStoreToggle')}
+	</label>
+	<p class="hint">{t('admin.koboStoreHint')}</p>
 	<label class="toggle">
 		<input
 			type="checkbox"

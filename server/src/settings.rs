@@ -103,6 +103,29 @@ pub struct Settings {
     /// The language model behind the librarian (librarian.rs). None unless
     /// LEGEJO_AI_API_KEY is set.
     pub ai: Option<Ai>,
+    /// Kobo's own services, reached for a device that keeps the Kobo store
+    /// beside Legejo (kobostore.rs). Fixed; tests point them elsewhere.
+    pub kobo: KoboServices,
+}
+
+#[derive(Clone, Debug)]
+pub struct KoboServices {
+    /// The store API: initialization, library sync, products.
+    pub store: String,
+    /// The reading services: highlights and notes.
+    pub reading: String,
+    /// Covers of books from the store.
+    pub images: String,
+}
+
+impl Default for KoboServices {
+    fn default() -> Self {
+        KoboServices {
+            store: "https://storeapi.kobo.com".into(),
+            reading: "https://readingservices.kobo.com".into(),
+            images: "https://cdn.kobo.com/book-images".into(),
+        }
+    }
 }
 
 /// A chat-completions endpoint of the OpenAI kind, which many providers and
@@ -141,6 +164,7 @@ impl Default for Settings {
             mcp: false,
             fulltext: false,
             ai: None,
+            kobo: KoboServices::default(),
         }
     }
 }
@@ -194,7 +218,7 @@ impl Settings {
                 model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai, kobo: d.kobo })
     }
 }
 

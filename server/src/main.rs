@@ -73,6 +73,9 @@ mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
 mod kobospan;
+mod kobostore;
+#[cfg(test)]
+mod kobo_store_tests;
 mod welcome;
 mod shelflinks;
 mod authorfacts;
@@ -339,7 +342,8 @@ fn router(state: AppState) -> Router {
         .route("/api/v3/{*rest}", axum::routing::any(kobo::reading_services))
         .route("/api/UserStorage/{*rest}", axum::routing::any(kobo::reading_services))
         .route("/api/internal/{*rest}", axum::routing::any(kobo::reading_services))
-        .fallback(kobo::dummy)
+        .fallback(kobostore::fallback)
+        .layer(axum::middleware::from_fn_with_state(state.clone(), kobostore::beside))
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
 
     Router::new()

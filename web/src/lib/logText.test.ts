@@ -77,6 +77,13 @@ describe('the system log', () => {
 		expect(logText(entry('kobo.synced', {}))).toBe(en['log.kobo.synced_none']);
 	});
 
+	it('says what came from the Kobo store, and when it did not answer', () => {
+		expect(logText(entry('kobo.synced', { new: 1, store: 3 }))).toBe('synced their Kobo: 1 new books, 3 from the Kobo store');
+		expect(logText(entry('kobo.synced', { store: 0, store_failed: true }))).toBe(
+			`${en['log.kobo.synced_none']} ${en['log.kobo.storeFailed']}`
+		);
+	});
+
 	it('names who did it', () => {
 		expect(logActor(entry('book.uploaded'))).toBe('ada');
 		const remote = { ...entry('fed.followed', { actor: 'https://example.org/users/x' }), actor_name: null };

@@ -28,7 +28,7 @@ buttons are given in English; Legejo itself also speaks Swedish, Finnish, German
 and Esperanto, and Recipe 11.1 says how to change it.</p>
 <p class="note"><strong>Optional features.</strong> Several parts of Legejo are off until
 someone turns them on: audiobooks, catalogs of other libraries, the librarian, federation,
-shelves by private link, highlights from a Kobo. A recipe says so when it concerns one of them. If a button described here
+shelves by private link, highlights from a Kobo, the Kobo store beside Legejo. A recipe says so when it concerns one of them. If a button described here
 is missing on your screen, that is the likely reason, and the person who runs your instance is the
 one to ask.</p>
 
@@ -175,7 +175,7 @@ tags, search and sharing.</p>""",
 and a comic's <code>ComicInfo.xml</code> is read for its title and series. Password-protected
 PDFs are refused.</p>
 <p>Legejo does not open them in the browser. Download them, or fetch them over OPDS
-(Recipe 8.6). A comic does reach a Kobo through Kobo sync, made into a book with one page per
+(Recipe 8.7). A comic does reach a Kobo through Kobo sync, made into a book with one page per
 picture; a PDF does not.</p>"""),
 
  ("Fetching Books from Another Library",
@@ -520,7 +520,8 @@ copied.</li>
   """<p>Legejo then stands where the Kobo store stood: the device asks Legejo what books there
 are. The address holds your token, which is what tells Legejo whose library to send. Keep it to
 yourself; <strong>Regenerate</strong> makes a new one and the old one stops working.</p>
-<p><strong>The Kobo store no longer works on the device</strong> while it syncs with Legejo:
+<p><strong>The Kobo store no longer works on the device</strong> while it syncs with Legejo,
+unless an admin has turned on <strong>The Kobo store beside Legejo</strong> (Recipe 8.4):
 browsing, searching, deals and the wishlist come up empty, and books bought from Kobo, or
 borrowed through Kobo Plus, do not arrive. Books already on the device stay, and your Kobo
 account stays signed in. To shop on the device again, set <code>api_endpoint=</code> back to
@@ -555,12 +556,29 @@ Removing one removes it on the other side.</p>""",
   """<p>Know these things before turning it on:</p>
 <ul>
 <li>The device then sends its highlights to Legejo instead of to Kobo, for all its books. Those
-of books bought from Kobo are not taken in and no longer reach Kobo. If your device holds such
-books, leave the setting off.</li>
+of books bought from Kobo are not taken in. With <strong>The Kobo store beside Legejo</strong>
+on as well (Recipe 8.4), Legejo passes them on to Kobo as before; without it they no longer
+reach Kobo, and if your device holds such books, leave the setting off.</li>
 <li>Highlights already on the device before the setting was turned on are not sent, unless you
 change them on the device.</li>
 <li>It has been tried on one device, a Kobo Clara&#160;2E.</li>
 </ul>"""),
+
+ ("Keeping the Kobo Store",
+  "<p>You buy books from Kobo too, and want them on the device beside your own.</p>",
+  """<p><em>Optional: an admin turns on <strong>The Kobo store beside Legejo</strong> on the
+Admin page.</em></p>
+<p>Sync the Kobo. The store works on the device again, and the books you bought, or borrowed
+through Kobo Plus, arrive beside the ones from Legejo, with their places and highlights kept
+by Kobo as before.</p>""",
+  """<p>The device keeps its own Kobo account. Legejo answers for its own books and passes what
+concerns Kobo's on to Kobo: Legejo's server talks to Kobo's on your behalf, with the device's
+sign-in. Nothing of it is kept in Legejo, apart from where Kobo's sync has come to.</p>
+<p>If Kobo cannot be reached, Legejo's books still sync, and Kobo's come at a later sync. The
+highlights of a bought book are never answered as "none" in the meantime, so the device keeps
+them.</p>
+<p>Bought books are not in your Legejo library: they cannot be read in the browser, and shelves
+do not take them.</p>"""),
 
  ("Reading in KOReader",
   "<p>You read in KOReader, on an Onyx Boox, a PocketBook, a Kindle or a Kobo.</p>",
@@ -570,7 +588,7 @@ username and an app password (Recipe 11.2).</p>""",
   """<p>The catalog lists your books, your shelves and your series, and can be searched.</p>
 <p>KOReader on a Kobo can also read the books that Kobo sync put on the device. Legejo
 knows those files too, so the reading position of such a book finds its way here as well
-(Recipe 8.5).</p>"""),
+(Recipe 8.6).</p>"""),
 
  ("Syncing Your Place with KOReader",
   "<p>You want the place you reached in KOReader to show in Legejo, and follow you between KOReader devices.</p>",
@@ -780,8 +798,8 @@ verified email address.</p>"""),
  ("Choosing What the Instance Offers",
   "<p>You want to know what can be switched on and off.</p>",
   """<p>On the Admin page: the Libris and Open Library lookups, self-registration, audiobook
-support, catalogs of other libraries, highlights from Kobo e-readers, shelves by private link,
-and federation with its list of allowed and blocked instances.</p>
+support, catalogs of other libraries, highlights from Kobo e-readers, the Kobo store beside
+Legejo, shelves by private link, and federation with its list of allowed and blocked instances.</p>
 <p>By environment variable: the librarian (<code>LEGEJO_AI_API_KEY</code>, with
 <code>LEGEJO_AI_BASE_URL</code> and <code>LEGEJO_AI_MODEL</code>) and the server for AI
 assistants (<code>LEGEJO_MCP</code>).</p>""",

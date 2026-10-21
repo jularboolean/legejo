@@ -43,9 +43,10 @@ export function logText(e: LogEntry): string {
 			if (Number(d.changed) > 0) parts.push(t('log.kobo.part.changed', { n: s(d.changed) }));
 			if (Number(d.collections) > 0) parts.push(t('log.kobo.part.collections', { n: s(d.collections) }));
 			if (Number(d.states) > 0) parts.push(t('log.kobo.part.states', { n: s(d.states) }));
-			if (parts.length === 0) return t('log.kobo.synced_none');
-			const text = t('log.kobo.synced', { what: parts.join(', ') });
-			return d.more ? `${text} ${t('log.kobo.more')}` : text;
+			if (Number(d.store) > 0) parts.push(t('log.kobo.part.store', { n: s(d.store) }));
+			let text = parts.length === 0 ? t('log.kobo.synced_none') : t('log.kobo.synced', { what: parts.join(', ') });
+			if (d.more) text = `${text} ${t('log.kobo.more')}`;
+			return d.store_failed ? `${text} ${t('log.kobo.storeFailed')}` : text;
 		}
 		case 'book.edited':
 			return d.license

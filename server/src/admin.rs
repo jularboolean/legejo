@@ -47,6 +47,7 @@ pub struct Settings {
     audiobooks_enabled: bool,
     catalogs_enabled: bool,
     kobo_annotations_enabled: bool,
+    kobo_store_enabled: bool,
     shelf_links_enabled: bool,
     author_facts_enabled: bool,
     registration_enabled: bool,
@@ -69,6 +70,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         audiobooks_enabled: crate::audiobooks::enabled(state).await,
         catalogs_enabled: crate::catalogs::enabled(state).await,
         kobo_annotations_enabled: crate::kobo::annotations_enabled(state).await,
+        kobo_store_enabled: crate::kobostore::enabled(state).await,
         shelf_links_enabled: crate::shelflinks::enabled(state).await,
         author_facts_enabled: crate::authorfacts::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
@@ -104,6 +106,8 @@ pub struct UpdateSettings {
     /// Absent from older clients: unchanged.
     kobo_annotations_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
+    kobo_store_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
     shelf_links_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     author_facts_enabled: Option<bool>,
@@ -138,6 +142,11 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.kobo_store_enabled {
+        set_setting(&state, "kobo_store_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
     if let Some(on) = req.shelf_links_enabled {
         set_setting(&state, "shelf_links_enabled", if on { "true" } else { "false" })
             .await
@@ -165,6 +174,7 @@ pub async fn update_settings(
             "audiobooks_enabled": req.audiobooks_enabled,
             "catalogs_enabled": req.catalogs_enabled,
             "kobo_annotations_enabled": req.kobo_annotations_enabled,
+            "kobo_store_enabled": req.kobo_store_enabled,
             "shelf_links_enabled": req.shelf_links_enabled,
             "author_facts_enabled": req.author_facts_enabled,
             "registration_enabled": req.registration_enabled,
