@@ -333,6 +333,8 @@ export type FedAdminSettings = {
 	mode: FedMode;
 	contact: string | null;
 	max_epub_mb: number;
+	/** Instances worth connecting to, not decided on yet. */
+	suggested_instances?: string[];
 };
 
 export type FedInstance = {

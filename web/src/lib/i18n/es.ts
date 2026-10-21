@@ -1191,4 +1191,5 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'admin.dictionaryToggle': "Buscar palabras mientras se lee",
 	'admin.dictionaryHint': "Selecciona una palabra en el lector web y búscala: el esperanto en Reta Vortaro, con sus traducciones al idioma del lector; otros idiomas en Wiktionary. El servidor consulta en nombre del lector, así que las palabras buscadas salen de la instancia, pero no quién las buscó.",
 	'fed.suggested': "Estanterías sugeridas",
+	'fedAdmin.suggested': "Sugerencia:",
 };

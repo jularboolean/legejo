@@ -1191,4 +1191,5 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'admin.dictionaryToggle': "Wörter beim Lesen nachschlagen",
 	'admin.dictionaryHint': "Ein Wort im Web-Reader markieren und nachschlagen: Esperanto in Reta Vortaro, mit Übersetzungen in die Sprache des Lesers, andere Sprachen in Wiktionary. Der Server fragt für den Leser; die nachgeschlagenen Wörter verlassen also die Instanz, aber nicht, wer sie nachgeschlagen hat.",
 	'fed.suggested': "Vorgeschlagene Regale",
+	'fedAdmin.suggested': "Vorschlag:",
 };

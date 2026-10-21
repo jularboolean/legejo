@@ -376,12 +376,20 @@ pub struct Suggestion {
 
 /// The shelves suggested on the Fediverse page. The operator hides them
 /// with LEGEJO_SHELF_SUGGESTIONS=off.
-pub const SUGGESTIONS: &[Suggestion] = &[Suggestion {
-    handle: "@esperanto@legejo.radberg.org",
-    name: "Esperantaj klasikaĵoj",
-    summary: "Kvin klasikaĵoj de la Esperanta literaturo, liberaj de kopirajto: originaloj kaj tradukoj de Zamenhof kaj liaj samtempuloj.",
-    language: "eo",
-}];
+pub const SUGGESTIONS: &[Suggestion] = &[
+    Suggestion {
+        handle: "@esperanto@legejo.radberg.org",
+        name: "Esperantaj klasikaĵoj",
+        summary: "Kvin klasikaĵoj de la Esperanta literaturo, liberaj de kopirajto: originaloj kaj tradukoj de Zamenhof kaj liaj samtempuloj.",
+        language: "eo",
+    },
+    Suggestion {
+        handle: "@det-gotiska-gutenberg@legejo.radberg.org",
+        name: "Gutenberg Gothique",
+        summary: "A collection of gothic fiction from Project Gutenberg.",
+        language: "en",
+    },
+];
 
 /// GET /api/fed/suggestions: the suggested shelves the caller does not
 /// follow yet; none while federation is off.

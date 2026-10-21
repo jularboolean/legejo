@@ -37,6 +37,9 @@ pub struct FedSettings {
     mode: Mode,
     contact: Option<String>,
     max_epub_mb: usize,
+    /// Instances worth connecting to, offered beside the domain field: those
+    /// of the suggested shelves (remote::SUGGESTIONS) not decided on yet.
+    suggested_instances: Vec<String>,
 }
 
 async fn current(state: &AppState) -> FedSettings {
@@ -45,7 +48,25 @@ async fn current(state: &AppState) -> FedSettings {
         mode: super::mode(state).await,
         contact: super::setting(state, "federation_contact").await.filter(|c| !c.is_empty()),
         max_epub_mb: super::max_epub_bytes(state).await / (1024 * 1024),
+        suggested_instances: suggested_instances(state).await,
     }
+}
+
+async fn suggested_instances(state: &AppState) -> Vec<String> {
+    if !state.settings.shelf_suggestions {
+        return Vec::new();
+    }
+    let own = state.fed.config.as_ref().map(|c| c.host.to_lowercase());
+    let known: Vec<String> = sqlx::query_scalar("SELECT domain FROM ap_instances").fetch_all(&state.db).await.unwrap_or_default();
+    let mut out: Vec<String> = Vec::new();
+    for s in super::remote::SUGGESTIONS {
+        let Some((_, domain)) = s.handle.trim_start_matches('@').split_once('@') else { continue };
+        let domain = domain.to_lowercase();
+        if Some(&domain) != own.as_ref() && !known.iter().any(|k| k.eq_ignore_ascii_case(&domain)) && !out.contains(&domain) {
+            out.push(domain);
+        }
+    }
+    out
 }
 
 pub async fn get_settings(State(state): State<AppState>, _admin: AdminUser) -> Json<FedSettings> {

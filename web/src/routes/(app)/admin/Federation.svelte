@@ -102,8 +102,17 @@
 
 	async function lookup(e: SubmitEvent) {
 		e.preventDefault();
-		const d = domain.trim();
+		await lookUpDomain(domain.trim());
+	}
+
+	/** Instances worth connecting to that are not in the list yet. */
+	const suggested = $derived(
+		(saved.suggested_instances ?? []).filter((d) => !instances.some((i) => i.domain.toLowerCase() === d))
+	);
+
+	async function lookUpDomain(d: string) {
 		if (!d) return;
+		domain = d;
 		previewing = true;
 		preview = null;
 		previewError = '';
@@ -317,6 +326,14 @@
 		</button>
 	</form>
 	<p class="hint">{t('fedAdmin.connectHint')}</p>
+	{#if suggested.length > 0}
+		<p class="suggested">
+			{t('fedAdmin.suggested')}
+			{#each suggested as d (d)}
+				<button type="button" class="ghost" onclick={() => lookUpDomain(d)} disabled={previewing}>{d}</button>
+			{/each}
+		</p>
+	{/if}
 	{#if previewError}<p class="error">{previewError}</p>{/if}
 	{#if preview}
 		<div class="preview">
@@ -580,6 +597,13 @@
 	.ok {
 		color: var(--accent);
 		font-size: 0.85rem;
+	}
+	.suggested {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.9rem;
 	}
 	.preview {
 		margin-top: 0.75rem;

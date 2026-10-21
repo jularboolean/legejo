@@ -1204,6 +1204,7 @@ export const en = {
 	'admin.dictionaryToggle': "Look words up while reading",
 	'admin.dictionaryHint': "Select a word in the web reader and look it up: Esperanto in Reta Vortaro, with its translations into the reader’s language, other languages in Wiktionary. The server asks them on the reader’s behalf, so the words looked up leave the instance, but not who looked them up.",
 	'fed.suggested': "Suggested shelves",
+	'fedAdmin.suggested': "Suggested:",
 };
 
 export type MessageKey = keyof typeof en;
