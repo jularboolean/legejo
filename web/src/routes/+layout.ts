@@ -39,7 +39,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	}
 
 	let shelves: Shelf[] = [];
-	let librisEnabled = true;
+	let librisEnabled = false;
 	let openLibraryEnabled = false;
 	let mcpEnabled = false;
 	let audiobooksEnabled = false;

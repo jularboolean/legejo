@@ -28,7 +28,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'tabs.settings': "Einstellungen",
 	'admin.features': 'Funktionen',
 	'admin.librisToggle': 'Libris-Suche auf der Seite zum Bearbeiten von Büchern',
-	'admin.librisHint': 'Wenn ausgeschaltet, ist der Libris-Bereich ausgeblendet und die Such-API für alle deaktiviert.',
+	'admin.librisHint': "Libris ist der nationale Bibliothekskatalog Schwedens. Wenn ausgeschaltet, ist der Libris-Bereich ausgeblendet und die Such-API für alle deaktiviert.",
 	'admin.users': 'Nutzer',
 	'admin.user': 'Nutzer',
 	'admin.books': 'Bücher',

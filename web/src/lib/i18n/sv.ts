@@ -28,7 +28,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'tabs.settings': "Inställningar",
 	'admin.features': 'Funktioner',
 	'admin.librisToggle': 'Libris-uppslag på bokredigeringssidan',
-	'admin.librisHint': 'Avstängt: Libris-panelen döljs och uppslags-API:t stängs av för alla.',
+	'admin.librisHint': "Libris är Sveriges nationella bibliotekskatalog. Avstängt: Libris-panelen döljs och uppslags-API:t stängs av för alla.",
 	'admin.users': 'Användare',
 	'admin.user': 'Användare',
 	'admin.books': 'Böcker',

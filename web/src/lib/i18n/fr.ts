@@ -28,7 +28,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'tabs.settings': "Réglages",
 	'admin.features': 'Fonctionnalités',
 	'admin.librisToggle': 'Recherche Libris sur la page de modification d’un livre',
-	'admin.librisHint': 'Désactivée, le panneau Libris est masqué et l’API de recherche est coupée pour tout le monde.',
+	'admin.librisHint': "Libris est le catalogue national des bibliothèques suédoises. Désactivée, le panneau Libris est masqué et l’API de recherche est coupée pour tout le monde.",
 	'admin.users': 'Utilisateurs',
 	'admin.user': 'Utilisateur',
 	'admin.books': 'Livres',

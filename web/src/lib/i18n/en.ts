@@ -26,7 +26,7 @@ export const en = {
 	'tabs.settings': "Settings",
 	'admin.features': 'Features',
 	'admin.librisToggle': 'Libris lookup on the book edit page',
-	'admin.librisHint': 'When off, the Libris panel is hidden and the lookup API is disabled for everyone.',
+	'admin.librisHint': "Libris is Sweden's national library catalogue. When off, the Libris panel is hidden and the lookup API is disabled for everyone.",
 	'admin.users': 'Users',
 	'admin.user': 'User',
 	'admin.books': 'Books',

@@ -28,7 +28,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'tabs.settings': "Agordoj",
 	'admin.features': 'Funkcioj',
 	'admin.librisToggle': 'Libris-serĉo sur la redaktopaĝo de libro',
-	'admin.librisHint': 'Malŝaltite: la Libris-panelo kaŝiĝas kaj la serĉo-API malaktiviĝas por ĉiuj.',
+	'admin.librisHint': "Libris estas la nacia bibliotekkatalogo de Svedio. Malŝaltite: la Libris-panelo kaŝiĝas kaj la serĉo-API malaktiviĝas por ĉiuj.",
 	'admin.users': 'Uzantoj',
 	'admin.user': 'Uzanto',
 	'admin.books': 'Libroj',

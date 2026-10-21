@@ -197,16 +197,6 @@
 	<label class="toggle">
 		<input
 			type="checkbox"
-			checked={librisEnabled}
-			disabled={saving}
-			onchange={(e) => toggleLibris(e.currentTarget.checked)}
-		/>
-		{t('admin.librisToggle')}
-	</label>
-	<p class="hint">{t('admin.librisHint')}</p>
-	<label class="toggle">
-		<input
-			type="checkbox"
 			checked={openLibraryEnabled}
 			disabled={saving}
 			onchange={(e) => toggleOpenLibrary(e.currentTarget.checked)}
@@ -214,6 +204,16 @@
 		{t('admin.openLibraryToggle')}
 	</label>
 	<p class="hint">{t('admin.openLibraryHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={librisEnabled}
+			disabled={saving}
+			onchange={(e) => toggleLibris(e.currentTarget.checked)}
+		/>
+		{t('admin.librisToggle')}
+	</label>
+	<p class="hint">{t('admin.librisHint')}</p>
 	<label class="toggle">
 		<input
 			type="checkbox"

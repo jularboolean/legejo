@@ -37,7 +37,7 @@ async fn set_setting(state: &AppState, key: &str, value: &str) -> Result<(), sql
 }
 
 pub async fn libris_enabled(state: &AppState) -> Result<bool, sqlx::Error> {
-    setting_bool(state, "libris_enabled", true).await
+    setting_bool(state, "libris_enabled", false).await
 }
 
 #[derive(Serialize)]

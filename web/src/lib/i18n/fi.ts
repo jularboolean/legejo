@@ -28,7 +28,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'tabs.settings': "Asetukset",
 	'admin.features': 'Toiminnot',
 	'admin.librisToggle': 'Libris-haku kirjan muokkaussivulla',
-	'admin.librisHint': 'Pois päältä: Libris-paneeli piilotetaan ja haku-API poistetaan käytöstä kaikilta.',
+	'admin.librisHint': "Libris on Ruotsin kansallinen kirjastoluettelo. Pois päältä: Libris-paneeli piilotetaan ja haku-API poistetaan käytöstä kaikilta.",
 	'admin.users': 'Käyttäjät',
 	'admin.user': 'Käyttäjä',
 	'admin.books': 'Kirjat',

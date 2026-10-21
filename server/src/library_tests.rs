@@ -902,3 +902,18 @@ async fn an_epub_with_a_void_tag_in_its_package_uploads() {
     let errors = v["errors"].as_array().map(|a| a.len()).unwrap_or(0);
     assert_eq!(added + errors, 1, "{v}");
 }
+
+#[tokio::test]
+async fn libris_is_off_until_an_admin_turns_it_on() {
+    let (app, db, _) = test_app().await;
+    let (_, cookie) = add_user(&db, "alice").await;
+    let (_, config) = send(&app, Method::GET, "/api/config", Some(&cookie), None).await;
+    assert_eq!(config["libris_enabled"], false);
+    let (status, _) = send(&app, Method::GET, "/api/libris/search?q=x", Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'alice'").execute(&db).await.unwrap();
+    let body = json!({ "libris_enabled": true, "registration_enabled": false });
+    send(&app, Method::PUT, "/api/admin/settings", Some(&cookie), Some(body)).await;
+    let (_, config) = send(&app, Method::GET, "/api/config", Some(&cookie), None).await;
+    assert_eq!(config["libris_enabled"], true);
+}
