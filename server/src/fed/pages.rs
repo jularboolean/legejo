@@ -1,5 +1,7 @@
 //! /f/{slug} and /f/{slug}/{uuid}: plain HTML for people who follow a link
-//! from Mastodon or a relay. No login, no JavaScript; same gate as /ap/.
+//! from Mastodon or a relay. No login; same gate as /ap/. The only script is
+//! one line that takes the design chosen in the app on this device, as the
+//! app's own page does before anything is painted.
 
 use super::objects::escape;
 use super::routes::{fed_book, fed_shelf, on};
@@ -12,12 +14,18 @@ const LOGO: &str = include_str!("legejo.svg");
 
 const REPOSITORY: &str = "https://github.com/jularboolean/legejo";
 
-/// The palette and fonts follow the app's stylesheet (web/src/app.css).
+/// The palette and fonts follow the app's stylesheet (web/src/app.css): dark
+/// by the system when no design is chosen, or as chosen in the app.
 const STYLE: &str = "\
-:root{--bg:#f3f5f5;--fg:#1d2224;--muted:#6c7a7e;--accent:#53676c;--card:#fdfefe;--border:#dbe1e2;\
+:root{color-scheme:light;--bg:#f3f5f5;--fg:#1d2224;--muted:#6c7a7e;--accent:#53676c;--card:#fdfefe;--border:#dbe1e2;\
 --shadow:0 1px 3px rgba(25,35,38,.1),0 4px 14px rgba(25,35,38,.06)}\
-@media (prefers-color-scheme:dark){:root{--bg:#15181a;--fg:#e4e8e9;--muted:#8d9a9e;--accent:#94b0b8;--card:#1d2124;--border:#333a3d;\
---shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3)}}\
+@media (prefers-color-scheme:dark){:root:not([data-design]){color-scheme:dark;--bg:#15181a;--fg:#e4e8e9;--muted:#8d9a9e;\
+--accent:#94b0b8;--card:#1d2124;--border:#333a3d;--shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3)}}\
+:root[data-design=dark]{color-scheme:dark;--bg:#15181a;--fg:#e4e8e9;--muted:#8d9a9e;--accent:#94b0b8;--card:#1d2124;\
+--border:#333a3d;--shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3)}\
+:root[data-design=zamenhof]{--bg:#e8dabd;--fg:#3b2a1a;--muted:#735e44;--accent:#2f6b3c;--card:#f4ead3;--border:#cfbb95;\
+--shadow:0 1px 2px rgba(74,49,20,.16),0 4px 14px rgba(74,49,20,.1)}\
+:root[data-design=zamenhof] body{font-family:Georgia,serif}\
 *{box-sizing:border-box}\
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 'Inter Variable',system-ui,sans-serif}\
 main{max-width:44rem;margin:0 auto;padding:2rem 1rem}\
@@ -25,6 +33,7 @@ h1{font-family:'Fraunces',Georgia,serif;margin:.2rem 0 .4rem}\
 a{color:var(--accent)}.muted{color:var(--muted);font-size:.9rem}\
 .brand{display:flex;flex-direction:column;align-items:center;gap:.25rem;margin-bottom:1.5rem;padding-bottom:1.25rem;\
 border-bottom:1px solid var(--border);color:var(--muted);font-size:.85rem;text-align:center}\
+footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--border);color:var(--muted);font-size:.72rem;text-align:center}\
 .brand svg{width:auto;height:5.5rem}.brand strong{font-weight:500;letter-spacing:.04em}\
 ul{list-style:none;padding:0;display:grid;gap:.75rem}\
 li{display:flex;gap:.9rem;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem;box-shadow:var(--shadow)}\
@@ -36,10 +45,15 @@ fn page(title: &str, body: &str) -> Response {
     Html(format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-         <title>{t}</title><style>{STYLE}</style></head><body><main>\
-         <header class=\"brand\">{logo}<strong>Legejo</strong>\
-         <span>Free software for your own library of EPUB books. <a href=\"{REPOSITORY}\">Get it on GitHub</a>.</span></header>\
-         {body}</main></body></html>",
+         <meta name=\"color-scheme\" content=\"light dark\">\
+         <title>{t}</title><style>{STYLE}</style>\
+         <script>try{{var d=localStorage.getItem('legejo.design');\
+         if(d==='light'||d==='dark'||d==='zamenhof')document.documentElement.dataset.design=d}}catch(e){{}}</script>\
+         </head><body><main>\
+         <header class=\"brand\">{logo}<strong>Legejo</strong></header>\
+         {body}\
+         <footer>Free software for your own library of EPUB books. <a href=\"{REPOSITORY}\">Get it on GitHub</a>.</footer>\
+         </main></body></html>",
         t = escape(title)
     ))
     .into_response()
@@ -83,13 +97,13 @@ pub async fn shelf(State(state): State<AppState>, Path(slug): Path<String>) -> R
     }
     let handle = format!("@{}@{}", shelf.ap_slug, c.host);
     let body = format!(
-        "<p class=\"muted\">A federated shelf on Legejo · {owner}</p><h1>{name}</h1>\
+        "<p class=\"muted\">A federated shelf on Legejo by {owner}</p><h1>{name}</h1>\
          <p class=\"muted\">Follow from Legejo or Mastodon: <code>{handle}</code></p>{desc}\
          <p class=\"muted\">{n} free books</p><ul>{items}</ul>",
         owner = escape(&shelf.owner),
         name = escape(&shelf.name),
         handle = escape(&handle),
-        desc = shelf.description.as_deref().map(super::objects::html_paragraphs).unwrap_or_default(),
+        desc = shelf.description.as_deref().map(super::objects::markdown_html).unwrap_or_default(),
         n = books.len(),
     );
     Ok(page(&shelf.name, &body))
@@ -125,7 +139,7 @@ pub async fn book(State(state): State<AppState>, Path((slug, uuid)): Path<(Strin
         t = escape(&book.title),
         a = escape(book.author.as_deref().unwrap_or("")),
         l = escape(&licence_text(book.license.as_deref().unwrap_or(""), book.author_death_year)),
-        d = book.description.as_deref().map(super::objects::html_paragraphs).unwrap_or_default(),
+        d = book.description.as_deref().map(super::objects::markdown_html).unwrap_or_default(),
     );
     Ok(page(&book.title, &body))
 }

@@ -237,6 +237,29 @@ pub fn shorten(s: &str, max: usize) -> String {
 }
 
 /// Plain text (Markdown in the app) as safe HTML paragraphs.
+/// A description written in Markdown, as the web app shows it, made safe
+/// for a page of our own: HTML in it is shown as text, images are left
+/// out (their text stays), and links go only to the web or to mail.
+pub fn markdown_html(s: &str) -> String {
+    use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
+    let safe = |url: &str| {
+        let lower = url.trim().to_ascii_lowercase();
+        lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")
+    };
+    let events = Parser::new_ext(s, Options::ENABLE_STRIKETHROUGH).filter_map(|event| match event {
+        Event::Html(h) | Event::InlineHtml(h) => Some(Event::Text(h)),
+        Event::Start(Tag::Image { .. }) | Event::End(TagEnd::Image) => None,
+        Event::Start(Tag::Link { link_type, dest_url, title, id }) => {
+            let dest_url = if safe(&dest_url) { dest_url } else { CowStr::Borrowed("") };
+            Some(Event::Start(Tag::Link { link_type, dest_url, title, id }))
+        }
+        e => Some(e),
+    });
+    let mut out = String::new();
+    pulldown_cmark::html::push_html(&mut out, events);
+    out
+}
+
 pub fn html_paragraphs(s: &str) -> String {
     s.split("\n\n")
         .map(str::trim)

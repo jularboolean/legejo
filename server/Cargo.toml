@@ -45,6 +45,8 @@ lopdf = { version = "0.45.0", default-features = false }
 xml = "1"
 # Already in the tree through url; here to fold author names as the web does.
 unicode-normalization = "0.1"
+# Markdown descriptions on the public shelf pages, as the web app shows them.
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

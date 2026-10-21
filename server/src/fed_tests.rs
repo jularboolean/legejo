@@ -441,3 +441,44 @@ async fn the_esperanto_classics_are_suggested_while_federation_is_on() {
     let (_, v) = send(&app, Method::GET, "/api/admin/federation", Some(&a), None).await;
     assert_eq!(v["suggested_instances"], json!([]));
 }
+
+#[tokio::test]
+async fn the_public_shelf_page_follows_the_design_and_names_its_owner() {
+    use tower::ServiceExt;
+    let (app, db, _) = test_app_fed().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (book, _) = add_book(&db, alice, "Röda rummet").await;
+    free(&db, book).await;
+    set_mode(&db, "open").await;
+    let (_, v) = send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": "Klassiker" }))).await;
+    let shelf = v["id"].as_i64().unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(book).execute(&db).await.unwrap();
+    let fed = json!({ "name": "Klassiker", "visibility": "federated", "ap_slug": "alice-klassiker",
+                      "description": "Fem *klassiker* från [Gutenberg](https://www.gutenberg.org/)." });
+    let (status, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&cookie), Some(fed)).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+
+    let res = app.oneshot(axum::http::Request::get("/f/alice-klassiker").body(axum::body::Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let html = String::from_utf8(axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    assert!(html.contains("A federated shelf on Legejo by alice"), "{html}");
+    // The description in Markdown, shown as the app shows it.
+    assert!(html.contains(r#"<p>Fem <em>klassiker</em> från <a href="https://www.gutenberg.org/">Gutenberg</a>.</p>"#), "{html}");
+    // Dark by the system, or as chosen in the app on this device.
+    assert!(html.contains(r#"<meta name="color-scheme" content="light dark">"#));
+    assert!(html.contains(":root[data-design=dark]") && html.contains("localStorage.getItem('legejo.design')"));
+    // The note about Legejo itself at the foot, after the books.
+    let foot = html.find("<footer>").expect("a footer");
+    assert!(foot > html.find("Röda rummet").unwrap());
+    assert!(html[foot..].contains("Get it on GitHub"));
+    assert!(!html[..foot].contains("Get it on GitHub"));
+}
+
+#[test]
+fn a_markdown_description_is_shown_safely() {
+    let html = crate::fed::objects::markdown_html("<script>alert(1)</script>\n\n[x](javascript:alert(1)) ![bild](https://e.org/a.png) <b>html</b> **fet**");
+    assert!(!html.contains("<script>") && html.contains("&lt;script&gt;"), "{html}");
+    assert!(!html.contains("javascript:"), "{html}");
+    assert!(!html.contains("<img") && html.contains("bild"), "{html}");
+    assert!(html.contains("<strong>fet</strong>") && html.contains("&lt;b&gt;html"), "{html}");
+}
