@@ -4,6 +4,27 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.25.0 (2026-10-21)
+
+- **The Kobo store beside Legejo.** A new admin setting, under Kobo on the
+  admin page, lets a Kobo that syncs with Legejo keep its Kobo account: the
+  store works on the device again, and books bought from Kobo, or borrowed
+  through Kobo Plus, arrive beside your own, with their reading places and
+  highlights kept by Kobo. Legejo answers for its own books and passes what
+  concerns Kobo's on to Kobo, with the device's own Kobo sign-in. If Kobo
+  cannot be reached, Legejo's books still sync and Kobo's come later; the
+  highlights of a bought book are never answered as "none" in the meantime,
+  so the device keeps them. Off by default.
+- **The admin settings are grouped.** Metadata, Kobo, Library, Sharing and
+  Accounts each have a heading of their own instead of one long list.
+- **Libris lookup is off on a new instance**, like the Open Library lookup,
+  until an admin turns it on. An instance where the settings were ever saved
+  keeps its choice. Its description now says what Libris is: Sweden's
+  national library catalogue.
+- **A shelf's description fits a phone.** A long word or address in it no
+  longer makes the page wider than the screen, and the sort and view buttons
+  go below the description when there is no room beside it.
+
 ## 1.24.1 (2026-10-19)
 
 - **Searching the text sits beside the search box.** On a wide screen the box

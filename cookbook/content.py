@@ -27,7 +27,7 @@ you came for.</p>
 buttons are given in English; Legejo itself also speaks Swedish, Finnish, German, French, Spanish
 and Esperanto, and Recipe 11.1 says how to change it.</p>
 <p class="note"><strong>Optional features.</strong> Several parts of Legejo are off until
-someone turns them on: audiobooks, catalogs of other libraries, the librarian, federation,
+someone turns them on: the Open Library and Libris lookups, audiobooks, catalogs of other libraries, the librarian, federation,
 shelves by private link, highlights from a Kobo, the Kobo store beside Legejo. A recipe says so when it concerns one of them. If a button described here
 is missing on your screen, that is the likely reason, and the person who runs your instance is the
 one to ask.</p>
@@ -206,10 +206,12 @@ screen. The description takes Markdown.</p>"""),
 
  ("Looking a Book Up",
   "<p>The file knows almost nothing about itself.</p>",
-  """<p>On the edit page, look the book up in Open Library, or in Libris, the Swedish national
+  """<p><em>Optional: an admin turns on each lookup under <strong>Metadata</strong> on the Admin
+page.</em></p>
+<p>On the edit page, look the book up in Open Library, or in Libris, Sweden's national library
 catalogue, and take over what fits.</p>""",
-  """<p>An ISBN gives the surest match. An admin can turn each of the two lookups off for the
-whole instance, in which case its panel is not shown.</p>"""),
+  """<p>An ISBN gives the surest match. A lookup that is off has no panel on the edit
+page.</p>"""),
 
  ("Keeping a Series in Order",
   "<p>You have seven books of a series and want them in order.</p>",
