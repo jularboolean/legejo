@@ -32,6 +32,7 @@
 	]);
 	let form = $state({
 		username: data.account.username,
+		email: data.account.pending_email ?? data.account.email ?? '',
 		new_password: '',
 		current_password: ''
 	});
@@ -88,6 +89,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					username: form.username,
+					email: form.email.trim(),
 					new_password: form.new_password || null,
 					current_password: form.current_password
 				})
@@ -101,7 +103,11 @@
 			} else {
 				const body = await res.json().catch(() => null);
 				if (res.status === 403) errorMsg = t('account.wrongPassword');
+				else if (res.status === 409 && body?.error?.includes('email')) errorMsg = t('account.emailTaken');
 				else if (res.status === 409) errorMsg = t('account.usernameTaken');
+				else if (body?.error === 'not an email address') errorMsg = t('account.emailInvalid');
+				else if (body?.error?.includes('without mail')) errorMsg = t('account.emailNeedsMail');
+				else if (res.status === 502) errorMsg = t('account.emailNotSent');
 				else if (body?.error?.includes('8 characters')) errorMsg = t('account.passwordTooShort');
 				else errorMsg = t('edit.saveFailed');
 			}
@@ -335,6 +341,15 @@
 	<label>
 		{t('account.username')}
 		<input bind:value={form.username} autocomplete="username" required />
+	</label>
+	<label>
+		{t('account.email')}
+		<input type="email" bind:value={form.email} autocomplete="email" />
+		{#if account.pending_email}
+			<span class="hint pending">{t('account.emailPending', { email: account.pending_email })}</span>
+		{:else}
+			<span class="hint">{account.mail_configured ? t('account.emailHint') : t('account.emailHintNoMail')}</span>
+		{/if}
 	</label>
 	<label>
 		{t('account.newPassword')}

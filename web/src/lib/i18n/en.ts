@@ -1205,6 +1205,20 @@ export const en = {
 	'admin.dictionaryHint': "Select a word in the web reader and look it up: Esperanto in Reta Vortaro, with its translations into the reader’s language, other languages in Wiktionary. The server asks them on the reader’s behalf, so the words looked up leave the instance, but not who looked them up.",
 	'fed.suggested': "Suggested shelves",
 	'fedAdmin.suggested': "Suggested:",
+	'account.email': "Email",
+	'account.emailHint': "For resetting your password. A new address is used once you open the link sent to it.",
+	'account.emailHintNoMail': "For signing in by email. This server sends no mail.",
+	'account.emailPending': "Waiting for {email}: open the link sent there to start using it.",
+	'account.emailTaken': "That email address is in use.",
+	'account.emailInvalid': "That is not an email address.",
+	'account.emailNeedsMail': "This server sends no mail, so a new address cannot be confirmed. Ask the person who runs it.",
+	'account.emailNotSent': "The confirmation mail could not be sent.",
+	'confirmEmail.done': "Your account now uses {email}.",
+	'confirmEmail.failed': "The link is invalid or has expired. Change the address again on the account page for a new one.",
+	'log.account.email_confirmed': "confirmed a new email address",
+	'log.account.emailConfirm': "asked to change email address",
+	'log.account.emailSet': "set an email address",
+	'log.account.emailRemoved': "removed their email address",
 };
 
 export type MessageKey = keyof typeof en;

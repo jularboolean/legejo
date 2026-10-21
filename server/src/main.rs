@@ -76,6 +76,8 @@ mod kobospan;
 mod esperanto;
 mod dictionary;
 #[cfg(test)]
+mod email_change_tests;
+#[cfg(test)]
 mod dictionary_tests;
 mod kobostore;
 #[cfg(test)]
@@ -198,6 +200,7 @@ fn router(state: AppState) -> Router {
         .route("/account/kobo/devices", get(account::kobo_devices))
         .route("/account/locale", axum::routing::put(account::set_locale))
         .route("/account/manual", post(welcome::add_manual))
+        .route("/account/email/confirm", post(account::confirm_email))
         .route("/dictionary", get(dictionary::lookup))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))

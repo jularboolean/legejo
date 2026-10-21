@@ -28,7 +28,7 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	}
 	if (user && !offline) await keepOnlyFor(user.id).catch(() => {});
 
-	const openPaths = ['/login', '/register', '/verify', '/forgot', '/reset', '/invite'];
+	const openPaths = ['/login', '/register', '/verify', '/confirm-email', '/forgot', '/reset', '/invite'];
 	if (!user && !openPaths.includes(url.pathname)) {
 		// Back here once logged in; the start page needs no saying.
 		const here = url.pathname + url.search;

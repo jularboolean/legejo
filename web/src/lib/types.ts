@@ -261,6 +261,12 @@ export type AdminUserRow = {
 
 export type Account = {
 	username: string;
+	/** For password resets and sign-in by email. */
+	email: string | null;
+	/** A new address waiting to be confirmed from the link sent to it. */
+	pending_email: string | null;
+	/** Whether the server sends mail: a new address is then confirmed first. */
+	mail_configured: boolean;
 	kobo_token: string | null;
 	/** Where Send to Kindle mails the user's books. */
 	kindle_email: string | null;

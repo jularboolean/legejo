@@ -23,6 +23,7 @@ const FIXED: Record<string, MessageKey> = {
 	'/(app)/forgot': 'forgot.heading',
 	'/(app)/reset': 'reset.heading',
 	'/(app)/verify': 'register.heading',
+	'/(app)/confirm-email': 'account.email',
 	'/(app)/invite': 'register.heading'
 };
 

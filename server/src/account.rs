@@ -10,6 +10,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Account {
     pub username: String,
+    /// The address for password resets and sign-in by email.
+    pub email: Option<String>,
+    /// A new address waiting to be confirmed from a link sent to it.
+    pub pending_email: Option<String>,
+    /// Whether the server sends mail: a new address is then confirmed
+    /// before it is used.
+    #[sqlx(skip)]
+    pub mail_configured: bool,
     pub kobo_token: Option<String>,
     /// Where Send to Kindle mails the user's books.
     pub kindle_email: Option<String>,
@@ -48,12 +56,15 @@ fn unprocessable(msg: &str) -> Response {
 }
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
-    let mut account: Account = sqlx::query_as("SELECT username, kobo_token, kindle_email, librarian, fediverse, catalogs FROM users WHERE id = $1")
+    let mut account: Account = sqlx::query_as(
+        "SELECT username, email, pending_email, kobo_token, kindle_email, librarian, fediverse, catalogs FROM users WHERE id = $1",
+    )
         .bind(user_id)
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
+    account.mail_configured = state.mail.is_some();
     account.librarian_available = state.settings.ai.is_some();
     account.fediverse_available = crate::fed::active(state).await.is_some();
     account.catalogs_available = crate::catalogs::enabled(state).await;
@@ -167,12 +178,16 @@ pub struct UpdateAccount {
     current_password: String,
     username: String,
     new_password: Option<String>,
+    /// The email address wanted; empty removes it. Absent from older
+    /// clients: unchanged.
+    email: Option<String>,
 }
 
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(req): Json<UpdateAccount>,
 ) -> Result<Json<Account>, Response> {
     let username = crate::auth::validate_username(&req.username).map_err(unprocessable)?;
@@ -212,6 +227,11 @@ pub async fn update(
         Err(e) => return Err(internal(e.into())),
     }
 
+    let email_change = match &req.email {
+        Some(wanted) => change_email(&state, &headers, user.0.id, username, wanted).await?,
+        None => None,
+    };
+
     let password_changed = new_password.is_some();
     if let Some(password) = new_password {
         let new_hash = crate::db::hash_password(&password).await.map_err(internal)?;
@@ -236,10 +256,170 @@ pub async fn update(
         &state,
         Some((user.0.id, username)),
         "account.updated",
-        serde_json::json!({ "renamed_from": (username != user.0.username).then_some(&user.0.username), "password_changed": password_changed }),
+        serde_json::json!({
+            "renamed_from": (username != user.0.username).then_some(&user.0.username),
+            "password_changed": password_changed,
+            "email": email_change,
+        }),
     )
     .await;
     Ok(Json(fetch_account(&state, user.0.id).await?))
+}
+
+/// The email address the user asked for, after the current password was
+/// checked: "removed", "confirm" (a link went to the new address, which
+/// is used once it is opened), "set", or None when nothing changed.
+///
+/// Without mail an address cannot be confirmed, and it is set at once;
+/// except with single sign-on, which joins accounts by email: an address
+/// nobody confirmed could then join someone else's sign-in to this account.
+async fn change_email(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+    user_id: i64,
+    username: &str,
+    wanted: &str,
+) -> Result<Option<&'static str>, Response> {
+    let wanted = wanted.trim();
+    let (current, pending): (Option<String>, Option<String>) = sqlx::query_as("SELECT email, pending_email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    if wanted.is_empty() {
+        if current.is_none() && pending.is_none() {
+            return Ok(None);
+        }
+        sqlx::query("UPDATE users SET email = NULL, pending_email = NULL, email_token = NULL, email_token_expires = NULL WHERE id = $1")
+            .bind(user_id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
+        return Ok(Some("removed"));
+    }
+    let same = |a: &Option<String>| a.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(wanted));
+    if same(&current) {
+        // Back to the address in use: a pending change is dropped.
+        if pending.is_some() {
+            sqlx::query("UPDATE users SET pending_email = NULL, email_token = NULL, email_token_expires = NULL WHERE id = $1")
+                .bind(user_id)
+                .execute(&state.db)
+                .await
+                .map_err(|e| internal(e.into()))?;
+        }
+        return Ok(None);
+    }
+    if !crate::register::looks_like_email(wanted) {
+        return Err(unprocessable("not an email address"));
+    }
+    let taken: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id != $1 AND email IS NOT NULL AND LOWER(email) = LOWER($2)")
+        .bind(user_id)
+        .bind(wanted)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    if taken > 0 {
+        return Err((StatusCode::CONFLICT, Json(serde_json::json!({ "error": "that email is in use" }))).into_response());
+    }
+    if state.mail.is_none() {
+        if state.oidc.is_some() {
+            return Err(unprocessable("email cannot be confirmed without mail"));
+        }
+        let set = sqlx::query("UPDATE users SET email = $1, pending_email = NULL, email_token = NULL, email_token_expires = NULL WHERE id = $2")
+            .bind(wanted)
+            .bind(user_id)
+            .execute(&state.db)
+            .await;
+        return match set {
+            Ok(_) => Ok(Some("set")),
+            Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+                Err((StatusCode::CONFLICT, Json(serde_json::json!({ "error": "that email is in use" }))).into_response())
+            }
+            Err(e) => Err(internal(e.into())),
+        };
+    }
+    // Asked again, for the same address or another: a fresh link, within
+    // the rations for mail to one address.
+    if !crate::ratelimit::mail_allowed(state, headers, wanted).await {
+        return Err(crate::ratelimit::too_many(state, true));
+    }
+    let token = crate::auth::new_token();
+    sqlx::query("UPDATE users SET pending_email = $1, email_token = $2, email_token_expires = $3 WHERE id = $4")
+        .bind(wanted)
+        .bind(&token)
+        .bind(crate::db::ts_in_days(2))
+        .bind(user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let link = format!("{}/confirm-email?token={token}", crate::invite::base(state, headers));
+    let name = crate::booktext::esc(username);
+    let html = format!(
+        "<p>Hello {name},</p>\
+         <p>Confirm that this is the new email address of your Legejo account:</p>\
+         <p><a href=\"{link}\">{link}</a></p>\
+         <p>The link is valid for 48 hours. Until it is opened, the account keeps its old address. \
+         If you did not ask for this, ignore this mail.</p>",
+    );
+    if let Err(e) = crate::register::send_mail(state, wanted, "Confirm your new email address", &html).await {
+        tracing::warn!("email change mail failed: {e:#}");
+        let _ = sqlx::query("UPDATE users SET pending_email = NULL, email_token = NULL, email_token_expires = NULL WHERE id = $1")
+            .bind(user_id)
+            .execute(&state.db)
+            .await;
+        return Err((StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": "could not send the confirmation email" }))).into_response());
+    }
+    // The old address hears of it, so that a change nobody asked for shows.
+    if let Some(old) = current {
+        let notice = format!(
+            "<p>Hello {name},</p>\
+             <p>Someone asked to change the email address of your Legejo account to {new}. \
+             It changes only when the link sent there is opened. If this was not you, \
+             change your password.</p>",
+            new = crate::booktext::esc(wanted),
+        );
+        if let Err(e) = crate::register::send_mail(state, &old, "Your Legejo email address is about to change", &notice).await {
+            tracing::warn!("email change notice to the old address failed: {e:#}");
+        }
+    }
+    Ok(Some("confirm"))
+}
+
+#[derive(Deserialize)]
+pub struct ConfirmEmail {
+    token: String,
+}
+
+/// POST /api/account/email/confirm: the link from the mail to the new
+/// address, opened. It may be opened anywhere, logged in or not: the token
+/// is the proof.
+pub async fn confirm_email(State(state): State<AppState>, Json(req): Json<ConfirmEmail>) -> Result<Json<serde_json::Value>, Response> {
+    let row: Option<(i64, String, String)> = sqlx::query_as(
+        "SELECT id, username, pending_email FROM users
+         WHERE email_token = $1 AND email_token_expires > $2 AND pending_email IS NOT NULL",
+    )
+    .bind(req.token.trim())
+    .bind(crate::db::now_ts())
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let Some((id, username, email)) = row else {
+        return Err((StatusCode::GONE, Json(serde_json::json!({ "error": "the link is invalid or has expired" }))).into_response());
+    };
+    let set = sqlx::query("UPDATE users SET email = $1, pending_email = NULL, email_token = NULL, email_token_expires = NULL WHERE id = $2")
+        .bind(&email)
+        .bind(id)
+        .execute(&state.db)
+        .await;
+    match set {
+        Ok(_) => {}
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Err((StatusCode::CONFLICT, Json(serde_json::json!({ "error": "that email is in use" }))).into_response());
+        }
+        Err(e) => return Err(internal(e.into())),
+    }
+    crate::audit::log(&state, Some((id, &username)), "account.email_confirmed", serde_json::json!({})).await;
+    Ok(Json(serde_json::json!({ "username": username, "email": email })))
 }
 
 fn avatar_path(state: &AppState, user_id: i64) -> std::path::PathBuf {

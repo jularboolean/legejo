@@ -24,6 +24,9 @@ export function logText(e: LogEntry): string {
 			const parts: string[] = [];
 			if (d.renamed_from) parts.push(t('log.account.renamed', { from: s(d.renamed_from) }));
 			if (d.password_changed) parts.push(t('log.account.password'));
+			if (d.email === 'confirm') parts.push(t('log.account.emailConfirm'));
+			else if (d.email === 'set') parts.push(t('log.account.emailSet'));
+			else if (d.email === 'removed') parts.push(t('log.account.emailRemoved'));
 			return parts.length ? parts.join(', ') : t('log.account.updated');
 		}
 		case 'shelf.edited': {
