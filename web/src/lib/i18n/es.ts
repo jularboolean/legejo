@@ -670,6 +670,9 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'account.avatarFailed': 'No se pudo subir la imagen.',
 	'account.language': 'Idioma',
 	'account.languageHint': 'Se aplica de inmediato y solo a tu cuenta.',
+	'account.manualAdd': "Añadir el manual en este idioma a mi biblioteca",
+	'account.manualThere': "El manual está en tu biblioteca.",
+	'account.manualOpen': "Abrirlo",
 
 	'opds.heading': 'Catálogo OPDS',
 	'opds.intro': 'Explora y descarga tus libros desde aplicaciones de lectura compatibles con OPDS, como KOReader y Moon+ Reader. Añade esta dirección como catálogo en la aplicación:',
@@ -1178,5 +1181,14 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'kobo.syncsMonth': "{count} sincronizaciones en los últimos 30 días",
 	'log.book.marked_read': "marcó «{title}» como leído",
 	'log.book.marked_unread': "marcó «{title}» como no leído",
-	'common.close': "Cerrar"
+	'common.close': "Cerrar",
+	'reader.lookup.button': "Buscar",
+	'reader.lookup.title': "Buscar «{word}» en un diccionario",
+	'reader.lookup.none': "«{word}» no está en el diccionario.",
+	'reader.lookup.failed': "No se pudo acceder al diccionario.",
+	'reader.lookup.revo': "De Reta Vortaro, el diccionario libre de esperanto.",
+	'reader.lookup.wiktionary': "De Wiktionary (CC BY-SA).",
+	'admin.dictionaryToggle': "Buscar palabras mientras se lee",
+	'admin.dictionaryHint': "Selecciona una palabra en el lector web y búscala: el esperanto en Reta Vortaro, con sus traducciones al idioma del lector; otros idiomas en Wiktionary. El servidor consulta en nombre del lector, así que las palabras buscadas salen de la instancia, pero no quién las buscó.",
+	'fed.suggested': "Estanterías sugeridas",
 };

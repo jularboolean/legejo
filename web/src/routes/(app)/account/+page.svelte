@@ -169,6 +169,30 @@
 		}
 	}
 
+	/** The languages the manual comes in (server/src/welcome.rs). */
+	const MANUALS = ['en', 'eo'];
+	let manualBook = $state<number | null>(null);
+	let manualBusy = $state(false);
+	let manualError = $state('');
+
+	async function addManual() {
+		manualBusy = true;
+		manualError = '';
+		try {
+			const res = await fetch('/api/account/manual', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ language: locale })
+			});
+			if (res.ok) manualBook = (await res.json()).book_id;
+			else manualError = t('edit.saveFailed');
+		} catch {
+			manualError = t('common.network');
+		} finally {
+			manualBusy = false;
+		}
+	}
+
 	async function setCatalogs(enabled: boolean) {
 		catalogsErrorMsg = '';
 		try {
@@ -383,6 +407,16 @@
 	</select>
 	<p class="hint">{t('account.languageHint')}</p>
 	{#if localeError}<p class="error">{localeError}</p>{/if}
+	{#if MANUALS.includes(locale)}
+		<p class="manual">
+			{#if manualBook !== null}
+				{t('account.manualThere')} <a href="/books/{manualBook}">{t('account.manualOpen')}</a>
+			{:else}
+				<button type="button" onclick={addManual} disabled={manualBusy}>{t('account.manualAdd')}</button>
+			{/if}
+		</p>
+		{#if manualError}<p class="error">{manualError}</p>{/if}
+	{/if}
 </section>
 
 <OidcLink />

@@ -679,6 +679,9 @@ export const en = {
 	'account.avatarFailed': 'Could not upload the image.',
 	'account.language': 'Language',
 	'account.languageHint': 'Takes effect immediately, for your account only.',
+	'account.manualAdd': "Add the manual in this language to my library",
+	'account.manualThere': "The manual is in your library.",
+	'account.manualOpen': "Open it",
 
 	'opds.heading': 'OPDS catalog',
 	'opds.intro': 'Browse and download your books from reading apps that support OPDS, such as KOReader and Moon+ Reader. Add this address as a catalog in the app:',
@@ -1191,7 +1194,16 @@ export const en = {
 	'kobo.syncsMonth': "{count} syncs in the last 30 days",
 	'log.book.marked_read': "marked “{title}” as read",
 	'log.book.marked_unread': "marked “{title}” as unread",
-	'common.close': "Close"
+	'common.close': "Close",
+	'reader.lookup.button': "Look up",
+	'reader.lookup.title': "Look up “{word}” in a dictionary",
+	'reader.lookup.none': "“{word}” is not in the dictionary.",
+	'reader.lookup.failed': "The dictionary could not be reached.",
+	'reader.lookup.revo': "From Reta Vortaro, the open Esperanto dictionary.",
+	'reader.lookup.wiktionary': "From Wiktionary (CC BY-SA).",
+	'admin.dictionaryToggle': "Look words up while reading",
+	'admin.dictionaryHint': "Select a word in the web reader and look it up: Esperanto in Reta Vortaro, with its translations into the reader’s language, other languages in Wiktionary. The server asks them on the reader’s behalf, so the words looked up leave the instance, but not who looked them up.",
+	'fed.suggested': "Suggested shelves",
 };
 
 export type MessageKey = keyof typeof en;

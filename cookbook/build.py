@@ -10,19 +10,108 @@ The cover image is made separately from cover.html, when that changes:
     chrome --headless=new --window-size=1600,2400 --screenshot=cover.png cover.html
     sips -s format jpeg -s formatOptions 88 cover.png --out cover.jpg
 
-Usage: python3 cookbook/build.py [out.epub]
+The book comes in two editions: English (content.py) and Esperanto
+(content_eo.py, cover_eo.html). Without --lang both are built.
+
+Usage: python3 cookbook/build.py [--lang en|eo] [out.epub]
 """
-import re, sys, zipfile, html, xml.dom.minidom
+import importlib, re, subprocess, sys, zipfile, html, xml.dom.minidom
 from pathlib import Path
-from content import PREFACE, CHAPTERS, APPENDIX, COLOPHON
 
 HERE = Path(__file__).parent
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / "server/assets/the-legejo-cookbook.epub"
+args = sys.argv[1:]
+LANG = "en"
+if args[:1] == ["--lang"]:
+    LANG, args = args[1], args[2:]
+elif not args:
+    # Both editions: this one, then the Esperanto one in a run of its own.
+    subprocess.run([sys.executable, __file__, "--lang", "eo"], check=True)
+
+# The words around the text, per edition.
+EDITIONS = {
+    "en": {
+        "content": "content",
+        "out": "the-legejo-cookbook.epub",
+        "cover": "cover.jpg",
+        "title": "The Legejo Cookbook",
+        "sub": "Recipes for a Library of Your Own",
+        "author": "The Pigeons of Legejo",
+        "uuid": "urn:uuid:6c656765-6a6f-4c0b-8b00-636f6f6b626f",
+        "cover_alt": "The Legejo Cookbook: two pigeons above the title",
+        "pigeons_alt": "Two pigeons",
+        "cover_page": "Cover",
+        "about": "About This Book",
+        "by": "by",
+        "covers": "Covers Legejo {version}.",
+        "about_text": """<p>This book is in the public domain. Those who wrote it have given up every right to it that
+the law lets them give up, under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
+Copy it, change it, print it, sell it; nobody needs to be asked.</p>
+<p>Legejo itself is free software under the GNU Affero General Public License, version 3. Its
+source is at https://github.com/jularboolean/legejo, which is also where to say that something
+in this book is wrong.</p>
+<p>The cover is a pastiche of a well-known series of computer books. This book is not published
+by, connected with or approved by the publisher of that series.</p>""",
+        "preface": "Preface",
+        "chapter": "Chapter",
+        "problem": "Problem",
+        "solution": "Solution",
+        "discussion": "Discussion",
+        "appendix": "Appendix",
+        "appendix_title": "What Legejo Does Not Do",
+        "colophon": "Colophon",
+        "contents": "Table of Contents",
+        "start": "Start of the book",
+        "subject": "User manuals",
+        "rights": "Public domain (CC0 1.0 Universal)",
+        "description": "The user manual for Legejo, the self-hosted library for your e-books, as a book of recipes: how to fill the library, describe and find books, share shelves, read in the browser, put Legejo on your home screen, connect a Kobo or KOReader, and run an instance of your own. Covers Legejo {version}.",
+    },
+    "eo": {
+        "content": "content_eo",
+        "out": "the-legejo-cookbook.eo.epub",
+        "cover": "cover_eo.jpg",
+        "title": "La Kuirlibro de Legejo",
+        "sub": "Receptoj por propra biblioteko",
+        "author": "La Kolomboj de Legejo",
+        "uuid": "urn:uuid:6c656765-6a6f-4c0b-8b00-636f6f6b656f",
+        "cover_alt": "La Kuirlibro de Legejo: du kolomboj super la titolo",
+        "pigeons_alt": "Du kolomboj",
+        "cover_page": "Kovrilo",
+        "about": "Pri ĉi tiu libro",
+        "by": "de",
+        "covers": "Priskribas Legejo {version}.",
+        "about_text": """<p>Ĉi tiu libro estas publikaĵo. Tiuj, kiuj verkis ĝin, rezignis pri ĉiu rajto, pri kiu la leĝo
+permesas rezigni, laŭ CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Kopiu ĝin,
+ŝanĝu ĝin, presu ĝin, vendu ĝin; neniun oni devas demandi.</p>
+<p>Legejo mem estas libera programaro laŭ la GNU Affero General Public License, versio 3. Ĝia
+fontkodo estas ĉe https://github.com/jularboolean/legejo, kie oni ankaŭ diru, se io en ĉi tiu
+libro estas malĝusta.</p>
+<p>La kovrilo estas pastiĉo de konata serio de komputilaj libroj. Ĉi tiu libro ne estas eldonita
+de, ligita kun aŭ aprobita de la eldonejo de tiu serio.</p>""",
+        "preface": "Antaŭparolo",
+        "chapter": "Ĉapitro",
+        "problem": "Problemo",
+        "solution": "Solvo",
+        "discussion": "Diskuto",
+        "appendix": "Aldono",
+        "appendix_title": "Kion Legejo ne faras",
+        "colophon": "Kolofono",
+        "contents": "Enhavtabelo",
+        "start": "Komenco de la libro",
+        "subject": "Manlibroj",
+        "rights": "Publikaĵo (CC0 1.0 Universal)",
+        "description": "La manlibro de Legejo, la biblioteko por viaj e-libroj, kiun vi mem funkciigas, kiel libro de receptoj: kiel plenigi la bibliotekon, priskribi kaj trovi librojn, kunhavigi bretojn, legi en la retumilo, meti Legejon sur la hejmekranon, konekti Kobon aŭ KOReader, kaj funkciigi propran instancon. Priskribas Legejo {version}.",
+    },
+}
+T = EDITIONS[LANG]
+content = importlib.import_module(T["content"])
+PREFACE, CHAPTERS, APPENDIX, COLOPHON = content.PREFACE, content.CHAPTERS, content.APPENDIX, content.COLOPHON
+
+OUT = Path(args[0]) if args else HERE.parent / "server/assets" / T["out"]
 # The version of Legejo the book covers: major.minor of the server being built.
 VERSION = ".".join(re.search(r'^version = "(\d+)\.(\d+)\.', (HERE.parent / "server/Cargo.toml").read_text(), re.M).groups())
-TITLE = "The Legejo Cookbook"
-AUTHOR = "The Pigeons of Legejo"
-UUID = "urn:uuid:6c656765-6a6f-4c0b-8b00-636f6f6b626f"
+TITLE = T["title"]
+AUTHOR = T["author"]
+UUID = T["uuid"]
 MODIFIED = "2026-10-11T00:00:00Z"
 
 CSS = """
@@ -60,7 +149,7 @@ nav a { text-decoration: none; color: inherit; }
 def page(title, body, cls=""):
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{LANG}" lang="{LANG}">
 <head><meta charset="utf-8"/><title>{html.escape(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
 <body{f' class="{cls}"' if cls else ''}>
 {body}
@@ -71,49 +160,42 @@ def page(title, body, cls=""):
 files = []   # (name, title, xhtml, in toc?)
 toc = []     # (file, label, [(anchor, label)])
 
-files.append(("cover.xhtml", "Cover", page("Cover", '<div class="cover"><img src="cover.jpg" alt="The Legejo Cookbook: two pigeons above the title"/></div>', "cover")))
+files.append(("cover.xhtml", T["cover_page"], page(T["cover_page"], f'<div class="cover"><img src="cover.jpg" alt="{T["cover_alt"]}"/></div>', "cover")))
 files.append(("title.xhtml", TITLE, page(TITLE, f"""<div class="titlepage">
 <h1>{TITLE}</h1>
-<p class="sub">Recipes for a Library of Your Own</p>
-<img src="pigeons.svg" alt="Two pigeons"/>
+<p class="sub">{T["sub"]}</p>
+<img src="pigeons.svg" alt="{T["pigeons_alt"]}"/>
 <p class="by">{AUTHOR}</p>
 <p class="imprint">LEGEJO</p>
 </div>""")))
-files.append(("about.xhtml", "About This Book", page("About This Book", f"""<div class="about">
-<p><strong>{TITLE}</strong><br/>by {AUTHOR}</p>
-<p>Covers Legejo {VERSION}.</p>
-<p>This book is in the public domain. Those who wrote it have given up every right to it that
-the law lets them give up, under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
-Copy it, change it, print it, sell it; nobody needs to be asked.</p>
-<p>Legejo itself is free software under the GNU Affero General Public License, version 3. Its
-source is at https://github.com/jularboolean/legejo, which is also where to say that something
-in this book is wrong.</p>
-<p>The cover is a pastiche of a well-known series of computer books. This book is not published
-by, connected with or approved by the publisher of that series.</p>
+files.append(("about.xhtml", T["about"], page(T["about"], f"""<div class="about">
+<p><strong>{TITLE}</strong><br/>{T["by"]} {AUTHOR}</p>
+<p>{T["covers"].format(version=VERSION)}</p>
+{T["about_text"]}
 </div>""")))
-files.append(("preface.xhtml", "Preface", page("Preface", f"<h1>Preface</h1>\n{PREFACE}")))
-toc.append(("preface.xhtml", "Preface", []))
+files.append(("preface.xhtml", T["preface"], page(T["preface"], f"<h1>{T['preface']}</h1>\n{PREFACE}")))
+toc.append(("preface.xhtml", T["preface"], []))
 
 for n, (title, intro, recipes) in enumerate(CHAPTERS, 1):
-    parts = [f'<h1><span class="label">Chapter {n}</span>{html.escape(title)}</h1>', intro]
+    parts = [f'<h1><span class="label">{T['chapter']} {n}</span>{html.escape(title)}</h1>', intro]
     entries = []
     for m, (rtitle, problem, solution, discussion) in enumerate(recipes, 1):
         anchor = f"r{n}-{m}"
         parts.append(f'<section id="{anchor}">\n<h2><span class="num">{n}.{m}</span>{html.escape(rtitle)}</h2>')
-        parts.append(f"<h3>Problem</h3>\n{problem}")
-        parts.append(f"<h3>Solution</h3>\n{solution}")
+        parts.append(f"<h3>{T['problem']}</h3>\n{problem}")
+        parts.append(f"<h3>{T['solution']}</h3>\n{solution}")
         if discussion:
-            parts.append(f"<h3>Discussion</h3>\n{discussion}")
+            parts.append(f"<h3>{T['discussion']}</h3>\n{discussion}")
         parts.append("</section>")
         entries.append((anchor, f"{n}.{m} {rtitle}"))
     name = f"ch{n:02d}.xhtml"
     files.append((name, title, page(title, "\n".join(parts))))
     toc.append((name, f"{n}. {title}", entries))
 
-files.append(("appendix.xhtml", "What Legejo Does Not Do", page("Appendix", f'<h1><span class="label">Appendix</span>What Legejo Does Not Do</h1>\n{APPENDIX}')))
-toc.append(("appendix.xhtml", "Appendix: What Legejo Does Not Do", []))
-files.append(("colophon.xhtml", "Colophon", page("Colophon", f"<h1>Colophon</h1>\n{COLOPHON}")))
-toc.append(("colophon.xhtml", "Colophon", []))
+files.append(("appendix.xhtml", T["appendix_title"], page(T["appendix"], f'<h1><span class="label">{T["appendix"]}</span>{T["appendix_title"]}</h1>\n{APPENDIX}')))
+toc.append(("appendix.xhtml", f'{T["appendix"]}: {T["appendix_title"]}', []))
+files.append(("colophon.xhtml", T["colophon"], page(T["colophon"], f"<h1>{T['colophon']}</h1>\n{COLOPHON}")))
+toc.append(("colophon.xhtml", T["colophon"], []))
 
 # Every page must be well-formed XML, or readers refuse the book.
 for name, _, body in files:
@@ -131,14 +213,14 @@ def nav_items():
         out.append(f'<li><a href="{f}">{html.escape(label)}</a>{sub}</li>')
     return "\n".join(out)
 
-nav = page("Table of Contents", f"""<nav epub:type="toc" id="toc"><h1>Table of Contents</h1>
+nav = page(T["contents"], f"""<nav epub:type="toc" id="toc"><h1>{T["contents"]}</h1>
 <ol>
 {nav_items()}
 </ol></nav>
 <nav epub:type="landmarks" hidden="hidden"><ol>
-<li><a epub:type="cover" href="cover.xhtml">Cover</a></li>
-<li><a epub:type="toc" href="nav.xhtml">Table of Contents</a></li>
-<li><a epub:type="bodymatter" href="preface.xhtml">Start of the book</a></li>
+<li><a epub:type="cover" href="cover.xhtml">{T["cover_page"]}</a></li>
+<li><a epub:type="toc" href="nav.xhtml">{T["contents"]}</a></li>
+<li><a epub:type="bodymatter" href="preface.xhtml">{T["start"]}</a></li>
 </ol></nav>""")
 
 def ncx():
@@ -162,19 +244,19 @@ def ncx():
 manifest = "\n".join(f'<item id="{n.split(".")[0]}" href="{n}" media-type="application/xhtml+xml"/>' for n, _, _ in files)
 spine = "\n".join(f'<itemref idref="{n.split(".")[0]}"{" linear=\"no\"" if n == "cover.xhtml" else ""}/>' for n, _, _ in files[:3]) + '\n<itemref idref="nav"/>\n' + "\n".join(f'<itemref idref="{n.split(".")[0]}"/>' for n, _, _ in files[3:])
 opf = f"""<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="{LANG}">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="bookid">{UUID}</dc:identifier>
 <dc:title>{TITLE}</dc:title>
 <dc:creator>{AUTHOR}</dc:creator>
-<dc:language>en</dc:language>
+<dc:language>{LANG}</dc:language>
 <dc:publisher>Legejo</dc:publisher>
 <dc:date>2026-10-11</dc:date>
 <dc:subject>Legejo</dc:subject>
-<dc:subject>User manuals</dc:subject>
-<dc:rights>Public domain (CC0 1.0 Universal)</dc:rights>
+<dc:subject>{T["subject"]}</dc:subject>
+<dc:rights>{T["rights"]}</dc:rights>
 <dc:source>https://github.com/jularboolean/legejo</dc:source>
-<dc:description>The user manual for Legejo, the self-hosted library for your e-books, as a book of recipes: how to fill the library, describe and find books, share shelves, read in the browser, put Legejo on your home screen, connect a Kobo or KOReader, and run an instance of your own. Covers Legejo {VERSION}.</dc:description>
+<dc:description>{T["description"].format(version=VERSION)}</dc:description>
 <meta property="dcterms:modified">{MODIFIED}</meta>
 <meta name="cover" content="cover-image"/>
 </metadata>
@@ -205,7 +287,7 @@ with zipfile.ZipFile(OUT, "w") as z:
     put("OEBPS/nav.xhtml", nav)
     put("OEBPS/toc.ncx", ncx())
     put("OEBPS/style.css", CSS)
-    put("OEBPS/cover.jpg", (HERE / "cover.jpg").read_bytes(), zipfile.ZIP_STORED)
+    put("OEBPS/cover.jpg", (HERE / T["cover"]).read_bytes(), zipfile.ZIP_STORED)
     put("OEBPS/pigeons.svg", (HERE / "pigeons.svg").read_bytes())
     for name, _, body in files:
         put(f"OEBPS/{name}", body)

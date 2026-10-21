@@ -241,3 +241,28 @@ async fn books_on_shelves_shared_with_the_caller_are_searched_too() {
     assert_eq!((v["books"].as_array().unwrap().len(), v["shared"].as_array().unwrap().len()), (2, 0), "{v}");
 
 }
+
+#[tokio::test]
+async fn esperanto_typed_in_the_x_system_finds_the_printed_words() {
+    let (app, db, state) = test_app_on().await;
+    let (_, a) = add_user(&db, "alice").await;
+    upload(&app, &a, &[("cxambro.epub", novel("La ĉambro de ŝanĝoj"))], "").await;
+    fulltext::index_pending(&state, 10).await.unwrap();
+    // The title, in the library and in the search.
+    for q in ["%C4%89ambro", "cxambro", "Cxambro+sxangxoj"] {
+        let (status, v) = send(&app, Method::GET, &format!("/api/books?q={q}"), Some(&a), None).await;
+        assert_eq!(status, StatusCode::OK, "{q}: {v}");
+        assert_eq!(v.as_array().unwrap().len(), 1, "{q}: {v}");
+        let (_, v) = send(&app, Method::GET, &format!("/api/search?q={q}"), Some(&a), None).await;
+        assert_eq!(v["mine"].as_array().unwrap().len(), 1, "{q}: {v}");
+    }
+    // The text: a query with x-system words is a valid query, single or in a phrase.
+    for q in ["cxambro", "%22storm+cxe%22", "lighthouse"] {
+        let (status, v) = send(&app, Method::GET, &format!("/api/search/text?q={q}"), Some(&a), None).await;
+        assert_eq!(status, StatusCode::OK, "{q}: {v}");
+    }
+    let expr = fulltext::text_expr(crate::db::Backend::Sqlite, "cxambro \"sxangxo kaj\"").unwrap();
+    assert_eq!(expr, r#"("cxambro"* OR "ĉambro"*) AND ("sxangxo kaj" OR "ŝanĝo kaj")"#);
+    let expr = fulltext::text_expr(crate::db::Backend::Postgres, "cxambro \"sxangxo kaj\"").unwrap();
+    assert_eq!(expr, "(cxambro:* | ĉambro:*) & ((sxangxo <-> kaj) | (ŝanĝo <-> kaj))");
+}

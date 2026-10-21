@@ -670,6 +670,9 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'account.avatarFailed': 'Kuvan lataus epäonnistui.',
 	'account.language': 'Kieli',
 	'account.languageHint': 'Tulee voimaan heti, vain omalla tililläsi.',
+	'account.manualAdd': "Lisää käsikirja tällä kielellä kirjastooni",
+	'account.manualThere': "Käsikirja on kirjastossasi.",
+	'account.manualOpen': "Avaa se",
 
 	'opds.heading': 'OPDS-luettelo',
 	'opds.intro': 'Selaa ja lataa kirjojasi OPDS:ää tukevista lukusovelluksista, kuten KOReader ja Moon+ Reader. Lisää tämä osoite luetteloksi sovellukseen:',
@@ -1178,5 +1181,14 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'kobo.syncsMonth': "{count} synkronointia viimeisen 30 päivän aikana",
 	'log.book.marked_read': "merkitsi kirjan ”{title}” luetuksi",
 	'log.book.marked_unread': "merkitsi kirjan ”{title}” lukemattomaksi",
-	'common.close': "Sulje"
+	'common.close': "Sulje",
+	'reader.lookup.button': "Hae sanakirjasta",
+	'reader.lookup.title': "Hae ”{word}” sanakirjasta",
+	'reader.lookup.none': "”{word}” ei ole sanakirjassa.",
+	'reader.lookup.failed': "Sanakirjaan ei saatu yhteyttä.",
+	'reader.lookup.revo': "Reta Vortarosta, avoimesta esperantosanakirjasta.",
+	'reader.lookup.wiktionary': "Wikisanakirjasta (CC BY-SA).",
+	'admin.dictionaryToggle': "Sanojen haku lukiessa",
+	'admin.dictionaryHint': "Valitse sana verkkolukijassa ja hae se: esperanto Reta Vortarosta käännöksineen lukijan kielelle, muut kielet Wikisanakirjasta. Palvelin kysyy lukijan puolesta, joten haetut sanat lähtevät instanssista, mutta ei tieto siitä, kuka ne haki.",
+	'fed.suggested': "Ehdotetut hyllyt",
 };

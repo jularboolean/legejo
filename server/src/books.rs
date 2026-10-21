@@ -289,21 +289,29 @@ pub(crate) fn search_parts(backend: Backend) -> SearchParts {
 /// characters are stripped so they can't break the query.
 pub(crate) fn search_expr(backend: Backend, input: &str) -> Option<String> {
     let tokens: Vec<String> = match backend {
+        // A word typed in Esperanto's x-system ("cxambro") also finds
+        // the word as printed ("ĉambro").
         Backend::Sqlite => input
             .split_whitespace()
             .map(|t| t.replace('"', ""))
             .filter(|t| !t.is_empty())
-            .map(|t| format!("\"{t}\"*"))
+            .map(|t| match crate::esperanto::supersigned(&t) {
+                Some(alt) => format!("(\"{t}\"* OR \"{alt}\"*)"),
+                None => format!("\"{t}\"*"),
+            })
             .collect(),
         Backend::Postgres => input
             .split_whitespace()
             .map(|t| t.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
             .filter(|t| !t.is_empty())
-            .map(|t| format!("{t}:*"))
+            .map(|t| match crate::esperanto::supersigned(&t) {
+                Some(alt) => format!("({t}:* | {alt}:*)"),
+                None => format!("{t}:*"),
+            })
             .collect(),
     };
     let separator = match backend {
-        Backend::Sqlite => " ",
+        Backend::Sqlite => " AND ",
         Backend::Postgres => " & ",
     };
     (!tokens.is_empty()).then(|| tokens.join(separator))

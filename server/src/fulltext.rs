@@ -345,6 +345,17 @@ pub(crate) fn terms(input: &str) -> Vec<Term> {
     out
 }
 
+/// The term with Esperanto's x-system written out, when it has any.
+fn esperanto_term(term: &Term) -> Option<Term> {
+    match term {
+        Term::Word(w) => crate::esperanto::supersigned(w).map(Term::Word),
+        Term::Phrase(p) => {
+            let alt: Vec<String> = p.iter().map(|w| crate::esperanto::supersigned(w).unwrap_or_else(|| w.clone())).collect();
+            (alt != *p).then_some(Term::Phrase(alt))
+        }
+    }
+}
+
 /// The terms as the backend's full-text query; every term must match.
 pub(crate) fn text_expr(backend: Backend, input: &str) -> Option<String> {
     let terms = terms(input);
@@ -353,15 +364,26 @@ pub(crate) fn text_expr(backend: Backend, input: &str) -> Option<String> {
     }
     let parts: Vec<String> = terms
         .into_iter()
-        .map(|term| match (backend, term) {
-            (Backend::Sqlite, Term::Word(w)) => format!("\"{w}\"*"),
-            (Backend::Sqlite, Term::Phrase(p)) => format!("\"{}\"", p.join(" ")),
-            (Backend::Postgres, Term::Word(w)) => format!("{w}:*"),
-            (Backend::Postgres, Term::Phrase(p)) => format!("({})", p.join(" <-> ")),
+        .map(|term| {
+            let one = |term: &Term| match (backend, term) {
+                (Backend::Sqlite, Term::Word(w)) => format!("\"{w}\"*"),
+                (Backend::Sqlite, Term::Phrase(p)) => format!("\"{}\"", p.join(" ")),
+                (Backend::Postgres, Term::Word(w)) => format!("{w}:*"),
+                (Backend::Postgres, Term::Phrase(p)) => format!("({})", p.join(" <-> ")),
+            };
+            // Typed in Esperanto's x-system ("cxambro"), the term also
+            // finds the words as printed ("ĉambro").
+            match esperanto_term(&term) {
+                Some(alt) => match backend {
+                    Backend::Sqlite => format!("({} OR {})", one(&term), one(&alt)),
+                    Backend::Postgres => format!("({} | {})", one(&term), one(&alt)),
+                },
+                None => one(&term),
+            }
         })
         .collect();
     Some(parts.join(match backend {
-        Backend::Sqlite => " ",
+        Backend::Sqlite => " AND ",
         Backend::Postgres => " & ",
     }))
 }
@@ -655,7 +677,7 @@ mod tests {
         ]);
         assert_eq!(terms("\"open ended"), vec![Phrase(vec![w("open"), w("ended")])]);
         assert_eq!(terms("\" \" * ( )"), vec![]);
-        assert_eq!(text_expr(Backend::Sqlite, "röd \"lilla stugan\"").unwrap(), "\"röd\"* \"lilla stugan\"");
+        assert_eq!(text_expr(Backend::Sqlite, "röd \"lilla stugan\"").unwrap(), "\"röd\"* AND \"lilla stugan\"");
         assert_eq!(text_expr(Backend::Postgres, "röd \"lilla stugan\"").unwrap(), "röd:* & (lilla <-> stugan)");
         assert!(text_expr(Backend::Sqlite, "\"\"").is_none());
     }

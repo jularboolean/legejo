@@ -1136,6 +1136,7 @@
 			saving={annotating}
 			error={annotateError}
 			raised={chromeVisible}
+			lookupLanguage={page.data.dictionary && !page.data.offline ? (speechLanguage ?? book.language ?? 'en') : null}
 			onhighlight={saveHighlight}
 			onsave={saveNote}
 			ondelete={() => (confirmDelete = true)}

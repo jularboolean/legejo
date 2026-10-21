@@ -29,6 +29,7 @@
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
 	let koboStoreEnabled = $state(data.settings.kobo_store_enabled ?? false);
+	let dictionaryEnabled = $state(data.settings.dictionary_enabled ?? false);
 	let whatsNewOpen = $state(false);
 	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
 	let authorFactsEnabled = $state(data.settings.author_facts_enabled ?? false);
@@ -74,6 +75,7 @@
 					catalogs_enabled: catalogsEnabled,
 					kobo_annotations_enabled: koboAnnotationsEnabled,
 					kobo_store_enabled: koboStoreEnabled,
+					dictionary_enabled: dictionaryEnabled,
 					shelf_links_enabled: shelfLinksEnabled,
 					author_facts_enabled: authorFactsEnabled,
 					registration_enabled: registrationEnabled
@@ -90,6 +92,7 @@
 				catalogs_enabled?: boolean;
 				kobo_annotations_enabled?: boolean;
 				kobo_store_enabled?: boolean;
+				dictionary_enabled?: boolean;
 				shelf_links_enabled?: boolean;
 				author_facts_enabled?: boolean;
 				registration_enabled: boolean;
@@ -98,6 +101,7 @@
 			catalogsEnabled = settings.catalogs_enabled ?? false;
 			koboAnnotationsEnabled = settings.kobo_annotations_enabled ?? false;
 			koboStoreEnabled = settings.kobo_store_enabled ?? false;
+			dictionaryEnabled = settings.dictionary_enabled ?? false;
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			authorFactsEnabled = settings.author_facts_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
@@ -141,6 +145,12 @@
 		const previous = koboAnnotationsEnabled;
 		koboAnnotationsEnabled = enabled;
 		if (!(await saveSettings())) koboAnnotationsEnabled = previous;
+	}
+
+	async function toggleDictionary(enabled: boolean) {
+		const previous = dictionaryEnabled;
+		dictionaryEnabled = enabled;
+		if (!(await saveSettings())) dictionaryEnabled = previous;
 	}
 
 	async function toggleKoboStore(enabled: boolean) {
@@ -262,6 +272,16 @@
 		{t('admin.audiobooksToggle')}
 	</label>
 	<p class="hint">{t('admin.audiobooksHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={dictionaryEnabled}
+			disabled={saving}
+			onchange={(e) => toggleDictionary(e.currentTarget.checked)}
+		/>
+		{t('admin.dictionaryToggle')}
+	</label>
+	<p class="hint">{t('admin.dictionaryHint')}</p>
 	<p class="fulltext">
 		<strong>{t('admin.fulltextToggle')}:</strong>
 		{#if data.settings.fulltext}

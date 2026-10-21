@@ -670,6 +670,9 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'account.avatarFailed': 'Impossible de téléverser l’image.',
 	'account.language': 'Langue',
 	'account.languageHint': 'Prend effet immédiatement, pour votre compte uniquement.',
+	'account.manualAdd': "Ajouter le manuel dans cette langue à ma bibliothèque",
+	'account.manualThere': "Le manuel est dans votre bibliothèque.",
+	'account.manualOpen': "L’ouvrir",
 
 	'opds.heading': 'Catalogue OPDS',
 	'opds.intro': 'Parcourez et téléchargez vos livres depuis les applications de lecture compatibles OPDS, comme KOReader et Moon+ Reader. Ajoutez cette adresse comme catalogue dans l’application :',
@@ -1178,5 +1181,14 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'kobo.syncsMonth': "{count} synchronisations ces 30 derniers jours",
 	'log.book.marked_read': "a marqué « {title} » comme lu",
 	'log.book.marked_unread': "a marqué « {title} » comme non lu",
-	'common.close': "Fermer"
+	'common.close': "Fermer",
+	'reader.lookup.button': "Chercher",
+	'reader.lookup.title': "Chercher « {word} » dans un dictionnaire",
+	'reader.lookup.none': "« {word} » n’est pas dans le dictionnaire.",
+	'reader.lookup.failed': "Le dictionnaire est injoignable.",
+	'reader.lookup.revo': "D’après Reta Vortaro, le dictionnaire libre d’espéranto.",
+	'reader.lookup.wiktionary': "D’après Wiktionary (CC BY-SA).",
+	'admin.dictionaryToggle': "Chercher des mots en lisant",
+	'admin.dictionaryHint': "Sélectionnez un mot dans le lecteur web et cherchez-le : l’espéranto dans Reta Vortaro, avec ses traductions dans la langue du lecteur, les autres langues dans Wiktionary. Le serveur interroge pour le lecteur : les mots cherchés quittent l’instance, mais pas l’identité de qui les a cherchés.",
+	'fed.suggested': "Étagères suggérées",
 };

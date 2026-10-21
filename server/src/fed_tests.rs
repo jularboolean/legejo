@@ -414,3 +414,19 @@ async fn the_fediverse_is_off_for_a_user_until_they_take_part() {
     let (_, status) = send(&app, Method::GET, "/api/fed/status", Some(&bob_cookie), None).await;
     assert_eq!(status["enabled"], false);
 }
+
+#[tokio::test]
+async fn the_esperanto_classics_are_suggested_while_federation_is_on() {
+    let (app, db, _) = test_app_fed().await;
+    let (_, a) = add_user(&db, "alice").await;
+    let (_, v) = send(&app, Method::GET, "/api/fed/suggestions", Some(&a), None).await;
+    assert_eq!(v, json!([]), "none while federation is off");
+    set_mode(&db, "open").await;
+    let (status, v) = send(&app, Method::GET, "/api/fed/suggestions", Some(&a), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let list = v.as_array().unwrap();
+    assert_eq!(list.len(), 1, "{v}");
+    assert_eq!(list[0]["handle"], "@esperanto@legejo.radberg.org");
+    assert_eq!(list[0]["language"], "eo");
+    assert!(list[0]["name"].as_str().unwrap().contains("klasikaĵoj"));
+}

@@ -363,6 +363,45 @@ async fn follow_items(state: &AppState, user_id: i64, only: Option<&str>) -> Res
     Ok(items)
 }
 
+/// A shelf on another instance worth following, suggested to everyone who
+/// follows no shelf of that name yet.
+#[derive(Serialize, Clone)]
+pub struct Suggestion {
+    pub handle: &'static str,
+    pub name: &'static str,
+    pub summary: &'static str,
+    /// The language of the books on it.
+    pub language: &'static str,
+}
+
+/// The shelves suggested on the Fediverse page. The operator hides them
+/// with LEGEJO_SHELF_SUGGESTIONS=off.
+pub const SUGGESTIONS: &[Suggestion] = &[Suggestion {
+    handle: "@esperanto@legejo.radberg.org",
+    name: "Esperantaj klasikaĵoj",
+    summary: "Kvin klasikaĵoj de la Esperanta literaturo, liberaj de kopirajto: originaloj kaj tradukoj de Zamenhof kaj liaj samtempuloj.",
+    language: "eo",
+}];
+
+/// GET /api/fed/suggestions: the suggested shelves the caller does not
+/// follow yet; none while federation is off.
+pub async fn suggestions(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Suggestion>>, Response> {
+    if super::active(&state).await.is_none() || !state.settings.shelf_suggestions {
+        return Ok(Json(Vec::new()));
+    }
+    let followed: Vec<String> = follow_items(&state, user.0.id, None).await?.into_iter().map(|f| f.handle.to_lowercase()).collect();
+    let own = state.fed.config.as_ref().map(|c| c.host.to_lowercase());
+    Ok(Json(
+        SUGGESTIONS
+            .iter()
+            // Not one's own instance's shelf, and not one followed already.
+            .filter(|s| own.as_deref().is_none_or(|host| !s.handle.to_lowercase().ends_with(&format!("@{host}"))))
+            .filter(|s| !followed.contains(&s.handle.to_lowercase()))
+            .cloned()
+            .collect(),
+    ))
+}
+
 pub async fn list_follows(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<FollowItem>>, Response> {
     Ok(Json(follow_items(&state, user.0.id, None).await?))
 }

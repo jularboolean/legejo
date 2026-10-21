@@ -670,6 +670,9 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'account.avatarFailed': 'Das Bild konnte nicht hochgeladen werden.',
 	'account.language': 'Sprache',
 	'account.languageHint': 'Gilt sofort und nur für dein Konto.',
+	'account.manualAdd': "Das Handbuch in dieser Sprache in meine Bibliothek legen",
+	'account.manualThere': "Das Handbuch ist in deiner Bibliothek.",
+	'account.manualOpen': "Öffnen",
 
 	'opds.heading': 'OPDS-Katalog',
 	'opds.intro': 'Durchsuche und lade deine Bücher in Lese-Apps herunter, die OPDS unterstützen, etwa KOReader und Moon+ Reader. Füge diese Adresse in der App als Katalog hinzu:',
@@ -1178,5 +1181,14 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'kobo.syncsMonth': "{count} Abgleiche in den letzten 30 Tagen",
 	'log.book.marked_read': "markierte „{title}“ als gelesen",
 	'log.book.marked_unread': "markierte „{title}“ als ungelesen",
-	'common.close': "Schließen"
+	'common.close': "Schließen",
+	'reader.lookup.button': "Nachschlagen",
+	'reader.lookup.title': "„{word}“ im Wörterbuch nachschlagen",
+	'reader.lookup.none': "„{word}“ steht nicht im Wörterbuch.",
+	'reader.lookup.failed': "Das Wörterbuch war nicht erreichbar.",
+	'reader.lookup.revo': "Aus Reta Vortaro, dem freien Esperanto-Wörterbuch.",
+	'reader.lookup.wiktionary': "Aus Wiktionary (CC BY-SA).",
+	'admin.dictionaryToggle': "Wörter beim Lesen nachschlagen",
+	'admin.dictionaryHint': "Ein Wort im Web-Reader markieren und nachschlagen: Esperanto in Reta Vortaro, mit Übersetzungen in die Sprache des Lesers, andere Sprachen in Wiktionary. Der Server fragt für den Leser; die nachgeschlagenen Wörter verlassen also die Instanz, aber nicht, wer sie nachgeschlagen hat.",
+	'fed.suggested': "Vorgeschlagene Regale",
 };

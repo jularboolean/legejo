@@ -681,6 +681,9 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'account.avatarFailed': 'Kunde inte ladda upp bilden.',
 	'account.language': 'Språk',
 	'account.languageHint': 'Gäller direkt, bara för ditt konto.',
+	'account.manualAdd': "Lägg handboken på det här språket i mitt bibliotek",
+	'account.manualThere': "Handboken finns i ditt bibliotek.",
+	'account.manualOpen': "Öppna den",
 
 	'opds.heading': 'OPDS-katalog',
 	'opds.intro': 'Bläddra bland och ladda ner dina böcker från läsappar med OPDS-stöd, till exempel KOReader och Moon+ Reader. Lägg till den här adressen som katalog i appen:',
@@ -1193,5 +1196,14 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'kobo.syncsMonth': "{count} synkar de senaste 30 dagarna",
 	'log.book.marked_read': "markerade ”{title}” som läst",
 	'log.book.marked_unread': "markerade ”{title}” som oläst",
-	'common.close': "Stäng"
+	'common.close': "Stäng",
+	'reader.lookup.button': "Slå upp",
+	'reader.lookup.title': "Slå upp ”{word}” i en ordbok",
+	'reader.lookup.none': "”{word}” finns inte i ordboken.",
+	'reader.lookup.failed': "Ordboken gick inte att nå.",
+	'reader.lookup.revo': "Från Reta Vortaro, den öppna esperantoordboken.",
+	'reader.lookup.wiktionary': "Från Wiktionary (CC BY-SA).",
+	'admin.dictionaryToggle': "Slå upp ord medan man läser",
+	'admin.dictionaryHint': "Markera ett ord i webbläsaren och slå upp det: esperanto i Reta Vortaro, med översättningar till läsarens språk, andra språk i Wiktionary. Servern frågar åt läsaren, så orden som slås upp lämnar instansen, men inte vem som slog upp dem.",
+	'fed.suggested': "Förslag på hyllor",
 };

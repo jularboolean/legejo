@@ -106,6 +106,26 @@ pub struct Settings {
     /// Kobo's own services, reached for a device that keeps the Kobo store
     /// beside Legejo (kobostore.rs). Fixed; tests point them elsewhere.
     pub kobo: KoboServices,
+    /// The dictionaries the reader looks words up in (dictionary.rs).
+    /// Fixed; tests point them elsewhere.
+    pub dictionary: DictionaryServices,
+    /// Suggest shelves on other instances to follow (fed::remote). On
+    /// unless LEGEJO_SHELF_SUGGESTIONS=off.
+    pub shelf_suggestions: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DictionaryServices {
+    /// Reta Vortaro, for Esperanto.
+    pub revo: String,
+    /// The English Wiktionary, for every language.
+    pub wiktionary: String,
+}
+
+impl Default for DictionaryServices {
+    fn default() -> Self {
+        DictionaryServices { revo: "https://reta-vortaro.de".into(), wiktionary: "https://en.wiktionary.org".into() }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -165,6 +185,8 @@ impl Default for Settings {
             fulltext: false,
             ai: None,
             kobo: KoboServices::default(),
+            dictionary: DictionaryServices::default(),
+            shelf_suggestions: true,
         }
     }
 }
@@ -218,8 +240,13 @@ impl Settings {
                 model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
             }),
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai, kobo: d.kobo })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()? })
     }
+}
+
+/// LEGEJO_SHELF_SUGGESTIONS: on unless "off" (or "false", "0", "no").
+fn shelf_suggestions() -> anyhow::Result<bool> {
+    Ok(!var("LEGEJO_SHELF_SUGGESTIONS")?.is_some_and(|v| matches!(v.trim().to_lowercase().as_str(), "off" | "false" | "0" | "no")))
 }
 
 #[cfg(test)]

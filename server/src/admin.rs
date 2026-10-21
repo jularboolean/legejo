@@ -48,6 +48,7 @@ pub struct Settings {
     catalogs_enabled: bool,
     kobo_annotations_enabled: bool,
     kobo_store_enabled: bool,
+    dictionary_enabled: bool,
     shelf_links_enabled: bool,
     author_facts_enabled: bool,
     registration_enabled: bool,
@@ -71,6 +72,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         catalogs_enabled: crate::catalogs::enabled(state).await,
         kobo_annotations_enabled: crate::kobo::annotations_enabled(state).await,
         kobo_store_enabled: crate::kobostore::enabled(state).await,
+        dictionary_enabled: crate::dictionary::enabled(state).await,
         shelf_links_enabled: crate::shelflinks::enabled(state).await,
         author_facts_enabled: crate::authorfacts::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
@@ -107,6 +109,8 @@ pub struct UpdateSettings {
     kobo_annotations_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     kobo_store_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    dictionary_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     shelf_links_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
@@ -147,6 +151,11 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.dictionary_enabled {
+        set_setting(&state, "dictionary_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+    }
     if let Some(on) = req.shelf_links_enabled {
         set_setting(&state, "shelf_links_enabled", if on { "true" } else { "false" })
             .await
@@ -175,6 +184,7 @@ pub async fn update_settings(
             "catalogs_enabled": req.catalogs_enabled,
             "kobo_annotations_enabled": req.kobo_annotations_enabled,
             "kobo_store_enabled": req.kobo_store_enabled,
+            "dictionary_enabled": req.dictionary_enabled,
             "shelf_links_enabled": req.shelf_links_enabled,
             "author_facts_enabled": req.author_facts_enabled,
             "registration_enabled": req.registration_enabled,
@@ -320,6 +330,8 @@ pub struct Config {
     author_facts: bool,
     /// Whether the search can look inside the books.
     fulltext: bool,
+    /// Whether the reader can look words up (dictionary.rs).
+    dictionary: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -338,6 +350,7 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         shelf_links: crate::shelflinks::enabled(&state).await,
         author_facts: crate::authorfacts::enabled(&state).await,
         fulltext: crate::fulltext::enabled(&state),
+        dictionary: crate::dictionary::enabled(&state).await,
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

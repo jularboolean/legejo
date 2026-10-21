@@ -3,8 +3,9 @@
 	// highlight that exists, change or remove it. A bar at the foot of the
 	// page, where the reading-aloud controls sit otherwise.
 	import { tick } from 'svelte';
-	import { Highlighter, MessageSquarePlus, Trash2, X } from '@lucide/svelte';
-	import { t } from '#lib/i18n';
+	import { BookA, Highlighter, MessageSquarePlus, Trash2, X } from '@lucide/svelte';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageLabel } from '#lib/library';
 
 	type Props = {
 		/** The passage: a selection waiting for an action, or a highlight being edited. */
@@ -16,6 +17,9 @@
 		error: string | null;
 		/** Sits higher while the progress bar is expanded. */
 		raised: boolean;
+		/** The language the passage is in, for looking a word up; null when
+		 * the dictionary is off or out of reach. */
+		lookupLanguage?: string | null;
 		/** A new highlight, with or without a note. */
 		onhighlight: (note: string | null) => void;
 		/** The note of an existing highlight. */
@@ -23,7 +27,41 @@
 		ondelete: () => void;
 		oncancel: () => void;
 	};
-	let { text, note, editing, saving, error, raised, onhighlight, onsave, ondelete, oncancel }: Props = $props();
+	let { text, note, editing, saving, error, raised, lookupLanguage = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
+
+	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
+	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
+
+	/** One word, as a selection of one word comes: a dictionary can take it. */
+	const word = $derived.by(() => {
+		const w = text.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+		return w && !/\s/.test(w) && w.length <= 40 ? w : null;
+	});
+	let looked = $state<Looked | null>(null);
+	let looking = $state(false);
+	let lookError = $state<string | null>(null);
+
+	// A new passage forgets the last word looked up.
+	$effect(() => {
+		void text;
+		looked = null;
+		lookError = null;
+	});
+
+	async function lookUp() {
+		if (!word || !lookupLanguage) return;
+		looking = true;
+		lookError = null;
+		try {
+			const res = await fetch(`/api/dictionary?word=${encodeURIComponent(word)}&language=${encodeURIComponent(lookupLanguage)}`);
+			if (res.ok) looked = await res.json();
+			else lookError = t('reader.lookup.failed');
+		} catch {
+			lookError = t('common.network');
+		} finally {
+			looking = false;
+		}
+	}
 
 	let writing = $state(false);
 	let draft = $state('');
@@ -68,6 +106,29 @@
 			disabled={saving}
 		></textarea>
 	{/if}
+	{#if looked}
+		<div class="lookup" aria-live="polite">
+			{#if looked.entries.length === 0}
+				<p class="none">{t('reader.lookup.none', { word: looked.word })}</p>
+			{:else}
+				{#each looked.entries as entry (entry.link + entry.headword)}
+					<div class="entry">
+						<a class="headword" href={entry.link} target="_blank" rel="noreferrer noopener">{entry.headword} ↗</a>
+						{#each entry.translations as tr (tr.language)}
+							<p class="tr"><span class="lang">{languageLabel(tr.language, getLocale())}</span> {tr.words.join(', ')}</p>
+						{/each}
+						{#if entry.definitions.length > 0}
+							<ol>
+								{#each entry.definitions as d, i (i)}<li>{d}</li>{/each}
+							</ol>
+						{/if}
+					</div>
+				{/each}
+				<p class="source">{looked.source === 'revo' ? t('reader.lookup.revo') : t('reader.lookup.wiktionary')}</p>
+			{/if}
+		</div>
+	{/if}
+	{#if lookError}<p class="error">{lookError}</p>{/if}
 	{#if error}<p class="error">{error}</p>{/if}
 	<div class="row actions">
 		{#if editing}
@@ -97,6 +158,12 @@
 				<MessageSquarePlus size={15} />
 				{t('reader.notes.addNote')}
 			</button>
+			{#if word && lookupLanguage}
+				<button type="button" class="act" onclick={lookUp} disabled={looking} title={t('reader.lookup.title', { word })}>
+					<BookA size={15} />
+					{t('reader.lookup.button')}
+				</button>
+			{/if}
 		{/if}
 	</div>
 </form>
@@ -175,6 +242,38 @@
 	.act.danger {
 		margin-right: auto;
 		color: var(--r-muted);
+	}
+	.lookup {
+		max-height: 40vh;
+		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+	.entry p,
+	.lookup p {
+		margin: 0;
+	}
+	.headword {
+		font-weight: 600;
+		color: var(--r-link);
+		text-decoration: none;
+	}
+	.tr .lang {
+		color: var(--r-muted);
+		font-size: 0.8rem;
+		margin-right: 0.3rem;
+	}
+	.entry ol {
+		margin: 0.2rem 0 0;
+		padding-left: 1.3rem;
+	}
+	.none,
+	.source {
+		color: var(--r-muted);
+		font-size: 0.78rem;
 	}
 	.error {
 		margin: 0;

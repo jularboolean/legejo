@@ -68,7 +68,10 @@
 
 	async function follow(e: SubmitEvent) {
 		e.preventDefault();
-		const handle = handleInput.trim();
+		await followHandle(handleInput.trim());
+	}
+
+	async function followHandle(handle: string) {
 		if (!handle) return;
 		following = true;
 		followError = '';
@@ -192,6 +195,23 @@
 				<p class="hint">{t('fed.follow.hint')}</p>
 				{#if followError}<p class="error">{followError}</p>{/if}
 			</form>
+
+			{#if data.suggestions.length > 0}
+				<h2>{t('fed.suggested')}</h2>
+				<ul class="suggestions">
+					{#each data.suggestions as s (s.handle)}
+						<li lang={s.language}>
+							<strong>{s.name}</strong>
+							<span class="follow-handle">{s.handle}</span>
+							<p class="hint">{s.summary}</p>
+							<button type="button" onclick={() => followHandle(s.handle)} disabled={following}>
+								<UserPlus size={13} />
+								{t('fed.follow.submit')}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
 			<h2>{t('fed.followed')}</h2>
 			{#if listError}<p class="error">{listError}</p>{/if}
@@ -420,6 +440,23 @@
 	.follow-name {
 		font-weight: 600;
 		font-size: 0.95rem;
+	}
+	.suggestions {
+		list-style: none;
+		padding: 0;
+		margin: 0 0 1.5rem;
+	}
+	.suggestions li {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+		padding: 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: 10px;
+	}
+	.suggestions .hint {
+		margin: 0;
 	}
 	.follow-handle {
 		font-family: ui-monospace, 'SF Mono', monospace;

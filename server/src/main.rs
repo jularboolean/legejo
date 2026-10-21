@@ -73,6 +73,10 @@ mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
 mod kobospan;
+mod esperanto;
+mod dictionary;
+#[cfg(test)]
+mod dictionary_tests;
 mod kobostore;
 #[cfg(test)]
 mod kobo_store_tests;
@@ -193,6 +197,8 @@ fn router(state: AppState) -> Router {
         .route("/account/export/{id}/{part}", get(export::download))
         .route("/account/kobo/devices", get(account::kobo_devices))
         .route("/account/locale", axum::routing::put(account::set_locale))
+        .route("/account/manual", post(welcome::add_manual))
+        .route("/dictionary", get(dictionary::lookup))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
@@ -269,6 +275,7 @@ fn router(state: AppState) -> Router {
         .route("/fed/status", get(fed::remote::status))
         .route("/fed/follows", get(fed::remote::list_follows).post(fed::remote::follow).delete(fed::remote::unfollow))
         .route("/fed/books", get(fed::remote::books))
+        .route("/fed/suggestions", get(fed::remote::suggestions))
         .route("/fed/import", post(fed::remote::import))
         .route("/admin/federation", get(fed::admin::get_settings).put(fed::admin::update_settings))
         .route("/admin/federation/instances", get(fed::admin::list_instances))
