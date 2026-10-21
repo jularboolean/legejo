@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.26.1 (2026-10-21)
+
+- **The authors page opens again.** With an author whose name begins with
+  a letter the language sorts as another, such as Žižek among the Z's in
+  Swedish, the page failed with "500 Internal Error". Such an author is
+  now filed under that letter, and each letter comes once.
+
 ## 1.26.0 (2026-10-21)
 
 Legejo is Esperanto for a place where one reads, and this release makes
