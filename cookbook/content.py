@@ -261,7 +261,9 @@ on shelves that others share with you.</p>
 inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
 the passages that match; choose one to open the book with the search in it. Every word must occur, a
 word also finds longer words it begins, and words in double quotes must stand in a row. Books on
-shared shelves are searched too, and quoted, but are read only once you take them.</p>"""),
+shared shelves are searched too, and quoted, but are read only once you take them.</p>
+<p>Esperanto can be typed in the x-system: <code>cxambro</code> finds <em>ĉambro</em>, in the
+catalogue and in the text alike.</p>"""),
 
  ("Filtering and Sorting",
   "<p>You want the unread crime novels in French, newest first.</p>",
@@ -375,7 +377,10 @@ are fetched by the server, never by your browser.</p>"""),
   """<p>Only free books travel this way: public domain or Creative Commons, with a source given.
 A book whose file claims copyright is marked as protected from the start and stays home.</p>
 <p>A follow to or from an instance that is not yet allowed waits for the admin, who sees it as a
-request. A followed shelf whose instance stops answering is marked, and dropped after a week.</p>"""),
+request. A followed shelf whose instance stops answering is marked, and dropped after a week.</p>
+<p>To begin with, the Fediverse page suggests a couple of shelves worth following, among them five
+Esperanto classics, and the federation tab of the Admin page offers their instance beside
+<strong>Connect an instance</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> hides them.</p>"""),
  ]),
 
 ("Reading in the Browser",
@@ -460,6 +465,18 @@ book's notes in one file.</p>""",
 <tr><td><code>?</code></td><td>This list</td></tr>
 </table>""",
   None),
+
+ ("Looking a Word Up",
+  "<p>You are reading in a language you are still learning, and a word stops you.</p>",
+  """<p><em>Optional: an admin turns on <strong>Look words up while reading</strong> on the Admin
+page.</em></p>
+<p>Select the word and choose <strong>Look up</strong>. In a book in Esperanto the word comes from
+Reta Vortaro, the open Esperanto dictionary, with what it is in your own language and in English;
+in other languages it comes from Wiktionary, with what it means. The headword links to the whole
+article.</p>""",
+  """<p>A word is looked up as the dictionary has it: <em>ĉambrojn</em> as <em>ĉambro</em>,
+<em>legis</em> as <em>legi</em>. The server asks the dictionary for you, so the words you look up
+leave the instance, but not who you are.</p>"""),
  ]),
 
 ("Legejo as an App",
@@ -714,10 +731,11 @@ stops working, and nobody else's is affected.</p>"""),
  ("Changing Your Password, Picture and Language",
   "<p>You were given a password you did not choose, and the interface is in the wrong language.</p>",
   """<p>Set a <strong>New password</strong> (at least 8 characters); your
-<strong>Current password</strong> is needed to save. Choose a <strong>Profile picture</strong>.
+<strong>Current password</strong> is needed to save. Give an <strong>Email</strong> address,
+for resetting your password. Choose a <strong>Profile picture</strong>.
 Choose a <strong>Language</strong>: English, Swedish, Finnish, German, French, Spanish or
 Esperanto.</p>""",
-  "<p>The language takes effect at once, for your account only. A small thing worth knowing: a link to a book or a shelf that asks you to log in takes you to that book or shelf once you have, not to the start page.</p>"),
+  "<p>Where the instance sends mail, a new email address is used once you open the link sent to it; until then the old one stays, and it is told of the change. In English or Esperanto, <strong>Add the manual in this language to my library</strong> puts this book in that language on your shelves. The language takes effect at once, for your account only. A small thing worth knowing: a link to a book or a shelf that asks you to log in takes you to that book or shelf once you have, not to the start page.</p>"),
 
  ("Giving Each App a Password of Its Own",
   "<p>You would rather not type your real password into a reading app.</p>",
@@ -800,8 +818,8 @@ verified email address.</p>"""),
  ("Choosing What the Instance Offers",
   "<p>You want to know what can be switched on and off.</p>",
   """<p>On the Admin page: the Libris and Open Library lookups, self-registration, audiobook
-support, catalogs of other libraries, highlights from Kobo e-readers, the Kobo store beside
-Legejo, shelves by private link, and federation with its list of allowed and blocked instances.</p>
+support, looking words up while reading, catalogs of other libraries, highlights from Kobo
+e-readers, the Kobo store beside Legejo, shelves by private link, and federation with its list of allowed and blocked instances.</p>
 <p>By environment variable: the librarian (<code>LEGEJO_AI_API_KEY</code>, with
 <code>LEGEJO_AI_BASE_URL</code> and <code>LEGEJO_AI_MODEL</code>) and the server for AI
 assistants (<code>LEGEJO_MCP</code>).</p>""",
@@ -863,6 +881,7 @@ Both ways are noted in the system log (Recipe 12.5).</p>"""),
 <tr><td><code>LEGEJO_AUDIOBOOK_IMPORT_DIR</code></td><td></td><td>Folder watched for audiobooks</td></tr>
 <tr><td><code>LEGEJO_MCP</code></td><td><code>false</code></td><td>The server for AI assistants</td></tr>
 <tr><td><code>LEGEJO_FULLTEXT</code></td><td><code>false</code></td><td>Searching inside the books</td></tr>
+<tr><td><code>LEGEJO_SHELF_SUGGESTIONS</code></td><td>on</td><td><code>off</code> hides the suggested shelves</td></tr>
 <tr><td><code>LEGEJO_AI_API_KEY</code></td><td></td><td>Turns on the librarian</td></tr>
 <tr><td><code>LEGEJO_SMTP_HOST</code></td><td></td><td>Mail server; mail is off when unset</td></tr>
 <tr><td><code>LEGEJO_OIDC_ISSUER</code></td><td></td><td>Single sign-on; off when unset</td></tr>

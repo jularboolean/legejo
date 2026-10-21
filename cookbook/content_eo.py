@@ -258,11 +258,13 @@ kaj tajpu.</p>""",
   """<p>La serĉo trairas la katalogon: titolojn, aŭtorojn, priskribojn kaj etikedojn. Ĝi trovas ankaŭ
 librojn sur bretoj, kiujn aliaj kunhavigas kun vi.</p>
 <p>Kie tiu, kiu funkciigas la instancon, agordis <code>LEGEJO_FULLTEXT=true</code>, marku <strong>Serĉi
-en la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
+en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
 la trafaj fragmentoj; elektu unu por malfermi la libron kun la serĉo en ĝi. Ĉiu vorto devas aperi,
 vorto trovas ankaŭ pli longajn vortojn, kiujn ĝi komencas, kaj vortoj inter citiloj devas stari unu
 post la alia. Ankaŭ libroj sur kunhavigitaj bretoj estas traserĉataj kaj citataj, sed legeblaj nur
-post kiam vi prenis ilin.</p>"""),
+post kiam vi prenis ilin.</p>
+<p>Esperanton vi povas tajpi per la x-sistemo: <code>cxambro</code> trovas <em>ĉambro</em>, en la
+katalogo same kiel en la teksto.</p>"""),
 
  ("Filtri kaj ordigi",
   "<p>Vi volas la nelegitajn krimromanojn en la franca, la plej novajn unue.</p>",
@@ -375,7 +377,10 @@ librojn elŝutas la servilo, neniam via retumilo.</p>"""),
   """<p>Nur liberaj libroj vojaĝas tiel: en la publika havaĵo aŭ sub Creative Commons, kun indikita fonto.
 Libro, kies dosiero asertas kopirajton, estas markita kiel protektita de la komenco kaj restas hejme.</p>
 <p>Sekvo al aŭ de instanco, kiu ankoraŭ ne estas permesita, atendas la administranton, kiu vidas ĝin
-kiel peton. Sekvata breto, kies instanco ĉesas respondi, estas markita, kaj post semajno forigita.</p>"""),
+kiel peton. Sekvata breto, kies instanco ĉesas respondi, estas markita, kaj post semajno forigita.</p>
+<p>Por komenci, la paĝo Fediverso proponas kelkajn bretojn sekvindajn, inter ili kvin Esperantajn
+klasikaĵojn, kaj la langeto pri federacio en la paĝo Administrado proponas ilian instancon apud
+<strong>Konekti instancon</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> kaŝas ilin.</p>"""),
  ]),
 
 ("Legado en la retumilo",
@@ -461,6 +466,18 @@ malfermi la retlegilon ĉe la fragmento; via loko en la libro restas, kie ĝi es
 <tr><td><code>?</code></td><td>Ĉi tiu listo</td></tr>
 </table>""",
   None),
+
+ ("Serĉi vorton en vortaro",
+  "<p>Vi legas en lingvo, kiun vi ankoraŭ lernas, kaj vorto haltigas vin.</p>",
+  """<p><em>Laŭvole: administranto ŝaltas <strong>Serĉi vortojn dum legado</strong> en la paĝo
+Administrado.</em></p>
+<p>Elektu la vorton kaj premu <strong>Serĉi en vortaro</strong>. En libro en Esperanto la vorto venas
+el Reta Vortaro, la libera vortaro de Esperanto, kun tio, kio ĝi estas en via propra lingvo kaj en la
+angla; en aliaj lingvoj ĝi venas el Vikivortaro, kun tio, kion ĝi signifas. La kapvorto ligas al la
+tuta artikolo.</p>""",
+  """<p>Vorto estas serĉata tiel, kiel la vortaro havas ĝin: <em>ĉambrojn</em> kiel <em>ĉambro</em>,
+<em>legis</em> kiel <em>legi</em>. La servilo demandas la vortaron anstataŭ vi, do la vortoj, kiujn vi
+serĉas, forlasas la instancon, sed ne kiu vi estas.</p>"""),
  ]),
 
 ("Legejo kiel aplikaĵo",
@@ -720,10 +737,11 @@ funkcii, kaj nenies alia estas tuŝita.</p>"""),
  ("Ŝanĝi vian pasvorton, bildon kaj lingvon",
   "<p>Vi ricevis pasvorton, kiun vi ne elektis, kaj la interfaco estas en la malĝusta lingvo.</p>",
   """<p>Tajpu novan pasvorton ĉe <strong>Nova pasvorto</strong> (almenaŭ 8 signoj); via
-<strong>Nuna pasvorto</strong> estas bezonata por konservi. Elektu bildon ĉe <strong>Profilbildo</strong>.
+<strong>Nuna pasvorto</strong> estas bezonata por konservi. Donu adreson ĉe <strong>Retpoŝto</strong>,
+por restarigi la pasvorton. Elektu bildon ĉe <strong>Profilbildo</strong>.
 Elektu lingvon ĉe <strong>Lingvo</strong>: la angla, sveda, finna, germana, franca, hispana aŭ
 Esperanto.</p>""",
-  "<p>La lingvo ekvalidas tuj, nur por via konto. Malgranda afero, kiun indas scii: ligilo al libro aŭ breto, kiu petas vin ensaluti, kondukas vin al tiu libro aŭ breto post la ensaluto, ne al la komenca paĝo.</p>"),
+  "<p>Kie la instanco sendas retpoŝton, nova adreso estas uzata, kiam vi malfermas la ligilon senditan al ĝi; ĝis tiam la malnova restas, kaj ĝi estas informita pri la ŝanĝo. En la angla aŭ Esperanto, <strong>Aldoni la manlibron en ĉi tiu lingvo al mia biblioteko</strong> metas ĉi tiun libron en tiu lingvo en vian bibliotekon. La lingvo ekvalidas tuj, nur por via konto. Malgranda afero, kiun indas scii: ligilo al libro aŭ breto, kiu petas vin ensaluti, kondukas vin al tiu libro aŭ breto post la ensaluto, ne al la komenca paĝo.</p>"),
 
  ("Doni al ĉiu aplikaĵo propran pasvorton",
   "<p>Vi preferus ne tajpi vian veran pasvorton en legoaplikaĵon.</p>",
@@ -806,7 +824,7 @@ kontrolita retpoŝtadreso.</p>"""),
  ("Elekti, kion la instanco proponas",
   "<p>Vi volas scii, kio povas esti ŝaltata kaj malŝaltata.</p>",
   """<p>En la paĝo Administrado: la serĉoj en Libris kaj Open Library, memregistriĝo, subteno de
-aŭdlibroj, katalogoj de aliaj bibliotekoj, markoj el Kobo-legiloj, la Kobo-vendejo apud
+aŭdlibroj, serĉado de vortoj dum legado, katalogoj de aliaj bibliotekoj, markoj el Kobo-legiloj, la Kobo-vendejo apud
 Legejo, bretoj per privata ligilo, kaj federacio kun sia listo de permesitaj kaj blokitaj instancoj.</p>
 <p>Per mediovariablo: la bibliotekisto (<code>LEGEJO_AI_API_KEY</code>, kun
 <code>LEGEJO_AI_BASE_URL</code> kaj <code>LEGEJO_AI_MODEL</code>) kaj la servilo por
@@ -870,6 +888,7 @@ funkcias. Ambaŭ manieroj estas notataj en la sistema protokolo (Recepto 12.5).<
 <tr><td><code>LEGEJO_AUDIOBOOK_IMPORT_DIR</code></td><td></td><td>Dosierujo observata por aŭdlibroj</td></tr>
 <tr><td><code>LEGEJO_MCP</code></td><td><code>false</code></td><td>La servilo por AI-asistantoj</td></tr>
 <tr><td><code>LEGEJO_FULLTEXT</code></td><td><code>false</code></td><td>Serĉado ene de la libroj</td></tr>
+<tr><td><code>LEGEJO_SHELF_SUGGESTIONS</code></td><td>ŝaltita</td><td><code>off</code> kaŝas la proponitajn bretojn</td></tr>
 <tr><td><code>LEGEJO_AI_API_KEY</code></td><td></td><td>Ŝaltas la bibliotekiston</td></tr>
 <tr><td><code>LEGEJO_SMTP_HOST</code></td><td></td><td>Retpoŝta servilo; retpoŝto estas malŝaltita, se ĝi mankas</td></tr>
 <tr><td><code>LEGEJO_OIDC_ISSUER</code></td><td></td><td>Komuna ensaluto; malŝaltita, se ĝi mankas</td></tr>

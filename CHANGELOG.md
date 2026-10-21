@@ -4,6 +4,38 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.26.0 (2026-10-21)
+
+Legejo is Esperanto for a place where one reads, and this release makes
+something of that.
+
+- **Search understands the x-system.** Esperanto typed without its own
+  letters finds the words as printed: `cxambro` finds *ĉambro*, in the
+  library and in the text of the books.
+- **The manual in Esperanto.** *La Kuirlibro de Legejo*, with a cover of
+  its own. In English or Esperanto, the account page under Language puts
+  the manual in that language in your library, so instances started
+  earlier get it too.
+- **Look a word up while reading.** Select a word in the web reader and
+  choose *Look up*: Esperanto from Reta Vortaro, the open Esperanto
+  dictionary, with the word in your own language and in English; other
+  languages from Wiktionary. A word is looked up as the dictionary has it
+  (*ĉambrojn* as *ĉambro*). The server asks on the reader's behalf. An
+  admin setting under Library, off by default.
+- **Shelves worth following.** The Fediverse page suggests two federated
+  shelves, five Esperanto classics and a shelf of gothic fiction, and the
+  admin page offers their instance beside *Connect an instance*.
+  `LEGEJO_SHELF_SUGGESTIONS=off` hides them.
+- **The public page of a federated shelf** follows the design chosen in
+  Legejo on that device, dark or Zamenhof, not only the system's setting;
+  shows its description and the books' as formatted Markdown; names the
+  owner as "by …"; and keeps the note about Legejo to a small footer.
+- **Change your email address.** The account page has an email field.
+  Where the server sends mail, a new address is used once the link sent to
+  it is opened, and the old address is told of the change.
+- **The Esperanto interface is complete**, with the texts it lacked for the
+  search inside the books and the Kobo's reading time.
+
 ## 1.25.0 (2026-10-21)
 
 - **The Kobo store beside Legejo.** A new admin setting, under Kobo on the
