@@ -378,13 +378,13 @@ pub struct Suggestion {
 /// with LEGEJO_SHELF_SUGGESTIONS=off.
 pub const SUGGESTIONS: &[Suggestion] = &[
     Suggestion {
-        handle: "@esperanto@legejo.radberg.org",
+        handle: "@esperanto@gufujo.legejo.se",
         name: "Esperantaj klasikaĵoj",
         summary: "Kvin klasikaĵoj de la Esperanta literaturo, liberaj de kopirajto: originaloj kaj tradukoj de Zamenhof kaj liaj samtempuloj.",
         language: "eo",
     },
     Suggestion {
-        handle: "@det-gotiska-gutenberg@legejo.radberg.org",
+        handle: "@det-gotiska-gutenberg@gufujo.legejo.se",
         name: "Gutenberg Gothique",
         summary: "A collection of gothic fiction from Project Gutenberg.",
         language: "en",

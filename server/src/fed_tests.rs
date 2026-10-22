@@ -426,17 +426,17 @@ async fn the_esperanto_classics_are_suggested_while_federation_is_on() {
     assert_eq!(status, StatusCode::OK, "{v}");
     let list = v.as_array().unwrap();
     assert_eq!(list.len(), 2, "{v}");
-    assert_eq!(list[0]["handle"], "@esperanto@legejo.radberg.org");
+    assert_eq!(list[0]["handle"], "@esperanto@gufujo.legejo.se");
     assert_eq!(list[0]["language"], "eo");
     assert!(list[0]["name"].as_str().unwrap().contains("klasikaĵoj"));
-    assert_eq!(list[1]["handle"], "@det-gotiska-gutenberg@legejo.radberg.org");
+    assert_eq!(list[1]["handle"], "@det-gotiska-gutenberg@gufujo.legejo.se");
     assert_eq!(list[1]["name"], "Gutenberg Gothique");
 
     // The admin sees its instance offered beside "Connect instance" until it is decided on.
     sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'alice'").execute(&db).await.unwrap();
     let (_, v) = send(&app, Method::GET, "/api/admin/federation", Some(&a), None).await;
-    assert_eq!(v["suggested_instances"], json!(["legejo.radberg.org"]));
-    let (status, v) = send(&app, Method::PUT, "/api/admin/federation/instances/legejo.radberg.org", Some(&a), Some(json!({ "status": "blocked" }))).await;
+    assert_eq!(v["suggested_instances"], json!(["gufujo.legejo.se"]));
+    let (status, v) = send(&app, Method::PUT, "/api/admin/federation/instances/gufujo.legejo.se", Some(&a), Some(json!({ "status": "blocked" }))).await;
     assert!(status.is_success(), "{status} {v}");
     let (_, v) = send(&app, Method::GET, "/api/admin/federation", Some(&a), None).await;
     assert_eq!(v["suggested_instances"], json!([]));
