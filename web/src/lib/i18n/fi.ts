@@ -1206,4 +1206,9 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'log.account.emailConfirm': "pyysi sähköpostiosoitteen vaihtoa",
 	'log.account.emailSet': "antoi sähköpostiosoitteen",
 	'log.account.emailRemoved': "poisti sähköpostiosoitteensa",
+	'adminUsers.delete': "Poista tili",
+	'adminUsers.deleteTitle': "Poistetaanko käyttäjän {username} tili?",
+	'adminUsers.deleteConfirm': "Käyttäjän {username} tili poistetaan pysyvästi, ja sen mukana {books} kirjaa, {shelves} hyllyä, korostukset, muistiinpanot ja lukeminen. Federoidut hyllyt vedetään pois. Tätä ei voi perua.",
+	'adminUsers.deleteFailed': "Tiliä ei voitu poistaa.",
+	'log.user.deleted_by_admin': "poisti käyttäjän {username} tilin ({books} kirjaa)",
 };

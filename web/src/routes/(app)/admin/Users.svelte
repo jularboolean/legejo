@@ -72,6 +72,26 @@
 		}
 	}
 
+	// An account and everything in it, gone; confirmed first.
+	let deleting = $state<AdminUserRow | null>(null);
+
+	async function deleteUser() {
+		if (!deleting) return;
+		const user = deleting;
+		deleting = null;
+		errorMsg = '';
+		busyId = user.id;
+		try {
+			const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+			if (!res.ok) errorMsg = t('adminUsers.deleteFailed');
+			await invalidateAll();
+		} catch {
+			errorMsg = t('common.network');
+		} finally {
+			busyId = null;
+		}
+	}
+
 	async function withdrawInvite() {
 		if (!withdrawing) return;
 		const id = withdrawing.id;
@@ -130,6 +150,15 @@
 					{:else if user.id !== me}
 						<div class="invite-actions">
 							<button type="button" class="linkish" onclick={() => resetLink(user.id)}>{t('adminUsers.resetLink')}</button>
+							·
+							<button
+								type="button"
+								class="linkish danger"
+								disabled={busyId === user.id}
+								onclick={() => (deleting = user)}
+							>
+								{t('adminUsers.delete')}
+							</button>
 						</div>
 						{#if resetMsg?.id === user.id}
 							<div class="invite-msg">
@@ -167,6 +196,21 @@
 	danger={adminChange?.to ?? false}
 	onconfirm={setAdmin}
 	oncancel={() => (adminChange = null)}
+/>
+
+<ConfirmDialog
+	open={deleting !== null}
+	title={t('adminUsers.deleteTitle', { username: deleting?.username ?? '' })}
+	message={t('adminUsers.deleteConfirm', {
+		username: deleting?.username ?? '',
+		books: deleting?.book_count ?? 0,
+		shelves: deleting?.shelf_count ?? 0
+	})}
+	confirmLabel={t('adminUsers.delete')}
+	cancelLabel={t('common.cancel')}
+	danger
+	onconfirm={deleteUser}
+	oncancel={() => (deleting = null)}
 />
 
 <ConfirmDialog

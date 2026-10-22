@@ -1221,4 +1221,9 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'log.account.emailConfirm': "petis ŝanĝi la retpoŝtadreson",
 	'log.account.emailSet': "indikis retpoŝtadreson",
 	'log.account.emailRemoved': "forigis sian retpoŝtadreson",
+	'adminUsers.delete': "Forigi konton",
+	'adminUsers.deleteTitle': "Ĉu forigi la konton de {username}?",
+	'adminUsers.deleteConfirm': "La konto de {username} estas forigata por ĉiam, kun siaj {books} libroj, {shelves} bretoj, markoj, notoj kaj legado. Ĝiaj federaciitaj bretoj estas retiritaj. Tio ne estas malfarebla.",
+	'adminUsers.deleteFailed': "La konto ne povis esti forigita.",
+	'log.user.deleted_by_admin': "forigis la konton de {username} ({books} libroj)",
 };

@@ -1206,4 +1206,9 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'log.account.emailConfirm': "a demandé à changer d’adresse e-mail",
 	'log.account.emailSet': "a indiqué une adresse e-mail",
 	'log.account.emailRemoved': "a supprimé son adresse e-mail",
+	'adminUsers.delete': "Supprimer le compte",
+	'adminUsers.deleteTitle': "Supprimer le compte de {username} ?",
+	'adminUsers.deleteConfirm': "Le compte de {username} est supprimé définitivement, avec ses {books} livres, {shelves} étagères, surlignages, notes et lectures. Ses étagères fédérées sont retirées. C’est irréversible.",
+	'adminUsers.deleteFailed': "Le compte n’a pas pu être supprimé.",
+	'log.user.deleted_by_admin': "a supprimé le compte de {username} ({books} livres)",
 };

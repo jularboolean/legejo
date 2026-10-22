@@ -1219,6 +1219,11 @@ export const en = {
 	'log.account.emailConfirm': "asked to change email address",
 	'log.account.emailSet': "set an email address",
 	'log.account.emailRemoved': "removed their email address",
+	'adminUsers.delete': "Delete account",
+	'adminUsers.deleteTitle': "Delete the account of {username}?",
+	'adminUsers.deleteConfirm': "The account of {username} is deleted for good, with its {books} books, {shelves} shelves, highlights, notes and reading. Its federated shelves are withdrawn. This cannot be undone.",
+	'adminUsers.deleteFailed': "The account could not be deleted.",
+	'log.user.deleted_by_admin': "deleted the account of {username} ({books} books)",
 };
 
 export type MessageKey = keyof typeof en;

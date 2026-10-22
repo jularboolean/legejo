@@ -571,12 +571,31 @@ pub async fn delete_account(
         }
     }
 
+    let books = remove_user(&state, user.0.id, &user.0.username).await?;
+    crate::audit::log(
+        &state,
+        Some((user.0.id, user.0.username.as_str())),
+        "user.deleted",
+        serde_json::json!({ "username": user.0.username, "books": books }),
+    )
+    .await;
+    let mut removal = axum_extra::extract::cookie::Cookie::from(auth::SESSION_COOKIE);
+    removal.set_path("/");
+    Ok(jar.remove(removal))
+}
+
+/// An account and everything in it, gone: its federated shelves retracted
+/// so that followers drop them, its books, audiobooks and pictures off the
+/// disk, and the rest by the database's cascades. The number of books it
+/// had. Asked for by the user themselves or by an admin.
+pub(crate) async fn remove_user(state: &AppState, user_id: i64, username: &str) -> Result<usize, Response> {
+    let state = state.clone();
     // Retract federated shelves so followers drop them.
     if let Some(c) = crate::fed::active(&state).await {
         let federated: Vec<(i64, String)> = sqlx::query_as(
             "SELECT id, ap_slug FROM shelves WHERE owner_id = $1 AND visibility = 'federated' AND ap_slug IS NOT NULL",
         )
-        .bind(user.0.id)
+        .bind(user_id)
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
@@ -588,15 +607,15 @@ pub async fn delete_account(
     }
 
     let books: Vec<(i64, String)> = sqlx::query_as("SELECT id, uuid FROM books WHERE owner_id = $1")
-        .bind(user.0.id)
+        .bind(user_id)
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     for (id, uuid) in &books {
-        crate::books::remove_book(&state, user.0.id, *id, uuid).await?;
+        crate::books::remove_book(&state, user_id, *id, uuid).await?;
     }
     let audiobooks: Vec<String> = sqlx::query_scalar("SELECT uuid FROM audiobooks WHERE owner_id = $1")
-        .bind(user.0.id)
+        .bind(user_id)
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
@@ -604,34 +623,25 @@ pub async fn delete_account(
         crate::audiobooks::remove_files(&state, uuid).await;
     }
     let shelves: Vec<i64> = sqlx::query_scalar("SELECT id FROM shelves WHERE owner_id = $1")
-        .bind(user.0.id)
+        .bind(user_id)
         .fetch_all(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     for id in shelves {
         let _ = tokio::fs::remove_file(state.data_dir.join("shelf_covers").join(id.to_string())).await;
     }
-    let _ = tokio::fs::remove_file(avatar_path(&state, user.0.id)).await;
-    let _ = tokio::fs::remove_dir_all(state.data_dir.join("exports").join(user.0.id.to_string())).await;
+    let _ = tokio::fs::remove_file(avatar_path(&state, user_id)).await;
+    let _ = tokio::fs::remove_dir_all(state.data_dir.join("exports").join(user_id.to_string())).await;
 
     // Everything else (shelves, sessions, progress, follows, exports) cascades.
     sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(user.0.id)
+        .bind(user_id)
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
     state.fed.wake.notify_one();
-    crate::audit::log(
-        &state,
-        Some((user.0.id, user.0.username.as_str())),
-        "user.deleted",
-        serde_json::json!({ "username": user.0.username, "books": books.len() }),
-    )
-    .await;
-    tracing::info!("account {} deleted ({} books)", user.0.username, books.len());
-    let mut removal = axum_extra::extract::cookie::Cookie::from(auth::SESSION_COOKIE);
-    removal.set_path("/");
-    Ok(jar.remove(removal))
+    tracing::info!("account {username} deleted ({} books)", books.len());
+    Ok(books.len())
 }
 
 #[cfg(test)]

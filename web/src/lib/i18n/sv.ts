@@ -1221,4 +1221,9 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'log.account.emailConfirm': "bad om att byta e-postadress",
 	'log.account.emailSet': "angav en e-postadress",
 	'log.account.emailRemoved': "tog bort sin e-postadress",
+	'adminUsers.delete': "Ta bort konto",
+	'adminUsers.deleteTitle': "Ta bort {username}s konto?",
+	'adminUsers.deleteConfirm': "{username}s konto tas bort för gott, med sina {books} böcker, {shelves} hyllor, understrykningar, anteckningar och läsning. Federerade hyllor dras tillbaka. Det går inte att ångra.",
+	'adminUsers.deleteFailed': "Kontot kunde inte tas bort.",
+	'log.user.deleted_by_admin': "tog bort kontot {username} ({books} böcker)",
 };

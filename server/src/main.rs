@@ -174,6 +174,7 @@ fn router(state: AppState) -> Router {
         .route("/admin/settings", get(admin::get_settings).put(admin::update_settings))
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))
+        .route("/admin/users/{id}", axum::routing::delete(admin::delete_user))
         .route("/admin/users/{id}/admin", axum::routing::put(admin::set_admin))
         .route("/admin/users/{id}/reset", post(register::admin_reset))
         .route("/admin/test-mail", post(admin::test_mail))

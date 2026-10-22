@@ -1206,4 +1206,9 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'log.account.emailConfirm': "hat eine Änderung der E-Mail-Adresse angefordert",
 	'log.account.emailSet': "hat eine E-Mail-Adresse angegeben",
 	'log.account.emailRemoved': "hat die E-Mail-Adresse entfernt",
+	'adminUsers.delete': "Konto löschen",
+	'adminUsers.deleteTitle': "Das Konto von {username} löschen?",
+	'adminUsers.deleteConfirm': "Das Konto von {username} wird endgültig gelöscht, mit seinen {books} Büchern, {shelves} Regalen, Markierungen, Notizen und dem Lesestand. Föderierte Regale werden zurückgezogen. Das lässt sich nicht rückgängig machen.",
+	'adminUsers.deleteFailed': "Das Konto konnte nicht gelöscht werden.",
+	'log.user.deleted_by_admin': "hat das Konto {username} gelöscht ({books} Bücher)",
 };

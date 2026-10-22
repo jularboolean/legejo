@@ -304,6 +304,41 @@ pub async fn set_admin(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// DELETE /api/admin/users/{id}: another user's account and everything in
+/// it, as when they delete it themselves. One's own account is deleted on
+/// the account page, with one's password.
+pub async fn delete_user(
+    State(state): State<AppState>,
+    admin: AdminUser,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<StatusCode, Response> {
+    if id == admin.0.id {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "delete your own account on the account page" })),
+        )
+            .into_response());
+    }
+    let name: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let Some(name) = name else {
+        return Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))).into_response());
+    };
+    let books = crate::account::remove_user(&state, id, &name).await?;
+    tracing::info!("admin: {} deleted the account of {name}", admin.0.username);
+    crate::audit::log(
+        &state,
+        crate::audit::by(&admin.0),
+        "user.deleted_by_admin",
+        serde_json::json!({ "user_id": id, "username": name, "books": books }),
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// What every logged-in user may know about the instance; the frontend uses
 /// it to show or hide features.
 #[derive(Serialize)]

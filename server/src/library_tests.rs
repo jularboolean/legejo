@@ -290,6 +290,40 @@ async fn deleting_an_account_takes_everything() {
 }
 
 #[tokio::test]
+async fn an_admin_can_delete_another_users_account_with_everything_in_it() {
+    let (app, db, state) = test_app().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (admin, admin_cookie) = add_user(&db, "chef").await;
+    let (_, bob_cookie) = add_user(&db, "bob").await;
+    sqlx::query("UPDATE users SET is_admin = 1 WHERE id = ?").bind(admin).execute(&db).await.unwrap();
+    let v = upload(&app, &cookie, &[("a.epub", epub("Röda rummet", "id-a"))], "").await;
+    let uuid = v["added"][0]["uuid"].as_str().unwrap().to_string();
+    send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": "Min hylla" }))).await;
+    let uri = format!("/api/admin/users/{alice}");
+
+    // Not by anyone, not oneself, not someone who is not there.
+    let (status, _) = send(&app, Method::DELETE, &uri, Some(&bob_cookie), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = send(&app, Method::DELETE, &format!("/api/admin/users/{admin}"), Some(&admin_cookie), None).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "one's own account is deleted on the account page");
+    let (status, _) = send(&app, Method::DELETE, "/api/admin/users/9999", Some(&admin_cookie), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = send(&app, Method::DELETE, &uri, Some(&admin_cookie), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    for (table, col) in [("users", "id"), ("books", "owner_id"), ("shelves", "owner_id"), ("sessions", "user_id")] {
+        let n: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE {col} = ?")).bind(alice).fetch_one(&db).await.unwrap();
+        assert_eq!(n, 0, "{table}");
+    }
+    assert!(!state.data_dir.join("books").join(format!("{uuid}.epub")).exists());
+    let (status, _) = send(&app, Method::GET, "/api/books", Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "logged out everywhere");
+    let (_, log) = send(&app, Method::GET, "/api/admin/log", Some(&admin_cookie), None).await;
+    let entry = log["entries"].as_array().unwrap().iter().find(|e| e["action"] == "user.deleted_by_admin").expect("logged");
+    assert_eq!((entry["actor_name"].clone(), entry["details"]["username"].clone(), entry["details"]["books"].clone()), (json!("chef"), json!("alice"), json!(1)));
+}
+
+#[tokio::test]
 async fn edition_date_and_first_published_year() {
     let (app, db, state) = test_app().await;
     let (alice, cookie) = add_user(&db, "alice").await;
