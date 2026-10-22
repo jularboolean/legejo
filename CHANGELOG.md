@@ -4,6 +4,24 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.28.0 (2026-10-22)
+
+- **A closer look at books on other instances.** On a shelf you follow by
+  link, and on the Fediverse page, press a book's cover or title to see
+  what its instance knows about it: publisher, when it was published,
+  language and the whole description, and for federated books also the
+  series, the first year it appeared, the license and a link to the book's
+  page there. Instances need this release to send all of it.
+- **Descriptions without stray HTML.** A shared shelf no longer shows
+  descriptions as raw code such as `<p><b>…`; the short text is plain and
+  the closer look shows the description as written.
+- **Search looks on other instances too.** Below your own results,
+  *On other instances* lists matching books on shelves you follow by link
+  or on the Fediverse, each with a button to add it to your library.
+- **The right cover for a followed shelf.** A shelf from another instance
+  shows the cover it has there, not a different one.
+- **The suggested shelves moved** to gufujo.legejo.se.
+
 ## 1.27.0 (2026-10-22)
 
 - **An admin can delete accounts.** On the admin page, under Users,

@@ -256,7 +256,9 @@ kovrilo, sekvu la ligilon al la redaktopaĝo.</p>""",
   """<p>Premu <code>/</code> ie ajn ekster tekstokampo, aŭ elektu <strong>Serĉi</strong>,
 kaj tajpu.</p>""",
   """<p>La serĉo trairas la katalogon: titolojn, aŭtorojn, priskribojn kaj etikedojn. Ĝi trovas ankaŭ
-librojn sur bretoj, kiujn aliaj kunhavigas kun vi.</p>
+librojn sur bretoj, kiujn aliaj kunhavigas kun vi, kaj, sub <strong>Ĉe aliaj instancoj</strong>,
+librojn sur la bretoj el aliaj Legejo-instancoj, kiujn vi sekvas, ĉiu kun butono por aldoni ĝin al
+via biblioteko.</p>
 <p>Kie tiu, kiu funkciigas la instancon, agordis <code>LEGEJO_FULLTEXT=true</code>, marku <strong>Serĉi
 en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
 la trafaj fragmentoj; elektu unu por malfermi la libron kun la serĉo en ĝi. Ĉiu vorto devas aperi,
@@ -358,9 +360,10 @@ legaplikaĵoj, aldonita tie kiel katalogo. Viaj taksoj ne iras kune kun la libro
   """<p><em>Laŭvole: la sama administra agordo kiel en la antaŭa recepto.</em></p>
 <p>Malfermu <strong>Kunhavigitaj bretoj</strong>, kaj malsupre en la paĝo premu <strong>Sekvi breton
 el alia Legejo-instanco</strong>. Algluu la ligilon kaj premu <strong>Sekvi</strong>. La breto malfermiĝas kun siaj libroj; premu
-<strong>Aldoni al mia biblioteko</strong> ĉe tiuj, kiujn vi volas.</p>""",
-  """<p>La breto estas legata el sia ligilo ĉiufoje, kiam vi malfermas ĝin, do ĝi estas tia, kia ĝia
-posedanto havas ĝin nun. Libro, kiun vi aldonas, estas via propra kopio, kontrolita kaj riparita kiel
+<strong>Aldoni al mia biblioteko</strong> ĉe tiuj, kiujn vi volas. Premu la kovrilon aŭ titolon de
+libro por pli proksima rigardo: eldonejo, datoj, lingvo kaj la tuta priskribo.</p>""",
+  """<p>La breto estas legata el sia ligilo, kiam vi malfermas ĝin, do ĝi estas tia, kia ĝia
+posedanto havas ĝin, plus-minus kelkaj minutoj. Libro, kiun vi aldonas, estas via propra kopio, kontrolita kaj riparita kiel
 alŝutita libro, kaj ĝi restas via, kio ajn okazos al la ligilo.</p>
 <p>De tiam la breto estas listigita tie, sub <strong>Bretoj el aliaj Legejo-instancoj</strong>.
 La listo markas breton, kies instanco ne respondas, kaj breton, kies ligilo ne plu funkcias;
@@ -378,6 +381,9 @@ librojn elŝutas la servilo, neniam via retumilo.</p>"""),
 Libro, kies dosiero asertas kopirajton, estas markita kiel protektita de la komenco kaj restas hejme.</p>
 <p>Sekvo al aŭ de instanco, kiu ankoraŭ ne estas permesita, atendas la administranton, kiu vidas ĝin
 kiel peton. Sekvata breto, kies instanco ĉesas respondi, estas markita, kaj post semajno forigita.</p>
+<p>En la paĝo Fediverso, premu la kovrilon aŭ titolon de libro por tio, kion ĝia instanco scias pri
+ĝi: serio, kiam ĝi unue aperis, eldonejo, permesilo, la tuta priskribo, kaj ligilo al la paĝo de la
+libro tie.</p>
 <p>Por komenci, la paĝo Fediverso proponas kelkajn bretojn sekvindajn, inter ili kvin Esperantajn
 klasikaĵojn, kaj la langeto pri federacio en la paĝo Administrado proponas ilian instancon apud
 <strong>Konekti instancon</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> kaŝas ilin.</p>"""),

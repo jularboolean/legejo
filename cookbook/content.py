@@ -256,7 +256,9 @@ cover, follow the link to the edit page.</p>""",
   """<p>Press <code>/</code> anywhere outside a text field, or choose <strong>Search</strong>,
 and type.</p>""",
   """<p>The search covers the catalogue: titles, authors, descriptions and tags. It also finds books
-on shelves that others share with you.</p>
+on shelves that others share with you, and, under <strong>On other instances</strong>, books on
+the shelves from other Legejo instances that you follow, each with a button to add it to your
+library.</p>
 <p>Where whoever runs the instance has set <code>LEGEJO_FULLTEXT=true</code>, tick <strong>Search
 inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
 the passages that match; choose one to open the book with the search in it. Every word must occur, a
@@ -358,9 +360,10 @@ apps, added as a catalog there. Your ratings do not travel with the books.</p>
   """<p><em>Optional: the same admin setting as in the recipe before.</em></p>
 <p>Open <strong>Shared shelves</strong>, and at the bottom of the page press <strong>Follow a
 shelf from another Legejo instance</strong>. Paste the link and press <strong>Follow</strong>. The shelf opens with its books; press
-<strong>Add to my library</strong> on the ones you want.</p>""",
-  """<p>The shelf is read from its link each time you open it, so it is as its owner has it
-now. A book you add is a copy of your own, checked and repaired like an uploaded one, and it
+<strong>Add to my library</strong> on the ones you want. Press a book's cover or title for a
+closer look: publisher, dates, language and the whole description.</p>""",
+  """<p>The shelf is read from its link when you open it, so it is as its owner has it,
+give or take a few minutes. A book you add is a copy of your own, checked and repaired like an uploaded one, and it
 stays yours whatever happens to the link.</p>
 <p>From then on the shelf is listed there, under <strong>Shelves from other Legejo
 instances</strong>. The list marks a shelf whose instance is not answering, and one whose link no longer works,
@@ -378,6 +381,9 @@ are fetched by the server, never by your browser.</p>"""),
 A book whose file claims copyright is marked as protected from the start and stays home.</p>
 <p>A follow to or from an instance that is not yet allowed waits for the admin, who sees it as a
 request. A followed shelf whose instance stops answering is marked, and dropped after a week.</p>
+<p>On the Fediverse page, press a book's cover or title for what its instance knows about it:
+series, when it was first published, publisher, license, the whole description, and a link to the
+book's page there.</p>
 <p>To begin with, the Fediverse page suggests a couple of shelves worth following, among them five
 Esperanto classics, and the federation tab of the Admin page offers their instance beside
 <strong>Connect an instance</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> hides them.</p>"""),
