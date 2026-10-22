@@ -394,3 +394,46 @@ fn the_address_to_search_with_is_taken_over_a_description_of_it() {
     let feed = parse_feed(xml.as_bytes(), &base()).unwrap();
     assert_eq!(feed.search, Some(SearchLink { href: "https://books.example/opds/opensearch.xml".into(), template: false }));
 }
+
+/// An entry as an older Legejo wrote it: a description with HTML from the
+/// EPUB, called plain text.
+const HTML_AS_TEXT: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/" xmlns:opds="http://opds-spec.org/2010/catalog">
+  <id>x</id><title>Hylla</title>
+  <entry>
+    <title>The Ice Master</title>
+    <author><name>Jennifer Niven</name></author>
+    <dc:publisher>Hyperion</dc:publisher>
+    <dc:issued>2000</dc:issued>
+    <category term="History"/>
+    <summary type="text">&lt;p&gt;&lt;b&gt;The true, harrowing story&lt;/b&gt;&lt;br&gt;In the summer of 1913.&lt;/p&gt;</summary>
+    <link rel="http://opds-spec.org/acquisition" href="/b/1.epub" type="application/epub+zip"/>
+  </entry>
+</feed>"#;
+
+#[test]
+fn a_description_with_html_is_shown_as_text_in_short_and_kept_whole() {
+    let feed = parse_feed(HTML_AS_TEXT.as_bytes(), &base()).unwrap();
+    let book = &feed.entries[0];
+    assert_eq!(book.summary.as_deref(), Some("The true, harrowing story In the summer of 1913."));
+    assert_eq!(book.description.as_deref(), Some("<p><b>The true, harrowing story</b><br>In the summer of 1913.</p>"));
+    assert_eq!(book.publisher.as_deref(), Some("Hyperion"));
+    assert_eq!(book.issued.as_deref(), Some("2000"));
+    assert_eq!(book.categories, vec!["History".to_string()]);
+}
+
+#[tokio::test]
+async fn legejos_own_catalog_calls_an_html_description_html() {
+    let (_, db, _) = test_app().await;
+    let (alice, _) = add_user(&db, "alice").await;
+    let (book, _) = crate::testutil::add_book(&db, alice, "The Ice Master").await;
+    sqlx::query("UPDATE books SET description = '<p><b>True</b> story.</p>', publisher = 'Hyperion' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+    let book: crate::books::Book = sqlx::query_as(&format!("SELECT {} FROM books WHERE id = ?", crate::books::BOOK_COLUMNS))
+        .bind(book)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let entry = crate::opds::book_entry_under(&book, "/api/opds", true);
+    assert!(entry.contains(r#"<summary type="html">&lt;p&gt;&lt;b&gt;True&lt;/b&gt; story.&lt;/p&gt;</summary>"#), "{entry}");
+    assert!(entry.contains("<dc:publisher>Hyperion</dc:publisher>"), "{entry}");
+}

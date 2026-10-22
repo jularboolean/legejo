@@ -482,3 +482,93 @@ fn a_markdown_description_is_shown_safely() {
     assert!(!html.contains("<img") && html.contains("bild"), "{html}");
     assert!(html.contains("<strong>fet</strong>") && html.contains("&lt;b&gt;html"), "{html}");
 }
+
+#[tokio::test]
+async fn a_followed_shelf_tells_everything_its_instance_knows_about_each_book() {
+    let (app, db, state) = test_app_fed().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (book, uuid) = add_book(&db, alice, "Röda rummet").await;
+    free(&db, book).await;
+    sqlx::query(
+        "UPDATE books SET author = 'August Strindberg', description = 'En *roman* om Stockholm.', publisher = 'Bonniers',
+             series = 'Samlade verk', series_index = 6.5, category = 'Roman', first_published = 1879, published = '1912',
+             file_sha256 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' WHERE id = ?",
+    )
+    .bind(book)
+    .execute(&db)
+    .await
+    .unwrap();
+    set_mode(&db, "open").await;
+    let (_, v) = send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": "Klassiker" }))).await;
+    let shelf = v["id"].as_i64().unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(book).execute(&db).await.unwrap();
+    let fed = json!({ "name": "Klassiker", "visibility": "federated", "ap_slug": "alice-klassiker" });
+    let (status, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&cookie), Some(fed)).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+
+    // What the shelf sends.
+    let (_, page) = send(&app, Method::GET, "/ap/shelves/alice-klassiker/outbox?page=1", None, None).await;
+    let object = page["orderedItems"][0]["object"].clone();
+    assert_eq!(object["description"], "En *roman* om Stockholm.");
+    assert_eq!((object["publisher"].clone(), object["series"].clone(), object["seriesIndex"].clone()), (json!("Bonniers"), json!("Samlade verk"), json!(6.5)));
+    assert_eq!((object["firstPublished"].clone(), object["editionDate"].clone()), (json!(1879), json!("1912")));
+
+    // What a following instance keeps of it, and shows its user.
+    let actor = "https://a.test/ap/shelves/alice-klassiker";
+    let incoming = crate::fed::remote::parse_book(actor, &object).unwrap();
+    crate::fed::remote::store_book(&state, actor, &incoming).await.unwrap();
+    let (bob, bob_cookie) = add_user(&db, "bob").await;
+    sqlx::query("INSERT INTO ap_follows (user_id, remote_actor_iri, state, created_at) VALUES (?, ?, 'accepted', '2026-10-22T00:00:00.000Z')")
+        .bind(bob)
+        .bind(actor)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (status, books) = send(&app, Method::GET, &format!("/api/fed/books?actor={actor}"), Some(&bob_cookie), None).await;
+    assert_eq!(status, StatusCode::OK, "{books}");
+    let b = &books[0];
+    assert_eq!(b["description"], "En *roman* om Stockholm.");
+    assert_eq!((b["publisher"].clone(), b["series"].clone(), b["series_index"].clone()), (json!("Bonniers"), json!("Samlade verk"), json!("6.5")));
+    assert_eq!((b["category"].clone(), b["first_published"].clone(), b["edition_date"].clone()), (json!("Roman"), json!(1879), json!("1912")));
+    assert_eq!(b["page_url"], format!("https://a.test/f/alice-klassiker/{uuid}"));
+}
+
+#[tokio::test]
+async fn the_books_of_followed_federated_shelves_are_searched() {
+    let (app, db, _) = test_app_fed().await;
+    set_mode(&db, "open").await;
+    let (bob, b) = add_user(&db, "bob").await;
+    let actor = "https://b.test/ap/shelves/klassiker";
+    sqlx::query("INSERT INTO ap_remote_actors (iri, domain, kind, name, fetched_at) VALUES (?, 'b.test', 'Service', 'Klassiker', '2026-10-22T00:00:00.000Z')").bind(actor).execute(&db).await.unwrap();
+    sqlx::query("INSERT INTO ap_follows (user_id, remote_actor_iri, state, created_at) VALUES (?, ?, 'accepted', '2026-10-22T00:00:00.000Z')")
+        .bind(bob)
+        .bind(actor)
+        .execute(&db)
+        .await
+        .unwrap();
+    for (n, title, author) in [(1, "La ĉambro", "Ludwik Zamenhof"), (2, "Röda rummet", "August Strindberg")] {
+        sqlx::query(
+            "INSERT INTO ap_remote_books (object_iri, shelf_actor_iri, title, author, license, license_source_url, epub_url, epub_sha256, epub_size, received_at)
+             VALUES (?, ?, ?, ?, 'pd', 'https://b.test/', 'https://b.test/x.epub', 'ab', 1, '2026-10-22T00:00:00.000Z')",
+        )
+        .bind(format!("https://b.test/ap/books/{n}"))
+        .bind(actor)
+        .bind(title)
+        .bind(author)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    for (q, want) in [("cxambro", "La ĉambro"), ("roda+strindberg", "Röda rummet"), ("zamenhof", "La ĉambro")] {
+        let (status, v) = send(&app, Method::GET, &format!("/api/search/elsewhere?q={q}"), Some(&b), None).await;
+        assert_eq!(status, StatusCode::OK, "{v}");
+        let hits = v["federated"].as_array().unwrap();
+        assert_eq!(hits.len(), 1, "{q}: {v}");
+        assert_eq!(hits[0]["book"]["title"], want);
+        assert_eq!((hits[0]["shelf_name"].clone(), hits[0]["host"].clone()), (json!("Klassiker"), json!("b.test")));
+    }
+    // Someone who does not follow the shelf finds nothing on it.
+    let (_, c) = add_user(&db, "cecilia").await;
+    let (_, v) = send(&app, Method::GET, "/api/search/elsewhere?q=cxambro", Some(&c), None).await;
+    assert_eq!(v["federated"], json!([]));
+}

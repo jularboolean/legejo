@@ -1211,4 +1211,10 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'adminUsers.deleteConfirm': "Käyttäjän {username} tili poistetaan pysyvästi, ja sen mukana {books} kirjaa, {shelves} hyllyä, korostukset, muistiinpanot ja lukeminen. Federoidut hyllyt vedetään pois. Tätä ei voi perua.",
 	'adminUsers.deleteFailed': "Tiliä ei voitu poistaa.",
 	'log.user.deleted_by_admin': "poisti käyttäjän {username} tilin ({books} kirjaa)",
+	'bookPeek.open': "Lisää teoksesta {title}",
+	'bookPeek.rights': "Oikeudet",
+	'bookPeek.onInstance': "Palvelimella {host}",
+	'search.elsewhere': "Muilla instansseilla",
+	'search.elsewhereOn': "Hyllyllä {shelf}, {host}",
+	'search.elsewhereShelf': "hylly",
 };

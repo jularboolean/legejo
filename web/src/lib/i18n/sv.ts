@@ -1226,4 +1226,10 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'adminUsers.deleteConfirm': "{username}s konto tas bort för gott, med sina {books} böcker, {shelves} hyllor, understrykningar, anteckningar och läsning. Federerade hyllor dras tillbaka. Det går inte att ångra.",
 	'adminUsers.deleteFailed': "Kontot kunde inte tas bort.",
 	'log.user.deleted_by_admin': "tog bort kontot {username} ({books} böcker)",
+	'bookPeek.open': "Mer om {title}",
+	'bookPeek.rights': "Rättigheter",
+	'bookPeek.onInstance': "På {host}",
+	'search.elsewhere': "Hos andra instanser",
+	'search.elsewhereOn': "På {shelf}, {host}",
+	'search.elsewhereShelf': "hyllan",
 };

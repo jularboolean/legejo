@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, Check, Download, UserPlus, X } from '@lucide/svelte';
+	import BookPeek from '#lib/BookPeek.svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { fedHost, formatSize } from '#lib/fed';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageLabel } from '#lib/library';
 	import { licenseName, reasonText } from '#lib/license';
-	import type { FedFollow, FollowState } from '#lib/types';
+	import type { FedBook, FedFollow, FollowState } from '#lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const selected = $derived(data.follows.find((f) => f.actor === data.actor) ?? null);
+	/** The book looked at more closely. */
+	let peek = $state<FedBook | null>(null);
 
 	const STATE_KEYS: Record<FollowState, Parameters<typeof t>[0]> = {
 		pending: 'fed.state.pending',
@@ -289,7 +293,7 @@
 						{#each data.books as book (book.object_iri)}
 							{@const localId = imported[book.object_iri] ?? book.imported_book_id}
 							<li class="book">
-								<div class="cover">
+								<button type="button" class="cover" onclick={() => (peek = book)} aria-label={t('bookPeek.open', { title: book.title })}>
 									{#if book.cover_url && !brokenCovers.has(book.object_iri)}
 										<img
 											src={book.cover_url}
@@ -301,13 +305,13 @@
 									{:else}
 										<span class="placeholder">{book.title}</span>
 									{/if}
-								</div>
+								</button>
 								<div class="info">
-									<span class="title">{book.title}</span>
+									<button type="button" class="title" onclick={() => (peek = book)}>{book.title}</button>
 									{#if book.author}<span class="author">{book.author}</span>{/if}
 									<span class="facts">
 										{#if book.license}<span>{licenseName(book.license)}</span>{/if}
-										{#if book.published}<span>{book.published.slice(0, 4)}</span>{/if}
+										{#if book.first_published ?? book.edition_date}<span>{book.first_published ?? book.edition_date?.slice(0, 4)}</span>{/if}
 										{#if book.language}<span>{book.language}</span>{/if}
 										{#if book.epub_size != null}<span>{formatSize(book.epub_size)}</span>{/if}
 										{#if book.license_source_url}
@@ -345,6 +349,48 @@
 			{/if}
 		</section>
 	</div>
+{/if}
+
+{#if peek}
+	{@const book = peek}
+	{@const localId = imported[book.object_iri] ?? book.imported_book_id}
+	<BookPeek
+		open
+		title={book.title}
+		author={book.author}
+		cover={book.cover_url}
+		description={book.description ?? book.summary}
+		facts={[
+			{ label: t('book.series'), value: book.series ? `${book.series}${book.series_index ? ` #${book.series_index}` : ''}` : null },
+			{ label: t('book.firstPublished'), value: book.first_published != null ? String(book.first_published) : null },
+			{ label: t('book.published'), value: book.edition_date },
+			{ label: t('book.publisher'), value: book.publisher },
+			{ label: t('book.language'), value: book.language ? languageLabel(book.language, getLocale()) : null },
+			{ label: t('edit.category'), value: book.category },
+			{ label: t('edit.isbn'), value: book.isbn },
+			{ label: t('book.license'), value: book.license ? licenseName(book.license) : null },
+			{ label: t('book.format'), value: book.epub_size != null ? `EPUB · ${formatSize(book.epub_size)}` : 'EPUB' }
+		]}
+		link={book.page_url ? { href: book.page_url, label: t('bookPeek.onInstance', { host: fedHost(book.page_url) }) } : null}
+		onclose={() => (peek = null)}
+	>
+		{#snippet actions()}
+			{#if localId != null}
+				<a class="done" href={`/books/${localId}`}>
+					<Check size={13} />
+					{imported[book.object_iri] != null ? t('fed.import.done') : t('fed.import.owned')}
+				</a>
+			{:else}
+				<button type="button" disabled={importing.has(book.object_iri)} onclick={() => importBook(book.object_iri)}>
+					<Download size={13} />
+					{importing.has(book.object_iri) ? t('fed.import.importing') : t('fed.import.button')}
+				</button>
+			{/if}
+			{#if book.license_source_url}
+				<a href={book.license_source_url} target="_blank" rel="noreferrer">{fedHost(book.license_source_url)} ↗</a>
+			{/if}
+		{/snippet}
+	</BookPeek>
 {/if}
 
 <ConfirmDialog
@@ -546,6 +592,8 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.cover {
+		padding: 0;
+		cursor: pointer;
 		aspect-ratio: 2 / 3;
 		border-radius: 2px 4px 4px 2px;
 		overflow: hidden;
@@ -574,8 +622,19 @@
 		min-width: 0;
 	}
 	.title {
+		align-self: flex-start;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--fg);
+		font: inherit;
 		font-weight: 600;
 		font-size: 0.95rem;
+		text-align: left;
+		cursor: pointer;
+	}
+	.title:hover {
+		text-decoration: underline;
 	}
 	.author {
 		font-size: 0.85rem;

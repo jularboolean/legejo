@@ -330,7 +330,19 @@ export type FedBook = {
 	author_death_year: number | null;
 	epub_size: number | null;
 	cover_url: string | null;
+	/** When the book was shared, not when it was published. */
 	published: string | null;
+	/** The whole description, as Markdown; absent from older instances. */
+	description?: string | null;
+	publisher?: string | null;
+	series?: string | null;
+	series_index?: string | null;
+	category?: string | null;
+	first_published?: number | null;
+	/** The date of this edition. */
+	edition_date?: string | null;
+	/** The book's page on its instance. */
+	page_url?: string | null;
 	imported_book_id: number | null;
 };
 
@@ -476,13 +488,25 @@ export type LinkedShelf = {
 	state: 'ok' | 'unreachable' | 'gone';
 	state_since: string | null;
 	created_at: string;
+	/** Whether the shelf has a picture of its own on its instance (/api/linked-shelves/{id}/cover). */
+	has_cover?: boolean;
+	/** Without one: which drawn cover it has there. */
+	cover_seed?: number | null;
 };
 
 /** A book on a shelf followed by link, as its feed gives it. */
 export type LinkedBook = {
 	title: string;
 	authors: string[];
+	/** Short and plain, for the list. */
 	summary: string | null;
+	/** The whole description, HTML or text, to be shown with renderMarkdown. */
+	description?: string | null;
+	publisher?: string | null;
+	/** When the edition was published, as the other instance writes it. */
+	issued?: string | null;
+	categories?: string[];
+	rights?: string | null;
 	language: string | null;
 	cover: string | null;
 	files: { href: string; format: 'epub' | 'pdf' | 'cbz'; title: string | null; size: number | null }[];

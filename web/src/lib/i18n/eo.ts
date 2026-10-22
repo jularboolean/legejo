@@ -1226,4 +1226,10 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'adminUsers.deleteConfirm': "La konto de {username} estas forigata por ĉiam, kun siaj {books} libroj, {shelves} bretoj, markoj, notoj kaj legado. Ĝiaj federaciitaj bretoj estas retiritaj. Tio ne estas malfarebla.",
 	'adminUsers.deleteFailed': "La konto ne povis esti forigita.",
 	'log.user.deleted_by_admin': "forigis la konton de {username} ({books} libroj)",
+	'bookPeek.open': "Pli pri {title}",
+	'bookPeek.rights': "Rajtoj",
+	'bookPeek.onInstance': "Ĉe {host}",
+	'search.elsewhere': "Ĉe aliaj instancoj",
+	'search.elsewhereOn': "Sur {shelf}, {host}",
+	'search.elsewhereShelf': "la breto",
 };

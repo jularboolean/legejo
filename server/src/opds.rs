@@ -149,6 +149,9 @@ pub(crate) fn book_entry_under(book: &Book, base: &str, with_series: bool) -> St
     if let Some(published) = &book.published {
         entry.push_str(&format!("<dc:issued>{}</dc:issued>\n", esc(published)));
     }
+    if let Some(publisher) = book.publisher.as_deref().filter(|p| !p.trim().is_empty()) {
+        entry.push_str(&format!("<dc:publisher>{}</dc:publisher>\n", esc(publisher)));
+    }
     if let Some(category) = &book.category {
         entry.push_str(&format!("<category term=\"{}\"/>\n", esc(category)));
     }
@@ -166,14 +169,19 @@ pub(crate) fn book_entry_under(book: &Book, base: &str, with_series: bool) -> St
     if let Some(rating) = book.rating {
         lead.push(format!("Rating: {rating}/5"));
     }
+    // A description from an EPUB is often HTML: then the summary says so,
+    // and readers show it as such rather than with its tags as text.
+    let html = book.description.as_deref().is_some_and(crate::catalogs::looks_like_html);
+    let lead = if html { lead.iter().map(|l| format!("<p>{}</p>", esc(l))).collect::<Vec<_>>() } else { lead };
     let summary = match (lead.is_empty(), &book.description) {
-        (false, Some(d)) => Some(format!("{}\n\n{d}", lead.join("\n"))),
+        (false, Some(d)) => Some(format!("{}{}{d}", lead.join(if html { "" } else { "\n" }), if html { "" } else { "\n\n" })),
         (false, None) => Some(lead.join("\n")),
         (true, Some(d)) => Some(d.clone()),
         (true, None) => None,
     };
     if let Some(summary) = summary {
-        entry.push_str(&format!("<summary type=\"text\">{}</summary>\n", esc(&summary)));
+        let kind = if html { "html" } else { "text" };
+        entry.push_str(&format!("<summary type=\"{kind}\">{}</summary>\n", esc(&summary)));
     }
     if let Some(name) = book.series.as_deref().filter(|s| !s.trim().is_empty()).filter(|_| with_series) {
         entry.push_str(&format!(

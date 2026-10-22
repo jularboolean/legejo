@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Elsewhere from './Elsewhere.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { BookOpen, Check, Download, Headphones, Search } from '@lucide/svelte';
 	import { formatLength } from '#lib/audio';
@@ -76,8 +77,10 @@
 
 	const result = $derived(data.result);
 	const text = $derived(data.text);
+	let elsewhere = $state(0);
 	const nothing = $derived(
 		data.q !== '' &&
+			elsewhere === 0 &&
 			(text?.books.length ?? 0) === 0 &&
 			(text?.shared.length ?? 0) === 0 &&
 			result.mine.length === 0 &&
@@ -367,6 +370,8 @@
 		{/if}
 	</section>
 {/if}
+
+{#if !data.inText}<Elsewhere q={data.q} bind:found={elsewhere} />{/if}
 
 {#if result.shelves.length > 0}
 	<section>

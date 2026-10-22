@@ -1211,4 +1211,10 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'adminUsers.deleteConfirm': "La cuenta de {username} se elimina para siempre, con sus {books} libros, {shelves} estanterías, subrayados, notas y lecturas. Sus estanterías federadas se retiran. No se puede deshacer.",
 	'adminUsers.deleteFailed': "No se pudo eliminar la cuenta.",
 	'log.user.deleted_by_admin': "eliminó la cuenta de {username} ({books} libros)",
+	'bookPeek.open': "Más sobre {title}",
+	'bookPeek.rights': "Derechos",
+	'bookPeek.onInstance': "En {host}",
+	'search.elsewhere': "En otras instancias",
+	'search.elsewhereOn': "En {shelf}, {host}",
+	'search.elsewhereShelf': "la estantería",
 };

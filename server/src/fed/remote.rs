@@ -137,6 +137,21 @@ pub struct IncomingBook {
     pub epub_size: i64,
     pub cover_url: Option<String>,
     pub published: Option<String>,
+    pub details: BookDetails,
+}
+
+/// What a sending Legejo tells about a book beyond what the gate needs.
+#[derive(Debug, Clone, Default)]
+pub struct BookDetails {
+    pub description: Option<String>,
+    pub publisher: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<String>,
+    pub category: Option<String>,
+    pub first_published: Option<i64>,
+    pub edition_date: Option<String>,
+    /// The book's own page on its instance.
+    pub page_url: Option<String>,
 }
 
 /// Validate a Page object from `shelf_actor`. Err(reason) when refused.
@@ -174,6 +189,24 @@ pub fn parse_book(shelf_actor: &str, object: &Value) -> Result<IncomingBook, Str
     let epub_size = epub.get("size").and_then(Value::as_i64).ok_or("EPUB without size")?;
     let cover_url = object.get("icon").and_then(|i| i.get("url")).and_then(id_of).filter(|u| u.starts_with("https://") || u.starts_with("http://"));
     let title = s("name").filter(|t| !t.trim().is_empty()).ok_or("book without title")?;
+    let cut = |k: &str, n: usize| s(k).map(|v| v.trim().chars().take(n).collect::<String>()).filter(|v| !v.is_empty());
+    let page_url = links
+        .iter()
+        .find(|l| l.get("mediaType").and_then(Value::as_str) == Some("text/html"))
+        .and_then(|l| l.get("href").and_then(Value::as_str))
+        .filter(|u| u.starts_with("https://") || u.starts_with("http://"))
+        .filter(|u| super::domain_of(u) == actor_domain)
+        .map(str::to_string);
+    let details = BookDetails {
+        description: cut("description", 20_000),
+        publisher: cut("publisher", 500),
+        series: cut("series", 500),
+        series_index: object.get("seriesIndex").and_then(Value::as_f64).filter(|n| n.is_finite()).map(|n| n.to_string()),
+        category: cut("category", 200),
+        first_published: object.get("firstPublished").and_then(Value::as_i64),
+        edition_date: cut("editionDate", 50),
+        page_url,
+    };
     Ok(IncomingBook {
         object_iri,
         title: title.chars().take(500).collect(),
@@ -189,6 +222,7 @@ pub fn parse_book(shelf_actor: &str, object: &Value) -> Result<IncomingBook, Str
         epub_size,
         cover_url,
         published: s("published"),
+        details,
     })
 }
 
@@ -196,13 +230,18 @@ pub fn parse_book(shelf_actor: &str, object: &Value) -> Result<IncomingBook, Str
 pub async fn store_book(state: &AppState, shelf_actor: &str, b: &IncomingBook) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO ap_remote_books (object_iri, shelf_actor_iri, title, author, language, isbn, summary, license,
-             license_source_url, author_death_year, epub_url, epub_sha256, epub_size, cover_url, published, received_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CAST($10 AS BIGINT), $11, $12, $13, $14, $15, $16)
+             license_source_url, author_death_year, epub_url, epub_sha256, epub_size, cover_url, published, received_at,
+             description, publisher, series, series_index, category, first_published, edition_date, page_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CAST($10 AS BIGINT), $11, $12, $13, $14, $15, $16,
+                 $17, $18, $19, $20, $21, CAST($22 AS BIGINT), $23, $24)
          ON CONFLICT (object_iri) DO UPDATE SET title = excluded.title, author = excluded.author,
              language = excluded.language, isbn = excluded.isbn, summary = excluded.summary, license = excluded.license,
              license_source_url = excluded.license_source_url, author_death_year = excluded.author_death_year,
              epub_url = excluded.epub_url, epub_sha256 = excluded.epub_sha256, epub_size = excluded.epub_size,
-             cover_url = excluded.cover_url, deleted_at = NULL
+             cover_url = excluded.cover_url, description = excluded.description, publisher = excluded.publisher,
+             series = excluded.series, series_index = excluded.series_index, category = excluded.category,
+             first_published = excluded.first_published, edition_date = excluded.edition_date,
+             page_url = excluded.page_url, deleted_at = NULL
          WHERE ap_remote_books.shelf_actor_iri = excluded.shelf_actor_iri",
     )
     .bind(&b.object_iri)
@@ -221,6 +260,14 @@ pub async fn store_book(state: &AppState, shelf_actor: &str, b: &IncomingBook) -
     .bind(&b.cover_url)
     .bind(&b.published)
     .bind(now_ts())
+    .bind(&b.details.description)
+    .bind(&b.details.publisher)
+    .bind(&b.details.series)
+    .bind(&b.details.series_index)
+    .bind(&b.details.category)
+    .bind(b.details.first_published.map(|y| y.to_string()))
+    .bind(&b.details.edition_date)
+    .bind(&b.details.page_url)
     .execute(&state.db)
     .await?;
     Ok(())
@@ -241,6 +288,11 @@ pub async fn followed(state: &AppState, shelf_actor: &str) -> bool {
 pub async fn backfill(state: AppState, shelf_actor: String) {
     let Ok(actor) = actor(&state, &shelf_actor).await else { return };
     let Some(outbox) = actor.outbox else { return };
+    let _ = sqlx::query("UPDATE ap_remote_actors SET outbox_read_at = $1 WHERE iri = $2")
+        .bind(now_ts())
+        .bind(&shelf_actor)
+        .execute(&state.db)
+        .await;
     let mut next = match net::get_json(&state, &outbox).await {
         Ok(collection) => {
             if let Some(items) = collection.get("orderedItems").and_then(Value::as_array) {
@@ -595,7 +647,75 @@ pub struct RemoteBook {
     epub_size: i64,
     cover_url: Option<String>,
     published: Option<String>,
+    /// The whole description, Markdown as the sending instance has it.
+    description: Option<String>,
+    publisher: Option<String>,
+    series: Option<String>,
+    series_index: Option<String>,
+    category: Option<String>,
+    first_published: Option<i64>,
+    /// The date of this edition, as opposed to `published`, when it was shared.
+    edition_date: Option<String>,
+    /// The book's page on its instance.
+    page_url: Option<String>,
     imported_book_id: Option<i64>,
+}
+
+/// A book on a followed shelf that a search found, with the shelf it is on.
+#[derive(Serialize)]
+pub struct FoundBook {
+    actor: String,
+    shelf_name: Option<String>,
+    host: String,
+    book: RemoteBook,
+}
+
+/// The books on the federated shelves the user follows that match every
+/// word of a search, in title, author, series or category. The shelves are
+/// kept here, so this is a look at the database; few enough to match in
+/// memory, folded.
+pub(crate) async fn search_followed(state: &AppState, user_id: i64, words: &[Vec<String>], limit: usize) -> Result<Vec<FoundBook>, Response> {
+    if super::active(state).await.is_none() {
+        return Ok(Vec::new());
+    }
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        actor: String,
+        shelf_name: Option<String>,
+        #[sqlx(flatten)]
+        book: RemoteBook,
+    }
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT r.shelf_actor_iri AS actor, a.name AS shelf_name,
+                r.object_iri, r.title, r.author, r.language, r.isbn, r.summary, r.license, r.license_source_url,
+                r.author_death_year, r.epub_size, r.cover_url, r.published, r.description, r.publisher, r.series,
+                r.series_index, r.category, r.first_published, r.edition_date, r.page_url,
+                (SELECT MIN(b.id) FROM books b WHERE b.owner_id = $1 AND b.fed_source = r.object_iri) AS imported_book_id
+         FROM ap_remote_books r
+         JOIN ap_follows f ON f.remote_actor_iri = r.shelf_actor_iri AND f.user_id = $1
+         LEFT JOIN ap_remote_actors a ON a.iri = r.shelf_actor_iri
+         WHERE r.deleted_at IS NULL
+         ORDER BY LOWER(r.title)",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| {
+            let b = &r.book;
+            let text = [Some(&b.title), b.author.as_ref(), b.series.as_ref(), b.category.as_ref()]
+                .into_iter()
+                .flatten()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(" ");
+            crate::search::matches(words, &crate::search::fold(&text))
+        })
+        .take(limit)
+        .map(|r| FoundBook { host: super::domain_of(&r.actor).unwrap_or_default(), actor: r.actor, shelf_name: r.shelf_name, book: r.book })
+        .collect())
 }
 
 async fn user_follows(state: &AppState, user_id: i64, actor: &str) -> Result<bool, Response> {
@@ -621,9 +741,20 @@ pub async fn books(
         let (state, actor) = (state.clone(), q.actor.clone());
         tokio::spawn(async move { super::requests::check_if_stale(&state, &actor, 10).await });
     }
+    // Read the outbox again now and then, so that books received before
+    // their instance sent the details of a book get them too.
+    let read: Option<Option<String>> = sqlx::query_scalar("SELECT outbox_read_at FROM ap_remote_actors WHERE iri = $1")
+        .bind(&q.actor)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(internal)?;
+    if read.is_some_and(|at| at.is_none_or(|at| at < crate::db::ts_in_hours(-24))) {
+        tokio::spawn(backfill(state.clone(), q.actor.clone()));
+    }
     let books: Vec<RemoteBook> = sqlx::query_as(
         "SELECT r.object_iri, r.title, r.author, r.language, r.isbn, r.summary, r.license, r.license_source_url,
-                r.author_death_year, r.epub_size, r.cover_url, r.published,
+                r.author_death_year, r.epub_size, r.cover_url, r.published, r.description, r.publisher, r.series,
+                r.series_index, r.category, r.first_published, r.edition_date, r.page_url,
                 (SELECT MIN(b.id) FROM books b WHERE b.owner_id = $1 AND b.fed_source = r.object_iri) AS imported_book_id
          FROM ap_remote_books r
          WHERE r.shelf_actor_iri = $2 AND r.deleted_at IS NULL

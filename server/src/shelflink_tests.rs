@@ -300,3 +300,74 @@ async fn a_followed_link_is_a_shelf_among_those_shared_with_you() {
     let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
     assert_eq!(v.as_array().unwrap().len(), 0);
 }
+
+#[tokio::test]
+async fn a_linked_shelf_shows_each_book_whole_and_is_searched() {
+    let (app, db, state) = test_app_private().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let there = format!("http://{}", listener.local_addr().unwrap());
+    let served = app.clone();
+    tokio::spawn(async move { axum::serve(listener, served).await.unwrap() });
+    let (alice, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    turn_on(&app, &db, &a).await;
+    let manual = crate::welcome::shelve(&state, alice).await.unwrap();
+    sqlx::query("UPDATE books SET author = 'Jennifer Niven', publisher = 'Hyperion', description = '<p><b>The true, harrowing story</b><br>of the Karluk.</p>' WHERE id = ?")
+        .bind(manual)
+        .execute(&db)
+        .await
+        .unwrap();
+    let shelf = shelf_with(&db, alice, "Arktis", Some("*Is* och snö."), &[manual]).await;
+    let (_, link) = send(&app, Method::POST, &format!("/api/shelves/{shelf}/links"), Some(&a), Some(json!({ "name": "Bob" }))).await;
+    let address = format!("{there}/api/opds/shared/{}", link["token"].as_str().unwrap());
+    let (status, v) = send(&app, Method::POST, "/api/linked-shelves", Some(&b), Some(json!({ "url": address }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{v}");
+    let id = v["id"].as_i64().unwrap();
+
+    // The list has it short and plain; the book's own view has it whole.
+    let (_, v) = send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
+    let book = &v["books"][0];
+    assert_eq!(book["summary"], "The true, harrowing story of the Karluk.");
+    assert_eq!(book["description"], "<p><b>The true, harrowing story</b><br>of the Karluk.</p>");
+    assert_eq!(book["publisher"], "Hyperion");
+
+    // Found by a search, by author too, without accents or case.
+    for q in ["niven", "legejo%20COOKBOOK", "karluk"] {
+        let (status, v) = send(&app, Method::GET, &format!("/api/search/elsewhere?q={q}"), Some(&b), None).await;
+        assert_eq!(status, StatusCode::OK, "{v}");
+        let hits = v["linked"].as_array().unwrap();
+        if q == "karluk" {
+            assert!(hits.is_empty(), "the description is not searched: {v}");
+            continue;
+        }
+        assert_eq!(hits.len(), 1, "{q}: {v}");
+        assert_eq!((hits[0]["shelf_id"].as_i64(), hits[0]["shelf_title"].clone()), (Some(id), json!("Arktis")));
+        assert_eq!(hits[0]["book"]["title"], "The Legejo Cookbook");
+    }
+    let (_, v) = send(&app, Method::GET, "/api/search/elsewhere?q=nothing+like+it", Some(&b), None).await;
+    assert_eq!(v, json!({ "linked": [], "federated": [] }));
+
+    // The shelf looks the same here as there: the drawn cover its own id picks there...
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!((v[0]["has_cover"].clone(), v[0]["cover_seed"].clone()), (json!(false), json!(shelf)));
+    assert!(v[0].get("cover_url").is_none(), "the address stays on the server");
+    // ...or its own picture, fetched by way of this server once the shelf has one.
+    let png = {
+        let mut out = Vec::new();
+        image::DynamicImage::new_rgb8(4, 6).write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).unwrap();
+        out
+    };
+    std::fs::create_dir_all(state.data_dir.join("shelf_covers")).unwrap();
+    std::fs::write(state.data_dir.join("shelf_covers").join(shelf.to_string()), &png).unwrap();
+    sqlx::query("UPDATE shelves SET cover_mime = 'image/png' WHERE id = ?").bind(shelf).execute(&db).await.unwrap();
+    send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
+    let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;
+    assert_eq!(v[0]["has_cover"], true);
+    let res = app
+        .clone()
+        .oneshot(Request::builder().uri(format!("/api/linked-shelves/{id}/cover")).header(header::COOKIE, &b).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()[header::CONTENT_TYPE], "image/png");
+}

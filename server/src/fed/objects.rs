@@ -154,6 +154,15 @@ pub fn book_object(c: &FedConfig, slug: &str, b: &OutBook) -> Value {
         "licenseSource": book.license_source_url,
         "authorDeathYear": book.author_death_year,
         "isbn": book.isbn,
+        // For a Legejo that follows the shelf: what a book page of its own
+        // shows. Other software ignores what it does not know.
+        "description": book.description,
+        "publisher": book.publisher,
+        "series": book.series,
+        "seriesIndex": book.series_index,
+        "category": book.category,
+        "firstPublished": book.first_published,
+        "editionDate": book.published,
         "to": [super::AS_PUBLIC],
         "cc": [format!("{shelf}/followers")],
     })

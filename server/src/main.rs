@@ -268,6 +268,7 @@ fn router(state: AppState) -> Router {
         .route("/linked-shelves", get(shelflinks::linked_list).post(shelflinks::follow))
         .route("/linked-shelves/{id}", get(shelflinks::linked_shelf).delete(shelflinks::unfollow))
         .route("/linked-shelves/{id}/image", get(shelflinks::linked_image))
+        .route("/linked-shelves/{id}/cover", get(shelflinks::linked_cover))
         .route("/linked-shelves/{id}/import", post(shelflinks::linked_import))
         .route("/authors/facts", get(authorfacts::line))
         .route("/authors/facts/hidden", post(authorfacts::hide).delete(authorfacts::unhide))
@@ -280,6 +281,7 @@ fn router(state: AppState) -> Router {
         .route("/fed/follows", get(fed::remote::list_follows).post(fed::remote::follow).delete(fed::remote::unfollow))
         .route("/fed/books", get(fed::remote::books))
         .route("/fed/suggestions", get(fed::remote::suggestions))
+        .route("/search/elsewhere", get(shelflinks::search_elsewhere))
         .route("/fed/import", post(fed::remote::import))
         .route("/admin/federation", get(fed::admin::get_settings).put(fed::admin::update_settings))
         .route("/admin/federation/instances", get(fed::admin::list_instances))
@@ -326,6 +328,7 @@ fn router(state: AppState) -> Router {
         .route("/series/{name}", get(opds::series))
         // A shelf by its private link: no login, the token is the key.
         .route("/shared/{token}", get(shelflinks::feed))
+        .route("/shared/{token}/cover", get(shelflinks::shelf_cover))
         .route("/shared/{token}/books/{id}/cover", get(shelflinks::cover))
         .route("/shared/{token}/books/{id}/file", get(shelflinks::file))
         .layer(axum::middleware::from_fn_with_state(state.clone(), ratelimit::basic));

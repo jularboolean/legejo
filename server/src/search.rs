@@ -230,6 +230,33 @@ pub(crate) async fn all_shared_books(state: &AppState, user_id: i64, limit: usiz
     .map_err(|e| internal(e.into()))
 }
 
+/// Text as searches compare it: lowercase, without accents ("Lagerlöf" as
+/// "lagerlof"), for matching in memory where no index does it.
+pub(crate) fn fold(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    text.nfd().filter(|c| !unicode_normalization::char::is_combining_mark(*c)).collect::<String>().to_lowercase()
+}
+
+/// The words of a query, each with the forms it may be written in: folded,
+/// and as Esperanto when typed in the x-system.
+pub(crate) fn query_words(raw: &str) -> Vec<Vec<String>> {
+    raw.split_whitespace()
+        .map(|w| {
+            let mut forms = vec![fold(w)];
+            if let Some(alt) = crate::esperanto::supersigned(w) {
+                forms.push(fold(&alt));
+            }
+            forms
+        })
+        .filter(|forms| !forms[0].is_empty())
+        .collect()
+}
+
+/// Whether every word of the query is somewhere in the text (folded).
+pub(crate) fn matches(words: &[Vec<String>], folded: &str) -> bool {
+    !words.is_empty() && words.iter().all(|forms| forms.iter().any(|f| folded.contains(f.as_str())))
+}
+
 /// `raw` as a LIKE pattern in which its own wildcards match themselves.
 fn like_pattern(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")

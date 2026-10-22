@@ -1211,4 +1211,10 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'adminUsers.deleteConfirm': "Das Konto von {username} wird endgültig gelöscht, mit seinen {books} Büchern, {shelves} Regalen, Markierungen, Notizen und dem Lesestand. Föderierte Regale werden zurückgezogen. Das lässt sich nicht rückgängig machen.",
 	'adminUsers.deleteFailed': "Das Konto konnte nicht gelöscht werden.",
 	'log.user.deleted_by_admin': "hat das Konto {username} gelöscht ({books} Bücher)",
+	'bookPeek.open': "Mehr über {title}",
+	'bookPeek.rights': "Rechte",
+	'bookPeek.onInstance': "Auf {host}",
+	'search.elsewhere': "Auf anderen Instanzen",
+	'search.elsewhereOn': "Auf {shelf}, {host}",
+	'search.elsewhereShelf': "zum Regal",
 };

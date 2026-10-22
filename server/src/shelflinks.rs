@@ -239,6 +239,19 @@ pub async fn feed(State(state): State<AppState>, Path(token): Path<String>) -> R
     if let Some(description) = shared.description.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
         xml.push_str(&format!("<subtitle>{}</subtitle>\n", esc(description)));
     }
+    // The shelf's cover, so that it looks the same where it is followed:
+    // its own picture, or which of the drawn ones it has.
+    let cover: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM shelves WHERE id = $1")
+        .bind(shared.shelf_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(internal)?
+        .flatten();
+    if cover.is_some() {
+        xml.push_str(&format!("<logo>{}</logo>\n", esc(&format!("{base}/cover"))));
+    } else {
+        xml.push_str(&format!("<legejo:coverSeed xmlns:legejo=\"https://legejo.se/ns\">{}</legejo:coverSeed>\n", shared.shelf_id));
+    }
     for book in &mut books {
         // Without the owner's rating: that is theirs, not the book's.
         book.rating = None;
@@ -265,6 +278,22 @@ async fn shared_book(state: &AppState, token: &str, book_id: i64) -> Result<(Str
     .await
     .map_err(internal)?;
     row.ok_or_else(|| StatusCode::NOT_FOUND.into_response())
+}
+
+/// GET /api/opds/shared/{token}/cover: the shelf's own picture.
+pub async fn shelf_cover(State(state): State<AppState>, Path(token): Path<String>) -> Result<Response, Response> {
+    let shared = shared(&state, &token).await?;
+    let mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM shelves WHERE id = $1")
+        .bind(shared.shelf_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(internal)?
+        .flatten();
+    let mime = mime.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
+    let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(shared.shelf_id.to_string()))
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND.into_response())?;
+    Ok((crate::images::headers(&mime), data).into_response())
 }
 
 /// GET /api/opds/shared/{token}/books/{id}/cover
@@ -313,9 +342,27 @@ pub struct Linked {
     #[serde(skip)]
     checked_at: Option<String>,
     created_at: String,
+    /// The shelf's own picture on its instance; the page gets it by way of
+    /// this server (`has_cover`), never its address.
+    #[serde(skip)]
+    cover_url: Option<String>,
+    #[sqlx(skip)]
+    has_cover: bool,
+    /// Without a picture: which drawn cover it has on its instance.
+    cover_seed: Option<i64>,
 }
 
-const LINKED_COLUMNS: &str = "id, title, description, url, state, state_since, checked_at, created_at";
+const LINKED_COLUMNS: &str = "id, title, description, url, state, state_since, checked_at, created_at, cover_url, cover_seed";
+
+/// What the feed says of the shelf's cover, kept with the shelf.
+async fn keep_cover(state: &AppState, id: i64, feed: &catalogs::Feed) {
+    let _ = sqlx::query("UPDATE linked_shelves SET cover_url = $1, cover_seed = CAST($2 AS BIGINT) WHERE id = $3")
+        .bind(&feed.logo)
+        .bind(feed.cover_seed.map(|s| s.to_string()))
+        .bind(id)
+        .execute(&state.db)
+        .await;
+}
 /// How long what is known about a shelf holds before the list asks again.
 const CHECK_EVERY_MINUTES: i64 = 5;
 /// The list's own asking is done in the background, and does not wait long.
@@ -385,6 +432,7 @@ async fn followed(state: &AppState, user_id: i64, id: i64) -> Result<Linked, Res
         .map_err(internal)?;
     let mut linked = row.ok_or_else(not_found)?;
     linked.host = host_of(&linked.url);
+    linked.has_cover = linked.cover_url.is_some();
     Ok(linked)
 }
 
@@ -428,6 +476,7 @@ pub async fn linked_list(State(state): State<AppState>, user: AuthUser) -> Resul
     }
     for row in &mut rows {
         row.host = host_of(&row.url);
+        row.has_cover = row.cover_url.is_some();
     }
     Ok(Json(rows))
 }
@@ -479,8 +528,25 @@ pub async fn follow(State(state): State<AppState>, user: AuthUser, Json(req): Js
         .fetch_one(&state.db)
         .await
         .map_err(internal)?;
+    keep_cover(&state, id, &feed).await;
     crate::audit::log(&state, crate::audit::by(&user.0), "shelf.link_followed", json!({ "shelf": title, "host": host_of(&url) })).await;
-    Ok((StatusCode::CREATED, Json(Linked { id, title, description: feed.subtitle, host: host_of(&url), url, state: "ok".into(), state_since: None, checked_at: Some(now.clone()), created_at: now })))
+    Ok((
+        StatusCode::CREATED,
+        Json(Linked {
+            id,
+            title,
+            description: feed.subtitle,
+            host: host_of(&url),
+            url,
+            state: "ok".into(),
+            state_since: None,
+            checked_at: Some(now.clone()),
+            created_at: now,
+            has_cover: feed.logo.is_some(),
+            cover_url: feed.logo,
+            cover_seed: feed.cover_seed,
+        }),
+    ))
 }
 
 /// DELETE /api/linked-shelves/{id}
@@ -496,6 +562,93 @@ pub async fn unfollow(State(state): State<AppState>, user: AuthUser, Path(id): P
         return Err(not_found());
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The books of a linked shelf as last read, kept a few minutes so that a
+/// search typed letter by letter does not ask the other instance each time.
+fn feed_cache() -> &'static std::sync::Mutex<std::collections::HashMap<i64, (std::time::Instant, Vec<Entry>)>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<i64, (std::time::Instant, Vec<Entry>)>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+const FEED_KEPT: Duration = Duration::from_secs(300);
+
+/// The books of a linked shelf: from memory while fresh, else read again
+/// (briefly: a search does not wait long for an instance that is slow).
+async fn shelf_books(state: &AppState, shelf: &Linked) -> Option<Vec<Entry>> {
+    if let Some((at, books)) = feed_cache().lock().unwrap().get(&shelf.id) {
+        if at.elapsed() < FEED_KEPT {
+            return Some(books.clone());
+        }
+    }
+    let feed = read(state, &shelf.url, Duration::from_secs(4)).await.ok()?;
+    feed_cache().lock().unwrap().insert(shelf.id, (std::time::Instant::now(), feed.entries.clone()));
+    Some(feed.entries)
+}
+
+#[derive(Serialize)]
+pub struct LinkedHit {
+    shelf_id: i64,
+    shelf_title: String,
+    host: String,
+    book: Entry,
+}
+
+#[derive(Serialize)]
+pub struct Elsewhere {
+    /// Books on shelves followed by a private link from other instances.
+    linked: Vec<LinkedHit>,
+    /// Books on federated shelves the user follows.
+    federated: Vec<crate::fed::remote::FoundBook>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchParams {
+    q: Option<String>,
+}
+
+/// GET /api/search/elsewhere?q=…: the books matching a search on shelves of
+/// other instances, apart from the search of one's own instance so that it
+/// stays quick: linked shelves are read from their instances, all at once.
+/// An instance that does not answer is left out of the answer.
+pub async fn search_elsewhere(State(state): State<AppState>, user: AuthUser, Query(params): Query<SearchParams>) -> Result<Json<Elsewhere>, Response> {
+    const EACH: usize = 30;
+    let words = crate::search::query_words(params.q.as_deref().unwrap_or(""));
+    if words.is_empty() {
+        return Ok(Json(Elsewhere { linked: Vec::new(), federated: Vec::new() }));
+    }
+    let federated = crate::fed::remote::search_followed(&state, user.0.id, &words, EACH).await?;
+    let mut linked = Vec::new();
+    if enabled(&state).await {
+        let mut shelves: Vec<Linked> = sqlx::query_as(&format!("SELECT {LINKED_COLUMNS} FROM linked_shelves WHERE user_id = $1 AND state != 'gone' ORDER BY title, id"))
+            .bind(user.0.id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(internal)?;
+        for s in &mut shelves {
+            s.host = host_of(&s.url);
+        }
+        let mut reads = tokio::task::JoinSet::new();
+        for shelf in shelves {
+            let state = state.clone();
+            reads.spawn(async move {
+                let books = shelf_books(&state, &shelf).await;
+                (shelf, books)
+            });
+        }
+        while let Some(done) = reads.join_next().await {
+            let Ok((shelf, Some(books))) = done else { continue };
+            for book in books.into_iter().filter(|b| !b.files.is_empty()) {
+                let text = format!("{} {}", book.title, book.authors.join(" "));
+                if crate::search::matches(&words, &crate::search::fold(&text)) {
+                    linked.push(LinkedHit { shelf_id: shelf.id, shelf_title: shelf.title.clone(), host: shelf.host.clone(), book });
+                }
+            }
+        }
+        linked.sort_by(|a, b| a.book.title.to_lowercase().cmp(&b.book.title.to_lowercase()));
+        linked.truncate(EACH);
+    }
+    Ok(Json(Elsewhere { linked, federated }))
 }
 
 #[derive(Serialize)]
@@ -523,6 +676,12 @@ pub async fn linked_shelf(State(state): State<AppState>, user: AuthUser, Path(id
     remember(&state, id, "ok").await;
     shelf.state = "ok".into();
     shelf.state_since = None;
+    if feed.logo != shelf.cover_url || feed.cover_seed != shelf.cover_seed {
+        keep_cover(&state, id, &feed).await;
+        shelf.has_cover = feed.logo.is_some();
+        shelf.cover_url = feed.logo.clone();
+        shelf.cover_seed = feed.cover_seed;
+    }
     let title: String = feed.title.chars().take(120).collect();
     if !title.is_empty() && (title != shelf.title || feed.subtitle != shelf.description) {
         let _ = sqlx::query("UPDATE linked_shelves SET title = $1, description = $2 WHERE id = $3")
@@ -550,6 +709,15 @@ fn under(shelf: &Linked, href: &str) -> Result<(), Response> {
 #[derive(Deserialize)]
 pub struct ImageParams {
     url: String,
+}
+
+/// GET /api/linked-shelves/{id}/cover: the shelf's own picture, by way of
+/// this server.
+pub async fn linked_cover(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<Response, Response> {
+    require(&state).await?;
+    let shelf = followed(&state, user.0.id, id).await?;
+    let url = shelf.cover_url.clone().ok_or_else(not_found)?;
+    linked_image(State(state), user, Path(id), Query(ImageParams { url })).await
 }
 
 /// GET /api/linked-shelves/{id}/image: a cover, by way of this server, so

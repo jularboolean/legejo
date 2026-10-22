@@ -1224,6 +1224,12 @@ export const en = {
 	'adminUsers.deleteConfirm': "The account of {username} is deleted for good, with its {books} books, {shelves} shelves, highlights, notes and reading. Its federated shelves are withdrawn. This cannot be undone.",
 	'adminUsers.deleteFailed': "The account could not be deleted.",
 	'log.user.deleted_by_admin': "deleted the account of {username} ({books} books)",
+	'bookPeek.open': "More about {title}",
+	'bookPeek.rights': "Rights",
+	'bookPeek.onInstance': "On {host}",
+	'search.elsewhere': "On other instances",
+	'search.elsewhereOn': "On {shelf}, {host}",
+	'search.elsewhereShelf': "the shelf",
 };
 
 export type MessageKey = keyof typeof en;

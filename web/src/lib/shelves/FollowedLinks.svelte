@@ -92,7 +92,12 @@
 			{#each shelves as shelf (shelf.id)}
 				<li>
 					<a class="row" href={`/linked/${shelf.id}`}>
-						<img class="thumb" src={defaultShelfCover(shelf.id)} alt="" loading="lazy" />
+						<img
+							class="thumb"
+							src={shelf.has_cover ? `/api/linked-shelves/${shelf.id}/cover` : defaultShelfCover(shelf.cover_seed ?? shelf.id)}
+							alt=""
+							loading="lazy"
+						/>
 						<span class="info">
 							<span class="name">{shelf.title}</span>
 							<span class="from">

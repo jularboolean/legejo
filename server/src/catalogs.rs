@@ -197,6 +197,13 @@ pub struct Feed {
     /// What the feed says about itself, under its title.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<String>,
+    /// The feed's picture (a shared Legejo shelf: its cover).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+    /// A shared Legejo shelf without a picture of its own: the number that
+    /// picks which of the drawn covers it has, there and here alike.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_seed: Option<i64>,
     pub entries: Vec<Entry>,
     pub next: Option<String>,
     pub previous: Option<String>,
@@ -214,11 +221,18 @@ pub struct SearchLink {
 
 /// One entry: a book, when it has files to fetch, or else a way further
 /// into the catalog.
-#[derive(Serialize, Debug, PartialEq, Default)]
+#[derive(Serialize, Debug, PartialEq, Default, Clone)]
 pub struct Entry {
     pub title: String,
     pub authors: Vec<String>,
     pub summary: Option<String>,
+    /// The whole description, as the catalog has it: HTML or plain text,
+    /// for the web app to show safely. The summary is its short, plain form.
+    pub description: Option<String>,
+    pub publisher: Option<String>,
+    /// When the edition was published, as the catalog writes it.
+    pub issued: Option<String>,
+    pub categories: Vec<String>,
     pub language: Option<String>,
     pub rights: Option<String>,
     pub cover: Option<String>,
@@ -227,7 +241,7 @@ pub struct Entry {
     pub files: Vec<FileLink>,
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Clone)]
 pub struct FileLink {
     pub href: String,
     /// "epub", "pdf" or "cbz".
@@ -283,6 +297,34 @@ fn strip_html(text: &str) -> String {
     out.replace("&nbsp;", " ").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
 }
 
+/// Whether text carries HTML: a description from an EPUB often does, and a
+/// catalog may still call it plain text.
+pub(crate) fn looks_like_html(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    ["<p>", "<p ", "<br", "<b>", "<i>", "<em>", "<strong>", "<div", "<span", "<ul", "<ol", "<li", "<a ", "</p>", "<h1", "<h2", "<h3"]
+        .iter()
+        .any(|tag| lower.contains(tag))
+}
+
+/// The whole description of an entry, for the web app, which shows it as
+/// Markdown made safe: HTML stays HTML, text stays text.
+fn description_of(entry: &El) -> Option<String> {
+    let el = entry.child("summary").or_else(|| entry.child("content"))?;
+    let text = match el.attr("type") {
+        Some("xhtml") => {
+            let mut paragraphs = Vec::new();
+            el.descendants("p", &mut paragraphs);
+            if paragraphs.is_empty() {
+                squeeze(&el.text())
+            } else {
+                paragraphs.iter().map(|p| squeeze(&p.text())).filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n")
+            }
+        }
+        _ => el.text().trim().to_string(),
+    };
+    (!text.is_empty()).then(|| text.chars().take(20_000).collect())
+}
+
 /// What an entry says about itself. A catalog that lists a whole record in
 /// paragraphs (Project Gutenberg) has one that begins "Summary:"; that
 /// paragraph is the description, and the rest is the record.
@@ -296,6 +338,8 @@ fn summary_of(entry: &El) -> Option<String> {
             summary.unwrap_or_else(|| squeeze(&el.text()))
         }
         Some("html") => squeeze(&strip_html(&el.text())),
+        // Plain text by its type, HTML by its looks (an older Legejo).
+        _ if looks_like_html(&el.text()) => squeeze(&strip_html(&el.text())),
         _ => squeeze(&el.text()),
     };
     (!text.is_empty()).then(|| shorten(text))
@@ -333,6 +377,15 @@ fn parse_entry(entry: &El, base: &Url) -> Entry {
             .filter(|n| !n.is_empty())
             .collect(),
         summary: summary_of(entry),
+        description: description_of(entry),
+        publisher: entry.child("publisher").map(|p| squeeze(&p.text())).filter(|p| !p.is_empty()),
+        issued: entry.child("issued").map(|p| squeeze(&p.text())).filter(|p| !p.is_empty()),
+        categories: entry
+            .children("category")
+            .filter_map(|c| c.attr("label").or_else(|| c.attr("term")))
+            .map(squeeze)
+            .filter(|c| !c.is_empty())
+            .collect(),
         language: entry.child("language").map(|l| squeeze(&l.text())).filter(|l| !l.is_empty()),
         rights: entry.child("rights").map(|r| squeeze(&r.text())).filter(|r| !r.is_empty()),
         ..Entry::default()
@@ -372,7 +425,16 @@ pub fn parse_feed(bytes: &[u8], base: &Url) -> Result<Feed, String> {
     let root = parse_xml(bytes)?;
     if root.name == "entry" {
         let entry = parse_entry(&root, base);
-        return Ok(Feed { title: entry.title.clone(), subtitle: None, entries: vec![entry], next: None, previous: None, search: None });
+        return Ok(Feed {
+            title: entry.title.clone(),
+            subtitle: None,
+            logo: None,
+            cover_seed: None,
+            entries: vec![entry],
+            next: None,
+            previous: None,
+            search: None,
+        });
     }
     if root.name != "feed" {
         return Err(format!("a <{}> document, not a feed", root.name));
@@ -380,6 +442,8 @@ pub fn parse_feed(bytes: &[u8], base: &Url) -> Result<Feed, String> {
     let mut feed = Feed {
         title: squeeze(&root.child("title").map(El::text).unwrap_or_default()),
         subtitle: root.child("subtitle").map(|s| shorten(squeeze(&s.text()))).filter(|s| !s.is_empty()),
+        logo: root.child("logo").and_then(|l| resolve(base, &l.text())),
+        cover_seed: root.child("coverSeed").and_then(|c| c.text().trim().parse().ok()),
         entries: root.children("entry").take(MAX_ENTRIES).map(|e| parse_entry(e, base)).collect(),
         next: None,
         previous: None,

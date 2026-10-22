@@ -3,8 +3,12 @@
 	// each to be taken into one's own library.
 	import { goto } from '$app/navigation';
 	import { ArrowLeft, BookPlus, Check, Link } from '@lucide/svelte';
+	import BookPeek from '#lib/BookPeek.svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
-	import { t } from '#lib/i18n';
+	import { formatSize } from '#lib/fed';
+	import { getLocale, t } from '#lib/i18n';
+	import { languageLabel } from '#lib/library';
+	import { renderMarkdown } from '#lib/markdown';
 	import type { LinkedBook } from '#lib/types';
 	import type { PageData } from './$types';
 
@@ -17,6 +21,9 @@
 	let failed = $state<Record<string, string>>({});
 	let brokenCovers = $state<Set<string>>(new Set());
 	let unfollowOpen = $state(false);
+	/** The book looked at more closely. */
+	let peek = $state<LinkedBook | null>(null);
+	const descriptionHtml = $derived(shelf.description ? renderMarkdown(shelf.description) : '');
 
 	const cover = (book: LinkedBook) => (book.cover ? `/api/linked-shelves/${shelf.id}/image?url=${encodeURIComponent(book.cover)}` : null);
 	const count = $derived(data.linked.books.length === 1 ? t('shelf.book') : t('shelf.books', { count: data.linked.books.length }));
@@ -55,7 +62,8 @@
 	<div>
 		<h1>{shelf.title}</h1>
 		<p class="from"><Link size={13} strokeWidth={1.75} /> {t('linked.from', { host: shelf.host })}{#if !data.failed}&ensp;·&ensp;{count}{/if}</p>
-		{#if shelf.description}<p class="description">{shelf.description}</p>{/if}
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized by renderMarkdown -->
+		{#if descriptionHtml}<div class="description">{@html descriptionHtml}</div>{/if}
 	</div>
 	<button type="button" class="ghost" onclick={() => (unfollowOpen = true)}>{t('linked.unfollow')}</button>
 </div>
@@ -72,15 +80,15 @@
 			{@const file = book.files[0]}
 			{@const src = cover(book)}
 			<li>
-				<div class="cover">
+				<button type="button" class="cover" onclick={() => (peek = book)} aria-label={t('bookPeek.open', { title: book.title })}>
 					{#if src && !brokenCovers.has(src)}
 						<img {src} alt="" loading="lazy" onerror={() => (brokenCovers = new Set([...brokenCovers, src]))} />
 					{:else}
 						<span>{book.title}</span>
 					{/if}
-				</div>
+				</button>
 				<div class="what">
-					<span class="title">{book.title}</span>
+					<button type="button" class="title" onclick={() => (peek = book)}>{book.title}</button>
 					{#if book.authors.length > 0}<span class="author">{book.authors.join(', ')}</span>{/if}
 					{#if book.summary}<span class="summary">{book.summary}</span>{/if}
 					{#if file && failed[file.href]}<span class="error" role="alert">{failed[file.href]}</span>{/if}
@@ -98,6 +106,44 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#snippet takeButton(book: LinkedBook)}
+	{@const file = book.files[0]}
+	{#if file}
+		{#if taken[file.href]}
+			<a class="done" href={`/books/${taken[file.href]}`}><Check size={14} /> {t('linked.taken')}</a>
+		{:else}
+			<button type="button" onclick={() => take(book)} disabled={taking[file.href]}>
+				<BookPlus size={14} />
+				{taking[file.href] ? t('linked.taking') : t('linked.take')}
+			</button>
+		{/if}
+		{#if failed[file.href]}<span class="error" role="alert">{failed[file.href]}</span>{/if}
+	{/if}
+{/snippet}
+
+{#if peek}
+	{@const book = peek}
+	{@const file = book.files[0]}
+	<BookPeek
+		open
+		title={book.title}
+		author={book.authors.join(', ') || null}
+		cover={cover(book)}
+		description={book.description ?? book.summary}
+		facts={[
+			{ label: t('book.publisher'), value: book.publisher },
+			{ label: t('book.published'), value: book.issued },
+			{ label: t('book.language'), value: book.language ? languageLabel(book.language, getLocale()) : null },
+			{ label: t('edit.category'), value: book.categories?.join(', ') },
+			{ label: t('bookPeek.rights'), value: book.rights },
+			{ label: t('book.format'), value: file ? `${file.format.toUpperCase()}${file.size != null ? ` · ${formatSize(file.size)}` : ''}` : null }
+		]}
+		onclose={() => (peek = null)}
+	>
+		{#snippet actions()}{@render takeButton(book)}{/snippet}
+	</BookPeek>
 {/if}
 
 <ConfirmDialog
@@ -143,6 +189,9 @@
 		margin: 0.6rem 0 0;
 		max-width: 38rem;
 	}
+	.description :global(p) {
+		margin: 0 0 0.5rem;
+	}
 	.head button {
 		flex: none;
 		font-size: 0.85rem;
@@ -167,6 +216,9 @@
 	}
 	.cover {
 		flex: none;
+		padding: 0;
+		border: none;
+		cursor: pointer;
 		width: 3.6rem;
 		aspect-ratio: 2 / 3;
 		border-radius: 4px;
@@ -197,7 +249,18 @@
 		gap: 0.15rem;
 	}
 	.title {
+		align-self: flex-start;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--fg);
+		font: inherit;
 		font-weight: 600;
+		text-align: left;
+		cursor: pointer;
+	}
+	.title:hover {
+		text-decoration: underline;
 	}
 	.author {
 		font-size: 0.88rem;
