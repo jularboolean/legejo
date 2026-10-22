@@ -791,7 +791,10 @@ carry your work with them. Deleting an account removes its books for good.</p>""
   """<p>On the Admin page, under <strong>Users</strong>, create an invitation and send the link.
 Or turn on <strong>Allow users to register themselves</strong>.</p>""",
   """<p>Self-registration requires mail to be set up, since new accounts must confirm their email
-address. Any user can be made an admin.</p>"""),
+address. Any user can be made an admin.</p>
+<p>An account can go too: <strong>Delete account</strong> beside a user removes it with its books,
+shelves, highlights, notes and reading, for good. Your own account you delete on the account
+page.</p>"""),
 
  ("Setting Up Mail",
   "<p>Invitations, password resets and Send to Kindle all need to send mail.</p>",

@@ -797,7 +797,9 @@ libroj kunportas vian laboron. Forigo de konto definitive forigas ĝiajn librojn
   """<p>En la paĝo Administrado, sub <strong>Uzantoj</strong>, kreu inviton kaj sendu la ligilon.
 Aŭ ŝaltu <strong>Permesi al uzantoj mem registriĝi</strong>.</p>""",
   """<p>Memregistriĝo postulas agorditan retpoŝton, ĉar novaj kontoj devas konfirmi sian
-retpoŝtadreson. Ĉiu uzanto povas fariĝi administranto.</p>"""),
+retpoŝtadreson. Ĉiu uzanto povas fariĝi administranto.</p>
+<p>Konto povas ankaŭ foriri: <strong>Forigi konton</strong> apud uzanto forigas ĝin kun ĝiaj libroj,
+bretoj, markoj, notoj kaj legado, por ĉiam. Vian propran konton vi forigas en la kontopaĝo.</p>"""),
 
  ("Agordi retpoŝton",
   "<p>Invitoj, novaj pasvortoj kaj Sendi al Kindle ĉiuj bezonas sendi retpoŝton.</p>",

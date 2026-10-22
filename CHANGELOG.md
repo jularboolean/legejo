@@ -4,6 +4,15 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.27.0 (2026-10-22)
+
+- **An admin can delete accounts.** On the admin page, under Users,
+  *Delete account* beside a user removes the account with its books,
+  shelves, highlights, notes and reading, after a question that says so.
+  Federated shelves are withdrawn, the user is logged out everywhere, and
+  the system log names the admin who did it. Your own account you still
+  delete on the account page, with your password.
+
 ## 1.26.1 (2026-10-21)
 
 - **The authors page opens again.** With an author whose name begins with
