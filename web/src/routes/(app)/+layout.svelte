@@ -52,7 +52,7 @@
 	});
 
 	/** The pages the tabs lead to, whose heading has the pigeon beside it on a phone. */
-	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/authors', '/audiobooks'];
+	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/authors', '/audiobooks', '/public'];
 	const branded = $derived(TAB_PAGES.includes(page.url.pathname));
 
 	function toggleSheet(which: 'shelves' | 'more') {
