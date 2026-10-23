@@ -300,9 +300,9 @@ label:has(> input[type='checkbox']) {
    to another. The reader, which has a setting of its own, is outside that
    frame. What turns to show that work is going on (an upload, a page being
    fetched) is not motion in this sense and keeps turning. */
-:root:not([data-motion='on']) :is(.shell, .topbar) *,
-:root:not([data-motion='on']) :is(.shell, .topbar) *::before,
-:root:not([data-motion='on']) :is(.shell, .topbar) *::after {
+:root:not([data-motion='on']) .shell *,
+:root:not([data-motion='on']) .shell *::before,
+:root:not([data-motion='on']) .shell *::after {
 	transition: none !important;
 }
 :root:not([data-motion='on']) :has(> img[data-cover='arriving']) {

@@ -101,7 +101,7 @@
 	}
 	.tools {
 		position: sticky;
-		top: 0;
+		top: env(safe-area-inset-top);
 		z-index: 5;
 		background: var(--bg);
 		padding: 0.5rem 0 0.6rem;

@@ -313,15 +313,6 @@
 {/snippet}
 
 {#if data.user}
-	<header class="topbar">
-		<div class="topbar-inner">
-			<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
-			<a class="brand" href="/" aria-label={t('app.name')}>
-				<Logo size={34} />
-			</a>
-		</div>
-	</header>
-
 	<div class="shell">
 		<aside id="sidebar">
 			<a class="sidebrand" href="/" aria-label={t('app.name')}>
@@ -372,7 +363,13 @@
 					{@render librarian()}
 				{/if}
 			</nav>
-			{#if sheet === 'more'}{@render userRow(data.user)}{/if}
+			{#if sheet === 'more'}
+				{@render userRow(data.user)}
+				<a class="sheetbrand" href="/" aria-label={t('app.name')}>
+					<Logo size={64} variant="pair" />
+					<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
+				</a>
+			{/if}
 		</div>
 	{/if}
 
@@ -455,35 +452,6 @@
 		padding: 0.35rem 0.7rem;
 	}
 
-	/* Mobile only: on desktop the sidebar carries the logo and navigation. */
-	.topbar {
-		display: none;
-		position: sticky;
-		top: 0;
-		z-index: 40;
-		background: var(--bg);
-		border-bottom: 1px solid var(--border);
-	}
-	.topbar-inner {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		max-width: 72rem;
-		margin: 0 auto;
-		padding: 0.5rem 1rem;
-	}
-	.topbar .wordmark {
-		flex: 1;
-		text-align: center;
-	}
-	.brand {
-		flex-shrink: 0;
-		display: flex;
-	}
-	.brand :global(.logo) {
-		display: block;
-	}
 	.shell {
 		display: grid;
 		grid-template-columns: 14rem minmax(0, 1fr);
@@ -700,16 +668,12 @@
 		display: none;
 	}
 	@media (max-width: 48rem) {
-		.topbar {
-			display: block;
-			padding-top: env(safe-area-inset-top);
-		}
-		.topbar-inner {
-			padding: 0.35rem 1rem;
-		}
+		/* No bar at the top: the pages have headings of their own, and the
+		   pigeon and the version are in the More sheet. */
 		.shell {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
+			padding-top: calc(1.25rem + env(safe-area-inset-top));
 			padding-bottom: calc(1.5rem + var(--tabbar, 0px));
 		}
 		aside {
@@ -830,6 +794,15 @@
 		}
 		.sheet .user {
 			margin-top: 0;
+		}
+		.sheetbrand {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 0.25rem;
+			padding: 0.75rem 0 0.25rem;
+			color: var(--fg);
+			text-decoration: none;
 		}
 	}
 	@keyframes rise {
