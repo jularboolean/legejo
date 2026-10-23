@@ -501,7 +501,7 @@ kaj elektu <strong>Aldoni al hejmekrano</strong>.</p>
 en la menuo de la retumilo.</p>""",
   """<p>Ĝi estas la sama Legejo, el la sama servilo; nenio venas el aplikaĵvendejo. Necesas, ke
 la instanco estu servata per <code>https</code> (Recepto 1.4).</p>
-<p>En telefono, ŝovo dekstren malfermas la menuon, kaj ŝovo maldekstren fermas ĝin.</p>"""),
+<p>En telefono, la langetoj ĉe la malsupro de la ekrano kondukas al la biblioteko, via legado kaj la serĉo; <strong>Bretoj</strong> kaj <strong>Pli</strong> malfermas la ceteron de malsupre.</p>"""),
 
  ("Konservi libron en la aparato",
   "<p>Vi baldaŭ eniros aviadilon.</p>",

@@ -500,7 +500,7 @@ choose <strong>Add to Home Screen</strong>.</p>
 from the browser's menu.</p>""",
   """<p>It is the same Legejo, from the same server; nothing is fetched from an app store. It
 needs the instance to be served over <code>https</code> (Recipe 1.4).</p>
-<p>On a phone, a swipe to the right opens the menu and one to the left closes it.</p>"""),
+<p>On a phone, the tabs at the foot of the screen take you to the library, your reading and the search; <strong>Shelves</strong> and <strong>More</strong> open the rest from below.</p>"""),
 
  ("Saving a Book on the Device",
   "<p>You are about to board a plane.</p>",
