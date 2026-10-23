@@ -1,7 +1,8 @@
 <script lang="ts">
 	// What to do with a passage: highlight it, give it a note, or, for a
 	// highlight that exists, change or remove it. A bar at the foot of the
-	// page, where the reading-aloud controls sit otherwise.
+	// page, where the reading-aloud controls sit otherwise, or at its top
+	// when the passage is low on the page, so that it never covers it.
 	import { tick } from 'svelte';
 	import { BookA, Highlighter, MessageSquarePlus, TextSelect, Trash2, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
@@ -15,8 +16,12 @@
 		editing: boolean;
 		saving: boolean;
 		error: string | null;
-		/** Sits higher while the progress bar is expanded. */
+		/** The bars of the reader are shown: clear of the toolbar at the top, or the expanded progress bar at the foot. */
 		raised: boolean;
+		/** At the top of the page, for a passage in the lower part of it. */
+		top?: boolean;
+		/** Out of the way while the reader drags an end of the passage. */
+		faded?: boolean;
 		/** The language the passage is in, for looking a word up; null when
 		 * the dictionary is off or out of reach. */
 		lookupLanguage?: string | null;
@@ -29,7 +34,7 @@
 		ondelete: () => void;
 		oncancel: () => void;
 	};
-	let { text, note, editing, saving, error, raised, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
+	let { text, note, editing, saving, error, raised, top = false, faded = false, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
 	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
@@ -91,7 +96,7 @@
 	const snippet = $derived(text.length > 160 ? `${text.slice(0, 160).trimEnd()}…` : text);
 </script>
 
-<form class="annotate" class:raised onsubmit={submit} aria-label={t('reader.notes')}>
+<form class="annotate" class:raised class:top class:faded onsubmit={submit} aria-label={t('reader.notes')}>
 	<div class="row">
 		<p class="passage">“{snippet}”</p>
 		<button type="button" class="r-icon" onclick={oncancel} aria-label={t('common.cancel')} title={t('common.cancel')}>
@@ -193,12 +198,29 @@
 		color: var(--r-fg);
 		border: 1px solid var(--r-border);
 		box-shadow: 0 2px 14px rgba(0, 0, 0, 0.16);
-		transition: bottom 0.2s ease;
+		transition:
+			bottom 0.2s ease,
+			opacity 0.15s ease;
 		animation: rise 0.18s ease;
 	}
 	/* Clear of the expanded progress bar. */
 	.annotate.raised {
 		bottom: calc(5.4rem + env(safe-area-inset-bottom));
+	}
+	.annotate.top {
+		bottom: auto;
+		top: calc(0.6rem + env(safe-area-inset-top));
+		transition: top 0.2s ease, opacity 0.15s ease;
+		animation-name: drop;
+	}
+	/* Clear of the toolbar. */
+	.annotate.top.raised {
+		bottom: auto;
+		top: calc(3.6rem + env(safe-area-inset-top));
+	}
+	.annotate.faded {
+		opacity: 0.12;
+		pointer-events: none;
 	}
 	.row {
 		display: flex;
@@ -292,6 +314,12 @@
 		from {
 			opacity: 0;
 			translate: 0 0.5rem;
+		}
+	}
+	@keyframes drop {
+		from {
+			opacity: 0;
+			translate: 0 -0.5rem;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

@@ -433,13 +433,16 @@
 		}
 	}
 
-	/** A passage picked without a selection to show for it: mark it meanwhile. */
+	/**
+	 * A passage picked without a selection to show for it: mark it meanwhile.
+	 * The bars of the reader are left as they are: brought out, they would
+	 * cover the lines at the top and the foot of the page.
+	 */
 	function offer(passage: Passage) {
 		editing = null;
 		pending = passage;
 		clearHighlight();
 		engine?.highlight(passage.cfi);
-		showChrome();
 	}
 
 	/** A long press picks the word under it; off a word, the sentence. */
@@ -490,6 +493,20 @@
 	$effect(() => {
 		void [pending, editing, shield, engine];
 		placeEnds();
+	});
+
+	/**
+	 * The bar for the passage goes to the side of the page with more room,
+	 * so that it does not cover the passage; it stays put while an end is
+	 * dragged.
+	 */
+	let annotateAtTop = $state(false);
+	$effect(() => {
+		const cfi = editing?.cfi ?? pending?.cfi;
+		void ends;
+		if (!engine || !cfi || handleDrag) return;
+		const at = engine.edges(cfi);
+		if (at) annotateAtTop = at.start.top > window.innerHeight - at.end.bottom;
 	});
 
 	function grabEnd(event: PointerEvent, edge: 'start' | 'end') {
@@ -1225,6 +1242,8 @@
 			saving={annotating}
 			error={annotateError}
 			raised={chromeVisible}
+			top={annotateAtTop}
+			faded={handleDrag !== null}
 			lookupLanguage={page.data.dictionary && !page.data.offline ? (speechLanguage ?? book.language ?? 'en') : null}
 			onsentence={sentences ? widenToSentences : null}
 			onhighlight={saveHighlight}
