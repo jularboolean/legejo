@@ -651,6 +651,20 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		return text || null;
 	}
 
+	/** The length of each chapter's text, white space squeezed, as the server counts a book. */
+	const chapterLengths = new WeakMap<Document, number>();
+
+	function chapterChars(index: number): number {
+		const doc = allContents().find((c) => c.sectionIndex === index)?.document;
+		if (!doc?.body) return 0;
+		let length = chapterLengths.get(doc);
+		if (length === undefined) {
+			length = (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim().length;
+			chapterLengths.set(doc, length);
+		}
+		return length;
+	}
+
 	function toLocation(loc: Location): ReaderLocation {
 		const start = loc.start;
 		const page = start.displayed?.page ?? 1;
@@ -684,6 +698,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			page,
 			pagesInChapter: total,
 			pagesLeft: Math.max(0, total - lastShown),
+			chapterChars: chapterChars(start.index),
 			atChapterEnd,
 			atStart: !!loc.atStart,
 			atEnd: !!loc.atEnd

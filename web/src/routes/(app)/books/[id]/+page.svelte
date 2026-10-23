@@ -14,6 +14,7 @@
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import Rating from '#lib/Rating.svelte';
 	import { localPercent } from '#lib/reader/progress';
+	import { minutesFor, roughly } from '#lib/readingTime';
 	import { availability, fileVersion, removeBook, saveBook, savedVersion } from '#lib/offline/store';
 	import type { PageData } from './$types';
 
@@ -107,6 +108,20 @@
 	// The server reports progress across devices; a server without the progress
 	// API leaves the reader's own copy in this browser.
 	const progress = $derived(book.progress_percent ?? localPercent(book.id));
+	/** The whole book and, partway through, what is left, at the owner's pace. */
+	const readingTime = $derived.by(() => {
+		const r = book.reading_time;
+		if (!r) return null;
+		const whole = roughly(minutesFor(r.chars, r.pace));
+		if (!whole) return null;
+		const left = progress !== null && progress > 0 && progress < 0.99 ? roughly(minutesFor(r.chars * (1 - progress), r.pace)) : null;
+		const pace = r.pace.toLocaleString(getLocale());
+		return {
+			line: t(r.paced_by > 0 ? 'book.readingTime.own' : 'book.readingTime', { time: whole }),
+			left: left ? t('book.readingTimeLeft', { time: left }) : null,
+			about: r.paced_by > 0 ? t('book.readingPace.own', { pace }) : t('book.readingPace.common', { pace })
+		};
+	});
 	// Read, or read again from the start: by hand, whatever the position says.
 	const finished = $derived(!!book.read_at || (progress !== null && progress >= 0.99));
 
@@ -222,6 +237,11 @@
 			>
 				<span style:width={`${Math.round(progress * 100)}%`}></span>
 			</div>
+		{/if}
+		{#if readingTime}
+			<p class="elsewhere" title={readingTime.about}>
+				{readingTime.line}{#if readingTime.left}<br />{readingTime.left}{/if}
+			</p>
 		{/if}
 		{#if (book.kobo_minutes ?? 0) > 0}
 			<p class="elsewhere">{t('book.koboTime', { time: formatLength((book.kobo_minutes ?? 0) * 60) })}</p>

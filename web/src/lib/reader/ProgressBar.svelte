@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChevronLeft, ChevronRight, CornerUpLeft } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
+	import { minutesFor, roughly } from '#lib/readingTime';
 	import type { ReaderLocation } from './types';
 
 	type Props = {
@@ -21,6 +22,9 @@
 		 */
 		canReturn: boolean;
 		onreturn: () => void;
+		/** The reader's pace in characters a minute, and the book's length; null when not known. */
+		pace?: number | null;
+		bookChars?: number | null;
 		onseek: (fraction: number) => void;
 		onprev: () => void;
 		onnext: () => void;
@@ -34,6 +38,8 @@
 		chapterAt,
 		canReturn,
 		onreturn,
+		pace = null,
+		bookChars = null,
 		onseek,
 		onprev,
 		onnext
@@ -55,6 +61,20 @@
 		if (location.pagesLeft === 0) return t('reader.pagesLeft.none');
 		if (location.pagesLeft === 1) return t('reader.pagesLeft.one');
 		return t('reader.pagesLeft', { count: location.pagesLeft });
+	});
+
+	/** About how long the rest of the chapter takes, at the reader's pace. */
+	const chapterTime = $derived.by(() => {
+		if (!remaining || !pace || !location || location.pagesLeft === 0 || location.chapterChars <= 0) return null;
+		const left = (location.chapterChars * location.pagesLeft) / Math.max(1, location.pagesInChapter);
+		const time = roughly(minutesFor(left, pace));
+		return time ? t('reader.chapterTime', { time }) : null;
+	});
+	/** And the rest of the book. */
+	const bookTime = $derived.by(() => {
+		if (!pace || !bookChars || !location || location.atEnd) return null;
+		const time = roughly(minutesFor(bookChars * (1 - location.percent), pace));
+		return time ? t('reader.bookTimeLeft', { time }) : null;
 	});
 
 	function commit(value: number) {
@@ -99,7 +119,9 @@
 				{:else if scrub !== null}
 					{chapter ? `${chapter} · ${percentText}` : percentText}
 				{:else if paginated && location}
-					{t('reader.pageOf', { page: location.page, total: location.pagesInChapter })}
+					<span class="page-of" class:beside={bookTime}>{t('reader.pageOf', { page: location.page, total: location.pagesInChapter })}</span>{#if bookTime}<span class="page-of beside">{' · '}</span>{bookTime}{/if}
+				{:else if bookTime}
+					{bookTime}
 				{:else}
 					&nbsp;
 				{/if}
@@ -120,7 +142,7 @@
 		{/if}
 		<span class="chapter">{chapter}</span>
 		<span class="numbers">
-			{#if remaining}<span class="remaining">{remaining}</span>{/if}
+			{#if remaining}<span class="remaining">{chapterTime ? `${remaining} · ${chapterTime}` : remaining}</span>{/if}
 			<span class="percent">{location ? percentText : ''}</span>
 		</span>
 	</div>
@@ -174,6 +196,12 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	/* On a phone the time left of the book has the line to itself. */
+	@media (max-width: 480px) {
+		.page-of.beside {
+			display: none;
+		}
 	}
 	.line {
 		position: absolute;

@@ -1291,6 +1291,8 @@
 		chapterAt={(fraction) => engine?.chapterAt(fraction) ?? null}
 		canReturn={returnTo !== null}
 		onreturn={goBack}
+		pace={book.reading_time?.pace ?? null}
+		bookChars={book.reading_time?.chars ?? null}
 		onseek={seek}
 		onprev={() => turn(false)}
 		onnext={() => turn(true)}

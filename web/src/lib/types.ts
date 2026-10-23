@@ -91,6 +91,19 @@ export type BookDetail = Book & {
 	next_in_series: SeriesNeighbour | null;
 	/** Highlights and notes the owner has made in the book. */
 	annotation_count: number;
+	/** How long the book takes the owner to read; null until its text is counted. */
+	reading_time: ReadingTime | null;
+};
+
+/** A book's length and the reader's pace (readingtime.rs). */
+export type ReadingTime = {
+	/** Characters, each run of white space one. */
+	chars: number;
+	/** Characters a minute. */
+	pace: number;
+	/** Books the reader's Kobo timed that the pace comes from; 0 for the common pace. */
+	paced_by: number;
+	minutes: number;
 };
 
 /** A highlight in a book, with a note when it has one. */

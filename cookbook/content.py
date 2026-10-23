@@ -566,7 +566,9 @@ something does not arrive on the device.</p>"""),
 reader works fully. Shelves arrive as collections. Your place in each book goes both ways, to the sentence: read
 on the Kobo, and the browser opens the book at the line you stopped at; read in the browser, and
 the Kobo opens the book at that sentence once it has synced. The time the Kobo counts reading a
-book shows on the book's page. Comics arrive as books with one page per picture.</p>""",
+book shows on the book's page. So does how long a book takes to read, at a common pace until the
+Kobo has timed books you finished, and from then on at yours; the web reader says about how long
+is left of the chapter and of the book. Comics arrive as books with one page per picture.</p>""",
   """<p>PDF files do not sync. A book counts as finished at 99&#160;% read, on the Kobo as in the
 web reader. A place read in the browser reaches a book the Kobo has downloaded; a book still
 waiting to be downloaded gets it with the download. Removing a book on the Kobo removes it from

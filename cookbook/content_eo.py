@@ -567,7 +567,9 @@ rigardu, kiam io ne alvenas en la aparaton.</p>"""),
 legilo de la aparato plene funkciu. Bretoj alvenas kiel kolektoj. Via loko en ĉiu libro iras ambaŭdirekte, ĝis la frazo: legu
 sur la Kobo, kaj la retumilo malfermas la libron ĉe la linio, kie vi haltis; legu en la retumilo, kaj
 la Kobo malfermas la libron ĉe tiu frazo, post kiam ĝi sinkroniĝis. La tempo, kiun la Kobo kalkulas
-por la legado de libro, aperas sur la paĝo de la libro. Bildstrioj alvenas kiel libroj kun unu paĝo po bildo.</p>""",
+por la legado de libro, aperas sur la paĝo de la libro. Tie aperas ankaŭ, kiom longe libro
+daŭras por legi: laŭ kutima ritmo, ĝis la Kobo mezuris la tempon de libroj, kiujn vi finlegis, kaj
+de tiam laŭ via. La retleganto diras, proksimume kiom restas de la ĉapitro kaj de la libro. Bildstrioj alvenas kiel libroj kun unu paĝo po bildo.</p>""",
   """<p>PDF-dosieroj ne sinkroniĝas. Libro validas kiel finlegita, kiam 99&#160;% estas legitaj, sur
 la Kobo same kiel en la retlegilo. Loko legita en la retumilo atingas libron, kiun la Kobo elŝutis;
 libro, kiu ankoraŭ atendas elŝuton, ricevas ĝin kun la elŝuto. Forigo de libro sur la Kobo forigas

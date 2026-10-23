@@ -68,6 +68,8 @@ export type ReaderLocation = {
 	pagesInChapter: number;
 	/** Pages after the ones on screen until the chapter ends (paginated flow). */
 	pagesLeft: number;
+	/** The length of the chapter's text, white space squeezed; 0 when not known. */
+	chapterChars: number;
 	/** The end of the current chapter is on screen. */
 	atChapterEnd: boolean;
 	atStart: boolean;

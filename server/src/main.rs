@@ -39,6 +39,7 @@ mod openlibrary;
 mod progress;
 mod public;
 mod pubdate;
+mod readingtime;
 mod register;
 mod search;
 mod shelves;
@@ -77,6 +78,8 @@ mod esperanto;
 mod dictionary;
 #[cfg(test)]
 mod email_change_tests;
+#[cfg(test)]
+mod readingtime_tests;
 #[cfg(test)]
 mod dictionary_tests;
 mod kobostore;
@@ -490,6 +493,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
     tokio::spawn(fulltext::worker(state.clone()));
+    tokio::spawn(readingtime::worker(state.clone()));
     // A new instance: its library begins with the manual.
     if let Some(admin) = first_admin {
         welcome::shelve(&state, admin).await;

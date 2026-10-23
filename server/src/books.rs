@@ -113,6 +113,9 @@ pub struct BookDetail {
     pub next_in_series: Option<SeriesNeighbour>,
     /// Highlights and notes the owner has made in the book.
     pub annotation_count: i64,
+    /// How long the book takes the owner to read; absent until its text has
+    /// been counted, and for files without text.
+    pub reading_time: Option<crate::readingtime::ReadingTime>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -120,6 +123,16 @@ pub struct SeriesNeighbour {
     pub id: i64,
     pub title: String,
     pub series_index: Option<f64>,
+}
+
+/// How long the book takes the owner to read, once its text is counted.
+async fn reading_time(state: &AppState, owner_id: i64, id: i64) -> Result<Option<crate::readingtime::ReadingTime>, Response> {
+    let chars: i64 = sqlx::query_scalar("SELECT text_chars FROM books WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(crate::readingtime::for_reader(state, owner_id, chars).await)
 }
 
 /// The owner's nearest book on one side of `book` in its series.
@@ -414,7 +427,19 @@ pub async fn get_one(
     let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
     let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series, annotation_count }))
+    let reading_time = reading_time(&state, user.0.id, book.id).await?;
+    Ok(Json(BookDetail {
+        book,
+        shelves,
+        tags,
+        federable,
+        kobo_removed,
+        health,
+        previous_in_series,
+        next_in_series,
+        annotation_count,
+        reading_time,
+    }))
 }
 
 #[derive(serde::Deserialize)]
@@ -750,7 +775,19 @@ pub async fn update(
     let previous_in_series = series_neighbour(&state, user.0.id, &book, false).await?;
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
     let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
-    Ok(Json(BookDetail { book, shelves, tags, federable, kobo_removed, health, previous_in_series, next_in_series, annotation_count }))
+    let reading_time = reading_time(&state, user.0.id, book.id).await?;
+    Ok(Json(BookDetail {
+        book,
+        shelves,
+        tags,
+        federable,
+        kobo_removed,
+        health,
+        previous_in_series,
+        next_in_series,
+        annotation_count,
+        reading_time,
+    }))
 }
 
 #[derive(serde::Deserialize)]
