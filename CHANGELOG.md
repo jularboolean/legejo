@@ -4,6 +4,25 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.30.0 (2026-10-23)
+
+- **Tabs at the foot of the screen on a phone.** Library, Reading, Search,
+  Shelves and More are in reach of a thumb; Shelves and More open a sheet
+  from below with your shelves, the shared ones and the rest of the menu.
+  The bar at the top and the swipe that opened the menu are gone, and the
+  pigeon now stands beside the headings of the main pages. The computer
+  keeps its sidebar.
+- **Time read in Legejo counts.** The reader keeps count of the time you
+  spend reading, while the page is in view and you turn pages or listen;
+  the book's page shows it, and the estimate of how long a book takes is
+  reckoned at your pace from Legejo and your Kobo together.
+- **The bar for a highlight keeps out of the way.** It goes to the top of
+  the page when the passage is low on it, and fades while you drag the
+  handles, so you see what you pick. Picking a passage no longer brings out
+  the bars at the top and the foot of the page.
+- **Deleting a highlight in the reader is one tap,** without a question.
+- **Export all** on the notes page is an icon, so it fits on a phone.
+
 ## 1.29.0 (2026-10-23)
 
 - **Picking words on a phone or tablet.** In the reader, hold a finger on
