@@ -4,6 +4,29 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.29.0 (2026-10-23)
+
+- **Picking words on a phone or tablet.** In the reader, hold a finger on
+  a word to pick it, and drag on without lifting it to take in more words.
+  Afterwards two handles move either end, and *Whole sentence* takes the
+  sentence around it. Looking a word up in the dictionary now works on an
+  iPhone and iPad too.
+- **Deleting a highlight works.** A highlight made twice on the same
+  sentence, or one picked again or found by a search, could stay on the
+  page after it was deleted. Highlights also take on a new theme at once.
+- **No more turning the page by accident** when lifting a finger held on
+  the text on an iPhone or iPad.
+- **Whole sentences**, also when reading aloud: a line break in the book's
+  file no longer cuts a sentence short.
+- **How long a book takes to read.** The book's page says about how long
+  the book takes, and how long is left; the reader says how long is left of
+  the chapter and of the book. It is reckoned at a common pace until your
+  Kobo has timed books you finished, and from then on at yours.
+- **Steadier shared shelves.** Covers and avatars are kept on the device
+  and shown at once, so the shelves no longer blink as they come in, above
+  all in Legejo installed as an app.
+- **A new app icon,** on the beige of the Zamenhof design instead of grey.
+
 ## 1.28.0 (2026-10-22)
 
 - **A closer look at books on other instances.** On a shelf you follow by
