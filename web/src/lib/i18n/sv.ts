@@ -5,6 +5,11 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'nav.logout': 'Logga ut',
 	'nav.menu': 'Meny',
 	'nav.closeMenu': 'Stäng menyn',
+	'tabs.label': "Huvudmeny",
+	'tabs.library': "Bibliotek",
+	'tabs.reading': "Läser",
+	'tabs.shelves': "Hyllor",
+	'tabs.more': "Mer",
 	'nav.account': 'Kontoinställningar',
 	'nav.admin': 'Admin',
 

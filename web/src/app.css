@@ -357,3 +357,11 @@ img[data-cover=''] {
 	animation-duration: 0.2s;
 	animation-timing-function: ease-out;
 }
+
+/* On a phone, the room the tabs at the foot of the screen take, for what
+   is fixed to the foot of the page to stand above them (routes/(app)/+layout.svelte). */
+@media (max-width: 48rem) {
+	html.has-tabbar {
+		--tabbar: calc(3.5rem + env(safe-area-inset-bottom));
+	}
+}

@@ -5,6 +5,11 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'nav.logout': 'Kirjaudu ulos',
 	'nav.menu': 'Valikko',
 	'nav.closeMenu': 'Sulje valikko',
+	'tabs.label': "Päävalikko",
+	'tabs.library': "Kirjasto",
+	'tabs.reading': "Luen",
+	'tabs.shelves': "Hyllyt",
+	'tabs.more': "Lisää",
 	'nav.account': 'Tilin asetukset',
 	'nav.admin': 'Ylläpito',
 

@@ -5,6 +5,11 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'nav.logout': 'Se déconnecter',
 	'nav.menu': 'Menu',
 	'nav.closeMenu': 'Fermer le menu',
+	'tabs.label': "Menu principal",
+	'tabs.library': "Bibliothèque",
+	'tabs.reading': "En cours",
+	'tabs.shelves': "Étagères",
+	'tabs.more': "Plus",
 	'nav.account': 'Paramètres du compte',
 	'nav.admin': 'Administration',
 

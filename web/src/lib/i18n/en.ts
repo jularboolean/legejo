@@ -3,6 +3,11 @@ export const en = {
 	'nav.logout': 'Log out',
 	'nav.menu': 'Menu',
 	'nav.closeMenu': 'Close menu',
+	'tabs.label': "Main menu",
+	'tabs.library': "Library",
+	'tabs.reading': "Reading",
+	'tabs.shelves': "Shelves",
+	'tabs.more': "More",
 	'nav.account': 'Account settings',
 	'nav.admin': 'Admin',
 

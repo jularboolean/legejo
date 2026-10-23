@@ -80,7 +80,7 @@
 	.notice {
 		position: fixed;
 		left: 50%;
-		bottom: calc(1rem + env(safe-area-inset-bottom));
+		bottom: calc(1rem + var(--tabbar, env(safe-area-inset-bottom)));
 		transform: translateX(-50%);
 		z-index: 200;
 		display: flex;

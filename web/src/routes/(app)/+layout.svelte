@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { dev } from '$app/env';
-	import { updated } from '$app/state';
+	import { page, updated } from '$app/state';
 	import { onMount } from 'svelte';
 	import {
 		BookDown,
 		BookMarked,
 		BookOpenCheck,
 		Earth,
+		Ellipsis,
 		Feather,
 		Globe,
 		HardDriveDownload,
 		Headphones,
 		LibraryBig,
 		LogOut,
-		Menu,
 		Search,
 		Settings,
 		Sparkles,
@@ -30,13 +30,55 @@
 	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
 	import { sendUnsent } from '#lib/reader/progress';
 	import { sendUnsentTime } from '#lib/reader/readingClock';
-	import { swipeAction, swipeMayStart, type Point } from '#lib/drawerSwipe';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: any } = $props();
 
-	let menuOpen = $state(false);
-	afterNavigate(() => (menuOpen = false));
+	// On a phone the navigation is a row of tabs at the foot of the screen,
+	// in reach of a thumb; two of them open a sheet from below with the rest
+	// of what the sidebar holds on a wide screen.
+	let sheet = $state<'shelves' | 'more' | null>(null);
+	afterNavigate(() => (sheet = null));
+
+	/** The tab the page belongs to, or the one whose sheet is open. */
+	const tab = $derived.by(() => {
+		if (sheet) return sheet;
+		const path = page.url.pathname;
+		if (path === '/' || path.startsWith('/books/')) return 'library';
+		if (path.startsWith('/reading')) return 'reading';
+		if (path.startsWith('/search')) return 'search';
+		if (/^\/(shelves|public|linked|fediverse|catalogs)(\/|$)/.test(path)) return 'shelves';
+		return 'more';
+	});
+
+	function toggleSheet(which: 'shelves' | 'more') {
+		sheet = sheet === which ? null : which;
+	}
+
+	// The page keeps clear of the tabs (the --tabbar space in app.css), but
+	// only while they are there: not on the login page, nor in the reader.
+	$effect(() => {
+		const html = document.documentElement;
+		html.classList.toggle('has-tabbar', !!data.user);
+		return () => html.classList.remove('has-tabbar');
+	});
+
+	// A sheet follows a finger that pulls it down by its grip, and goes when
+	// let go far enough down.
+	let pull = $state(0);
+	let pullFrom: number | null = null;
+	function grip(e: TouchEvent) {
+		pullFrom = e.touches[0]?.clientY ?? null;
+	}
+	function gripMove(e: TouchEvent) {
+		if (pullFrom === null) return;
+		pull = Math.max(0, (e.touches[0]?.clientY ?? pullFrom) - pullFrom);
+	}
+	function gripEnd() {
+		if (pull > 70) sheet = null;
+		pull = 0;
+		pullFrom = null;
+	}
 
 	// Once a new version has been published (SvelteKit polls for it), the next
 	// navigation is a full page load, so the old code does not reach for
@@ -47,9 +89,9 @@
 		}
 	});
 
-	// While the mobile drawer is open the page behind it must not scroll.
+	// While a sheet is open the page behind it must not scroll.
 	$effect(() => {
-		document.body.style.overflow = menuOpen ? 'hidden' : '';
+		document.body.style.overflow = sheet ? 'hidden' : '';
 		return () => (document.body.style.overflow = '');
 	});
 
@@ -129,28 +171,10 @@
 		goto('/login');
 	}
 
-	// On a phone, a swipe to the right across the page opens the menu and one
-	// to the left closes it (drawerSwipe.ts). Wide screens have no drawer.
-	let swipe: Point | null = null;
-	function ontouchstart(e: TouchEvent) {
-		swipe = null;
-		if (e.touches.length !== 1 || !matchMedia('(max-width: 48rem)').matches) return;
-		const point = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
-		if (swipeMayStart(point, e.target as Element | null)) swipe = point;
-	}
-	function ontouchend(e: TouchEvent) {
-		const start = swipe;
-		swipe = null;
-		const touch = e.changedTouches[0];
-		if (!start || !touch) return;
-		const action = swipeAction(start, { x: touch.clientX, y: touch.clientY, time: Date.now() }, menuOpen);
-		if (action) menuOpen = action === 'open';
-	}
-
 	// "/" anywhere outside a text field jumps to the search page.
 	function onkeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && menuOpen) {
-			menuOpen = false;
+		if (e.key === 'Escape' && sheet) {
+			sheet = null;
 			return;
 		}
 		if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -161,165 +185,225 @@
 	}
 </script>
 
-<svelte:window {onkeydown} {ontouchstart} {ontouchend} ontouchcancel={() => (swipe = null)} />
+<svelte:window {onkeydown} />
+
+{#snippet search()}
+	<a class="nav-item" href="/search">
+		<Search size={15} strokeWidth={1.75} />
+		{t('sidebar.search')}
+	</a>
+{/snippet}
+{#snippet librarian()}
+	{#if data.librarian}
+		<a class="nav-item" href="/librarian">
+			<Sparkles size={15} strokeWidth={1.75} />
+			{t('librarian.heading')}
+		</a>
+	{/if}
+{/snippet}
+{#snippet library()}
+	<a class="nav-item" href="/">
+		<LibraryBig size={15} strokeWidth={1.75} />
+		{t('sidebar.allBooks')}
+	</a>
+	<a class="nav-item" href="/reading">
+		<BookOpenCheck size={15} strokeWidth={1.75} />
+		{t('sidebar.reading')}
+	</a>
+{/snippet}
+{#snippet mine()}
+	<a class="nav-item" href="/notes">
+		<Highlighter size={15} strokeWidth={1.75} />
+		{t('sidebar.notes')}
+	</a>
+	{#if hasSaved || data.offline}
+		<a class="nav-item" href="/offline">
+			<HardDriveDownload size={15} strokeWidth={1.75} />
+			{t('sidebar.offline')}
+		</a>
+	{/if}
+	<a class="nav-item" href="/authors">
+		<Feather size={15} strokeWidth={1.75} />
+		{t('sidebar.authors')}
+	</a>
+{/snippet}
+{#snippet shelves()}
+	<h2>{t('sidebar.shelves')}</h2>
+	{#if data.shelves.length === 0}
+		<p class="none">{t('sidebar.noShelves')}</p>
+	{:else}
+		<ul class="shelf-list">
+			{#each data.shelves as shelf (shelf.id)}
+				<li>
+					<a class="shelf-link" href={`/shelves/${shelf.id}`}>
+						<BookMarked size={13} strokeWidth={1.75} class="shelf-icon" />
+						<span class="shelf-name">{shelf.name}</span>
+						{#if shelf.visibility === 'federated'}
+							<span class="vis" title={t('sidebar.visFederated')} aria-label={t('sidebar.visFederated')}>
+								<Earth size={12} strokeWidth={1.75} />
+							</span>
+						{:else if shelf.visibility === 'instance'}
+							<span class="vis" title={t('sidebar.visInstance')} aria-label={t('sidebar.visInstance')}>
+								<Globe size={12} strokeWidth={1.75} />
+							</span>
+						{:else if shelf.visibility === 'restricted'}
+							<span class="vis" title={t('sidebar.visRestricted')} aria-label={t('sidebar.visRestricted')}>
+								<Users size={12} strokeWidth={1.75} />
+							</span>
+						{/if}
+						<span class="badge">{shelf.book_count}</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+{/snippet}
+{#snippet elsewhere()}
+	<a class="nav-item lower" href="/public">
+		<Globe size={15} strokeWidth={1.75} />
+		{t('sidebar.public')}
+		{#if newBookCount() > 0}
+			<span class="badge new" title={t('follow.badge', { count: newBookCount() })} aria-label={t('follow.badge', { count: newBookCount() })}>
+				{newBookCount()}
+			</span>
+		{/if}
+	</a>
+	{#if data.fed.available && data.fed.enabled}
+		<a class="nav-item" href="/fediverse">
+			<Earth size={15} strokeWidth={1.75} />
+			{t('sidebar.fediverse')}
+		</a>
+	{/if}
+	{#if data.catalogs}
+		<a class="nav-item" href="/catalogs">
+			<BookDown size={15} strokeWidth={1.75} />
+			{t('sidebar.catalogs')}
+		</a>
+	{/if}
+{/snippet}
+{#snippet audiobooks()}
+	{#if data.audiobooksEnabled}
+		<a class="nav-item" href="/audiobooks">
+			<Headphones size={15} strokeWidth={1.75} />
+			{t('sidebar.audiobooks')}
+		</a>
+	{/if}
+{/snippet}
+{#snippet userRow(user: NonNullable<LayoutData['user']>)}
+	<div class="user">
+		<a class="account-link" href="/account" title={t('nav.account')}>
+			<Avatar userId={user.id} hasAvatar={user.has_avatar} size={30} alt="" />
+			<span class="name">{user.username}</span>
+		</a>
+		{#if user.is_admin}
+			<a
+				class="gear"
+				href={data.fed.pending_instances ? '/admin?tab=federation' : '/admin'}
+				title={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
+				aria-label={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
+			>
+				<Settings size={15} />
+				{#if data.fed.pending_instances}<span class="dot"></span>{/if}
+			</a>
+		{/if}
+		<button class="logout" onclick={logout} title={t('nav.logout')} aria-label={t('nav.logout')}>
+			<LogOut size={15} />
+		</button>
+	</div>
+{/snippet}
 
 {#if data.user}
 	<header class="topbar">
 		<div class="topbar-inner">
-			<button
-				class="menu-toggle"
-				onclick={() => (menuOpen = !menuOpen)}
-				aria-expanded={menuOpen}
-				aria-controls="sidebar"
-				aria-label={t('nav.menu')}
-			>
-				<Menu size={20} />
-			</button>
 			<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
 			<a class="brand" href="/" aria-label={t('app.name')}>
-				<Logo size={40} />
+				<Logo size={34} />
 			</a>
 		</div>
 	</header>
 
 	<div class="shell">
-		<!-- Mobile: tapping outside the drawer closes it. -->
-		<div
-			class="backdrop"
-			class:open={menuOpen}
-			onclick={() => (menuOpen = false)}
-			aria-hidden="true"
-		></div>
-		<aside id="sidebar" class:open={menuOpen}>
-			<div class="drawer-head">
-				<button class="menu-close" onclick={() => (menuOpen = false)} aria-label={t('nav.closeMenu')}>
-					<X size={20} />
-				</button>
-			</div>
+		<aside id="sidebar">
 			<a class="sidebrand" href="/" aria-label={t('app.name')}>
 				<Logo size={124} variant="pair" />
 				<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
 			</a>
 
 			<nav>
-				<a class="nav-item" href="/search">
-					<Search size={15} strokeWidth={1.75} />
-					{t('sidebar.search')}
-				</a>
-				{#if data.librarian}
-					<a class="nav-item" href="/librarian">
-						<Sparkles size={15} strokeWidth={1.75} />
-						{t('librarian.heading')}
-					</a>
-				{/if}
-				<a class="nav-item" href="/">
-					<LibraryBig size={15} strokeWidth={1.75} />
-					{t('sidebar.allBooks')}
-				</a>
-				<a class="nav-item" href="/reading">
-					<BookOpenCheck size={15} strokeWidth={1.75} />
-					{t('sidebar.reading')}
-				</a>
-				<a class="nav-item" href="/notes">
-					<Highlighter size={15} strokeWidth={1.75} />
-					{t('sidebar.notes')}
-				</a>
-				{#if hasSaved || data.offline}
-					<a class="nav-item" href="/offline">
-						<HardDriveDownload size={15} strokeWidth={1.75} />
-						{t('sidebar.offline')}
-					</a>
-				{/if}
-				<a class="nav-item" href="/authors">
-					<Feather size={15} strokeWidth={1.75} />
-					{t('sidebar.authors')}
-				</a>
-
-				<h2>{t('sidebar.shelves')}</h2>
-				{#if data.shelves.length === 0}
-					<p class="none">{t('sidebar.noShelves')}</p>
-				{:else}
-					<ul class="shelf-list">
-						{#each data.shelves as shelf (shelf.id)}
-							<li>
-								<a class="shelf-link" href={`/shelves/${shelf.id}`}>
-									<BookMarked size={13} strokeWidth={1.75} class="shelf-icon" />
-									<span class="shelf-name">{shelf.name}</span>
-									{#if shelf.visibility === 'federated'}
-										<span class="vis" title={t('sidebar.visFederated')} aria-label={t('sidebar.visFederated')}>
-											<Earth size={12} strokeWidth={1.75} />
-										</span>
-									{:else if shelf.visibility === 'instance'}
-										<span class="vis" title={t('sidebar.visInstance')} aria-label={t('sidebar.visInstance')}>
-											<Globe size={12} strokeWidth={1.75} />
-										</span>
-									{:else if shelf.visibility === 'restricted'}
-										<span class="vis" title={t('sidebar.visRestricted')} aria-label={t('sidebar.visRestricted')}>
-											<Users size={12} strokeWidth={1.75} />
-										</span>
-									{/if}
-									<span class="badge">{shelf.book_count}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-
-				<a class="nav-item lower" href="/public">
-					<Globe size={15} strokeWidth={1.75} />
-					{t('sidebar.public')}
-					{#if newBookCount() > 0}
-						<span class="badge new" title={t('follow.badge', { count: newBookCount() })} aria-label={t('follow.badge', { count: newBookCount() })}>
-							{newBookCount()}
-						</span>
-					{/if}
-				</a>
-				{#if data.fed.available && data.fed.enabled}
-					<a class="nav-item" href="/fediverse">
-						<Earth size={15} strokeWidth={1.75} />
-						{t('sidebar.fediverse')}
-					</a>
-				{/if}
-				{#if data.catalogs}
-					<a class="nav-item" href="/catalogs">
-						<BookDown size={15} strokeWidth={1.75} />
-						{t('sidebar.catalogs')}
-					</a>
-				{/if}
-				{#if data.audiobooksEnabled}
-					<a class="nav-item" href="/audiobooks">
-						<Headphones size={15} strokeWidth={1.75} />
-						{t('sidebar.audiobooks')}
-					</a>
-				{/if}
+				{@render search()}
+				{@render librarian()}
+				{@render library()}
+				{@render mine()}
+				{@render shelves()}
+				{@render elsewhere()}
+				{@render audiobooks()}
 			</nav>
 
-			<div class="user">
-				<a class="account-link" href="/account" title={t('nav.account')}>
-					<Avatar userId={data.user.id} hasAvatar={data.user.has_avatar} size={30} alt="" />
-					<span class="name">{data.user.username}</span>
-				</a>
-				{#if data.user.is_admin}
-					<a
-						class="gear"
-						href={data.fed.pending_instances ? '/admin?tab=federation' : '/admin'}
-						title={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
-						aria-label={data.fed.pending_instances ? t('nav.adminPending') : t('nav.admin')}
-					>
-						<Settings size={15} />
-						{#if data.fed.pending_instances}<span class="dot"></span>{/if}
-					</a>
-				{/if}
-				<button class="logout" onclick={logout} title={t('nav.logout')} aria-label={t('nav.logout')}>
-					<LogOut size={15} />
-				</button>
-			</div>
+			{@render userRow(data.user)}
 		</aside>
 
 		<main>
 			{@render children()}
 		</main>
 	</div>
+
+	{#if sheet}
+		<div class="sheet-backdrop" onclick={() => (sheet = null)} aria-hidden="true"></div>
+		<div
+			class="sheet"
+			role="dialog"
+			aria-modal="true"
+			aria-label={sheet === 'shelves' ? t('tabs.shelves') : t('tabs.more')}
+			style:transform={pull > 0 ? `translateY(${pull}px)` : null}
+		>
+			<div class="grip" role="presentation" ontouchstart={grip} ontouchmove={gripMove} ontouchend={gripEnd} ontouchcancel={gripEnd}>
+				<span></span>
+				<button class="sheet-close" onclick={() => (sheet = null)} aria-label={t('nav.closeMenu')}>
+					<X size={18} />
+				</button>
+			</div>
+			<nav>
+				{#if sheet === 'shelves'}
+					{@render shelves()}
+					{@render elsewhere()}
+				{:else}
+					{@render mine()}
+					{@render audiobooks()}
+					{@render librarian()}
+				{/if}
+			</nav>
+			{#if sheet === 'more'}{@render userRow(data.user)}{/if}
+		</div>
+	{/if}
+
+	<nav class="tabbar" aria-label={t('tabs.label')}>
+		<a href="/" class:on={tab === 'library'} aria-current={tab === 'library' ? 'page' : undefined}>
+			<LibraryBig size={22} strokeWidth={1.75} />
+			<span>{t('tabs.library')}</span>
+		</a>
+		<a href="/reading" class:on={tab === 'reading'} aria-current={tab === 'reading' ? 'page' : undefined}>
+			<BookOpenCheck size={22} strokeWidth={1.75} />
+			<span>{t('tabs.reading')}</span>
+		</a>
+		<a href="/search" class:on={tab === 'search'} aria-current={tab === 'search' ? 'page' : undefined}>
+			<Search size={22} strokeWidth={1.75} />
+			<span>{t('sidebar.search')}</span>
+		</a>
+		<button class:on={tab === 'shelves'} aria-expanded={sheet === 'shelves'} onclick={() => toggleSheet('shelves')}>
+			<span class="icon">
+				<BookMarked size={22} strokeWidth={1.75} />
+				{#if newBookCount() > 0}<span class="dot" aria-label={t('follow.badge', { count: newBookCount() })}></span>{/if}
+			</span>
+			<span>{t('tabs.shelves')}</span>
+		</button>
+		<button class:on={tab === 'more'} aria-expanded={sheet === 'more'} onclick={() => toggleSheet('more')}>
+			<span class="icon">
+				<Ellipsis size={22} strokeWidth={1.75} />
+				{#if data.user.is_admin && data.fed.pending_instances}<span class="dot" aria-label={t('nav.adminPending')}></span>{/if}
+			</span>
+			<span>{t('tabs.more')}</span>
+		</button>
+	</nav>
 {:else}
 	{@render children()}
 {/if}
@@ -348,7 +432,7 @@
 		position: fixed;
 		left: 0;
 		right: 0;
-		bottom: calc(1rem + env(safe-area-inset-bottom));
+		bottom: calc(1rem + var(--tabbar, env(safe-area-inset-bottom)));
 		margin: 0 auto;
 		width: fit-content;
 		z-index: 70;
@@ -400,28 +484,6 @@
 	.brand :global(.logo) {
 		display: block;
 	}
-	.menu-toggle {
-		display: none;
-		background: none;
-		border: none;
-		padding: 0.3rem;
-		color: var(--muted);
-		border-radius: 6px;
-	}
-	.menu-close {
-		background: none;
-		border: none;
-		padding: 0.3rem;
-		color: var(--muted);
-		border-radius: 6px;
-		display: inline-flex;
-	}
-	.menu-toggle:hover,
-	.menu-close:hover {
-		color: var(--fg);
-		background: var(--card);
-		filter: none;
-	}
 	.shell {
 		display: grid;
 		grid-template-columns: 14rem minmax(0, 1fr);
@@ -449,10 +511,6 @@
 	.sidebrand,
 	.user {
 		flex-shrink: 0;
-	}
-	.backdrop,
-	.drawer-head {
-		display: none;
 	}
 	.sidebrand {
 		display: flex;
@@ -637,73 +695,157 @@
 		background: var(--accent);
 		border-color: var(--accent);
 	}
+	/* Mobile only: the tabs at the foot of the screen and the sheets they open. */
+	.tabbar {
+		display: none;
+	}
 	@media (max-width: 48rem) {
 		.topbar {
 			display: block;
+			padding-top: env(safe-area-inset-top);
 		}
-		.menu-toggle {
-			display: inline-flex;
+		.topbar-inner {
+			padding: 0.35rem 1rem;
 		}
 		.shell {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
+			padding-bottom: calc(1.5rem + var(--tabbar, 0px));
 		}
-		/* The sidebar becomes a drawer that slides in from the left. */
 		aside {
-			position: fixed;
-			top: 0;
-			left: 0;
-			bottom: 0;
-			z-index: 60;
-			width: min(18rem, 85vw);
-			max-height: none;
-			padding: 0.75rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
-			gap: 0.75rem;
-			background: var(--bg);
-			border-right: 1px solid var(--border);
-			box-shadow: 0 0 2rem rgb(0 0 0 / 0.18);
-			transform: translateX(-105%);
-			visibility: hidden;
-			transition:
-				transform 0.22s ease,
-				visibility 0s linear 0.22s;
-		}
-		aside.open {
-			transform: none;
-			visibility: visible;
-			transition: transform 0.22s ease;
-		}
-		.drawer-head {
-			display: flex;
-			flex-shrink: 0;
-			margin: 0 -0.3rem;
-		}
-		.backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			z-index: 50;
-			background: rgb(0 0 0 / 0.35);
-			opacity: 0;
-			pointer-events: none;
-			transition: opacity 0.22s ease;
-		}
-		.backdrop.open {
-			opacity: 1;
-			pointer-events: auto;
-		}
-		.sidebrand {
 			display: none;
 		}
-		.user {
-			padding-top: 0.75rem;
+
+		.tabbar {
+			position: fixed;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			z-index: 47;
+			display: grid;
+			grid-template-columns: repeat(5, 1fr);
+			padding: 0.3rem calc(0.25rem + env(safe-area-inset-right)) calc(0.3rem + env(safe-area-inset-bottom))
+				calc(0.25rem + env(safe-area-inset-left));
+			background: color-mix(in srgb, var(--bg) 92%, transparent);
+			-webkit-backdrop-filter: blur(14px);
+			backdrop-filter: blur(14px);
+			border-top: 1px solid var(--border);
+		}
+		.tabbar > a,
+		.tabbar > button {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 0.15rem;
+			min-height: 2.8rem;
+			padding: 0.15rem 0;
+			background: none;
+			border: none;
+			border-radius: 10px;
+			color: var(--muted);
+			font: inherit;
+			font-size: 0.66rem;
+			font-weight: 500;
+			letter-spacing: 0.01em;
+			text-decoration: none;
+			-webkit-tap-highlight-color: transparent;
+		}
+		.tabbar > .on {
+			color: var(--accent);
+		}
+		.tabbar .icon {
+			position: relative;
+			display: flex;
+		}
+		.tabbar .dot {
+			position: absolute;
+			top: -0.1rem;
+			right: -0.25rem;
+			width: 0.5rem;
+			height: 0.5rem;
+			border-radius: 50%;
+			background: var(--accent);
+			border: 2px solid var(--bg);
+		}
+
+		/* A sheet comes up above the tabs, which stay in reach to close it or
+		   switch to the other. */
+		.sheet-backdrop {
+			position: fixed;
+			inset: 0;
+			z-index: 45;
+			background: rgb(0 0 0 / 0.3);
+			animation: fade 0.2s ease;
+		}
+		.sheet {
+			position: fixed;
+			left: 0;
+			right: 0;
+			bottom: var(--tabbar, 0px);
+			z-index: 46;
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+			max-height: calc(100dvh - var(--tabbar, 0px) - 4rem - env(safe-area-inset-top));
+			padding: 0 calc(1.25rem + env(safe-area-inset-right)) 1rem calc(1.25rem + env(safe-area-inset-left));
+			background: var(--bg);
+			border-radius: 16px 16px 0 0;
+			box-shadow: 0 -6px 28px rgb(0 0 0 / 0.18);
+			animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+		}
+		.grip {
+			position: relative;
+			flex-shrink: 0;
+			display: flex;
+			justify-content: center;
+			padding: 0.55rem 0 0.25rem;
+			touch-action: none;
+		}
+		.grip > span {
+			width: 2.4rem;
+			height: 0.3rem;
+			border-radius: 99px;
+			background: var(--border);
+		}
+		.sheet-close {
+			position: absolute;
+			right: -0.6rem;
+			top: 0.3rem;
+			display: inline-flex;
+			padding: 0.35rem;
+			background: none;
+			border: none;
+			border-radius: 6px;
+			color: var(--muted);
+		}
+		.sheet nav {
+			padding-top: 0.25rem;
+		}
+		.sheet .nav-item,
+		.sheet .shelf-link {
+			padding-top: 0.55rem;
+			padding-bottom: 0.55rem;
+			font-size: 1rem;
+		}
+		.sheet .user {
+			margin-top: 0;
+		}
+	}
+	@keyframes rise {
+		from {
+			transform: translateY(100%);
+		}
+	}
+	@keyframes fade {
+		from {
+			opacity: 0;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		aside,
-		aside.open,
-		.backdrop {
-			transition: none;
+		.sheet,
+		.sheet-backdrop {
+			animation: none;
 		}
 	}
 </style>

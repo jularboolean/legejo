@@ -5,6 +5,11 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'nav.logout': 'Elsaluti',
 	'nav.menu': 'Menuo',
 	'nav.closeMenu': 'Fermi la menuon',
+	'tabs.label': "Ĉefa menuo",
+	'tabs.library': "Biblioteko",
+	'tabs.reading': "Legado",
+	'tabs.shelves': "Bretoj",
+	'tabs.more': "Pli",
 	'nav.account': 'Kontoagordoj',
 	'nav.admin': 'Administrado',
 
