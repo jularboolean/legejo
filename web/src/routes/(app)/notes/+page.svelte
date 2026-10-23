@@ -71,7 +71,7 @@
 <div class="heading">
 	<h1>{t('notes.heading')} <span class="count">{notes.length}</span></h1>
 	{#if notes.length > 0}
-		<a class="button ghost export" href="/api/annotations/export" download><Download size={13} /> {t('notes.export')}</a>
+		<a class="button ghost export" href="/api/annotations/export" download title={t('notes.export')} aria-label={t('notes.export')}><Download size={16} /></a>
 	{/if}
 </div>
 
@@ -177,8 +177,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.35rem;
-		font-size: 0.82rem;
-		padding: 0.32rem 0.7rem;
+		padding: 0.4rem;
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		color: var(--fg);

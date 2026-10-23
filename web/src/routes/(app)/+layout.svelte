@@ -353,6 +353,12 @@
 					<X size={18} />
 				</button>
 			</div>
+			{#if sheet === 'more'}
+				<a class="sheetbrand" href="/" aria-label={t('app.name')}>
+					<Logo size={64} variant="pair" />
+					<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
+				</a>
+			{/if}
 			<nav>
 				{#if sheet === 'shelves'}
 					{@render shelves()}
@@ -363,13 +369,7 @@
 					{@render librarian()}
 				{/if}
 			</nav>
-			{#if sheet === 'more'}
-				{@render userRow(data.user)}
-				<a class="sheetbrand" href="/" aria-label={t('app.name')}>
-					<Logo size={64} variant="pair" />
-					<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
-				</a>
-			{/if}
+			{#if sheet === 'more'}{@render userRow(data.user)}{/if}
 		</div>
 	{/if}
 
@@ -800,7 +800,8 @@
 			flex-direction: column;
 			align-items: center;
 			gap: 0.25rem;
-			padding: 0.75rem 0 0.25rem;
+			padding: 0 0 0.75rem;
+			border-bottom: 3px double var(--border);
 			color: var(--fg);
 			text-decoration: none;
 		}
