@@ -5,6 +5,10 @@
 export const BOOKS_CACHE = 'legejo-books-v1';
 /** Who is logged in and what the menus need, as last seen. */
 export const DATA_CACHE = 'legejo-data-v1';
+/** Covers and avatars as last seen, shown at once while they are fetched anew. */
+export const PICTURES_CACHE = 'legejo-pictures-v1';
+/** At most this many pictures are kept; the ones fetched longest ago go first. */
+export const PICTURES_KEPT = 800;
 /** Set on an answer that came from a cache because the network did not answer. */
 export const CACHED_HEADER = 'x-legejo-cached';
 
@@ -26,4 +30,9 @@ export function bookKey(path: string): { id: string; kind: BookPart; url: string
 export function bookUrls(id: number | string): Record<BookPart, string> {
 	const base = `/api/books/${id}`;
 	return { detail: base, cover: `${base}/cover`, progress: `${base}/progress`, annotations: `${base}/annotations`, file: `${base}/file` };
+}
+
+/** A cover or an avatar: the pictures the catalog and the shelves show. */
+export function isPicture(path: string): boolean {
+	return /^\/api\/(?:[\w-]+\/)+(?:cover|avatar)$/.test(path);
 }

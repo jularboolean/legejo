@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cover } from '#lib/cover';
 	// Shelves that someone has sent a private link to, from this instance or
 	// another: the list of them, and the field a new link is pasted into.
 	import { tick } from 'svelte';
@@ -93,6 +94,7 @@
 				<li>
 					<a class="row" href={`/linked/${shelf.id}`}>
 						<img
+							use:cover
 							class="thumb"
 							src={shelf.has_cover ? `/api/linked-shelves/${shelf.id}/cover` : defaultShelfCover(shelf.cover_seed ?? shelf.id)}
 							alt=""

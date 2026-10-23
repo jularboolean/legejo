@@ -4,19 +4,21 @@
 
 // What makes Legejo open, and a saved book readable, without the network.
 //
-// Three caches:
+// Four caches:
 //  - the shell: the app's own files for this version, taken at install;
 //  - session data: who is logged in and what the menus need, kept as last seen;
 //  - books: what the page has put there for the books saved on the device
-//    (lib/offline/store.ts). This worker only reads it and keeps it fresh.
+//    (lib/offline/store.ts). This worker only reads it and keeps it fresh;
+//  - pictures: covers and avatars as last seen. They are shown at once and
+//    fetched anew behind them, so that a list drawn again does not blink.
 //
-// The network always comes first for anything that can change. The caches
+// Apart from the pictures, the network always comes first for anything that can change. The caches
 // answer when it does not, and say so with a header the app looks for. A
 // server that answers with an error of its own (5xx, as a proxy in front of
 // a server that is down does) counts as not answering.
 
 import { assets, immutable } from '$app/manifest';
-import { BOOKS_CACHE, CACHED_HEADER, DATA_CACHE, SESSION_PATHS, bookKey } from '../lib/offline/keys';
+import { BOOKS_CACHE, CACHED_HEADER, DATA_CACHE, PICTURES_CACHE, PICTURES_KEPT, SESSION_PATHS, bookKey, isPicture } from '../lib/offline/keys';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
@@ -136,6 +138,41 @@ async function cacheFirst(request: Request, cacheName: string, key: string, keep
 	return response;
 }
 
+/**
+ * A picture as last seen, while it is fetched anew for the next time; the
+ * network's answer when there is none. One that is gone (a cover removed)
+ * is forgotten.
+ */
+async function lastSeen(event: FetchEvent, request: Request): Promise<Response> {
+	const cache = await caches.open(PICTURES_CACHE);
+	const kept = await cache.match(request.url);
+	const fresh = fetch(request).then(async (response) => {
+		if (response.status === 200) {
+			// Taken out and put back, so that the keys stay in the order fetched.
+			await cache.delete(request.url);
+			await cache.put(request.url, response.clone());
+			await trim(cache);
+		} else if (response.status === 404 || response.status === 403) {
+			await cache.delete(request.url);
+		}
+		return response;
+	});
+	if (!kept) return fresh;
+	event.waitUntil(fresh.then(() => undefined).catch(() => undefined));
+	return kept;
+}
+
+let trimming: Promise<void> | null = null;
+
+/** Keep the pictures to their number, those fetched longest ago going first. */
+function trim(cache: Cache): Promise<void> {
+	trimming ??= (async () => {
+		const keys = await cache.keys();
+		for (const key of keys.slice(0, Math.max(0, keys.length - PICTURES_KEPT))) await cache.delete(key);
+	})().finally(() => (trimming = null));
+	return trimming;
+}
+
 async function navigation(request: Request): Promise<Response> {
 	const shell = async () => (await caches.open(SHELL_CACHE)).match('/');
 	const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), PATIENCE_MS));
@@ -177,14 +214,23 @@ sw.addEventListener('fetch', (event) => {
 					// session goes, so the app does not open as that user again
 					// without the network. Saved books stay for the next login
 					// (the page removes them if it is someone else's).
-					if (path === '/api/auth/me' && response.status === 401) await caches.delete(DATA_CACHE);
+					// The pictures go with it: they are that user's.
+					if (path === '/api/auth/me' && response.status === 401) {
+						await caches.delete(DATA_CACHE);
+						await caches.delete(PICTURES_CACHE);
+					}
 					return response;
 				})
 			);
 			return;
 		}
 		const key = bookKey(path);
+		const picture = request.destination === 'image' && isPicture(path);
 		if (!key) {
+			if (picture) {
+				event.respondWith(lastSeen(event, request));
+				return;
+			}
 			// What the page fetches for itself; pictures, sound and downloads
 			// are left to the browser.
 			if (request.destination === '' && !request.headers.has('range')) event.respondWith(withinReason(request));
@@ -193,7 +239,7 @@ sw.addEventListener('fetch', (event) => {
 		event.respondWith(
 			(async () => {
 				const saved = await (await caches.open(BOOKS_CACHE)).match(key.url);
-				if (!saved) return request.destination === '' ? withinReason(request) : fetch(request);
+				if (!saved) return request.destination === '' ? withinReason(request) : picture ? lastSeen(event, request) : fetch(request);
 				// The file is what it was when saved; the page saves it anew
 				// when the book has changed.
 				if (key.kind === 'file') return cacheFirst(request, BOOKS_CACHE, key.url, false);

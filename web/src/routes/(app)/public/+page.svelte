@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cover } from '#lib/cover';
 	import { Users } from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
@@ -63,7 +64,7 @@
 		{#each data.publicShelves as shelf (shelf.id)}
 			<li>
 				<a class="row" href={shelfHref(shelf)}>
-					<img class="thumb" src={shelfCover(shelf)} alt="" loading="lazy" />
+					<img use:cover class="thumb" src={shelfCover(shelf)} alt="" loading="lazy" />
 					<div class="info">
 						<span class="name">{shelf.name}{@render followMark(shelf)}</span>
 						<span class="owner">
@@ -80,7 +81,7 @@
 					{#if shelf.cover_books.length > 0}
 						<div class="glimpse" aria-hidden="true">
 							{#each shelf.cover_books as id (id)}
-								<img src={`/api/public/books/${id}/cover?size=thumb`} alt="" loading="lazy" />
+								<img use:cover src={`/api/public/books/${id}/cover?size=thumb`} alt="" loading="lazy" />
 							{/each}
 						</div>
 					{/if}
@@ -93,7 +94,7 @@
 		{#each data.publicShelves as shelf (shelf.id)}
 			<a class="card" href={shelfHref(shelf)}>
 				<div class="cover">
-					<img src={shelfCover(shelf)} alt="" loading="lazy" />
+					<img use:cover src={shelfCover(shelf)} alt="" loading="lazy" />
 				</div>
 				<div class="meta">
 					<span class="name">{shelf.name}{@render followMark(shelf)}</span>
