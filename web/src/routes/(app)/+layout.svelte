@@ -51,6 +51,10 @@
 		return 'more';
 	});
 
+	/** The pages the tabs lead to, whose heading has the pigeon beside it on a phone. */
+	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/authors', '/audiobooks'];
+	const branded = $derived(TAB_PAGES.includes(page.url.pathname));
+
 	function toggleSheet(which: 'shelves' | 'more') {
 		sheet = sheet === which ? null : which;
 	}
@@ -333,7 +337,7 @@
 			{@render userRow(data.user)}
 		</aside>
 
-		<main>
+		<main class:branded>
 			{@render children()}
 		</main>
 	</div>
@@ -678,6 +682,17 @@
 		}
 		aside {
 			display: none;
+		}
+		/* Without the sidebar's pigeons, the heading of a page the tabs lead
+		   to has one beside it. */
+		main.branded :global(h1)::before {
+			content: '';
+			display: inline-block;
+			width: 0.76em;
+			height: 1.15em;
+			margin-right: 0.4em;
+			vertical-align: -0.2em;
+			background: url('../../lib/assets/duva.svg') center / contain no-repeat;
 		}
 
 		.tabbar {
