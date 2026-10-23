@@ -16,6 +16,7 @@
 		type GestureHandlers
 	} from './gestures';
 	import { createProgressStore } from './progress';
+	import { startReadingClock } from './readingClock';
 	import { LIMITS, loadSettings, saveSettings } from './settings';
 	import { palettes } from './themes';
 	import {
@@ -151,6 +152,10 @@
 	// ---- Reading position -------------------------------------------------------
 
 	const progress = createProgressStore(bookId);
+	/** Time spent reading, counted while the page is in view and the reader active. */
+	const clock = startReadingClock(bookId, () =>
+		status !== 'ready' ? 'away' : speechState === 'playing' ? 'listening' : 'reading'
+	);
 	// Positions are only saved once the reader has moved: the position a book
 	// opens at may come from another device and must not be written back.
 	let moved = false;
@@ -159,6 +164,7 @@
 
 	function onRelocated(next: ReaderLocation) {
 		location = next;
+		clock.touch();
 		// Laid out again, perhaps: the handles go where the passage now is.
 		placeEndsSoon();
 		// The reader turned the page or jumped: reading aloud goes on from there.
@@ -179,7 +185,7 @@
 	async function leave(event: MouseEvent) {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 		event.preventDefault();
-		await Promise.race([progress.flush(), new Promise((resolve) => setTimeout(resolve, 800))]);
+		await Promise.race([Promise.all([progress.flush(), clock.flush()]), new Promise((resolve) => setTimeout(resolve, 800))]);
 		goto(backHref);
 	}
 
@@ -694,6 +700,7 @@
 			turn(deltaY > 0);
 		},
 		onActivity() {
+			clock.touch();
 			if (paginated) return;
 			moved = true;
 			if (chrome && !hovering) hideChrome();
@@ -1074,7 +1081,14 @@
 		if (viewport && !/viewport-fit/.test(viewport.content)) viewport.content += ', viewport-fit=cover';
 
 		const onFullscreen = () => (fullscreen = !!document.fullscreenElement);
-		const flush = () => progress.flush();
+		const flush = () => {
+			progress.flush();
+			clock.flush();
+		};
+		// Anything the reader does here keeps the reading time counting. Input
+		// inside a chapter's own document reaches the reader as page turns,
+		// scrolling and the like (gestures.ts), which touch it too.
+		const onInput = () => clock.touch();
 		const onVisibility = () => {
 			if (document.visibilityState === 'hidden') flush();
 		};
@@ -1091,6 +1105,7 @@
 		document.addEventListener('visibilitychange', onVisibility);
 		if (canSpeak) speechSynthesis.addEventListener('voiceschanged', onVoices);
 		window.addEventListener('pagehide', flush);
+		for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) window.addEventListener(type, onInput, { capture: true, passive: true });
 		host.addEventListener('pointerdown', onPointerDown);
 		stage.addEventListener('focusin', onFocusIn);
 
@@ -1101,6 +1116,7 @@
 			document.removeEventListener('fullscreenchange', onFullscreen);
 			document.removeEventListener('visibilitychange', onVisibility);
 			window.removeEventListener('pagehide', flush);
+			for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) window.removeEventListener(type, onInput, { capture: true });
 			host?.removeEventListener('pointerdown', onPointerDown);
 			stage?.removeEventListener('focusin', onFocusIn);
 			for (const timer of [chromeTimer, returnTimer, toastTimer]) if (timer) clearTimeout(timer);
@@ -1109,6 +1125,7 @@
 			speech?.stop();
 			if (canSpeak) speechSynthesis.removeEventListener('voiceschanged', onVoices);
 			flush();
+			clock.stop();
 			engine?.destroy();
 			html.classList.remove('legejo-reading');
 			html.style.removeProperty('--reader-bg');

@@ -29,6 +29,7 @@
 	import { t } from '#lib/i18n';
 	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
 	import { sendUnsent } from '#lib/reader/progress';
+	import { sendUnsentTime } from '#lib/reader/readingClock';
 	import { swipeAction, swipeMayStart, type Point } from '#lib/drawerSwipe';
 	import type { LayoutData } from './$types';
 
@@ -85,6 +86,7 @@
 		if (data.user) noteVersion();
 		const online = () => {
 			sendUnsent();
+			sendUnsentTime();
 			invalidateAll();
 		};
 		const recount = () => savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
@@ -103,7 +105,10 @@
 					.then(() => (controlled ? undefined : warmSession()))
 					.catch(() => {});
 			}
-			if (!data.offline) sendUnsent();
+			if (!data.offline) {
+				sendUnsent();
+				sendUnsentTime();
+			}
 		}
 		return () => {
 			window.removeEventListener('online', online);

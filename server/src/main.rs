@@ -251,6 +251,7 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/want", axum::routing::put(books::set_want))
         .route("/books/{id}/kobo-restore", post(books::kobo_restore))
         .route("/books/{id}/progress", get(progress::get).put(progress::put))
+        .route("/books/{id}/reading-time", axum::routing::post(readingtime::add_reader_time))
         .route("/books/{id}/read", axum::routing::put(progress::set_read))
         .route("/changelog", get(changelog::get))
         .route("/books/{id}/annotations", get(annotations::list).post(annotations::create))

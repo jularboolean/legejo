@@ -93,6 +93,8 @@ export type BookDetail = Book & {
 	annotation_count: number;
 	/** How long the book takes the owner to read; null until its text is counted. */
 	reading_time: ReadingTime | null;
+	/** Minutes the owner has spent reading it in the web reader. */
+	reader_minutes: number;
 };
 
 /** A book's length and the reader's pace (readingtime.rs). */
@@ -101,7 +103,7 @@ export type ReadingTime = {
 	chars: number;
 	/** Characters a minute. */
 	pace: number;
-	/** Books the reader's Kobo timed that the pace comes from; 0 for the common pace. */
+	/** Books the web reader or the reader's Kobo timed that the pace comes from; 0 for the common pace. */
 	paced_by: number;
 	minutes: number;
 };

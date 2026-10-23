@@ -243,6 +243,9 @@
 				{readingTime.line}{#if readingTime.left}<br />{readingTime.left}{/if}
 			</p>
 		{/if}
+		{#if (book.reader_minutes ?? 0) > 0}
+			<p class="elsewhere">{t('book.readerTime', { time: formatLength((book.reader_minutes ?? 0) * 60) })}</p>
+		{/if}
 		{#if (book.kobo_minutes ?? 0) > 0}
 			<p class="elsewhere">{t('book.koboTime', { time: formatLength((book.kobo_minutes ?? 0) * 60) })}</p>
 		{/if}

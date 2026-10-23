@@ -1,20 +1,30 @@
 //! How long a book takes to read: the length of its text, counted once per
 //! file by a worker, at a reading pace. The pace is the reader's own when
-//! their Kobo has timed books they finished, and otherwise a common one.
+//! the web reader or their Kobo has timed books they finished, and otherwise
+//! a common one. The web reader's time is kept here too (`reader_time`).
 
 use crate::booktext;
 use crate::books::book_path;
 use crate::formats::Format;
 use crate::progress;
+use crate::auth::AuthUser;
 use crate::AppState;
-use serde::Serialize;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Characters a minute for a reader whose own pace is not known: about 190
 /// words of Swedish or English prose.
 pub const COMMON_PACE: i64 = 1100;
-/// A finished book counts towards the reader's own pace when the Kobo timed
-/// at least this much of it, at a pace between these two: a book read
+/// The most one report from the web reader may add: it sends what it has
+/// counted every minute or so, and more is kept on the device only while
+/// the network is gone.
+const MOST_SECONDS: i64 = 6 * 3600;
+/// A finished book counts towards the reader's own pace when the web reader
+/// and the Kobo together timed at least this much of it, at a pace between these two: a book read
 /// mostly elsewhere, or left open on the device, tells nothing.
 const LEAST_MINUTES: i64 = 20;
 const SLOWEST: i64 = 300;
@@ -96,19 +106,21 @@ pub struct ReadingTime {
     pub chars: i64,
     /// Characters a minute.
     pub pace: i64,
-    /// The pace is the reader's own, from this many books their Kobo timed;
-    /// 0 for the common pace.
+    /// The pace is the reader's own, from this many books the web reader or
+    /// their Kobo timed; 0 for the common pace.
     pub paced_by: i64,
     /// The whole book at that pace.
     pub minutes: i64,
 }
 
-/// The reader's own pace, from the finished books their Kobo timed, with
-/// how many books it comes from; None when there are none to go by.
+/// The reader's own pace, from the finished books the web reader or their
+/// Kobo timed, with how many books it comes from; None when there are none
+/// to go by.
 pub async fn own_pace(state: &AppState, user_id: i64) -> anyhow::Result<Option<(i64, i64)>> {
-    let rows: Vec<(i64, Option<i64>)> = sqlx::query_as(&format!(
-        "SELECT b.text_chars, {minutes} FROM books b
+    let rows: Vec<(i64, Option<i64>, i64)> = sqlx::query_as(&format!(
+        "SELECT b.text_chars, {minutes}, COALESCE(rt.seconds, 0) FROM books b
          {joins}
+         LEFT JOIN reader_time rt ON rt.book_id = b.id AND rt.user_id = $1
          WHERE b.owner_id = $1 AND b.text_chars > 0 AND (b.read_at IS NOT NULL OR {percent} >= 0.97)",
         minutes = progress::kobo_minutes(state.backend),
         percent = progress::progress_percent(state.backend),
@@ -117,7 +129,56 @@ pub async fn own_pace(state: &AppState, user_id: i64) -> anyhow::Result<Option<(
     .bind(user_id)
     .fetch_all(&state.db)
     .await?;
-    Ok(pace_of(rows.into_iter().filter_map(|(chars, minutes)| Some((chars, minutes?)))))
+    Ok(pace_of(rows.into_iter().map(|(chars, kobo, seconds)| (chars, kobo.unwrap_or(0).max(0) + seconds / 60))))
+}
+
+/// Minutes the web reader has timed for the reader in a book.
+pub async fn reader_minutes(state: &AppState, user_id: i64, book_id: i64) -> anyhow::Result<i64> {
+    let seconds: Option<i64> = sqlx::query_scalar("SELECT seconds FROM reader_time WHERE user_id = $1 AND book_id = $2")
+        .bind(user_id)
+        .bind(book_id)
+        .fetch_optional(&state.db)
+        .await?;
+    Ok(seconds.unwrap_or(0) / 60)
+}
+
+#[derive(Deserialize)]
+pub struct AddTime {
+    seconds: i64,
+}
+
+/// The web reader's report of time spent reading a book since the last one.
+pub async fn add_reader_time(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<i64>,
+    Json(req): Json<AddTime>,
+) -> Result<StatusCode, Response> {
+    if !(1..=MOST_SECONDS).contains(&req.seconds) {
+        let msg = format!("seconds must be between 1 and {MOST_SECONDS}");
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": msg }))).into_response());
+    }
+    // Only for a book the user owns; no row written means no such book.
+    let added = sqlx::query(
+        "INSERT INTO reader_time (user_id, book_id, seconds, updated_at)
+         SELECT $1, id, $3, $4 FROM books WHERE id = $2 AND owner_id = $1
+         ON CONFLICT (user_id, book_id)
+         DO UPDATE SET seconds = reader_time.seconds + excluded.seconds, updated_at = excluded.updated_at",
+    )
+    .bind(user.0.id)
+    .bind(id)
+    .bind(req.seconds)
+    .bind(crate::db::now_ts())
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("internal error: {e:#}");
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+    })?;
+    if added.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))).into_response());
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// The pace over the books that count, as characters a minute, and how

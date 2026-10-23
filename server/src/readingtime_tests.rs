@@ -56,3 +56,42 @@ async fn a_book_reads_at_the_common_pace_until_the_kobo_has_timed_the_reader() {
     let (_, v) = send(&app, Method::GET, &format!("/api/books/{bobs}"), Some(&b), None).await;
     assert_eq!(v["reading_time"]["paced_by"], 0, "{v}");
 }
+
+#[tokio::test]
+async fn the_web_readers_time_adds_up_and_paces_the_reader() {
+    let (app, db, _) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    let (book, _) = add_book(&db, alice, "Gösta Berlings saga").await;
+    let url = format!("/api/books/{book}/reading-time");
+
+    // Two devices, ten minutes each.
+    for _ in 0..2 {
+        let (status, v) = send(&app, Method::POST, &url, Some(&a), Some(json!({ "seconds": 600 }))).await;
+        assert_eq!(status, axum::http::StatusCode::NO_CONTENT, "{v}");
+    }
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["reader_minutes"], 20, "{v}");
+
+    // Nothing, too much, and another reader's book.
+    for seconds in [0, -5, 6 * 3600 + 1] {
+        let (status, _) = send(&app, Method::POST, &url, Some(&a), Some(json!({ "seconds": seconds }))).await;
+        assert_eq!(status, axum::http::StatusCode::UNPROCESSABLE_ENTITY, "{seconds}");
+    }
+    let (status, _) = send(&app, Method::POST, &url, Some(&b), Some(json!({ "seconds": 60 }))).await;
+    assert_eq!(status, axum::http::StatusCode::NOT_FOUND);
+
+    // Finished, and timed only in the web reader: 1 h 40 min more, for
+    // 150 000 characters in two hours in all.
+    send(&app, Method::POST, &url, Some(&a), Some(json!({ "seconds": 6000 }))).await;
+    sqlx::query("UPDATE books SET text_chars = 150000, text_chars_sha256 = '', read_at = $1 WHERE id = $2")
+        .bind(crate::db::now_ts())
+        .bind(book)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (_, v) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
+    assert_eq!(v["reader_minutes"], 120);
+    assert_eq!(v["reading_time"]["pace"], 1250, "{v}");
+    assert_eq!(v["reading_time"]["paced_by"], 1);
+}

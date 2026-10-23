@@ -116,6 +116,8 @@ pub struct BookDetail {
     /// How long the book takes the owner to read; absent until its text has
     /// been counted, and for files without text.
     pub reading_time: Option<crate::readingtime::ReadingTime>,
+    /// Minutes the owner has spent reading it in the web reader.
+    pub reader_minutes: i64,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -428,6 +430,7 @@ pub async fn get_one(
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
     let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
     let reading_time = reading_time(&state, user.0.id, book.id).await?;
+    let reader_minutes = crate::readingtime::reader_minutes(&state, user.0.id, book.id).await.map_err(internal)?;
     Ok(Json(BookDetail {
         book,
         shelves,
@@ -439,6 +442,7 @@ pub async fn get_one(
         next_in_series,
         annotation_count,
         reading_time,
+        reader_minutes,
     }))
 }
 
@@ -776,6 +780,7 @@ pub async fn update(
     let next_in_series = series_neighbour(&state, user.0.id, &book, true).await?;
     let annotation_count = crate::annotations::count(&state, user.0.id, book.id).await;
     let reading_time = reading_time(&state, user.0.id, book.id).await?;
+    let reader_minutes = crate::readingtime::reader_minutes(&state, user.0.id, book.id).await.map_err(internal)?;
     Ok(Json(BookDetail {
         book,
         shelves,
@@ -787,6 +792,7 @@ pub async fn update(
         next_in_series,
         annotation_count,
         reading_time,
+        reader_minutes,
     }))
 }
 
