@@ -3,7 +3,7 @@
 	// highlight that exists, change or remove it. A bar at the foot of the
 	// page, where the reading-aloud controls sit otherwise.
 	import { tick } from 'svelte';
-	import { BookA, Highlighter, MessageSquarePlus, Trash2, X } from '@lucide/svelte';
+	import { BookA, Highlighter, MessageSquarePlus, TextSelect, Trash2, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
 
@@ -20,6 +20,8 @@
 		/** The language the passage is in, for looking a word up; null when
 		 * the dictionary is off or out of reach. */
 		lookupLanguage?: string | null;
+		/** Widen the passage to the whole sentences it reaches into; null when it is that already. */
+		onsentence?: (() => void) | null;
 		/** A new highlight, with or without a note. */
 		onhighlight: (note: string | null) => void;
 		/** The note of an existing highlight. */
@@ -27,7 +29,7 @@
 		ondelete: () => void;
 		oncancel: () => void;
 	};
-	let { text, note, editing, saving, error, raised, lookupLanguage = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
+	let { text, note, editing, saving, error, raised, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
 	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
@@ -158,6 +160,12 @@
 				<MessageSquarePlus size={15} />
 				{t('reader.notes.addNote')}
 			</button>
+			{#if onsentence}
+				<button type="button" class="act" onclick={onsentence} disabled={saving}>
+					<TextSelect size={15} />
+					{t('reader.notes.sentence')}
+				</button>
+			{/if}
 			{#if word && lookupLanguage}
 				<button type="button" class="act" onclick={lookUp} disabled={looking} title={t('reader.lookup.title', { word })}>
 					<BookA size={15} />

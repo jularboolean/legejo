@@ -24,6 +24,7 @@
 		type ReaderErrorCode,
 		type ReaderLocation,
 		type Passage,
+		type PassageEdge,
 		type ReaderSettings,
 		type SearchHit,
 		type TocItem
@@ -158,6 +159,8 @@
 
 	function onRelocated(next: ReaderLocation) {
 		location = next;
+		// Laid out again, perhaps: the handles go where the passage now is.
+		placeEndsSoon();
 		// The reader turned the page or jumped: reading aloud goes on from there.
 		speech?.resync();
 		if (!moved) return;
@@ -439,10 +442,78 @@
 		showChrome();
 	}
 
-	function offerSentence(point: { x: number; y: number }) {
+	/** A long press picks the word under it; off a word, the sentence. */
+	function offerWord(point: { x: number; y: number }) {
 		if (!engine || panel) return;
-		const passage = engine.sentenceAt(point.x, point.y);
+		const passage = engine.wordAt(point.x, point.y) ?? engine.sentenceAt(point.x, point.y);
 		if (passage) offer(passage);
+	}
+
+	/** The whole sentences the passage being picked reaches into, when that is more. */
+	const sentences = $derived.by(() => {
+		if (!engine || !pending || editing || handleDrag) return null;
+		const whole = engine.sentencesOf(pending.cfi);
+		return whole && whole.cfi !== pending.cfi ? whole : null;
+	});
+
+	function widenToSentences() {
+		if (!sentences) return;
+		// Where the book can be selected in, the selection is widened and taken up from there.
+		if (shield) offer(sentences);
+		else engine?.select(sentences.cfi);
+	}
+
+	// ---- Handles: the ends of a passage being picked, to drag ---------------------
+
+	/** Where the ends of the passage being picked stand; with the shield up only. */
+	let ends = $state.raw<{ start: PassageEdge; end: PassageEdge } | null>(null);
+	/**
+	 * The end being dragged: which one, the passage as it was when it was
+	 * taken, and how far the finger is from the point of the text it holds.
+	 */
+	let handleDrag = $state.raw<{ edge: 'start' | 'end'; cfi: string; dx: number; dy: number } | null>(null);
+	let endsFrame = 0;
+
+	function placeEnds() {
+		ends = shield && engine && pending && !editing ? engine.edges(pending.cfi) : null;
+	}
+
+	/** Once a frame at most, for scrolling and resizing. */
+	function placeEndsSoon() {
+		if (endsFrame) return;
+		endsFrame = requestAnimationFrame(() => {
+			endsFrame = 0;
+			placeEnds();
+		});
+	}
+
+	$effect(() => {
+		void [pending, editing, shield, engine];
+		placeEnds();
+	});
+
+	function grabEnd(event: PointerEvent, edge: 'start' | 'end') {
+		if (!pending || !ends || event.button !== 0) return;
+		event.preventDefault();
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		const at = ends[edge];
+		// The point this end holds: just inside the passage, halfway up the line.
+		const x = edge === 'start' ? at.x + 1 : at.x - 1;
+		const y = (at.top + at.bottom) / 2;
+		handleDrag = { edge, cfi: pending.cfi, dx: x - event.clientX, dy: y - event.clientY };
+	}
+
+	function dragEnd(event: PointerEvent) {
+		const held = handleDrag;
+		if (!held || !engine) return;
+		const passage = engine.adjust(held.cfi, held.edge, { x: event.clientX + held.dx, y: event.clientY + held.dy });
+		if (!passage || passage.cfi === pending?.cfi) return;
+		pending = passage;
+		engine.highlight(passage.cfi);
+	}
+
+	function dropEnd() {
+		handleDrag = null;
 	}
 
 	/**
@@ -596,7 +667,7 @@
 		onLink: leaving,
 		onPointer: pointerAt,
 		onSelect: offerSelection,
-		onLongPress: offerSentence,
+		onLongPress: offerWord,
 		onDragSelect: offerDrag,
 		onDragMove: previewDrag,
 		onWheel(deltaY) {
@@ -1050,7 +1121,7 @@
 	<meta name="theme-color" content={palette.bg} />
 </svelte:head>
 
-<svelte:window onkeydown={onWindowKey} onpointermove={onWindowPointerMove} />
+<svelte:window onkeydown={onWindowKey} onpointermove={onWindowPointerMove} onresize={placeEndsSoon} />
 
 <div
 	class="reader"
@@ -1091,6 +1162,7 @@
 		class:shield
 		bind:this={stage}
 		use:surface
+		onscrollcapture={placeEndsSoon}
 		tabindex="-1"
 	>
 		<div
@@ -1128,6 +1200,23 @@
 		</div>
 	{/if}
 
+	{#if ends && speechState === 'off'}
+		{#each ['start', 'end'] as const as edge (edge)}
+			{@const at = ends[edge]}
+			<div
+				class="handle {edge}"
+				style:left={`${at.x}px`}
+				style:top={`${at.top}px`}
+				style:height={`${at.bottom - at.top}px`}
+				role="presentation"
+				onpointerdown={(event) => grabEnd(event, edge)}
+				onpointermove={dragEnd}
+				onpointerup={dropEnd}
+				onpointercancel={dropEnd}
+			></div>
+		{/each}
+	{/if}
+
 	{#if (pending || editing) && speechState === 'off'}
 		<AnnotateBar
 			text={editing ? editing.text : (pending?.text ?? '')}
@@ -1137,6 +1226,7 @@
 			error={annotateError}
 			raised={chromeVisible}
 			lookupLanguage={page.data.dictionary && !page.data.offline ? (speechLanguage ?? book.language ?? 'en') : null}
+			onsentence={sentences ? widenToSentences : null}
 			onhighlight={saveHighlight}
 			onsave={saveNote}
 			ondelete={() => (confirmDelete = true)}
@@ -1303,6 +1393,51 @@
 			opacity: 0;
 			transform: translateY(10px);
 		}
+	}
+	/* The ends of a passage being picked: a bar the height of the line, with
+	   a knob above the start and below the end, and room around the knob for
+	   a finger. */
+	.handle {
+		position: absolute;
+		z-index: 2;
+		width: 2px;
+		margin-left: -1px;
+		background: var(--r-link);
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+		cursor: grab;
+	}
+	.handle::before {
+		content: '';
+		position: absolute;
+		left: 50%;
+		width: 12px;
+		height: 12px;
+		margin-left: -6px;
+		border-radius: 50%;
+		background: var(--r-link);
+	}
+	.handle.start::before {
+		top: -11px;
+	}
+	.handle.end::before {
+		bottom: -11px;
+	}
+	.handle::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		width: 44px;
+		height: calc(100% + 32px);
+		margin-left: -22px;
+	}
+	.handle.start::after {
+		top: -32px;
+	}
+	.handle.end::after {
+		top: 0;
 	}
 	.stage.shield :global(iframe) {
 		pointer-events: none;

@@ -435,7 +435,9 @@ por la lingvo de la libro, legas alia voĉo, kaj diras tion. Denove la lingvo de
   """<p>Elektu la fragmenton. Strio aperas malsupre: premu <strong>Marki</strong>, aŭ
 <strong>Aldoni noton</strong>, skribu kaj premu <strong>Konservi</strong>.</p>
 <p>Kie teksto ne elekteblas, tio estas en Safari kaj en Legejo kiel aplikaĵo sur iPhone, iPad kaj Mac:
-trenu la muson trans la fragmenton, aŭ tenu fingron sur frazo.</p>""",
+trenu la muson trans la fragmenton, aŭ tenu fingron sur vorto. Trenu plu sen levi la fingron,
+aŭ poste trenu la du tenilojn, por preni pli da vortoj; <strong>Tuta frazo</strong> prenas la
+frazon ĉirkaŭ ili.</p>""",
   """<p>Tuŝo sur marko malfermas ĝin, por legi la noton, ŝanĝi aŭ forigi ĝin. Per muso, se vi
 tenas la montrilon sur marko, ĝia noto aperas apude. La paĝo de la libro diras, kiom da markoj
 kaj notoj libro havas.</p>"""),

@@ -67,6 +67,14 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	let touch: { x: number; y: number; time: number } | null = null;
 	let lastSwipe = 0;
 	let press: { x: number; y: number; timer: number } | null = null;
+	// A long press went off before the finger or button came up. WebKit sends
+	// a click when the finger lifts, however long it was held; that click is
+	// not a tap.
+	let pressed = false;
+	const pressDone = () => {
+		if (pressed) lastSwipe = Date.now();
+		pressed = false;
+	};
 	// A finger held long and still on a word, and then moved without being
 	// lifted: it picks from there to where it is, as a mouse drag does.
 	let held: { x: number; y: number; moved: boolean } | null = null;
@@ -80,12 +88,14 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	};
 	const pressStart = (x: number, y: number, byTouch = false) => {
 		pressEnd();
+		pressed = false;
 		press = {
 			x,
 			y,
 			timer: window.setTimeout(() => {
 				press = null;
 				touch = null;
+				pressed = true;
 				lastSwipe = Date.now();
 				if (byTouch && handlers.onDragMove) held = { x, y, moved: false };
 				const offset = frameOffset(doc);
@@ -154,6 +164,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	});
 	on('touchend', (event) => {
 		pressEnd();
+		pressDone();
 		const picked = held;
 		held = null;
 		if (picked?.moved) {
@@ -181,6 +192,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	});
 	on('touchcancel', () => {
 		pressEnd();
+		pressDone();
 		held = null;
 		touch = null;
 	});
@@ -209,6 +221,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	});
 	on('mouseup', (event) => {
 		pressEnd();
+		pressDone();
 		const from = drag;
 		drag = null;
 		if (!from || event.button !== 0) return;

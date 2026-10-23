@@ -434,7 +434,9 @@ for the book's language, another one reads, and says so. Once more, the book's l
   """<p>Select the passage. A bar appears at the bottom: press <strong>Highlight</strong>, or
 <strong>Add a note</strong>, write, and <strong>Save</strong>.</p>
 <p>Where text cannot be selected, which is Safari and Legejo as an app on iPhone, iPad and Mac:
-drag across the passage with the mouse, or hold a finger on a sentence.</p>""",
+drag across the passage with the mouse, or hold a finger on a word. Drag on without lifting
+the finger, or drag the two handles afterwards, to take in more words; <strong>Whole sentence</strong>
+takes the sentence around them.</p>""",
   """<p>A tap on a highlight opens it, to read the note, change it or delete it. With a mouse,
 resting the pointer on a highlight shows its note beside it. The book page says how many
 highlights and notes a book has.</p>"""),

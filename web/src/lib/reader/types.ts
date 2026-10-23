@@ -131,6 +131,9 @@ export type Passage = {
 	text: string;
 };
 
+/** One end of a passage on screen: the line it is on, and where on it. */
+export type PassageEdge = { x: number; top: number; bottom: number };
+
 /** A highlight to draw on the page. */
 export type Mark = {
 	id: number;
@@ -202,6 +205,8 @@ export interface ReaderEngine {
 	/** The text selected in the chapter on screen, if any. */
 	selection(): Passage | null;
 	clearSelection(): void;
+	/** Select a passage on screen, where the chapter can be selected in. */
+	select(cfi: string): void;
 	/**
 	 * The sentence under a point of the top window, for where the chapter
 	 * cannot be selected in (touch screens, WebKit). Null off the page.
@@ -213,6 +218,18 @@ export interface ReaderEngine {
 	 * not both on one chapter, or nothing lies between them.
 	 */
 	passageBetween(from: { x: number; y: number }, to: { x: number; y: number }): Passage | null;
+	/** The word under a point of the top window, for the same; null off a word. */
+	wordAt(x: number, y: number): Passage | null;
+	/**
+	 * A passage on screen with one of its ends moved to the word under a point
+	 * of the top window; the other end stays. Null when the point is not in the
+	 * passage's chapter.
+	 */
+	adjust(cfi: string, edge: 'start' | 'end', to: { x: number; y: number }): Passage | null;
+	/** Where a passage on screen begins and ends, in top-window coordinates. */
+	edges(cfi: string): { start: PassageEdge; end: PassageEdge } | null;
+	/** The whole sentences a passage on screen reaches into. */
+	sentencesOf(cfi: string): Passage | null;
 	/** The highlights to show; those already shown are kept, the rest redrawn. */
 	setMarks(marks: Mark[]): void;
 	/** The id of the highlight drawn under a point of the top window, if any. */

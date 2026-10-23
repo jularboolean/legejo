@@ -18,6 +18,7 @@ import {
 	type SpeechText,
 	type TocItem
 } from './types';
+import { wordSpan } from './words';
 
 /**
  * Width of the text column in em of the reader's text size. Lines are never
@@ -275,6 +276,9 @@ function unspoken(node: Node, body: Element): boolean {
 /** Split a paragraph into sentences, as offsets into it. */
 function sentenceSpans(text: string, language: string): [number, number][] {
 	const spans: [number, number][] = [];
+	// A line break in the source is only a space on the page, but the
+	// segmenter ends a sentence at it. Same length, so the offsets hold.
+	text = text.replace(/[\r\n\u0085\u2028\u2029]/g, ' ');
 	const Segmenter = (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter;
 	if (Segmenter) {
 		let segmenter: Intl.Segmenter;
@@ -791,8 +795,8 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 		});
 		rendition = created;
-		if (highlighted) mark(highlighted);
-		for (const m of marks) drawMark(m);
+		drawn.clear();
+		redrawAll();
 	}
 
 	/**
@@ -833,6 +837,10 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 
 	/** What is drawn: the reader's highlights, by id. */
 	let marks: Mark[] = [];
+	/** The passage marked as a search hit or as being picked. */
+	let highlighted: string | null = null;
+	/** CFI of the sentence being read aloud. */
+	let spokenMark: string | null = null;
 
 	function markStyle() {
 		return {
@@ -842,20 +850,60 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		};
 	}
 
-	function drawMark(m: Mark) {
+	function tintStyle(opacity: string) {
+		return {
+			fill: palettes[settings.theme].link,
+			'fill-opacity': opacity,
+			'mix-blend-mode': settings.theme === 'dark' ? 'screen' : 'multiply'
+		};
+	}
+
+	// epub.js keeps one annotation per passage: a second one on the same CFI
+	// takes the first one's place in its books but leaves it drawn, out of
+	// reach of `remove`. Each passage is therefore drawn once, as the topmost
+	// of what lies on it: the sentence read aloud, then a search hit or a
+	// passage being picked, then the reader's highlights.
+
+	/** What is drawn on each passage, as `layerOf` names it. */
+	const drawn = new Map<string, string>();
+
+	function layerOf(cfi: string): { name: string; draw: () => void } | null {
+		const annotations = rendition?.annotations;
+		if (!annotations) return null;
+		if (cfi === spokenMark) return { name: 'spoken', draw: () => annotations.highlight(cfi, {}, undefined, 'legejo-spoken', tintStyle('0.2')) };
+		if (cfi === highlighted) return { name: 'hit', draw: () => annotations.highlight(cfi, {}, undefined, 'legejo-hit', tintStyle('0.28')) };
+		const m = marks.find((x) => x.cfi === cfi);
+		if (m) return { name: `mark ${m.id}`, draw: () => annotations.highlight(cfi, { id: m.id }, () => options.onMark?.(m.id), 'legejo-mark', markStyle()) };
+		return null;
+	}
+
+	/** Draw a passage as what now lies on it; `again` redraws it all the same (a new theme). */
+	function refresh(cfi: string | null, again = false) {
+		if (!cfi) return;
+		const want = layerOf(cfi);
+		const have = drawn.get(cfi);
+		if (!again && have === want?.name) return;
+		if (have !== undefined) {
+			drawn.delete(cfi);
+			try {
+				rendition?.annotations.remove(cfi, 'highlight');
+			} catch {
+				// Already gone with its page.
+			}
+		}
+		if (!want) return;
+		// Kept even when drawing fails: epub.js has it in its books by then.
+		drawn.set(cfi, want.name);
 		try {
-			rendition?.annotations.highlight(m.cfi, { id: m.id }, () => options.onMark?.(m.id), 'legejo-mark', markStyle());
+			want.draw();
 		} catch {
-			// A passage the chapter no longer has; nothing to draw.
+			// A passage that is not on a rendered page, or no longer in the chapter.
 		}
 	}
 
-	function eraseMark(m: Mark) {
-		try {
-			rendition?.annotations.remove(m.cfi, 'highlight');
-		} catch {
-			// Already gone with its page.
-		}
+	function redrawAll() {
+		const cfis = new Set<string | null>([...drawn.keys(), ...marks.map((m) => m.cfi), highlighted, spokenMark]);
+		for (const cfi of cfis) refresh(cfi, true);
 	}
 
 	/** All chapters on screen (two in a spread). */
@@ -889,29 +937,59 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		return range ? { node: range.startContainer, offset: range.startOffset } : null;
 	}
 
-	// ---- Search highlight ---------------------------------------------------
+	function languageOf(doc: Document): string {
+		return doc.documentElement.lang || metadata.language || '';
+	}
 
-	let highlighted: string | null = null;
+	/** A point in a chapter moved to the start or the end of the word it is in. */
+	function snapToWord(at: { node: Node; offset: number }, edge: 'start' | 'end', language: string) {
+		if (at.node.nodeType !== Node.TEXT_NODE) return at;
+		const span = wordSpan((at.node as Text).data, at.offset, language);
+		return span ? { node: at.node, offset: edge === 'start' ? span[0] : span[1] } : at;
+	}
 
-	function mark(cfi: string) {
-		const p = palettes[settings.theme];
+	/** The whole words from one point of a chapter to another, in either order. */
+	function wordsBetween(doc: Document, a: { node: Node; offset: number }, b: { node: Node; offset: number }): Range | null {
+		const language = languageOf(doc);
+		const range = doc.createRange();
 		try {
-			rendition?.annotations.highlight(cfi, {}, undefined, 'legejo-hit', {
-				fill: p.link,
-				'fill-opacity': '0.28',
-				'mix-blend-mode': settings.theme === 'dark' ? 'screen' : 'multiply'
-			});
+			range.setStart(a.node, a.offset);
+			const backwards = range.comparePoint(b.node, b.offset) < 0;
+			const [first, last] = backwards ? [b, a] : [a, b];
+			const start = snapToWord(first, 'start', language);
+			const end = snapToWord(last, 'end', language);
+			range.setStart(start.node, start.offset);
+			range.setEnd(end.node, end.offset);
 		} catch {
-			// The passage isn't on a rendered page; nothing to mark.
+			return null;
+		}
+		return range;
+	}
+
+	function passageOf(contents: Contents, range: Range | null): Passage | null {
+		if (!range) return null;
+		const text = range.toString().replace(/\s+/g, ' ').trim();
+		if (!text) return null;
+		try {
+			return { cfi: contents.cfiFromRange(range), text };
+		} catch {
+			return null;
 		}
 	}
 
-	function unmark(cfi: string) {
-		try {
-			rendition?.annotations.remove(cfi, 'highlight');
-		} catch {
-			// Already gone with its page.
+	/** A passage as a range in the chapter on screen that has it. */
+	function shownRange(cfi: string): { contents: Contents; range: Range } | null {
+		const index = spine.get(cfi)?.index;
+		for (const contents of allContents()) {
+			if (contents.sectionIndex !== index) continue;
+			try {
+				const range = contents.range(cfi);
+				if (range && contents.document.body?.contains(range.startContainer)) return { contents, range };
+			} catch {
+				// Not a passage of this chapter as it is laid out now.
+			}
 		}
+		return null;
 	}
 
 	/**
@@ -1052,15 +1130,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		css = contentCss(settings, cssContext) + offscreenCss;
 		const contents = (rendition?.getContents() as unknown as Contents[]) ?? [];
 		for (const c of contents) c.addStylesheetCss(css, STYLE_KEY);
-		if (highlighted) {
-			unmark(highlighted);
-			mark(highlighted);
-		}
-		if (spokenMark) {
-			const cfi = spokenMark;
-			unmarkSpoken();
-			markSpoken(cfi);
-		}
+		redrawAll();
 	}
 
 	let resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1164,8 +1234,6 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 
 	/** The sentences of the chapter last asked for, each with where it is. */
 	let spoken: { range: Range; text: string }[] = [];
-	/** CFI of the sentence that is marked. */
-	let spokenMark: string | null = null;
 
 	function shownContents(): Contents | null {
 		const all = (rendition?.getContents() as unknown as Contents[]) ?? [];
@@ -1251,27 +1319,16 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	}
 
 	function unmarkSpoken() {
-		if (!spokenMark) return;
-		try {
-			rendition?.annotations.remove(spokenMark, 'highlight');
-		} catch {
-			// Already gone with its page.
-		}
+		const was = spokenMark;
 		spokenMark = null;
+		refresh(was);
 	}
 
 	function markSpoken(cfi: string) {
-		const p = palettes[settings.theme];
-		try {
-			rendition?.annotations.highlight(cfi, {}, undefined, 'legejo-spoken', {
-				fill: p.link,
-				'fill-opacity': '0.2',
-				'mix-blend-mode': settings.theme === 'dark' ? 'screen' : 'multiply'
-			});
-			spokenMark = cfi;
-		} catch {
-			// Not on a rendered page; nothing to mark.
-		}
+		const was = spokenMark;
+		spokenMark = cfi;
+		refresh(was);
+		refresh(cfi);
 	}
 
 	const engine: ReaderEngine = {
@@ -1429,9 +1486,10 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			return false;
 		},
 		highlight(cfi) {
-			if (highlighted) unmark(highlighted);
+			const was = highlighted;
 			highlighted = cfi;
-			if (cfi) mark(cfi);
+			refresh(was);
+			refresh(cfi);
 		},
 		selection(): Passage | null {
 			for (const contents of allContents()) {
@@ -1449,6 +1507,13 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 				}
 			}
 			return null;
+		},
+		select(cfi) {
+			const shown = shownRange(cfi);
+			const selection = shown?.contents.document.getSelection();
+			if (!shown || !selection) return;
+			selection.removeAllRanges();
+			selection.addRange(shown.range);
 		},
 		clearSelection() {
 			for (const contents of allContents()) contents.document.getSelection()?.removeAllRanges();
@@ -1470,6 +1535,14 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			}
 			return null;
 		},
+		wordAt(x, y): Passage | null {
+			const hit = contentsAt(x, y);
+			if (!hit) return null;
+			const doc = hit.contents.document;
+			const caret = caretAt(doc, hit.x, hit.y);
+			if (!caret || !doc.body?.contains(caret.node)) return null;
+			return passageOf(hit.contents, wordsBetween(doc, caret, caret));
+		},
 		passageBetween(from, to): Passage | null {
 			const a = contentsAt(from.x, from.y);
 			const b = contentsAt(to.x, to.y);
@@ -1478,25 +1551,56 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			const start = caretAt(doc, a.x, a.y);
 			const end = caretAt(doc, b.x, b.y);
 			if (!start || !end || !doc.body?.contains(start.node) || !doc.body.contains(end.node)) return null;
-			const range = doc.createRange();
-			try {
-				range.setStart(start.node, start.offset);
-				range.setEnd(end.node, end.offset);
-				// Dragged backwards: the same stretch, the other way round.
-				if (range.collapsed) {
-					range.setStart(end.node, end.offset);
-					range.setEnd(start.node, start.offset);
+			return passageOf(a.contents, wordsBetween(doc, start, end));
+		},
+		adjust(cfi, edge, to): Passage | null {
+			const shown = shownRange(cfi);
+			const hit = contentsAt(to.x, to.y);
+			if (!shown || !hit || hit.contents !== shown.contents) return null;
+			const doc = hit.contents.document;
+			const moved = caretAt(doc, hit.x, hit.y);
+			if (!moved || !doc.body?.contains(moved.node)) return null;
+			const { range } = shown;
+			const kept = edge === 'start' ? { node: range.endContainer, offset: range.endOffset } : { node: range.startContainer, offset: range.startOffset };
+			return passageOf(hit.contents, wordsBetween(doc, kept, moved));
+		},
+		edges(cfi) {
+			const shown = shownRange(cfi);
+			const frame = shown?.contents.document.defaultView?.frameElement;
+			if (!shown || !frame) return null;
+			const rects = [...shown.range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+			if (rects.length === 0) return null;
+			const at = frame.getBoundingClientRect();
+			const first = rects[0];
+			const last = rects[rects.length - 1];
+			return {
+				start: { x: first.left + at.left, top: first.top + at.top, bottom: first.bottom + at.top },
+				end: { x: last.right + at.left, top: last.top + at.top, bottom: last.bottom + at.top }
+			};
+		},
+		sentencesOf(cfi): Passage | null {
+			const shown = shownRange(cfi);
+			if (!shown) return null;
+			const { contents, range } = shown;
+			const doc = contents.document;
+			let start: Range | null = null;
+			let end: Range | null = null;
+			for (const sentence of collectSpoken(doc, languageOf(doc))) {
+				try {
+					// Sentences that the passage reaches into, from the first to the last.
+					if (sentence.range.compareBoundaryPoints(Range.END_TO_START, range) >= 0) break;
+					if (sentence.range.compareBoundaryPoints(Range.START_TO_END, range) <= 0) continue;
+				} catch {
+					continue;
 				}
-			} catch {
-				return null;
+				start ??= sentence.range;
+				end = sentence.range;
 			}
-			const text = range.toString().replace(/\s+/g, ' ').trim();
-			if (!text) return null;
-			try {
-				return { cfi: a.contents.cfiFromRange(range), text };
-			} catch {
-				return null;
-			}
+			if (!start || !end) return null;
+			const whole = doc.createRange();
+			whole.setStart(start.startContainer, start.startOffset);
+			whole.setEnd(end.endContainer, end.endOffset);
+			return passageOf(contents, whole);
 		},
 		markAt(x, y): number | null {
 			// The highlights are drawn as SVG in this document, over the chapter
@@ -1629,11 +1733,9 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 			return null;
 		},
 		setMarks(next) {
-			const keep = new Set(next.map((m) => m.id));
-			for (const m of marks) if (!keep.has(m.id)) eraseMark(m);
-			const shown = new Set(marks.map((m) => m.id));
-			for (const m of next) if (!shown.has(m.id)) drawMark(m);
+			const was = marks;
 			marks = next.map((m) => ({ ...m }));
+			for (const cfi of new Set([...was, ...marks].map((m) => m.cfi))) refresh(cfi);
 		},
 		speechText(): SpeechText | null {
 			const contents = shownContents();
