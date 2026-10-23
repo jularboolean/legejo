@@ -904,7 +904,6 @@ export const en = {
 	'reader.notes.notePlaceholder': "Your note",
 	'reader.notes.save': "Save",
 	'reader.notes.delete': "Delete",
-	'reader.notes.deleteConfirm': "Delete this highlight?",
 	'reader.notes.edit': "Change the note",
 	'reader.notes.export': "Export as Markdown",
 	'reader.notes.saved': "Highlighted",

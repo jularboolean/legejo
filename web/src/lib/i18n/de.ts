@@ -895,7 +895,6 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.notePlaceholder': "Deine Notiz",
 	'reader.notes.save': "Speichern",
 	'reader.notes.delete': "Löschen",
-	'reader.notes.deleteConfirm': "Diese Markierung löschen?",
 	'reader.notes.edit': "Notiz ändern",
 	'reader.notes.export': "Als Markdown exportieren",
 	'reader.notes.saved': "Markiert",

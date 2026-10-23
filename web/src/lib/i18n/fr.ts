@@ -895,7 +895,6 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.notePlaceholder': "Votre note",
 	'reader.notes.save': "Enregistrer",
 	'reader.notes.delete': "Supprimer",
-	'reader.notes.deleteConfirm': "Supprimer ce surlignage ?",
 	'reader.notes.edit': "Modifier la note",
 	'reader.notes.export': "Exporter en Markdown",
 	'reader.notes.saved': "Surligné",

@@ -906,7 +906,6 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.notePlaceholder': "Din anteckning",
 	'reader.notes.save': "Spara",
 	'reader.notes.delete': "Ta bort",
-	'reader.notes.deleteConfirm': "Ta bort den här understrykningen?",
 	'reader.notes.edit': "Ändra anteckningen",
 	'reader.notes.export': "Exportera som Markdown",
 	'reader.notes.saved': "Understruket",

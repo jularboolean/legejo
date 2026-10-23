@@ -6,7 +6,6 @@
 	import { ChevronLeft, ChevronRight, ChevronsRight, TriangleAlert } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 	import type { Annotation, BookDetail } from '#lib/types';
-	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { openReader } from './engine';
 	import {
 		attachGestures,
@@ -333,7 +332,6 @@
 	let editing = $state<Annotation | null>(null);
 	let annotating = $state(false);
 	let annotateError = $state<string | null>(null);
-	let confirmDelete = $state(false);
 	/** With a mouse, the note of the highlight under the pointer is shown beside it. */
 	let hoverNote = $state<Annotation | null>(null);
 	let hoverAt = $state({ x: 0, y: 0 });
@@ -622,7 +620,6 @@
 	}
 
 	async function deleteAnnotation() {
-		confirmDelete = false;
 		if (!editing || annotating) return;
 		const target = editing;
 		annotating = true;
@@ -1265,7 +1262,7 @@
 			onsentence={sentences ? widenToSentences : null}
 			onhighlight={saveHighlight}
 			onsave={saveNote}
-			ondelete={() => (confirmDelete = true)}
+			ondelete={deleteAnnotation}
 			oncancel={dismissAnnotate}
 		/>
 	{/if}
@@ -1367,16 +1364,6 @@
 		onselect={goToAnnotation}
 		onedit={editAnnotation}
 		onclose={closePanel}
-	/>
-	<ConfirmDialog
-		open={confirmDelete}
-		title={t('reader.notes.delete')}
-		message={t('reader.notes.deleteConfirm')}
-		confirmLabel={t('reader.notes.delete')}
-		cancelLabel={t('common.cancel')}
-		danger
-		onconfirm={deleteAnnotation}
-		oncancel={() => (confirmDelete = false)}
 	/>
 </div>
 

@@ -895,7 +895,6 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.notePlaceholder': "Muistiinpanosi",
 	'reader.notes.save': "Tallenna",
 	'reader.notes.delete': "Poista",
-	'reader.notes.deleteConfirm': "Poistetaanko tämä korostus?",
 	'reader.notes.edit': "Muuta muistiinpanoa",
 	'reader.notes.export': "Vie Markdownina",
 	'reader.notes.saved': "Korostettu",

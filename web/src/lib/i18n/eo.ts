@@ -895,7 +895,6 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.notePlaceholder': "Via noto",
 	'reader.notes.save': "Konservi",
 	'reader.notes.delete': "Forigi",
-	'reader.notes.deleteConfirm': "Ĉu forigi ĉi tiun markon?",
 	'reader.notes.edit': "Ŝanĝi la noton",
 	'reader.notes.export': "Eksporti kiel Markdown",
 	'reader.notes.saved': "Markita",
