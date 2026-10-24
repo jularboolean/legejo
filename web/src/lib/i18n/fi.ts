@@ -784,6 +784,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.help.speech': 'Lue ääneen, tauko',
 	'update.available': "Uusi Legejon versio on valmis.",
 	'update.reload': "Lataa uudelleen",
+	'update.reloading': "Ladataan …",
 	'sidebar.audiobooks': 'Äänikirjat',
 	'admin.audiobooksToggle': 'Äänikirjatuki',
 	'admin.audiobooksHint': 'Käyttäjät voivat säilyttää äänikirjoja (MP3, M4A, M4B) ja kuunnella niitä podcast-syötteenä missä tahansa podcast-sovelluksessa. Äänitiedostot vievät paljon enemmän tilaa kuin EPUB-tiedostot.',

@@ -784,6 +784,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.help.speech': 'Voĉlegi, paŭzi',
 	'update.available': "Nova versio de Legejo pretas.",
 	'update.reload': "Reŝargi",
+	'update.reloading': "Ŝargante …",
 	'sidebar.audiobooks': 'Aŭdlibroj',
 	'admin.audiobooksToggle': 'Subteno de aŭdlibroj',
 	'admin.audiobooksHint': 'Ebligas al uzantoj konservi aŭdlibrojn (MP3, M4A, M4B) kaj aŭskulti ilin kiel podkastan fluon en iu ajn podkasta aplikaĵo. Sondosieroj okupas multe pli da spaco ol EPUB-dosieroj.',

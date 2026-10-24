@@ -795,6 +795,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.help.speech': 'Läs upp, pausa',
 	'update.available': "En ny version av Legejo är klar.",
 	'update.reload': "Ladda om",
+	'update.reloading': "Laddar …",
 	'sidebar.audiobooks': 'Ljudböcker',
 	'admin.audiobooksToggle': 'Stöd för ljudböcker',
 	'admin.audiobooksHint': 'Låter användare ha ljudböcker (MP3, M4A, M4B) och lyssna på dem som ett poddflöde i valfri poddapp. Ljudfiler tar mycket mer plats än EPUB-filer.',

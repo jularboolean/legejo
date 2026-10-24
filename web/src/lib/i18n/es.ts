@@ -784,6 +784,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'reader.help.speech': 'Leer en voz alta, pausa',
 	'update.available': "Hay una nueva versión de Legejo lista.",
 	'update.reload': "Recargar",
+	'update.reloading': "Cargando …",
 	'sidebar.audiobooks': 'Audiolibros',
 	'admin.audiobooksToggle': 'Compatibilidad con audiolibros',
 	'admin.audiobooksHint': 'Permite a los usuarios guardar audiolibros (MP3, M4A, M4B) y escucharlos como un feed de pódcast en cualquier aplicación. Los archivos de audio ocupan mucho más que los archivos EPUB.',

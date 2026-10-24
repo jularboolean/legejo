@@ -784,6 +784,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.help.speech': 'Lire à voix haute, pause',
 	'update.available': "Une nouvelle version de Legejo est prête.",
 	'update.reload': "Recharger",
+	'update.reloading': "Chargement …",
 	'sidebar.audiobooks': 'Livres audio',
 	'admin.audiobooksToggle': 'Prise en charge des livres audio',
 	'admin.audiobooksHint': 'Permet aux utilisateurs de conserver des livres audio (MP3, M4A, M4B) et de les écouter comme un flux de podcast dans n’importe quelle application. Les fichiers audio prennent bien plus de place que les fichiers EPUB.',

@@ -28,6 +28,7 @@
 	import { newBookCount, refreshFollowNews } from '#lib/follows.svelte';
 	import { t } from '#lib/i18n';
 	import { CHANGED_EVENT, availability, forgetEverything, savedBooks, warmSession } from '#lib/offline/store';
+	import { toNewVersion } from '#lib/offline/newVersion';
 	import { sendUnsent } from '#lib/reader/progress';
 	import { sendUnsentTime } from '#lib/reader/readingClock';
 	import type { LayoutData } from './$types';
@@ -84,12 +85,19 @@
 		pullFrom = null;
 	}
 
+	/** On the way to the new version: the note says so, and the button waits. */
+	let moving = $state(false);
+
 	// Once a new version has been published (SvelteKit polls for it), the next
 	// navigation is a full page load, so the old code does not reach for
-	// files that are no longer there. The banner lets the user do it at once.
-	beforeNavigate(({ willUnload, to }) => {
+	// files that are no longer there; it waits for the service worker of the
+	// new version, which the old one would answer in its stead
+	// (lib/offline/newVersion.ts). The banner lets the user do it at once.
+	beforeNavigate(({ willUnload, to, cancel }) => {
 		if (updated.current && !willUnload && to?.url) {
-			location.href = to.url.href;
+			cancel();
+			moving = true;
+			void toNewVersion(to.url.href);
 		}
 	});
 
@@ -412,7 +420,14 @@
 {#if updated.current}
 	<div class="update" role="status">
 		<span>{t('update.available')}</span>
-		<button type="button" onclick={() => location.reload()}>{t('update.reload')}</button>
+		<button
+			type="button"
+			disabled={moving}
+			onclick={() => {
+				moving = true;
+				void toNewVersion();
+			}}>{moving ? t('update.reloading') : t('update.reload')}</button
+		>
 	</div>
 {:else if upgradedFrom && data.user}
 	<div class="update" role="status">
