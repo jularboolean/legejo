@@ -411,7 +411,8 @@ the book at the sentence you reached in the browser, after its next sync (Recipe
 <strong>Line spacing</strong>, <strong>Margins</strong> and <strong>Alignment</strong>.</p>""",
   """<p><strong>Hyphenation</strong> breaks long words at line ends, in the language the book
 says it is in, which is one reason Recipe 2.2 cares about languages. <strong>Page animation</strong>
-is the short glide when the page turns. The <code>+</code> and <code>−</code> keys change the
+turns the page like a leaf of a book: on a phone it follows your finger as you pull the page
+aside, and two pages side by side are drawn away like a sheet. The <code>+</code> and <code>−</code> keys change the
 text size without opening the panel. The settings are kept on the device you set them on.</p>"""),
 
  ("Finding Your Way in a Book",

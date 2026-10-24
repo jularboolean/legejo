@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.31.0 (2026-10-24)
+
+- **The page turns like a leaf of a book.** With page animation on in the
+  reader, one page turns over its left edge, darkening as it rises off
+  the next; on a phone it follows your finger as you pull the page aside,
+  turns the rest of the way when you let go far enough or with a flick,
+  and falls back otherwise. Two pages side by side are lifted and drawn
+  aside like a sheet. Without the browser support it takes, the short
+  glide remains.
+- **A new version loads at the first press of Reload.** The note about a
+  new version could take two presses a minute apart, above all in Legejo
+  installed as an app.
+
 ## 1.30.0 (2026-10-23)
 
 - **Tabs at the foot of the screen on a phone.** Library, Reading, Search,
