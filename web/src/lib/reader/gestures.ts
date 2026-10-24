@@ -36,7 +36,17 @@ export type GestureHandlers = {
 	onDragSelect?: (from: { x: number; y: number }, to: { x: number; y: number }) => void;
 	/** The mouse is being dragged: where it started and where it is now. */
 	onDragMove?: (from: { x: number; y: number }, to: { x: number; y: number }) => void;
+	/**
+	 * A finger pulling the page sideways: `dx` from where it came down, and
+	 * at the end `vx`, its speed in pixels a millisecond. The reader answers
+	 * the start with whether it follows the finger; if not, the pull ends as
+	 * a swipe as usual.
+	 */
+	onPull?: (pull: { phase: 'start' | 'move' | 'end'; dx: number; vx: number }) => boolean | void;
 };
+
+/** A finger that has gone this far sideways, and mostly sideways, is pulling the page. */
+const PULL_MIN_PX = 14;
 
 const LONG_PRESS_MS = 550;
 const LONG_PRESS_SLOP_PX = 10;
@@ -79,6 +89,18 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	// lifted: it picks from there to where it is, as a mouse drag does.
 	let held: { x: number; y: number; moved: boolean } | null = null;
 	let heldFrame = 0;
+	// A pull: where the finger came down, whether the reader follows it (null
+	// while that is undecided), and where it was last, for its speed.
+	let pull: { x: number; y: number; on: boolean | null; lastX: number; lastTime: number; vx: number } | null = null;
+	const pullEnd = (dx: number) => {
+		const p = pull;
+		pull = null;
+		if (!p?.on) return false;
+		lastSwipe = Date.now();
+		touch = null;
+		handlers.onPull?.({ phase: 'end', dx, vx: p.vx });
+		return true;
+	};
 
 	// A long press: held still for a moment, on a touch screen or with a
 	// mouse button. The tap or swipe that would follow is then not one.
@@ -142,6 +164,8 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		const t = event.touches.length === 1 ? event.touches[0] : null;
 		touch = t ? { x: t.screenX, y: t.screenY, time: Date.now() } : null;
 		held = null;
+		// On the screen, as the swipe is: a chapter frame is shifted as its pages turn.
+		pull = t && handlers.onPull ? { x: t.screenX, y: t.screenY, on: null, lastX: t.screenX, lastTime: Date.now(), vx: 0 } : null;
 		if (t && handlers.onLongPress) pressStart(t.clientX, t.clientY, true);
 		else pressEnd();
 	});
@@ -150,6 +174,21 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 		const t = event.touches[0];
 		if (!t) return;
 		pressMove(t.clientX, t.clientY);
+		if (pull && !held) {
+			const dx = t.screenX - pull.x;
+			const dy = t.screenY - pull.y;
+			if (pull.on === null && Math.abs(dx) >= PULL_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+				const selection = doc.getSelection();
+				pull.on = (!selection || selection.isCollapsed) && handlers.onPull?.({ phase: 'start', dx, vx: 0 }) === true;
+				if (pull.on) pressEnd();
+			} else if (pull.on) {
+				const now = Date.now();
+				if (now > pull.lastTime) pull.vx = (t.screenX - pull.lastX) / (now - pull.lastTime);
+				pull.lastX = t.screenX;
+				pull.lastTime = now;
+				handlers.onPull?.({ phase: 'move', dx, vx: pull.vx });
+			}
+		}
 		const from = held;
 		if (!from || heldFrame) return;
 		if (Math.abs(t.clientX - from.x) < LONG_PRESS_SLOP_PX && Math.abs(t.clientY - from.y) < LONG_PRESS_SLOP_PX) return;
@@ -165,6 +204,8 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	on('touchend', (event) => {
 		pressEnd();
 		pressDone();
+		const lift = event.changedTouches[0];
+		if (pull && pullEnd(lift ? lift.screenX - pull.x : 0)) return;
 		const picked = held;
 		held = null;
 		if (picked?.moved) {
@@ -193,6 +234,7 @@ export function attachGestures(target: Document | HTMLElement, handlers: Gesture
 	on('touchcancel', () => {
 		pressEnd();
 		pressDone();
+		pullEnd(0);
 		held = null;
 		touch = null;
 	});

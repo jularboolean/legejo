@@ -229,12 +229,8 @@
 		toastTimer = setTimeout(() => (toast = null), 2200);
 	}
 
-	function turn(forward: boolean) {
-		if (!engine) return;
-		if (forward && location?.atEnd) {
-			showToast(t('reader.endOfBook'));
-			return;
-		}
+	/** What a page turn leaves behind it, before the page moves. */
+	function beforeTurn() {
 		moved = true;
 		hideChrome();
 		clearHighlight();
@@ -242,6 +238,15 @@
 		if (pending || editing) dismissAnnotate();
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
+	}
+
+	function turn(forward: boolean) {
+		if (!engine) return;
+		if (forward && location?.atEnd) {
+			showToast(t('reader.endOfBook'));
+			return;
+		}
+		beforeTurn();
 		const go = () => (forward ? engine!.next() : engine!.prev()).catch(() => {});
 		if (!turnLeaf(forward, go)) go().then(() => slide(forward));
 	}
@@ -309,9 +314,18 @@
 	 * The picture turns over its edge, or the spine of a spread, above the
 	 * new page (reader.css). False when the page is to turn without it.
 	 */
+	function canTurnLeaf(): boolean {
+		return (
+			settings.animate &&
+			paginated &&
+			!!engine &&
+			typeof document.startViewTransition === 'function' &&
+			!matchMedia('(prefers-reduced-motion: reduce)').matches
+		);
+	}
+
 	function turnLeaf(forward: boolean, go: () => Promise<unknown>): boolean {
-		if (!settings.animate || !paginated || !engine || typeof document.startViewTransition !== 'function') return false;
-		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+		if (!canTurnLeaf() || !engine) return false;
 		leaf?.skipTransition();
 		const html = document.documentElement;
 		const surface = engine.surface;
@@ -333,6 +347,109 @@
 			surface.style.removeProperty('view-transition-name');
 		});
 		return true;
+	}
+
+	// ---- A leaf that follows the finger -------------------------------------------
+
+	/**
+	 * A page pulled by a finger, on one page (not a spread): the leaf turns as
+	 * far as the finger has gone across the page, and on letting go turns the
+	 * rest of the way, or falls back and the page stays. The transition runs
+	 * as a page turn does, held still and set by the finger.
+	 */
+	let pulled: {
+		forward: boolean;
+		width: number;
+		progress: number;
+		animations: Animation[] | null;
+		transition: ViewTransition;
+		turned: Promise<unknown>;
+	} | null = null;
+
+	/** A pull let go after this much of the page, or this fast, turns it. */
+	const PULL_TURNS = 0.3;
+	const PULL_FLING = 0.35;
+
+	function leafAnimations(): Animation[] {
+		return document
+			.getAnimations()
+			.filter((a) => String((a.effect as KeyframeEffect | null)?.pseudoElement ?? '').includes('legejo-leaf'));
+	}
+
+	function setPull(progress: number) {
+		if (!pulled) return;
+		pulled.progress = Math.max(0, Math.min(1, progress));
+		for (const a of pulled.animations ?? []) {
+			const duration = Number(a.effect?.getTiming().duration) || 0;
+			a.currentTime = pulled.progress * duration;
+		}
+	}
+
+	function onPull(p: { phase: 'start' | 'move' | 'end'; dx: number; vx: number }): boolean {
+		if (p.phase === 'start') {
+			if (pulled || !engine || engine.spread || !canTurnLeaf()) return false;
+			// Seen from the reader: pulling to the left turns forward, in a right-to-left book back.
+			const forward = (p.dx < 0) !== rtl;
+			if (forward ? location?.atEnd : location?.atStart) return false;
+			beforeTurn();
+			let turned: Promise<unknown> = Promise.resolve();
+			const go = () => (turned = (forward ? engine!.next() : engine!.prev()).catch(() => {}));
+			if (!turnLeaf(forward, go) || !leaf) return false;
+			const transition = leaf;
+			pulled = { forward, width: engine.surface.getBoundingClientRect().width || window.innerWidth, progress: 0, animations: null, transition, turned };
+			const mine = pulled;
+			transition.ready
+				.then(() => {
+					if (pulled !== mine) return;
+					mine.turned = turned;
+					mine.animations = leafAnimations();
+					for (const a of mine.animations) a.pause();
+					setPull(mine.progress);
+				})
+				.catch(() => {
+					if (pulled === mine) pulled = null;
+				});
+			setPull(Math.abs(p.dx) / pulled.width);
+			return true;
+		}
+		const current = pulled;
+		if (!current) return false;
+		// How far the finger has gone the way the page turns.
+		const toward = ((current.forward !== rtl ? -p.dx : p.dx) || 0) / current.width;
+		if (p.phase === 'move') {
+			setPull(toward);
+			return true;
+		}
+		pulled = null;
+		const speed = (current.forward !== rtl ? -p.vx : p.vx) || 0;
+		if (current.progress >= PULL_TURNS || speed > PULL_FLING) {
+			// The rest of the way, at the speed a turn has.
+			for (const a of current.animations ?? []) a.play();
+			if (!current.animations) current.transition.ready.then(() => leafAnimations().forEach((a) => a.play())).catch(() => {});
+			return true;
+		}
+		void fallBack(current);
+		return true;
+	}
+
+	/** The leaf falls back flat, and the page turns back under it to where it was. */
+	async function fallBack(current: NonNullable<typeof pulled>) {
+		const animations = current.animations ?? [];
+		const start = performance.now();
+		const from = current.progress;
+		const ms = 180 * Math.max(0.3, from) + 60;
+		await new Promise<void>((resolve) => {
+			const step = (now: number) => {
+				const left = Math.max(0, 1 - (now - start) / ms);
+				for (const a of animations) a.currentTime = from * left * (Number(a.effect?.getTiming().duration) || 0);
+				if (left > 0) requestAnimationFrame(step);
+				else resolve();
+			};
+			requestAnimationFrame(step);
+		});
+		await current.turned;
+		await (current.forward ? engine?.prev() : engine?.next())?.catch(() => {});
+		current.transition.skipTransition();
 	}
 
 	/** Let the new page glide in, when the reader has asked for it. */
@@ -716,6 +833,7 @@
 				turn((zone === 'end') !== rtl);
 			}, 0);
 		},
+		onPull,
 		onSwipe(forward) {
 			if (hint) dismissHint();
 			if (paginated) turn(forward !== rtl);
