@@ -768,7 +768,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'reader.hyphenate': 'Separación silábica',
 	'reader.hyphenate.hint': 'Dividir las palabras largas al final de línea',
 	'reader.animate': 'Animación de página',
-	'reader.animate.hint': 'Un breve deslizamiento al pasar la página',
+	'reader.animate.hint': "La página pasa como la hoja de un libro",
 	'reader.speech': 'Lectura en voz alta',
 	'reader.speech.play': 'Reproducir',
 	'reader.speech.pause': 'Pausa',

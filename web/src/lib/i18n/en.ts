@@ -777,7 +777,7 @@ export const en = {
 	'reader.hyphenate': 'Hyphenation',
 	'reader.hyphenate.hint': 'Break long words at line ends',
 	'reader.animate': 'Page animation',
-	'reader.animate.hint': 'A short glide when the page turns',
+	'reader.animate.hint': "The page turns like a leaf of a book",
 	'reader.speech': 'Read aloud',
 	'reader.speech.play': 'Play',
 	'reader.speech.pause': 'Pause',

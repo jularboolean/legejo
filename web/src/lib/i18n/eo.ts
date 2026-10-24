@@ -768,7 +768,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.hyphenate': 'Vortodivido',
 	'reader.hyphenate.hint': 'Dividi longajn vortojn ĉe linifinoj',
 	'reader.animate': 'Paĝa animacio',
-	'reader.animate.hint': 'Mallonga glito, kiam la paĝo turniĝas',
+	'reader.animate.hint': "La paĝo turniĝas kiel folio de libro",
 	'reader.speech': 'Voĉlegado',
 	'reader.speech.play': 'Ludi',
 	'reader.speech.pause': 'Paŭzi',

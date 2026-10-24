@@ -242,7 +242,8 @@
 		if (pending || editing) dismissAnnotate();
 		// Reading on from where a jump landed: the way back is no longer wanted.
 		if (returnTo && ++turnsSinceJump >= 3) forgetReturn();
-		(forward ? engine.next() : engine.prev()).then(() => slide(forward)).catch(() => {});
+		const go = () => (forward ? engine!.next() : engine!.prev()).catch(() => {});
+		if (!turnLeaf(forward, go)) go().then(() => slide(forward));
 	}
 
 	// ---- Reading aloud -----------------------------------------------------------
@@ -297,6 +298,42 @@
 
 	/** Which way the page last came in from; the counter restarts the animation. */
 	let slid = $state<{ forward: boolean; n: number } | null>(null);
+
+	/** The page turn under way as a leaf, to cut short when the next one comes. */
+	let leaf: ViewTransition | null = null;
+
+	/**
+	 * Turn the page as a leaf of paper, when the reader has asked for page
+	 * animation and the browser can take a picture of the page as it was (a
+	 * view transition: the chapters are in frames no other way can show).
+	 * The picture turns over its edge, or the spine of a spread, above the
+	 * new page (reader.css). False when the page is to turn without it.
+	 */
+	function turnLeaf(forward: boolean, go: () => Promise<unknown>): boolean {
+		if (!settings.animate || !paginated || !engine || typeof document.startViewTransition !== 'function') return false;
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+		leaf?.skipTransition();
+		const html = document.documentElement;
+		const surface = engine.surface;
+		// Seen from the reader: a next page in a right-to-left book turns the other way.
+		html.dataset.turn = `${engine.spread ? 'spread' : 'single'}-${forward !== rtl ? 'forward' : 'back'}`;
+		surface.style.setProperty('view-transition-name', 'legejo-leaf');
+		// The browser draws nothing while it waits for the new page, and
+		// epub.js waits for a frame to finish turning: the turn is set going,
+		// and the transition goes on a moment later with the new page as it
+		// comes (the new side of a view transition is live, not a picture).
+		const turning = document.startViewTransition(() =>
+			Promise.race([go(), new Promise((resolve) => setTimeout(resolve, 60))])
+		);
+		leaf = turning;
+		turning.finished.finally(() => {
+			if (leaf !== turning) return;
+			leaf = null;
+			delete html.dataset.turn;
+			surface.style.removeProperty('view-transition-name');
+		});
+		return true;
+	}
 
 	/** Let the new page glide in, when the reader has asked for it. */
 	function slide(forward: boolean) {

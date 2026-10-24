@@ -180,6 +180,9 @@ export interface ReaderEngine {
 	readonly location: ReaderLocation | null;
 	/** Whether jumping by percentage is available yet. */
 	readonly locationsReady: boolean;
+	/** The pages as they are laid out on screen: one, or a spread of two. */
+	readonly surface: HTMLElement;
+	readonly spread: boolean;
 
 	/**
 	 * One screen forward: the next page, or in scrolled flow one screenful,

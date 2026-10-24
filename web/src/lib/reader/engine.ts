@@ -459,6 +459,8 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	viewport.style.margin = '0 auto';
 	viewport.style.height = '100%';
 	host.appendChild(viewport);
+	/** Whether the pages are laid out as a spread of two. */
+	let isSpread = false;
 
 	const reducedMotion = () =>
 		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -774,7 +776,10 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		}
 
 		viewport.style.width = width + 'px';
-		host.style.background = palettes[settings.theme].bg;
+		isSpread = spread;
+		// The page has a ground of its own: a picture of it (a page turning)
+		// is paper, not text on nothing.
+		host.style.background = viewport.style.background = palettes[settings.theme].bg;
 		cssContext = { pageHeight: size.height, marginPx, columnPx: columnMax };
 		css = contentCss(settings, cssContext) + offscreenCss;
 
@@ -1141,7 +1146,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	}
 
 	function restyle() {
-		host.style.background = palettes[settings.theme].bg;
+		host.style.background = viewport.style.background = palettes[settings.theme].bg;
 		css = contentCss(settings, cssContext) + offscreenCss;
 		const contents = (rendition?.getContents() as unknown as Contents[]) ?? [];
 		for (const c of contents) c.addStylesheetCss(css, STYLE_KEY);
@@ -1354,6 +1359,12 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		},
 		get locationsReady() {
 			return locationsReady;
+		},
+		get surface() {
+			return viewport;
+		},
+		get spread() {
+			return isSpread;
 		},
 
 		next() {

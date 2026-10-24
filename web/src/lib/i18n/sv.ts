@@ -779,7 +779,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.hyphenate': 'Avstavning',
 	'reader.hyphenate.hint': 'Avstava långa ord vid radslut',
 	'reader.animate': 'Sidanimering',
-	'reader.animate.hint': 'En kort glidning när sidan vänds',
+	'reader.animate.hint': "Sidan vänds som ett blad i en bok",
 	'reader.speech': 'Uppläsning',
 	'reader.speech.play': 'Spela',
 	'reader.speech.pause': 'Pausa',

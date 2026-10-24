@@ -768,7 +768,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.hyphenate': 'Tavutus',
 	'reader.hyphenate.hint': 'Tavuta pitkät sanat rivin lopussa',
 	'reader.animate': 'Sivuanimaatio',
-	'reader.animate.hint': 'Lyhyt liuku sivun kääntyessä',
+	'reader.animate.hint': "Sivu kääntyy kuin kirjan lehti",
 	'reader.speech': 'Ääneen lukeminen',
 	'reader.speech.play': 'Toista',
 	'reader.speech.pause': 'Tauko',

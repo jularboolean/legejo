@@ -139,3 +139,80 @@ html.legejo-reading body {
 		animation-duration: 0.01ms !important;
 	}
 }
+
+/* A page turning as a leaf of paper (Reader.svelte, turnLeaf): a picture of
+   the page as it was turns over above the new one. On one page it turns
+   over its left edge, like a leaf of a book whose spine is there; in a
+   spread the outer page turns over the spine in the middle. It darkens as
+   it rises from the page, and the page under it lightens as it comes out
+   of its shadow. */
+html[data-turn]::view-transition-old(root),
+html[data-turn]::view-transition-new(root) {
+	animation: none;
+}
+html[data-turn]::view-transition-old(legejo-leaf),
+html[data-turn]::view-transition-new(legejo-leaf) {
+	mix-blend-mode: normal;
+	backface-visibility: hidden;
+	animation-duration: var(--leaf-ms, 0.5s);
+	animation-fill-mode: both;
+}
+html[data-turn^='spread'] {
+	--leaf-ms: 0.62s;
+}
+
+/* The leaf is the old page going forward, and the new page coming back. */
+html[data-turn$='forward']::view-transition-old(legejo-leaf),
+html[data-turn$='back']::view-transition-new(legejo-leaf) {
+	z-index: 2;
+	animation-name: leaf-over;
+	animation-timing-function: cubic-bezier(0.45, 0.05, 0.4, 1);
+}
+html[data-turn$='forward']::view-transition-new(legejo-leaf),
+html[data-turn$='back']::view-transition-old(legejo-leaf) {
+	z-index: 1;
+	animation-name: leaf-under;
+	animation-timing-function: ease-out;
+}
+html[data-turn$='back']::view-transition-new(legejo-leaf),
+html[data-turn$='back']::view-transition-old(legejo-leaf) {
+	animation-direction: reverse;
+}
+
+/* Where it turns, and which part of the picture is the leaf. */
+html[data-turn^='single']::view-transition-old(legejo-leaf),
+html[data-turn^='single']::view-transition-new(legejo-leaf) {
+	transform-origin: 0 50%;
+	--leaf-to: -100deg;
+}
+html[data-turn='spread-forward']::view-transition-old(legejo-leaf) {
+	transform-origin: 50% 50%;
+	clip-path: inset(0 0 0 50%);
+	--leaf-to: -100deg;
+}
+html[data-turn='spread-back']::view-transition-new(legejo-leaf) {
+	transform-origin: 50% 50%;
+	clip-path: inset(0 50% 0 0);
+	--leaf-to: 100deg;
+}
+
+@keyframes leaf-over {
+	from {
+		transform: perspective(1800px) rotateY(0deg);
+		filter: brightness(1);
+		box-shadow: 0 0 0 rgb(0 0 0 / 0);
+	}
+	to {
+		transform: perspective(1800px) rotateY(var(--leaf-to, -100deg));
+		filter: brightness(0.7);
+		box-shadow: 0 0 48px rgb(0 0 0 / 0.35);
+	}
+}
+@keyframes leaf-under {
+	from {
+		filter: brightness(0.82);
+	}
+	to {
+		filter: brightness(1);
+	}
+}
