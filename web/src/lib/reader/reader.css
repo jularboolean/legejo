@@ -142,10 +142,11 @@ html.legejo-reading body {
 
 /* A page turning as a leaf of paper (Reader.svelte, turnLeaf): a picture of
    the page as it was turns over above the new one. On one page it turns
-   over its left edge, like a leaf of a book whose spine is there; in a
-   spread the outer page turns over the spine in the middle. It darkens as
-   it rises from the page, and the page under it lightens as it comes out
-   of its shadow. */
+   over its left edge, like a leaf of a book whose spine is there; it
+   darkens as it rises, and the page under it lightens as it comes out of
+   its shadow. A spread cannot turn over its spine this way (that takes a
+   picture of each page, and there is one of the whole): it is lifted off
+   and drawn aside like a sheet off a pile, over the next one. */
 html[data-turn]::view-transition-old(root),
 html[data-turn]::view-transition-new(root) {
 	animation: none;
@@ -158,7 +159,7 @@ html[data-turn]::view-transition-new(legejo-leaf) {
 	animation-fill-mode: both;
 }
 html[data-turn^='spread'] {
-	--leaf-ms: 0.62s;
+	--leaf-ms: 0.55s;
 }
 
 /* The leaf is the old page going forward, and the new page coming back. */
@@ -185,15 +186,17 @@ html[data-turn^='single']::view-transition-new(legejo-leaf) {
 	transform-origin: 0 50%;
 	--leaf-to: -100deg;
 }
-html[data-turn='spread-forward']::view-transition-old(legejo-leaf) {
-	transform-origin: 50% 50%;
-	clip-path: inset(0 0 0 50%);
-	--leaf-to: -100deg;
+html[data-turn^='spread']::view-transition-old(legejo-leaf),
+html[data-turn^='spread']::view-transition-new(legejo-leaf) {
+	animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
 }
+html[data-turn='spread-forward']::view-transition-old(legejo-leaf),
 html[data-turn='spread-back']::view-transition-new(legejo-leaf) {
-	transform-origin: 50% 50%;
-	clip-path: inset(0 50% 0 0);
-	--leaf-to: 100deg;
+	animation-name: sheet-off;
+}
+html[data-turn='spread-forward']::view-transition-new(legejo-leaf),
+html[data-turn='spread-back']::view-transition-old(legejo-leaf) {
+	animation-name: sheet-under;
 }
 
 @keyframes leaf-over {
@@ -213,6 +216,30 @@ html[data-turn='spread-back']::view-transition-new(legejo-leaf) {
 		filter: brightness(0.82);
 	}
 	to {
+		filter: brightness(1);
+	}
+}
+@keyframes sheet-off {
+	from {
+		transform: translateX(0) rotate(0deg);
+		box-shadow: 0 0 0 rgb(0 0 0 / 0);
+	}
+	25% {
+		transform: translateX(-3%) rotate(-0.6deg);
+		box-shadow: 12px 10px 36px rgb(0 0 0 / 0.28);
+	}
+	to {
+		transform: translateX(-108%) rotate(-2deg);
+		box-shadow: 18px 14px 48px rgb(0 0 0 / 0.3);
+	}
+}
+@keyframes sheet-under {
+	from {
+		transform: scale(0.985);
+		filter: brightness(0.85);
+	}
+	to {
+		transform: scale(1);
 		filter: brightness(1);
 	}
 }
