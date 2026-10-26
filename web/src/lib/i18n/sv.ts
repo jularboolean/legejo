@@ -939,6 +939,9 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.pdf.zoomOut': "Zooma ut",
 	'reader.pdf.fitWidth': "Anpassa till bredden",
 	'reader.pdf.invalid': "Den här PDF:en gick inte att öppna. Filen kan vara skadad.",
+	'reader.comic.invalid': "Seriearkivet gick inte att öppna. Filen kan vara skadad.",
+	'reader.comic.page': "Sida {page}",
+	'reader.comic.fit': "Hela sidan",
 	'reader.retry': 'Försök igen',
 
 	'public.heading': 'Delade hyllor',

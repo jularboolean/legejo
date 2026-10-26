@@ -928,6 +928,9 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'reader.pdf.zoomOut': "Alejar",
 	'reader.pdf.fitWidth': "Ajustar al ancho",
 	'reader.pdf.invalid': "No se pudo abrir este PDF. Puede que el archivo esté dañado.",
+	'reader.comic.invalid': "No se pudo abrir este archivo de cómic. Puede que el archivo esté dañado.",
+	'reader.comic.page': "Página {page}",
+	'reader.comic.fit': "Página entera",
 	'reader.retry': 'Reintentar',
 
 	'public.heading': 'Estanterías compartidas',

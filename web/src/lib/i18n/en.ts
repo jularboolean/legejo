@@ -937,6 +937,9 @@ export const en = {
 	'reader.pdf.zoomOut': "Zoom out",
 	'reader.pdf.fitWidth': "Fit to width",
 	'reader.pdf.invalid': "This PDF could not be opened. The file may be damaged.",
+	'reader.comic.invalid': "This comic archive could not be opened. The file may be damaged.",
+	'reader.comic.page': "Page {page}",
+	'reader.comic.fit': "Whole page",
 	'reader.retry': 'Try again',
 
 	'public.heading': 'Shared shelves',

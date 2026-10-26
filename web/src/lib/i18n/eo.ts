@@ -928,6 +928,9 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.pdf.zoomOut': "Malzomi",
 	'reader.pdf.fitWidth': "Adapti al larĝo",
 	'reader.pdf.invalid': "Ĉi tiu PDF ne malfermiĝis. La dosiero eble estas difektita.",
+	'reader.comic.invalid': "Ĉi tiu bildstria arkivo ne malfermiĝis. La dosiero eble estas difektita.",
+	'reader.comic.page': "Paĝo {page}",
+	'reader.comic.fit': "Tuta paĝo",
 	'reader.retry': 'Reprovi',
 
 	'public.heading': 'Kunhavigitaj bretoj',

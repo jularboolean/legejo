@@ -928,6 +928,9 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.pdf.zoomOut': "Loitonna",
 	'reader.pdf.fitWidth': "Sovita leveyteen",
 	'reader.pdf.invalid': "Tätä PDF-tiedostoa ei voitu avata. Tiedosto voi olla vioittunut.",
+	'reader.comic.invalid': "Sarjakuva-arkistoa ei voitu avata. Tiedosto voi olla vioittunut.",
+	'reader.comic.page': "Sivu {page}",
+	'reader.comic.fit': "Koko sivu",
 	'reader.retry': 'Yritä uudelleen',
 
 	'public.heading': 'Jaetut hyllyt',

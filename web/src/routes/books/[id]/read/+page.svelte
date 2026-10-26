@@ -19,6 +19,10 @@
 		{#await import('#lib/reader/pdf/PdfReader.svelte') then { default: PdfReader }}
 			<PdfReader book={data.book} {at} {back} />
 		{/await}
+	{:else if data.book.format === 'cbz'}
+		{#await import('#lib/reader/cbz/CbzReader.svelte') then { default: CbzReader }}
+			<CbzReader book={data.book} {back} />
+		{/await}
 	{:else}
 		<Reader book={data.book} {at} {back} {find} />
 	{/if}

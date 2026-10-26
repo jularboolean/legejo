@@ -26,7 +26,7 @@
 	const offline = availability();
 	let onDevice = $state<boolean | null>(null);
 	/** Books the reader opens (and that can be saved on the device to read there): EPUB and PDF. */
-	const readHere = (b: { format: string }) => b.format === 'epub' || b.format === 'pdf';
+	const readHere = (b: { format: string }) => b.format === 'epub' || b.format === 'pdf' || b.format === 'cbz';
 	let saving = $state<number | null>(null);
 	let offlineError = $state('');
 	$effect(() => {

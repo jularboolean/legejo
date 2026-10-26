@@ -21,8 +21,8 @@
 Legejo is a self-hosted library for your e-books. Upload your books, organize
 them on shelves and read them in the browser, on a Kobo, in KOReader or in any
 OPDS reading app, with your reading position following you between devices. It
-is built around EPUB; PDF files are read in the browser too, and PDF files and
-comics (CBZ) are kept in the same library and handed to your devices as they are. Audiobooks can live there too: each one
+is built around EPUB; PDF files and comics (CBZ) are read in the browser too,
+and kept in the same library and handed to your devices as they are. Audiobooks can live there too: each one
 becomes a private podcast feed for the podcast app you already use.
 
 It runs as a single container with SQLite or PostgreSQL and is built with Rust
@@ -56,8 +56,9 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   plugins, and your reading position follows you between them.
 - **One library.** EPUB is what Legejo reads, mends and converts. PDF files and
   comics sit beside them, with covers, shelves, tags, search and sharing, ready
-  to download or fetch over OPDS; PDF files open in the browser's reader too,
-  with highlights and notes.
+  to download or fetch over OPDS. PDF files open in the browser's reader too,
+  with highlights and notes, and comics in a reader of their own: a page or a
+  spread at a time, turned with a tap or a swipe, manga from the right.
 - **Audiobooks without another app.** Turn it on, and each audiobook gets a
   private podcast feed. Listen in Apple Podcasts, Pocket Casts, Overcast or any
   other podcast app, which keeps your place the way it does for any show.
@@ -83,7 +84,7 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 ## Why not?
 
-- **No comic reader, and a plain one for PDF.** Comics are kept and handed to your devices; PDF files open in the browser, fitted to the screen, with zoom, contents, search, highlights and notes, but they do not sync to a Kobo.
+- **Plain readers for PDF and comics.** PDF files open in the browser, fitted to the screen, with zoom, contents, search, highlights and notes; comics open a page or a spread at a time, with zoom. Neither has the EPUB reader's settings or reading aloud, and a PDF does not sync to a Kobo.
 - **No audiobook player.** Audiobooks go to the podcast app you already have.
 - **Not a reader of your folders.** Legejo keeps its own copy of every book, to repair it and write your corrections into it; it does not read an existing folder in place.
 
