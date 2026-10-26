@@ -932,6 +932,11 @@ export const en = {
 	'reader.error.invalid': 'This EPUB could not be opened. The file may be damaged.',
 	'reader.error.notFound': 'The book’s file could not be found.',
 	'reader.error.network': 'Could not load the book. Check your connection and try again.',
+	'reader.pdf.pageOf': "Page {page} of {total}",
+	'reader.pdf.zoomIn': "Zoom in",
+	'reader.pdf.zoomOut': "Zoom out",
+	'reader.pdf.fitWidth': "Fit to width",
+	'reader.pdf.invalid': "This PDF could not be opened. The file may be damaged.",
 	'reader.retry': 'Try again',
 
 	'public.heading': 'Shared shelves',

@@ -923,6 +923,11 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'Impossible d’ouvrir cet EPUB. Le fichier est peut-être endommagé.',
 	'reader.error.notFound': 'Le fichier du livre est introuvable.',
 	'reader.error.network': 'Impossible de charger le livre. Vérifiez votre connexion et réessayez.',
+	'reader.pdf.pageOf': "Page {page} sur {total}",
+	'reader.pdf.zoomIn': "Zoom avant",
+	'reader.pdf.zoomOut': "Zoom arrière",
+	'reader.pdf.fitWidth': "Ajuster à la largeur",
+	'reader.pdf.invalid': "Ce PDF n’a pas pu être ouvert. Le fichier est peut-être endommagé.",
 	'reader.retry': 'Réessayer',
 
 	'public.heading': 'Étagères partagées',

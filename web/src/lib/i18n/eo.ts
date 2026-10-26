@@ -923,6 +923,11 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'Ĉi tiu EPUB ne malfermeblis. La dosiero eble estas difektita.',
 	'reader.error.notFound': 'La dosiero de la libro ne troviĝis.',
 	'reader.error.network': 'Ne eblis ŝargi la libron. Kontrolu vian konekton kaj reprovu.',
+	'reader.pdf.pageOf': "Paĝo {page} el {total}",
+	'reader.pdf.zoomIn': "Zomi",
+	'reader.pdf.zoomOut': "Malzomi",
+	'reader.pdf.fitWidth': "Adapti al larĝo",
+	'reader.pdf.invalid': "Ĉi tiu PDF ne malfermiĝis. La dosiero eble estas difektita.",
 	'reader.retry': 'Reprovi',
 
 	'public.heading': 'Kunhavigitaj bretoj',

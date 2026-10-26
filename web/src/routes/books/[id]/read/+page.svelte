@@ -14,5 +14,12 @@
 
 <!-- Keyed, so going straight from one book to another starts a fresh reader. -->
 {#key data.book.id}
-	<Reader book={data.book} {at} {back} {find} />
+	{#if data.book.format === 'pdf'}
+		<!-- pdf.js comes with it, only for a PDF. -->
+		{#await import('#lib/reader/pdf/PdfReader.svelte') then { default: PdfReader }}
+			<PdfReader book={data.book} {at} {back} />
+		{/await}
+	{:else}
+		<Reader book={data.book} {at} {back} {find} />
+	{/if}
 {/key}

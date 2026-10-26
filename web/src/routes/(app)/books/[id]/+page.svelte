@@ -25,13 +25,15 @@
 	// Saved on the device, for reading without the network (lib/offline).
 	const offline = availability();
 	let onDevice = $state<boolean | null>(null);
+	/** Books the reader opens (and that can be saved on the device to read there): EPUB and PDF. */
+	const readHere = (b: { format: string }) => b.format === 'epub' || b.format === 'pdf';
 	let saving = $state<number | null>(null);
 	let offlineError = $state('');
 	$effect(() => {
 		const current = book;
 		onDevice = null;
 		offlineError = '';
-		if (current.format !== 'epub' || offline === 'unsupported') return;
+		if (!readHere(current) || offline === 'unsupported') return;
 		savedVersion(current.id)
 			.then((version) => {
 				if (book.id !== current.id) return;
@@ -249,8 +251,8 @@
 		{#if (book.kobo_minutes ?? 0) > 0}
 			<p class="elsewhere">{t('book.koboTime', { time: formatLength((book.kobo_minutes ?? 0) * 60) })}</p>
 		{/if}
-		{#if book.format !== 'epub'}<p class="elsewhere">{t('book.readElsewhere', { format: book.format.toUpperCase() })}</p>{/if}
-		{#if book.format === 'epub'}
+		{#if !readHere(book)}<p class="elsewhere">{t('book.readElsewhere', { format: book.format.toUpperCase() })}</p>{/if}
+		{#if readHere(book)}
 			<a class="read" href={`/books/${book.id}/read`}>
 				<BookOpen size={15} />
 				{progress !== null ? t('book.continue') : t('book.read')}
@@ -260,7 +262,7 @@
 			<Download size={14} />
 			{t('book.download', { format: book.format.toUpperCase() })}
 		</a>
-		{#if book.format === 'epub' && offline === 'ready' && onDevice !== null}
+		{#if readHere(book) && offline === 'ready' && onDevice !== null}
 			{#if saving !== null}
 				<button type="button" class="want" disabled>
 					<HardDriveDownload size={14} />
@@ -278,7 +280,7 @@
 				</button>
 			{/if}
 			{#if offlineError}<p class="kindle-error" role="alert">{offlineError}</p>{/if}
-		{:else if book.format === 'epub' && offline === 'install'}
+		{:else if readHere(book) && offline === 'install'}
 			<p class="elsewhere">{t('offline.installHint')}</p>
 		{/if}
 		{#if data.sendToKindle && book.format !== 'cbz'}

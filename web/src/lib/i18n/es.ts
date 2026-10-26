@@ -923,6 +923,11 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'No se pudo abrir este EPUB. Puede que el archivo esté dañado.',
 	'reader.error.notFound': 'No se encontró el archivo del libro.',
 	'reader.error.network': 'No se pudo cargar el libro. Comprueba tu conexión e inténtalo de nuevo.',
+	'reader.pdf.pageOf': "Página {page} de {total}",
+	'reader.pdf.zoomIn': "Acercar",
+	'reader.pdf.zoomOut': "Alejar",
+	'reader.pdf.fitWidth': "Ajustar al ancho",
+	'reader.pdf.invalid': "No se pudo abrir este PDF. Puede que el archivo esté dañado.",
 	'reader.retry': 'Reintentar',
 
 	'public.heading': 'Estanterías compartidas',

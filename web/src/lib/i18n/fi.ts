@@ -923,6 +923,11 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'EPUB-tiedostoa ei voitu avata. Tiedosto voi olla vioittunut.',
 	'reader.error.notFound': 'Kirjan tiedostoa ei löytynyt.',
 	'reader.error.network': 'Kirjaa ei voitu ladata. Tarkista yhteys ja yritä uudelleen.',
+	'reader.pdf.pageOf': "Sivu {page}/{total}",
+	'reader.pdf.zoomIn': "Lähennä",
+	'reader.pdf.zoomOut': "Loitonna",
+	'reader.pdf.fitWidth': "Sovita leveyteen",
+	'reader.pdf.invalid': "Tätä PDF-tiedostoa ei voitu avata. Tiedosto voi olla vioittunut.",
 	'reader.retry': 'Yritä uudelleen',
 
 	'public.heading': 'Jaetut hyllyt',

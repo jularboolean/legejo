@@ -934,6 +934,11 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'EPUB-filen kunde inte öppnas. Filen kan vara skadad.',
 	'reader.error.notFound': 'Bokens fil kunde inte hittas.',
 	'reader.error.network': 'Kunde inte ladda boken. Kontrollera anslutningen och försök igen.',
+	'reader.pdf.pageOf': "Sida {page} av {total}",
+	'reader.pdf.zoomIn': "Zooma in",
+	'reader.pdf.zoomOut': "Zooma ut",
+	'reader.pdf.fitWidth': "Anpassa till bredden",
+	'reader.pdf.invalid': "Den här PDF:en gick inte att öppna. Filen kan vara skadad.",
 	'reader.retry': 'Försök igen',
 
 	'public.heading': 'Delade hyllor',

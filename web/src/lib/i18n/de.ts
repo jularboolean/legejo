@@ -923,6 +923,11 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'reader.error.invalid': 'Diese EPUB konnte nicht geöffnet werden. Die Datei ist möglicherweise beschädigt.',
 	'reader.error.notFound': 'Die Datei des Buchs wurde nicht gefunden.',
 	'reader.error.network': 'Das Buch konnte nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.',
+	'reader.pdf.pageOf': "Seite {page} von {total}",
+	'reader.pdf.zoomIn': "Vergrößern",
+	'reader.pdf.zoomOut': "Verkleinern",
+	'reader.pdf.fitWidth': "An Breite anpassen",
+	'reader.pdf.invalid': "Diese PDF ließ sich nicht öffnen. Die Datei ist vielleicht beschädigt.",
 	'reader.retry': 'Erneut versuchen',
 
 	'public.heading': 'Geteilte Regale',

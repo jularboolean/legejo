@@ -34,8 +34,8 @@ kiun demandi.</p>
 
 <h2>Kio Legejo ne estas</h2>
 <p>Indas scii tion frue. Legejo estas konstruita ĉirkaŭ EPUB: tio estas la formato, kiun ĝi malfermas en la
-retumilo, kontrolas, riparas, konvertas por Kobo kaj laŭtlegas. PDF-dosieroj kaj bildstrioj estas bonvenaj, sed
-nur prizorgataj: konservataj, priskribataj kaj disdonataj. Legejo ankaŭ tenas sian propran kopion de ĉiu
+retumilo, kontrolas, riparas, konvertas por Kobo kaj laŭtlegas. PDF-dosieroj ankaŭ malfermiĝas en la retumilo,
+simple; bildstrioj estas bonvenaj, sed nur prizorgataj: konservataj, priskribataj kaj disdonataj. Legejo ankaŭ tenas sian propran kopion de ĉiu
 libro. Ĝi ne legas ekzistantan dosierujon de libroj surloke, kaj ĝi ne sekvas ŝanĝojn faritajn
 tie. La Aldono diras pli.</p>
 """
@@ -174,7 +174,10 @@ etikedoj, serĉado kaj kundividado.</p>""",
   """<p>Ili estas konservataj ekzakte tiaj, kiaj ili estas. PDF aŭ bildstrio prenas sian unuan paĝon kiel kovrilon,
 kaj la <code>ComicInfo.xml</code> de bildstrio estas legata por ĝiaj titolo kaj serio. Pasvorte protektitaj
 PDF-oj estas rifuzataj.</p>
-<p>Legejo ne malfermas ilin en la retumilo. Elŝutu ilin aŭ prenu ilin per OPDS
+<p>PDF malfermiĝas en la retumilo per <strong>Legi</strong>: la paĝoj unu post la alia, adaptitaj
+al la ekrano. Zomu per la butonoj, per du fingroj aŭ per Ctrl kaj la rado; la enhavo kaj la serĉo
+estas supre. Elektu tekston por marki ĝin aŭ aldoni noton, kiel en EPUB; tuŝu markon por ŝanĝi
+aŭ forigi ĝin. Bildstrioj ne malfermiĝas en la retumilo: elŝutu ilin aŭ prenu ilin per OPDS
 (Recepto 8.7). Bildstrio ja atingas Kobo-legilon per Kobo-sinkronigo, transformita en libron kun unu paĝo por ĉiu
 bildo; PDF ne.</p>"""),
 
@@ -919,9 +922,9 @@ APPENDIX = """
 <dd>Ĝi tenas propran kopion de ĉiu libro, por povi ripari la dosieron kaj skribi viajn
 korektojn reen en ĝin. Se via dosierujstrukturo devas resti la fonto de la vero, Legejo ne estas
 la ĝusta ilo.</dd>
-<dt>Legejo ne malfermas PDF-dosierojn aŭ bildstriojn en la retumilo.</dt>
-<dd>Ĝi konservas ilin, priskribas ilin kaj disdonas ilin. Se vi volas legi ilin en la retumilo,
-alia ilo servos vin pli bone.</dd>
+<dt>Legejo ne malfermas bildstriojn en la retumilo, kaj legas PDF-dosierojn simple.</dt>
+<dd>Ĝi konservas bildstriojn, priskribas ilin kaj disdonas ilin. PDF-dosieroj malfermiĝas en la retumilo,
+sed sen la agordoj de la EPUB-leganto, laŭtlegado aŭ Kobo-sinkronigo.</dd>
 <dt>Legejo ne havas aŭskultaplikaĵon.</dt>
 <dd>Aŭdlibroj estas liverataj kiel podkastaj fluoj, por la podkasta aplikaĵo, kiun vi jam uzas.</dd>
 <dt>Legejo ne malfermas kopiprotektitajn librojn.</dt>

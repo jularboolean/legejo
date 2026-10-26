@@ -34,8 +34,8 @@ one to ask.</p>
 
 <h2>What Legejo is not</h2>
 <p>It is worth knowing early. Legejo is built around EPUB: that is the format it opens in the
-browser, checks, repairs, converts for Kobo and reads aloud. PDF files and comics are welcome but
-only looked after: stored, described and handed out. Legejo also keeps its own copy of every
+browser, checks, repairs, converts for Kobo and reads aloud. PDF files open in the browser too,
+plainly; comics are welcome but only looked after: stored, described and handed out. Legejo also keeps its own copy of every
 book. It does not read an existing folder of books in place, and it does not follow changes made
 there. The Appendix says more.</p>
 """
@@ -174,9 +174,12 @@ tags, search and sharing.</p>""",
   """<p>They are stored exactly as they are. A PDF or a comic takes its first page as the cover,
 and a comic's <code>ComicInfo.xml</code> is read for its title and series. Password-protected
 PDFs are refused.</p>
-<p>Legejo does not open them in the browser. Download them, or fetch them over OPDS
-(Recipe 8.7). A comic does reach a Kobo through Kobo sync, made into a book with one page per
-picture; a PDF does not.</p>"""),
+<p>A PDF opens in the browser with <strong>Read</strong>: the pages one after another, fitted
+to the screen. Zoom with the buttons, with two fingers, or with Ctrl and the wheel; the contents
+and the search are at the top. Select text to highlight it or add a note, as in an EPUB; tap a
+highlight to change or delete it. Comics are not opened in the browser: download them, or fetch
+them over OPDS (Recipe 8.7). A comic does reach a Kobo through Kobo sync, made into a book with
+one page per picture; a PDF does not.</p>"""),
 
  ("Fetching Books from Another Library",
   "<p>You want books from Project Gutenberg, or another library with a catalog, without downloading and uploading.</p>",
@@ -913,9 +916,9 @@ APPENDIX = """
 <dd>It keeps its own copy of every book, so that it can repair the file and write your
 corrections back into it. If your folder structure should stay the source of truth, Legejo is
 not the right tool.</dd>
-<dt>Legejo does not open PDF files or comics in the browser.</dt>
-<dd>It stores them, describes them and hands them out. If reading those in the browser is what
-you want, another tool will serve you better.</dd>
+<dt>Legejo does not open comics in the browser, and reads PDF files plainly.</dt>
+<dd>It stores comics, describes them and hands them out. PDF files open in the browser, but
+without the EPUB reader's settings, reading aloud or Kobo sync.</dd>
 <dt>Legejo has no listening app.</dt>
 <dd>Audiobooks are served as podcast feeds, for the podcast app you already use.</dd>
 <dt>Legejo does not open copy-protected books.</dt>

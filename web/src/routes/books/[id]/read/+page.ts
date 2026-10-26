@@ -9,7 +9,7 @@ export const load: PageLoad = async ({ fetch, params }) => {
 		error(res.status === 404 ? 404 : 500, t('book.notFound'));
 	}
 	const book: BookDetail = await res.json();
-	// The reader is one of EPUB books.
-	if (book.format !== 'epub') redirect(307, `/books/${params.id}`);
+	// EPUB and PDF books are read here; comics on a device.
+	if (book.format !== 'epub' && book.format !== 'pdf') redirect(307, `/books/${params.id}`);
 	return { book };
 };
