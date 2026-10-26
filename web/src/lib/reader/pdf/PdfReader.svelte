@@ -571,12 +571,13 @@
 		if (selectTimer) clearTimeout(selectTimer);
 		selectTimer = setTimeout(() => {
 			const found = selectedPassage();
+			// A selection going away does not close the bar: pressing one of
+			// its buttons takes the selection with it, before the press lands.
+			// A tap on the page, cancel or a save closes it.
 			if (found) {
 				editing = null;
 				pending = found;
 				annotateError = null;
-			} else if (pending && !saving) {
-				pending = null;
 			}
 			placeBar();
 		}, 250);
@@ -851,6 +852,17 @@
 									style:height={`${rect.height * 100}%`}
 									style:width={`${rect.width * 100}%`}
 								></span>
+							{/each}
+							{#each pending?.passage.filter((part) => part.page === n) ?? [] as part, k (k)}
+								{#each part.rects as rect, j (j)}
+									<span
+										class="mark held"
+										style:top={`${rect.top * 100}%`}
+										style:left={`${rect.left * 100}%`}
+										style:height={`${rect.height * 100}%`}
+										style:width={`${rect.width * 100}%`}
+									></span>
+								{/each}
 							{/each}
 						</div>
 						<div class="textLayer"></div>
@@ -1134,6 +1146,10 @@
 	}
 	.mark.open {
 		opacity: 0.7;
+	}
+	/* What is about to be highlighted, still there once the selection is gone. */
+	.mark.held {
+		background: #7aa7e0;
 	}
 
 	/* pdf.js's text layer, adapted from its pdf_viewer.css (Apache-2.0): the
