@@ -158,7 +158,70 @@
 			const { TextLayer } = await pdfjs();
 			const text = new TextLayer({ textContentSource: page.streamTextContent(), container: layer, viewport });
 			await text.render().catch(() => {});
+			const end = document.createElement('div');
+			end.className = 'endOfContent';
+			layer.append(end);
+			endOfContent.set(layer, end);
 		}
+	}
+
+	// The text of a page lies in pieces over it, with gaps between them. A
+	// selection dragged into a gap would run on to the end of the page, so a
+	// block that catches it is kept just after where the selection ends (or
+	// before where it starts, when the start is the end being moved) while a
+	// selection is being made, and goes back to the end of the page after.
+	// The approach of pdf.js's own viewer (text_layer_builder.js).
+	const endOfContent = new Map<HTMLElement, HTMLElement>();
+	let lastRange: Range | null = null;
+
+	function putBack(layer: HTMLElement, end: HTMLElement) {
+		layer.append(end);
+		end.style.width = '';
+		end.style.height = '';
+		end.style.userSelect = '';
+		layer.classList.remove('selecting');
+	}
+
+	function putBackAll() {
+		for (const [layer, end] of endOfContent) if (layer.isConnected) putBack(layer, end);
+		lastRange = null;
+	}
+
+	function followSelection() {
+		const selection = document.getSelection();
+		if (!selection || selection.rangeCount === 0) {
+			putBackAll();
+			return;
+		}
+		const range = selection.getRangeAt(0);
+		for (const [layer, end] of endOfContent) {
+			if (!layer.isConnected) endOfContent.delete(layer);
+			else if (range.intersectsNode(layer)) layer.classList.add('selecting');
+			else putBack(layer, end);
+		}
+		// Which end is moving: the start, when the end stays where it was.
+		const startMoves =
+			!!lastRange &&
+			(range.compareBoundaryPoints(Range.END_TO_END, lastRange) === 0 || range.compareBoundaryPoints(Range.START_TO_END, lastRange) === 0);
+		let node: Node | null = startMoves ? range.startContainer : range.endContainer;
+		if (node?.nodeType === Node.TEXT_NODE) node = node.parentNode;
+		// A selection that ends at the very start of a piece ends in the one before it.
+		if (!startMoves && range.endOffset === 0 && node) {
+			do {
+				while (node && !node.previousSibling) node = node.parentNode;
+				node = node?.previousSibling ?? null;
+			} while (node && !node.childNodes.length);
+		}
+		const piece = node as HTMLElement | null;
+		const layer = piece?.parentElement?.closest<HTMLElement>('.textLayer');
+		const end = layer ? endOfContent.get(layer) : undefined;
+		if (piece && layer && end && piece !== end) {
+			end.style.width = layer.style.width;
+			end.style.height = layer.style.height;
+			end.style.userSelect = 'text';
+			piece.parentElement!.insertBefore(end, startMoves ? piece : piece.nextSibling);
+		}
+		lastRange = range.cloneRange();
 	}
 
 	/** Forget pages far from the screen, so a long book does not fill the memory. */
@@ -504,6 +567,7 @@
 
 	let selectTimer: ReturnType<typeof setTimeout> | null = null;
 	function onSelectionChange() {
+		followSelection();
 		if (selectTimer) clearTimeout(selectTimer);
 		selectTimer = setTimeout(() => {
 			const found = selectedPassage();
@@ -639,6 +703,7 @@
 			if (document.visibilityState === 'hidden') flush();
 		};
 		document.addEventListener('selectionchange', onSelectionChange);
+		document.addEventListener('pointerup', putBackAll);
 		document.addEventListener('visibilitychange', onVisibility);
 		window.addEventListener('pagehide', flush);
 		let closed = false;
@@ -689,6 +754,7 @@
 			resize.disconnect();
 			observer?.disconnect();
 			document.removeEventListener('selectionchange', onSelectionChange);
+			document.removeEventListener('pointerup', putBackAll);
 			document.removeEventListener('visibilitychange', onVisibility);
 			window.removeEventListener('pagehide', flush);
 			for (const d of drawn.values()) d.task?.cancel();
@@ -1122,6 +1188,9 @@
 		z-index: 0;
 		cursor: default;
 		user-select: none;
+	}
+	.page :global(.textLayer.selecting .endOfContent) {
+		top: 0;
 	}
 
 	.notice {
