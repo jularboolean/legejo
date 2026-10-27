@@ -165,7 +165,8 @@ pub(crate) async fn percent_for(state: &AppState, user_id: i64, book_id: i64) ->
 #[derive(Serialize)]
 pub struct Progress {
     /// Position in the web reader. Null when there is none, or when a Kobo or
-    /// KOReader device has reported a newer position (which has no CFI).
+    /// KOReader device has reported a newer position (which has no CFI;
+    /// KOReader's page in a PDF or a comic is given as `pdf:`/`cbz:<page>`).
     cfi: Option<String>,
     /// 0–1, from whichever of web, Kobo and KOReader was updated last.
     percent: Option<f64>,
@@ -209,12 +210,15 @@ pub async fn get(
     user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<Progress>, Response> {
-    let row: Option<(Option<String>, Option<f64>, Option<String>, Option<String>, String)> = sqlx::query_as(&format!(
+    type Row = (Option<String>, Option<f64>, Option<String>, Option<String>, String, Option<String>, String);
+    let row: Option<Row> = sqlx::query_as(&format!(
         "SELECT CASE WHEN {kobo_wins} OR {ko_wins} THEN NULL ELSE rp.cfi END,
                 {percent},
                 {last},
                 CASE WHEN {kobo_wins} THEN ks.state END,
-                b.uuid
+                b.uuid,
+                CASE WHEN {ko_wins} AND kp.document = b.koreader_md5 THEN kp.progress END,
+                b.format
          FROM books b {PROGRESS_JOINS}
          WHERE b.owner_id = $1 AND b.id = $2",
         kobo_wins = kobo_wins(state.backend),
@@ -227,13 +231,30 @@ pub async fn get(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    let (cfi, percent, updated_at, kobo_state, uuid) = row.ok_or_else(not_found)?;
+    let (cfi, percent, updated_at, kobo_state, uuid, koreader, format) = row.ok_or_else(not_found)?;
+    // KOReader's position in a PDF or a comic is a page number, which the web
+    // reader takes as it is (`pdf:<page>`, `cbz:<page>`). Only in the file
+    // itself: a comic made into a book for a Kobo is read by text.
+    let cfi = cfi.or_else(|| koreader.as_deref().and_then(|p| page_place(&format, p)));
     let line = match &kobo_state {
         Some(reading_state) => kobo_line(&state, &uuid, reading_state).await,
         None => None,
     };
     let (kobo_text, kobo_chapter) = line.map_or((None, None), |(text, chapter)| (Some(text), Some(chapter)));
     Ok(Json(Progress { cfi, percent, updated_at, kobo_text, kobo_chapter }))
+}
+
+/// A KOReader page in a PDF or a comic as the web reader's place.
+fn page_place(format: &str, progress: &str) -> Option<String> {
+    let page: u32 = progress.trim().parse().ok().filter(|p| *p >= 1)?;
+    matches!(format, "pdf" | "cbz").then(|| format!("{format}:{page}"))
+}
+
+/// The page of a web reader's place in a PDF or a comic, as KOReader names it.
+pub(crate) fn place_page(cfi: &str) -> Option<u32> {
+    let rest = cfi.strip_prefix("pdf:").or_else(|| cfi.strip_prefix("cbz:"))?;
+    // A passage (`pdf:<page>:<rects>`) starts at its page.
+    rest.split(':').next()?.parse().ok().filter(|p| *p >= 1)
 }
 
 #[derive(Deserialize)]

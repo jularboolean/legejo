@@ -227,3 +227,70 @@ async fn downloads_are_streamed_with_their_length() {
     assert_eq!(length.as_deref(), Some(body.len().to_string().as_str()));
     assert!(body.starts_with(b"PK"), "a zip, {} bytes", body.len());
 }
+
+#[tokio::test]
+async fn koreader_and_the_web_share_the_page_of_a_pdf_or_a_comic() {
+    use md5::{Digest, Md5};
+    let (app, db, _) = test_app().await;
+    let (_, cookie) = add_user(&db, "alice").await;
+    let v = upload(&app, &cookie, &[("ice.pdf", pdf("On Ice")), ("ear.cbz", cbz("The Broken Ear"))], "").await;
+    let id_of = |name: &str| v["added"].as_array().unwrap().iter().find(|b| b["title"] == name).unwrap()["id"].as_i64().unwrap();
+    let (pdf_book, cbz_book) = (id_of("On Ice"), id_of("The Broken Ear"));
+    let document = |book: i64| {
+        let db = db.clone();
+        async move { sqlx::query_scalar::<_, String>("SELECT koreader_md5 FROM books WHERE id = ?").bind(book).fetch_one(&db).await.unwrap() }
+    };
+    let (pdf_doc, cbz_doc) = (document(pdf_book).await, document(cbz_book).await);
+
+    let (_, k) = send(&app, Method::POST, "/api/account/kosync-key", Some(&cookie), None).await;
+    let auth_key: String = Md5::digest(k["key"].as_str().unwrap().as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+    let ko = |method: Method, uri: String, body: Option<serde_json::Value>| {
+        let mut req = Request::builder()
+            .method(method)
+            .uri(format!("/api/kosync{uri}"))
+            .header("x-auth-user", "alice")
+            .header("x-auth-key", auth_key.clone());
+        if body.is_some() {
+            req = req.header(header::CONTENT_TYPE, "application/json");
+        }
+        let req = req.body(body.map_or(Body::empty(), |b| Body::from(b.to_string()))).unwrap();
+        let app = app.clone();
+        async move {
+            let res = app.oneshot(req).await.unwrap();
+            let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+        }
+    };
+    let web = |book: i64| {
+        let (app, cookie) = (app.clone(), cookie.clone());
+        async move { send(&app, Method::GET, &format!("/api/books/{book}/progress"), Some(&cookie), None).await.1 }
+    };
+
+    // KOReader names a page of a PDF by its number; the web reader opens there.
+    ko(Method::PUT, "/syncs/progress".into(), Some(json!({ "document": pdf_doc, "progress": "7", "percentage": 0.7, "device": "Kobo", "device_id": "K1" }))).await;
+    assert_eq!(web(pdf_book).await["cfi"], "pdf:7");
+
+    // Read on in the browser, and KOReader is given that page, from the web.
+    send(&app, Method::PUT, &format!("/api/books/{pdf_book}/progress"), Some(&cookie), Some(json!({ "cfi": "pdf:9", "percent": 0.8 }))).await;
+    let v = ko(Method::GET, format!("/syncs/progress/{pdf_doc}"), None).await;
+    assert_eq!((v["progress"].clone(), v["percentage"].clone(), v["device"].clone()), (json!("9"), json!(0.8), json!("Legejo")));
+    assert_ne!(v["device_id"], "K1");
+    assert!(v["timestamp"].as_i64().unwrap() > 0);
+
+    // A comic read only in the browser: KOReader still finds its page.
+    send(&app, Method::PUT, &format!("/api/books/{cbz_book}/progress"), Some(&cookie), Some(json!({ "cfi": "cbz:3", "percent": 0.4 }))).await;
+    assert_eq!(ko(Method::GET, format!("/syncs/progress/{cbz_doc}"), None).await["progress"], "3");
+    // And KOReader's newer page goes the other way.
+    ko(Method::PUT, "/syncs/progress".into(), Some(json!({ "document": cbz_doc, "progress": "5", "percentage": 0.5, "device": "Kobo", "device_id": "K1" }))).await;
+    let v = ko(Method::GET, format!("/syncs/progress/{cbz_doc}"), None).await;
+    assert_eq!((v["progress"].clone(), v["device_id"].clone()), (json!("5"), json!("K1")));
+    assert_eq!(web(cbz_book).await["cfi"], "cbz:5");
+
+    // The comic made into a book for a device is read by text: no page from it.
+    let copy = "0123456789abcdef0123456789abcdef";
+    sqlx::query("INSERT INTO book_file_ids (md5, book_id) VALUES (?, ?)").bind(copy).bind(cbz_book).execute(&db).await.unwrap();
+    ko(Method::PUT, "/syncs/progress".into(), Some(json!({ "document": copy, "progress": "/body/DocFragment[4]/body/img", "percentage": 0.6 }))).await;
+    let p = web(cbz_book).await;
+    assert_eq!((p["cfi"].clone(), p["percent"].clone()), (serde_json::Value::Null, json!(0.6)));
+    assert_eq!(ko(Method::GET, format!("/syncs/progress/{copy}"), None).await["progress"], "/body/DocFragment[4]/body/img");
+}

@@ -640,8 +640,10 @@ the password.</li>
 <li>Turn on automatic sync if you want the place sent while you read.</li>
 </ol>""",
   """<p>Books are recognised by their file, so they must come from Legejo, by OPDS or by
-download. Legejo shows the place as a percentage; the web reader then starts at about the same
-place, not the exact line.</p>"""),
+download. In a book, Legejo shows the place as a percentage; the web reader then starts at about
+the same place, not the exact line. A PDF or a comic goes by page, both ways: the web reader opens
+at the page you reached in KOReader, and KOReader is offered the page you reached in the browser
+when it is newer.</p>"""),
 
  ("Using Other Reading Apps",
   "<p>You read in Moon+ Reader, Thorium, or something else that speaks OPDS.</p>",

@@ -232,8 +232,21 @@ async fn get_progress(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e))?;
-    // Only KOReader's own positions are returned: web and Kobo positions have
-    // no xpointer KOReader could jump to.
+    // KOReader's own positions are returned, and in a PDF or a comic the web
+    // reader's page when it is newer: a page is all KOReader needs there. Web
+    // and Kobo positions in an EPUB have no xpointer KOReader could jump to.
+    if let Some((page, percent, at)) = web_page(&state, user_id, &document.to_ascii_lowercase()).await? {
+        if row.as_ref().is_none_or(|r| at > r.4) {
+            return Ok(Json(json!({
+                "document": document.to_ascii_lowercase(),
+                "progress": page.to_string(),
+                "percentage": percent,
+                "device": "Legejo",
+                "device_id": WEB_DEVICE_ID,
+                "timestamp": unix_of(&at),
+            })));
+        }
+    }
     Ok(Json(match row {
         Some((progress, percentage, device, device_id, at)) => json!({
             "document": document.to_ascii_lowercase(),
@@ -245,6 +258,26 @@ async fn get_progress(
         }),
         None => json!({}),
     }))
+}
+
+/// Stands for the web reader among KOReader's devices.
+const WEB_DEVICE_ID: &str = "legejo-web";
+
+/// The web reader's page in the PDF or comic that is this document (the file
+/// itself, not a copy made for a device), its percentage and when it was read.
+async fn web_page(state: &AppState, user_id: i64, document: &str) -> Result<Option<(u32, f64, String)>, Response> {
+    let row: Option<(String, f64, String)> = sqlx::query_as(
+        "SELECT rp.cfi, rp.percent, rp.updated_at FROM books b
+         JOIN reading_progress rp ON rp.book_id = b.id AND rp.user_id = $1
+         WHERE b.owner_id = $1 AND b.koreader_md5 = $2 AND b.format IN ('pdf', 'cbz')
+         ORDER BY b.id LIMIT 1",
+    )
+    .bind(user_id)
+    .bind(document)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| internal(e))?;
+    Ok(row.and_then(|(cfi, percent, at)| Some((crate::progress::place_page(&cfi)?, percent, at))))
 }
 
 fn internal(e: impl std::fmt::Display) -> Response {

@@ -643,8 +643,10 @@ la paĝo Konto.</li>
 <li>Ŝaltu aŭtomatan sinkronigon, se vi volas, ke la loko estu sendata dum vi legas.</li>
 </ol>""",
   """<p>Libroj estas rekonataj laŭ sia dosiero, do ili devas veni el Legejo, per OPDS aŭ per
-elŝuto. Legejo montras la lokon kiel procenton; la retlegilo tiam komencas proksimume ĉe la sama
-loko, ne ĉe la ĝusta linio.</p>"""),
+elŝuto. En libro Legejo montras la lokon kiel procenton; la retlegilo tiam komencas proksimume ĉe
+la sama loko, ne ĉe la ĝusta linio. PDF aŭ bildstrio iras laŭ paĝo, ambaŭdirekte: la retlegilo
+malfermiĝas ĉe la paĝo, ĝis kiu vi venis en KOReader, kaj KOReader ricevas la paĝon, ĝis kiu vi
+venis en la retumilo, kiam ĝi estas pli nova.</p>"""),
 
  ("Uzi aliajn legaplikaĵojn",
   "<p>Vi legas en Moon+ Reader, Thorium aŭ alia aplikaĵo, kiu parolas OPDS.</p>",
