@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.32.1 (2026-10-27)
+
+- **The filters reach Format on a phone.** The filter panel ran on below
+  the tabs at the foot of the screen, and a swipe in the list of authors
+  stayed there. The panel now ends above the tabs and scrolls as one, with
+  the authors last.
+- **The year of an edition can be typed.** The year under This edition
+  went back to the old one at every key. It now takes what you type, and
+  the field is as wide as the others on a phone.
+
 ## 1.32.0 (2026-10-27)
 
 - **PDF files open in the browser.** The pages one after another, fitted
