@@ -4,6 +4,21 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.32.0 (2026-10-27)
+
+- **PDF files open in the browser.** The pages one after another, fitted
+  to the screen, zoomed with the buttons, two fingers or Ctrl and the
+  wheel. The contents and a search through the text are at the top.
+  Select text to highlight it or add a note, as in an EPUB; the notes are
+  listed and exported with the others.
+- **Comics open in the browser.** A CBZ comic shows a page at a time
+  fitted to the screen, or two side by side on a wide one. Tap a side,
+  swipe or use the arrow keys to turn; double-tap or use two fingers to
+  zoom. Manga, as the comic's ComicInfo.xml says, is read from the right.
+- **KOReader and the browser share the page of a PDF or a comic.** The
+  browser opens at the page you reached in KOReader, and KOReader is
+  offered the page you reached in the browser when it is newer.
+
 ## 1.31.0 (2026-10-24)
 
 - **The page turns like a leaf of a book.** With page animation on in the

@@ -84,7 +84,8 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 
 ## Why not?
 
-- **Plain readers for PDF and comics.** PDF files open in the browser, fitted to the screen, with zoom, contents, search, highlights and notes; comics open a page or a spread at a time, with zoom. Neither has the EPUB reader's settings or reading aloud, and a PDF does not sync to a Kobo.
+- **Books first, comics second.** Legejo reads CBZ comics in the browser, a page or a spread at a time and manga from the right, and sends them to a Kobo, but it takes no CBR or other archives and has no webtoon mode. For a large comic or manga collection, a server made for comics serves better.
+- **A plain PDF reader.** PDF files open in the browser with zoom, contents, search, highlights and notes, but without the EPUB reader's settings or reading aloud, and they do not sync to a Kobo; KOReader takes them, page by page.
 - **No audiobook player.** Audiobooks go to the podcast app you already have.
 - **Not a reader of your folders.** Legejo keeps its own copy of every book, to repair it and write your corrections into it; it does not read an existing folder in place.
 
