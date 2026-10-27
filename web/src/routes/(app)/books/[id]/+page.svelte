@@ -258,7 +258,7 @@
 				{progress !== null ? t('book.continue') : t('book.read')}
 			</a>
 		{/if}
-		<a class="download" href={`/api/books/${book.id}/file`}>
+		<a class="download" href={`/api/books/${book.id}/file`} download>
 			<Download size={14} />
 			{t('book.download', { format: book.format.toUpperCase() })}
 		</a>

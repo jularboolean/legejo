@@ -113,6 +113,7 @@
 					<a
 						class="download"
 						href={`/api/books/${book.id}/file`}
+						download
 						title={t('home.download')}
 						aria-label={t('home.download')}
 					>
