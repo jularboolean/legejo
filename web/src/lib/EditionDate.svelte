@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { t } from '#lib/i18n';
 
 	/** This edition's date as "YYYY", "YYYY-MM-DD" or "", always normalized. */
@@ -10,25 +11,31 @@
 	let year = $state(value.slice(0, 4));
 	let date = $state(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
 
-	// Outside changes (Libris, Open Library) land in the right input.
+	// Outside changes (Libris, Open Library) land in the right input. Only a
+	// new value counts: a year half typed (a value not yet changed) is kept.
 	$effect(() => {
 		const v = value;
+		untrack(() => follow(v));
+	});
+
+	function follow(v: string) {
 		if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
 			if (v !== date) {
 				date = v;
 				year = v.slice(0, 4);
 				mode = 'date';
 			}
-		} else if (v.slice(0, 4) !== year) {
+		} else if (v !== '' && v.slice(0, 4) !== year) {
 			year = v.slice(0, 4);
 			if (mode === 'date') date = '';
 			mode = 'year';
 		}
-	});
+	}
 
 	function setYear(v: string) {
 		year = v.replace(/\D/g, '').slice(0, 4);
-		value = year.length === 4 ? year : year === '' ? '' : value;
+		// Until four digits are there the edition has no year.
+		value = year.length === 4 ? year : '';
 	}
 	function setDate(v: string) {
 		date = v;
@@ -65,13 +72,14 @@
 </div>
 
 <style>
+	/* The field as wide as the others, the switch under it. */
 	.edition {
 		display: flex;
-		gap: 0.5rem;
-		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.4rem;
 	}
 	input {
-		flex: 1;
+		flex: 1 1 100%;
 		min-width: 0;
 	}
 	.switch {

@@ -22,6 +22,22 @@
 
 	let open = $state(false);
 	let root = $state<HTMLElement>();
+	/** The room the panel has on screen, so a long one scrolls inside itself. */
+	let room = $state<number | null>(null);
+
+	function fit(panel: HTMLElement) {
+		const measure = () => {
+			const box = panel.getBoundingClientRect();
+			// The tab bar of a phone covers the foot of the screen.
+			const tabbar = document.querySelector('.tabbar')?.getBoundingClientRect();
+			const floor = tabbar && tabbar.height > 0 ? Math.min(tabbar.top, window.innerHeight) : window.innerHeight;
+			const space = up ? box.bottom : floor - box.top;
+			room = Math.max(160, Math.floor(space - 12));
+		};
+		measure();
+		window.addEventListener('resize', measure);
+		return { destroy: () => window.removeEventListener('resize', measure) };
+	}
 
 	const close = () => (open = false);
 
@@ -52,7 +68,7 @@
 		<ChevronDown size={13} />
 	</button>
 	{#if open}
-		<div class="panel" class:right={align === 'right'} class:up in:rise={{ y: up ? 10 : -10, duration: 180 }} out:fade={{ duration: 110 }}>
+		<div class="panel" class:right={align === 'right'} class:up use:fit style:max-height={room ? `${room}px` : null} in:rise={{ y: up ? 10 : -10, duration: 180 }} out:fade={{ duration: 110 }}>
 			{@render children(close)}
 		</div>
 	{/if}
@@ -94,6 +110,8 @@
 			var(--shadow),
 			0 12px 32px rgba(20, 30, 34, 0.14);
 		padding: 0.4rem;
+		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 	.panel.up {
 		top: auto;

@@ -189,39 +189,6 @@
 						</section>
 					{/if}
 
-					{#if authors.length > 1}
-						<section>
-							<h3>
-								{t('library.filter.author')}
-								<span class="h-count">{t('authors.count', { count: authors.length })}</span>
-							</h3>
-							{#if authors.length > 8}
-								<input
-									class="author-search"
-									type="search"
-									placeholder={t('library.filter.authorSearch')}
-									bind:value={authorQuery}
-								/>
-							{/if}
-							<div class="author-list">
-								{#each shownAuthors as author (author.key)}
-									<button
-										type="button"
-										class="author-option"
-										aria-pressed={filters.author === author.key}
-										onclick={() => toggle('author', author.key)}
-									>
-										<span class="author-name">{author.name}</span>
-										<span class="num">{author.count}</span>
-									</button>
-								{:else}
-									<p class="none">{t('authors.noMatch')}</p>
-								{/each}
-							</div>
-							<a class="all-authors" href="/authors">{t('authors.showAll')}</a>
-						</section>
-					{/if}
-
 					{#if usedShelves.length > 0}
 						<section>
 							<h3>{t('library.filter.shelf')}</h3>
@@ -285,6 +252,40 @@
 									<span class="num">{issuesCount}</span>
 								</button>
 							</div>
+						</section>
+					{/if}
+
+					<!-- The authors last: the one list that may be long. -->
+					{#if authors.length > 1}
+						<section>
+							<h3>
+								{t('library.filter.author')}
+								<span class="h-count">{t('authors.count', { count: authors.length })}</span>
+							</h3>
+							{#if authors.length > 8}
+								<input
+									class="author-search"
+									type="search"
+									placeholder={t('library.filter.authorSearch')}
+									bind:value={authorQuery}
+								/>
+							{/if}
+							<div class="author-list">
+								{#each shownAuthors as author (author.key)}
+									<button
+										type="button"
+										class="author-option"
+										aria-pressed={filters.author === author.key}
+										onclick={() => toggle('author', author.key)}
+									>
+										<span class="author-name">{author.name}</span>
+										<span class="num">{author.count}</span>
+									</button>
+								{:else}
+									<p class="none">{t('authors.noMatch')}</p>
+								{/each}
+							</div>
+							<a class="all-authors" href="/authors">{t('authors.showAll')}</a>
 						</section>
 					{/if}
 				</div>
@@ -539,10 +540,17 @@
 	.author-list {
 		max-height: 13rem;
 		overflow-y: auto;
-		overscroll-behavior: contain;
 		display: flex;
 		flex-direction: column;
 		margin: 0 -0.35rem;
+	}
+	/* A finger's scroll stays in the box it starts in: on a touch screen the
+	   list is part of the panel, which scrolls as one. */
+	@media (pointer: coarse) {
+		.author-list {
+			max-height: none;
+			overflow-y: visible;
+		}
 	}
 	.author-option {
 		display: flex;
