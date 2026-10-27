@@ -126,6 +126,20 @@ saw, read from the changelog built into Legejo itself. The Admin page has the sa
 back up the database too.</p>""",
   """<p>Each user can also take their own library with them: Recipe 11.5 describes the export,
 which holds the book files, the covers and the catalogue as CSV and JSON.</p>"""),
+
+ ("Keeping the Books in a Bucket",
+  "<p>Your host has no lasting disk, or you would rather keep the files in S3 or Cloudflare R2.</p>",
+  """<p>Set <code>LEGEJO_STORAGE=s3://my-bucket/legejo</code>, with the bucket's keys in
+<code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_REGION</code>
+(<code>auto</code> for R2) and, for anything but AWS itself, <code>AWS_ENDPOINT_URL</code>. Put
+the database in PostgreSQL (Recipe 1.3), and nothing is left that the container cannot lose.</p>
+<p>A library that already has files: stop Legejo and run, with the same settings,</p>
+<pre>docker compose run --rm legejo legejo storage migrate</pre>""",
+  """<p>Book files, covers, audiobooks, avatars and exports go to the bucket as they are written,
+and leave it when they are deleted. <code>/data</code> becomes a cache, filled as files are read;
+the KEPUB copies and thumbnails made from them stay there only. Audiobooks play straight from the
+bucket, a range at a time. The cache is not trimmed, so give it room for what people read. Back
+up the bucket, or let your provider keep versions of it, as you would the volume.</p>"""),
  ]),
 
 ("Filling the Library",

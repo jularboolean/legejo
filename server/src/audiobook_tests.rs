@@ -228,8 +228,8 @@ async fn an_audiobook_is_a_podcast_feed() {
 
     // Deleting takes the files along.
     let dir = state.data_dir.join("audio");
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+    assert!(!state.storage.list_dir(&dir).await.is_empty());
     let (status, _) = send(&app, Method::DELETE, &format!("/api/audiobooks/{id}"), Some(&alice), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+    assert!(state.storage.list_dir(&dir).await.is_empty(), "on the disk and in the bucket");
 }

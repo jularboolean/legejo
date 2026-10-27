@@ -61,6 +61,7 @@ pub(crate) async fn count_pending(state: &AppState, limit: i64) -> anyhow::Resul
     let done = rows.len();
     for (id, uuid, sha) in rows {
         let path = book_path(state, &uuid, Format::Epub);
+        state.storage.fetch(&path).await;
         let counted = tokio::task::spawn_blocking(move || -> anyhow::Result<i64> {
             let bytes = std::fs::read(path)?;
             Ok(chars(&booktext::sections(bytes)?))

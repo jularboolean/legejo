@@ -1833,7 +1833,7 @@ async fn ensure_comic(state: &AppState, book: &Book) -> Option<std::path::PathBu
         return Some(out);
     }
     tokio::fs::create_dir_all(&out_dir).await.ok()?;
-    let src = crate::books::book_path(state, &book.uuid, crate::formats::Format::Cbz);
+    let src = crate::books::book_on_disk(state, &book.uuid, crate::formats::Format::Cbz).await;
     // Written beside its final name and moved there, so that a half-made
     // file is never served and two requests never share one.
     let tmp = out_dir.join(format!("{}.{}.tmp", book.uuid, crate::books::new_uuid()));
@@ -1884,7 +1884,7 @@ async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf
         return Some(out);
     }
     tokio::fs::create_dir_all(&out_dir).await.ok()?;
-    let src = state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let src = crate::books::book_on_disk(state, uuid, crate::formats::Format::Epub).await;
     let result = tokio::time::timeout(
         KEPUB_TIMEOUT,
         tokio::process::Command::new(bin).arg(&src).arg("-o").arg(&out_dir).kill_on_drop(true).output(),
@@ -1956,7 +1956,7 @@ async fn download_file(state: &AppState, token: &str, filename: &str) -> Result<
         crate::kosync::remember_file_id(state, book.id, path.clone()).await;
         return Ok((epub_response(&path).await?, book.title, "kepub"));
     }
-    let epub_path = state.data_dir.join("books").join(format!("{}.epub", book.uuid));
+    let epub_path = crate::books::book_on_disk(state, &book.uuid, crate::formats::Format::Epub).await;
     let kepub = if want_kepub { ensure_kepub(state, &book.uuid).await } else { None };
     // KOReader on the same device knows the book by the file it was handed.
     if let Some(path) = &kepub {
@@ -1982,7 +1982,7 @@ async fn serve_cover(state: &AppState, token: &str, image_id: &str) -> Result<Re
         .await
         .map_err(|e| internal(e.into()))?;
     let mime = mime.ok_or_else(not_found)?;
-    let data = tokio::fs::read(state.data_dir.join("covers").join(&book.uuid))
+    let data = tokio::fs::read(crate::books::cover_on_disk(state, &book.uuid).await)
         .await
         .map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), data).into_response())

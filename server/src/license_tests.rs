@@ -118,7 +118,7 @@ async fn instance_shelves_have_no_licence_gate() {
     let (alice, alice_cookie) = add_user(&db, "alice").await;
     let (_, carol_cookie) = add_user(&db, "carol").await;
     let (book, uuid) = add_book(&db, alice, "Skyddad").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), b"epub bytes").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), b"epub bytes").await;
     sqlx::query("UPDATE books SET license = 'copyright', file_sha256 = 'abc' WHERE id = ?")
         .bind(book)
         .execute(&db)
@@ -168,7 +168,7 @@ async fn sha256_backfill_hashes_existing_files() {
     let (alice, _) = add_user(&db, "alice").await;
     let (book, uuid) = add_book(&db, alice, "Gammal").await;
     let (missing, _) = add_book(&db, alice, "Saknar fil").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), b"abc").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), b"abc").await;
 
     crate::books::backfill_sha256(state.clone()).await;
 

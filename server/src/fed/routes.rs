@@ -246,7 +246,7 @@ async fn shelf_icon(State(state): State<AppState>, Path(slug): Path<String>) -> 
         .await
         .map_err(|_| not_found())?;
     let mime = mime.ok_or_else(not_found)?;
-    let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(shelf.id.to_string())).await.map_err(|_| not_found())?;
+    let data = tokio::fs::read(crate::shelves::shelf_cover_on_disk(&state, shelf.id).await).await.map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "public, max-age=3600")], data).into_response())
 }
 
@@ -307,7 +307,7 @@ async fn book_epub(State(state): State<AppState>, Path(uuid): Path<String>) -> R
     on(&state).await?;
     let b = fed_book(&state, &uuid).await?;
     // The original file, never the kepub.
-    let data = tokio::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub"))).await.map_err(|_| not_found())?;
+    let data = tokio::fs::read(crate::books::book_on_disk(&state, &uuid, crate::formats::Format::Epub).await).await.map_err(|_| not_found())?;
     let safe: String = b.book.title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
     Ok((
         [
@@ -327,7 +327,7 @@ async fn book_cover(State(state): State<AppState>, Path(uuid): Path<String>) -> 
     let b = fed_book(&state, &uuid).await?;
     if b.book.cover_is_free.as_bool() {
         if let Some(mime) = b.cover_mime.filter(|m| m.starts_with("image/")) {
-            if let Ok(data) = tokio::fs::read(state.data_dir.join("covers").join(&uuid)).await {
+            if let Ok(data) = tokio::fs::read(crate::books::cover_on_disk(&state, &uuid).await).await {
                 return Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "public, max-age=3600")], data).into_response());
             }
         }

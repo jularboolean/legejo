@@ -45,6 +45,7 @@ mod register;
 mod search;
 mod setup;
 mod shelves;
+mod storage;
 #[cfg(test)]
 mod testutil;
 #[cfg(test)]
@@ -114,6 +115,8 @@ pub struct AppState {
     pub db: AnyPool,
     pub backend: db::Backend,
     pub data_dir: PathBuf,
+    /// Where the durable part of the data directory is also kept (storage.rs).
+    pub storage: std::sync::Arc<storage::Storage>,
     /// Path to the external kepubify binary, when available: enables KEPUB
     /// downloads for Kobo sync. Overridable via LEGEJO_KEPUBIFY.
     pub kepubify: Option<PathBuf>,
@@ -376,7 +379,7 @@ fn router(state: AppState) -> Router {
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobostore::beside))
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
 
-    Router::new()
+    let app = Router::new()
         .nest("/api", api)
         .nest("/api/opds", opds)
         .nest("/podcast", audiobooks::podcast_router())
@@ -385,8 +388,11 @@ fn router(state: AppState) -> Router {
         .nest("/api/kosync", kosync::router())
         .route("/metrics", get(metrics::metrics))
         .merge(fed::routes::router())
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
+        .layer(TraceLayer::new_for_http());
+    // Tests with a bucket forget the disk after every request (storage.rs).
+    #[cfg(test)]
+    let app = if state.storage.forgets() { app.layer(axum::middleware::from_fn_with_state(state.clone(), storage::forget_after)) } else { app };
+    app.with_state(state)
 }
 
 /// Add the built web frontend to the router. A hashed file under
@@ -431,6 +437,32 @@ async fn main() -> anyhow::Result<()> {
                 if link.starts_with('/') {
                     println!("(No public address is set: put the address of this Legejo in front of it.)");
                 }
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("{e:#}");
+                std::process::exit(1);
+            }
+        }
+    }
+    if std::env::args().nth(1).as_deref() == Some("storage") {
+        // `legejo storage migrate`: put the data directory's book files,
+        // covers, audiobooks, avatars and exports in the bucket that
+        // LEGEJO_STORAGE names, before starting Legejo with it.
+        if std::env::args().nth(2).as_deref() != Some("migrate") {
+            eprintln!("usage: legejo storage migrate");
+            std::process::exit(2);
+        }
+        let data_dir = PathBuf::from(settings::var("LEGEJO_DATA_DIR")?.unwrap_or_else(|| "data".into()));
+        let storage = storage::Storage::from_env(data_dir.clone())?;
+        let Some(label) = storage.remote_label().map(String::from) else {
+            eprintln!("Set LEGEJO_STORAGE to the bucket first, e.g. s3://my-bucket/legejo.");
+            std::process::exit(2);
+        };
+        println!("Copying {} to {label}…", data_dir.display());
+        match storage.migrate().await {
+            Ok((uploaded, present)) => {
+                println!("Done: {uploaded} files uploaded, {present} already there.");
                 std::process::exit(0);
             }
             Err(e) => {
@@ -502,7 +534,14 @@ async fn main() -> anyhow::Result<()> {
     if settings.metrics != settings::Metrics::Off {
         tracing::info!("metrics at /metrics ({})", if matches!(settings.metrics, settings::Metrics::Token(_)) { "bearer token" } else { "open" });
     }
-    let state = AppState { db, backend, data_dir, kepubify, http, live, thumb_gate, fed, export_wake, oidc, settings };
+    let storage = std::sync::Arc::new(storage::Storage::from_env(data_dir.clone())?);
+    if let Some(label) = storage.remote_label() {
+        tracing::info!("book files, covers and audiobooks kept in {label}; the data directory is their cache");
+        if backend == db::Backend::Sqlite {
+            tracing::warn!("the database is SQLite in the data directory: keep that directory on a volume, or use PostgreSQL");
+        }
+    }
+    let state = AppState { db, backend, data_dir, storage, kepubify, http, live, thumb_gate, fed, export_wake, oidc, settings };
     tokio::spawn(books::backfill_thumbs(state.clone()));
     tokio::spawn(books::backfill_sha256(state.clone()));
     tokio::spawn(books::backfill_health(state.clone()));

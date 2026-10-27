@@ -52,6 +52,13 @@ async fn build(fed: std::sync::Arc<crate::fed::Fed>, settings: crate::settings::
     let state = AppState {
         db: db.clone(),
         backend: Backend::Sqlite,
+        // LEGEJO_TEST_BUCKET=1: every test with the data directory in a
+        // bucket and a disk that forgets after each request (storage.rs).
+        storage: std::sync::Arc::new(if std::env::var_os("LEGEJO_TEST_BUCKET").is_some() {
+            crate::storage::Storage::forgetful(data_dir.clone())
+        } else {
+            crate::storage::Storage::local(data_dir.clone())
+        }),
         data_dir,
         kepubify: None,
         http: reqwest::Client::new(),
@@ -112,4 +119,25 @@ pub async fn send(app: &Router, method: Method, uri: &str, cookie: Option<&str>,
     let status = res.status();
     let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+}
+
+/// Write a file of the data directory as Legejo would, kept in the bucket
+/// too when there is one (storage.rs).
+pub async fn put(state: &AppState, path: std::path::PathBuf, bytes: impl AsRef<[u8]>) {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    std::fs::write(&path, bytes).unwrap();
+    state.storage.persist(&path).await.unwrap();
+}
+
+/// Read a file of the data directory, from the bucket when the disk forgot it.
+pub async fn read(state: &AppState, path: std::path::PathBuf) -> Vec<u8> {
+    state.storage.fetch(&path).await;
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// Whether a file of the data directory is kept, on the disk or in the bucket.
+pub async fn exists(state: &AppState, path: std::path::PathBuf) -> bool {
+    state.storage.fetch(&path).await
 }

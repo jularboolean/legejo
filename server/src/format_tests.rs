@@ -93,7 +93,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     // Stored under their own extension, and handed out unchanged.
     let uuid: String = sqlx::query_scalar("SELECT uuid FROM books WHERE id = ?").bind(ear_id).fetch_one(&db).await.unwrap();
     let file = state.data_dir.join("books").join(format!("{uuid}.cbz"));
-    assert!(file.exists());
+    assert!(crate::testutil::exists(&state, file.clone()).await);
     let (status, kind, disposition, body) = get(&app, &format!("/api/books/{ear_id}/file"), &a).await;
     assert_eq!((status, kind.as_str()), (StatusCode::OK, "application/vnd.comicbook+zip"));
     assert!(disposition.ends_with("The Broken Ear.cbz\""), "{disposition}");
@@ -133,7 +133,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     assert_eq!((status, v["title"].as_str(), v["format"].as_str()), (StatusCode::OK, Some("L'Oreille cassée"), Some("cbz")));
     let (status, _) = send(&app, Method::POST, &format!("/api/books/{ice_id}/repair"), Some(&a), None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(std::fs::read(&file).unwrap(), cbz_bytes);
+    assert_eq!(crate::testutil::read(&state, file.clone()).await, cbz_bytes);
     let health: Option<String> = sqlx::query_scalar("SELECT health FROM books WHERE id = ?").bind(ice_id).fetch_one(&db).await.unwrap();
     assert!(health.is_none(), "the file check is one of EPUB files");
 
@@ -182,7 +182,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     assert!(opf.contains("pre-paginated") && opf.contains("<dc:title>L'Oreille cassée</dc:title>"), "{opf}");
     // Made once and kept; the comic itself is as it came.
     assert!(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub")).exists());
-    assert_eq!(std::fs::read(&file).unwrap(), cbz_bytes);
+    assert_eq!(crate::testutil::read(&state, file.clone()).await, cbz_bytes);
 
     // Deleting takes the file along.
     let (status, _) = send(&app, Method::DELETE, &format!("/api/books/{ear_id}"), Some(&a), None).await;

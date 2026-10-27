@@ -341,7 +341,7 @@ pub async fn cover(State(state): State<AppState>, Path((key, book_id)): Path<(St
     .map_err(internal)?;
     let (uuid, mime) = row.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
     let mime = mime.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
-    let data = tokio::fs::read(state.data_dir.join("covers").join(&uuid)).await.map_err(|_| StatusCode::NOT_FOUND.into_response())?;
+    let data = tokio::fs::read(crate::books::cover_on_disk(&state, &uuid).await).await.map_err(|_| StatusCode::NOT_FOUND.into_response())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, max-age=3600")], data).into_response())
 }
 

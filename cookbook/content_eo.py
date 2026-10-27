@@ -127,6 +127,21 @@ vidis, legitaj el la ŝanĝprotokolo enkonstruita en Legejon mem. La paĝo Admin
 sekurkopiu ankaŭ la datumbazon.</p>""",
   """<p>Ĉiu uzanto ankaŭ povas kunpreni sian propran bibliotekon: Recepto 11.5 priskribas la eksporton,
 kiu enhavas la librodosierojn, la kovrilojn kaj la katalogon kiel CSV kaj JSON.</p>"""),
+
+ ("Teni la librojn en sitelo",
+  "<p>Via gastiganto ne havas daŭran diskon, aŭ vi preferas teni la dosierojn en S3 aŭ Cloudflare R2.</p>",
+  """<p>Agordu <code>LEGEJO_STORAGE=s3://mia-sitelo/legejo</code>, kun la ŝlosiloj de la sitelo en
+<code>AWS_ACCESS_KEY_ID</code> kaj <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_REGION</code>
+(<code>auto</code> por R2) kaj, por ĉio krom AWS mem, <code>AWS_ENDPOINT_URL</code>. Metu la
+datumbazon en PostgreSQL (Recepto 1.3), kaj restas nenio, kion la ujo ne povas perdi.</p>
+<p>Biblioteko, kiu jam havas dosierojn: haltigu Legejon kaj rulu, kun la samaj agordoj,</p>
+<pre>docker compose run --rm legejo legejo storage migrate</pre>""",
+  """<p>Librodosieroj, kovriloj, aŭdlibroj, avataroj kaj eksportoj iras al la sitelo, kiam ili
+estas skribataj, kaj forlasas ĝin, kiam ili estas forigataj. <code>/data</code> fariĝas kaŝmemoro,
+plenigata dum dosieroj estas legataj; la KEPUB-kopioj kaj bildetoj faritaj el ili restas nur tie.
+Aŭdlibroj ludiĝas rekte el la sitelo, po intervalo. La kaŝmemoro ne estas tondata, do donu al ĝi
+spacon por tio, kion oni legas. Sekurkopiu la sitelon, aŭ lasu vian provizanton teni versiojn de
+ĝi, kiel vi farus kun la volumo.</p>"""),
  ]),
 
 ("Plenigi la bibliotekon",

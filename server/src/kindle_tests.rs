@@ -67,7 +67,7 @@ async fn a_book_is_mailed_to_the_kindle() {
     let (alice, a) = add_user(&db, "alice").await;
     let (_, b) = add_user(&db, "bob").await;
     let (book, uuid) = add_book(&db, alice, "Röda rummet: en \"skildring\"").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), b"PK\x03\x04\xff\xfe").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), b"PK\x03\x04\xff\xfe").await;
     let send_uri = format!("/api/books/{book}/kindle");
 
     // Nothing to send to yet, and the button stays away.
@@ -117,7 +117,7 @@ async fn without_mail_nothing_is_sent() {
     let (app, db, state) = test_app().await;
     let (alice, a) = add_user(&db, "alice").await;
     let (book, uuid) = add_book(&db, alice, "Bok").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), "x").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), "x").await;
     send(&app, Method::PUT, "/api/account/kindle", Some(&a), Some(json!({ "email": "a@kindle.com" }))).await;
     let (_, config) = send(&app, Method::GET, "/api/config", Some(&a), None).await;
     assert_eq!(config["send_to_kindle"], false);

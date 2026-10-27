@@ -59,7 +59,7 @@ async fn the_audiobook_folder_makes_an_audiobook_of_each_entry() {
     let (uuid, cover): (String, Option<String>) =
         sqlx::query_as("SELECT uuid, cover_mime FROM audiobooks WHERE title = 'Röda rummet'").fetch_one(&db).await.unwrap();
     assert_eq!(cover.as_deref(), Some("image/jpeg"));
-    assert_eq!(std::fs::read(state.data_dir.join("audio_covers").join(&uuid)).unwrap(), b"the picture");
+    assert_eq!(crate::testutil::read(&state, state.data_dir.join("audio_covers").join(&uuid)).await, b"the picture");
     let stored: Vec<_> = std::fs::read_dir(state.data_dir.join("audio").join(&uuid)).unwrap().flatten().collect();
     assert_eq!(stored.len(), 3);
 

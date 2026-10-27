@@ -82,7 +82,7 @@ async fn want_to_read_and_bulk_actions() {
     let (b2, u2) = add_book(&db, alice, "Två").await;
     let (bobs, _) = add_book(&db, bob, "Bobs").await;
     for u in [&u1, &u2] {
-        std::fs::write(state.data_dir.join("books").join(format!("{u}.epub")), format!("bytes of {u}")).unwrap();
+        crate::testutil::put(&state, state.data_dir.join("books").join(format!("{u}.epub")), format!("bytes of {u}")).await;
     }
 
     let (status, _) = send(&app, Method::PUT, &format!("/api/books/{b1}/want"), Some(&cookie), Some(json!({ "want": true }))).await;
@@ -130,7 +130,7 @@ async fn want_to_read_and_bulk_actions() {
     assert_eq!(v["done"], 2);
     let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM books").fetch_one(&db).await.unwrap();
     assert_eq!(left, 1);
-    assert!(!state.data_dir.join("books").join(format!("{u1}.epub")).exists());
+    assert!(!crate::testutil::exists(&state, state.data_dir.join("books").join(format!("{u1}.epub"))).await);
 
     let (_, log) = send(&app, Method::GET, "/api/admin/log", Some(&cookie), None).await;
     let _ = log; // alice is not an admin; the audit log is tested in invite.rs
@@ -284,7 +284,7 @@ async fn deleting_an_account_takes_everything() {
         let n: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE {col} = ?")).bind(alice).fetch_one(&db).await.unwrap();
         assert_eq!(n, 0, "{table}");
     }
-    assert!(!state.data_dir.join("books").join(format!("{uuid}.epub")).exists());
+    assert!(!crate::testutil::exists(&state, state.data_dir.join("books").join(format!("{uuid}.epub"))).await);
     let (status, _) = send(&app, Method::GET, "/api/books", Some(&cookie), None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
@@ -315,7 +315,7 @@ async fn an_admin_can_delete_another_users_account_with_everything_in_it() {
         let n: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE {col} = ?")).bind(alice).fetch_one(&db).await.unwrap();
         assert_eq!(n, 0, "{table}");
     }
-    assert!(!state.data_dir.join("books").join(format!("{uuid}.epub")).exists());
+    assert!(!crate::testutil::exists(&state, state.data_dir.join("books").join(format!("{uuid}.epub"))).await);
     let (status, _) = send(&app, Method::GET, "/api/books", Some(&cookie), None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "logged out everywhere");
     let (_, log) = send(&app, Method::GET, "/api/admin/log", Some(&admin_cookie), None).await;
@@ -501,7 +501,7 @@ async fn restricted_shelves_are_shared_with_chosen_users() {
     let (bob, b) = add_user(&db, "bob").await;
     let (_carol, c) = add_user(&db, "carol").await;
     let (book, uuid) = add_book(&db, alice, "Hemlig").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), "bytes").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), "bytes").await;
 
     let (_, shelf) = send(&app, Method::POST, "/api/shelves", Some(&a), Some(json!({ "name": "Krets" }))).await;
     let shelf = shelf["id"].as_i64().unwrap();
@@ -606,9 +606,9 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     let (alice, cookie) = add_user(&db, "alice").await;
     let (_, bob) = add_user(&db, "bob").await;
     let codes = |v: &Value| v.as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap().to_string()).collect::<Vec<_>>();
-    let opf_of = |uuid: &str| {
+    let file_of = |uuid: &str| state.data_dir.join("books").join(format!("{uuid}.epub"));
+    let opf_of = |data: Vec<u8>| {
         use std::io::Read;
-        let data = std::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap();
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data)).unwrap();
         let mut opf = String::new();
         archive.by_name("c.opf").unwrap().read_to_string(&mut opf).unwrap();
@@ -625,7 +625,7 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     assert_eq!(v["reports"][0]["filename"], "rr.epub");
     assert_eq!(v["reports"][0]["fixed"], json!(["no_toc"]));
     assert_eq!(codes(&v["reports"][0]["issues"]), ["no_language", "no_cover"]);
-    assert!(opf_of(&uuid).contains("application/x-dtbncx+xml"));
+    assert!(opf_of(crate::testutil::read(&state, file_of(&uuid)).await).contains("application/x-dtbncx+xml"));
     // The stored file is not the uploaded one, but the upload is still recognized.
     let v = upload(&app, &cookie, &[("rr-igen.epub", original)], "").await;
     assert_eq!(v["duplicates"][0]["kind"], "same_file");
@@ -643,14 +643,14 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     assert_eq!(codes(&v["health"]["issues"]), ["no_cover"]);
     assert_eq!(v["health"]["fixed"], json!(["no_toc"]));
     assert_eq!(v["health_issues"], 1);
-    let opf = opf_of(&uuid);
+    let opf = opf_of(crate::testutil::read(&state, file_of(&uuid)).await);
     assert!(opf.contains("<dc:title>Röda rummet &amp; annat</dc:title>"), "{opf}");
     assert!(opf.contains(">August Strindberg</dc:creator>") && opf.contains(">sv</dc:language>"));
     assert!(opf.contains("name=\"calibre:series\" content=\"Samlade verk\"") && opf.contains("name=\"calibre:series_index\" content=\"3\""));
     let (md5, sha, size): (String, String, i64) =
         sqlx::query_as("SELECT koreader_md5, file_sha256, file_size FROM books WHERE id = ?").bind(book).fetch_one(&db).await.unwrap();
     assert!(md5 != first_md5 && sha != first_sha);
-    assert_eq!(size as u64, std::fs::metadata(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap().len());
+    assert_eq!(size as u64, (crate::testutil::read(&state, state.data_dir.join("books").join(format!("{uuid}.epub"))).await.len() as u64));
     assert_eq!(v["file_size"], size);
     // A KOReader that still has the earlier file finds the book by its old id.
     let known: Vec<String> = sqlx::query_scalar("SELECT md5 FROM book_file_ids WHERE book_id = ? ORDER BY md5").bind(book).fetch_all(&db).await.unwrap();
@@ -667,7 +667,7 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
     // A book from before the health check: the check runs in the background,
     // and the repair is the owner's to ask for.
     let (old, old_uuid) = add_book(&db, alice, "Gammal").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{old_uuid}.epub")), epub("Gammal", "urn:old")).unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{old_uuid}.epub")), epub("Gammal", "urn:old")).await;
     let (_, v) = send(&app, Method::GET, &format!("/api/books/{old}"), Some(&cookie), None).await;
     assert!(v["health"].is_null());
     crate::books::backfill_health(state.clone()).await;
@@ -683,14 +683,14 @@ async fn the_file_is_repaired_on_upload_and_follows_the_catalog() {
 
     // A cover chosen in the catalog while the file had nowhere to put it goes
     // into the file with the next repair, here for a whole selection.
-    std::fs::write(state.data_dir.join("covers").join(&old_uuid), b"jpeg bytes").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("covers").join(&old_uuid), b"jpeg bytes").await;
     sqlx::query("UPDATE books SET cover_mime = 'image/jpeg' WHERE id = ?").bind(old).execute(&db).await.unwrap();
     let (status, v) = send(&app, Method::POST, "/api/books/bulk", Some(&cookie), Some(json!({ "ids": [old, book], "action": "repair" }))).await;
     assert_eq!((status, v["done"].clone()), (StatusCode::OK, json!(2)));
     let (_, v) = send(&app, Method::GET, &format!("/api/books/{old}"), Some(&cookie), None).await;
     assert_eq!(codes(&v["health"]["issues"]), ["no_language"]);
     assert_eq!(v["health"]["fixed"], json!(["no_toc", "no_cover"]));
-    let data = std::fs::read(state.data_dir.join("books").join(format!("{old_uuid}.epub"))).unwrap();
+    let data = crate::testutil::read(&state, state.data_dir.join("books").join(format!("{old_uuid}.epub"))).await;
     let mut doc = epub::doc::EpubDoc::from_reader(std::io::Cursor::new(data)).unwrap();
     assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
 }
@@ -742,7 +742,7 @@ async fn copy_protected_files_are_refused_and_copyright_is_read_from_the_file() 
     let (unset, u1) = add_book(&db, alice, "Äldre").await;
     let (chosen, u2) = add_book(&db, alice, "Vald").await;
     for uuid in [&u1, &u2] {
-        std::fs::write(state.data_dir.join("books").join(format!("{uuid}.epub")), rebuilt(None, "<dc:rights>All rights reserved.</dc:rights>")).unwrap();
+        crate::testutil::put(&state, state.data_dir.join("books").join(format!("{uuid}.epub")), rebuilt(None, "<dc:rights>All rights reserved.</dc:rights>")).await;
     }
     sqlx::query("UPDATE books SET license = 'cc-by' WHERE id = ?").bind(chosen).execute(&db).await.unwrap();
     crate::books::backfill_health(state.clone()).await;
@@ -774,21 +774,27 @@ async fn a_shared_book_takes_space_once_until_one_owner_changes_it() {
     assert_eq!(status, StatusCode::CREATED, "{copy}");
     let bob_uuid = copy["uuid"].as_str().unwrap().to_string();
     let path = |uuid: &str| state.data_dir.join("books").join(format!("{uuid}.epub"));
+    // On a disk the two share the bytes; in a bucket they are two objects.
+    let on_disk = state.storage.remote_label().is_none();
     let inode = |uuid: &str| std::fs::metadata(path(uuid)).unwrap().ino();
-    assert_eq!(inode(&alice_uuid), inode(&bob_uuid), "one file, two names");
-    let before = std::fs::read(path(&bob_uuid)).unwrap();
+    if on_disk {
+        assert_eq!(inode(&alice_uuid), inode(&bob_uuid), "one file, two names");
+    }
+    let before = crate::testutil::read(&state, path(&bob_uuid)).await;
 
     // Alice corrects her title: her file is written anew, Bob's is as it was.
     let (status, v) = send(&app, Method::PUT, &format!("/api/books/{book}"), Some(&a), Some(json!({ "title": "Röda rummet (rättad)" }))).await;
     assert_eq!(status, StatusCode::OK, "{v}");
-    assert_ne!(inode(&alice_uuid), inode(&bob_uuid), "the copies have parted");
-    assert_eq!(std::fs::read(path(&bob_uuid)).unwrap(), before, "Bob's bytes are untouched");
-    assert!(std::fs::read(path(&alice_uuid)).unwrap() != before, "Alice's file carries the new title");
+    if on_disk {
+        assert_ne!(inode(&alice_uuid), inode(&bob_uuid), "the copies have parted");
+    }
+    assert_eq!(crate::testutil::read(&state, path(&bob_uuid)).await, before, "Bob's bytes are untouched");
+    assert!(crate::testutil::read(&state, path(&alice_uuid)).await != before, "Alice's file carries the new title");
 
     // Deleting one name leaves the other.
     send(&app, Method::DELETE, &format!("/api/books/{book}"), Some(&a), None).await;
-    assert!(!path(&alice_uuid).exists());
-    assert!(path(&bob_uuid).exists());
+    assert!(!crate::testutil::exists(&state, path(&alice_uuid)).await);
+    assert!(crate::testutil::exists(&state, path(&bob_uuid)).await);
 }
 
 /// The book page points at the books before and after in the series.
@@ -887,8 +893,8 @@ async fn an_epub3_cover_named_only_the_old_way_is_kept() {
     let book = &v["added"][0];
     assert_eq!(book["has_cover"], true, "{v}");
     let uuid = book["uuid"].as_str().unwrap();
-    assert_eq!(std::fs::read(state.data_dir.join("covers").join(uuid)).unwrap(), b"jpeg bytes");
-    let stored = std::fs::read(state.data_dir.join("books").join(format!("{uuid}.epub"))).unwrap();
+    assert_eq!(crate::testutil::read(&state, state.data_dir.join("covers").join(uuid)).await, b"jpeg bytes");
+    let stored = crate::testutil::read(&state, state.data_dir.join("books").join(format!("{uuid}.epub"))).await;
     let mut doc = epub::doc::EpubDoc::from_reader(std::io::Cursor::new(stored)).unwrap();
     assert_eq!(doc.get_cover().unwrap().0, b"jpeg bytes");
 
@@ -896,21 +902,21 @@ async fn an_epub3_cover_named_only_the_old_way_is_kept() {
     // came. The health check run after an upgrade finds the cover, offers
     // to mark it, and leaves a cover already in the catalog alone.
     let (old, old_uuid) = add_book(&db, alice, "Om att misslyckas").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{old_uuid}.epub")), unmarked_cover_epub()).unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{old_uuid}.epub")), unmarked_cover_epub()).await;
     let (kept, kept_uuid) = add_book(&db, alice, "Med eget omslag").await;
-    std::fs::write(state.data_dir.join("books").join(format!("{kept_uuid}.epub")), unmarked_cover_epub()).unwrap();
-    std::fs::write(state.data_dir.join("covers").join(&kept_uuid), b"chosen").unwrap();
+    crate::testutil::put(&state, state.data_dir.join("books").join(format!("{kept_uuid}.epub")), unmarked_cover_epub()).await;
+    crate::testutil::put(&state, state.data_dir.join("covers").join(&kept_uuid), b"chosen").await;
     sqlx::query("UPDATE books SET cover_mime = 'image/png' WHERE id = ?").bind(kept).execute(&db).await.unwrap();
     crate::books::backfill_health(state.clone()).await;
 
     let (mime, health): (Option<String>, Option<String>) =
         sqlx::query_as("SELECT cover_mime, health FROM books WHERE id = ?").bind(old).fetch_one(&db).await.unwrap();
     assert_eq!(mime.as_deref(), Some("image/jpeg"));
-    assert_eq!(std::fs::read(state.data_dir.join("covers").join(&old_uuid)).unwrap(), b"jpeg bytes");
+    assert_eq!(crate::testutil::read(&state, state.data_dir.join("covers").join(&old_uuid)).await, b"jpeg bytes");
     assert!(health.unwrap().contains("\"cover_unmarked\""));
     let mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = ?").bind(kept).fetch_one(&db).await.unwrap();
     assert_eq!(mime.as_deref(), Some("image/png"));
-    assert_eq!(std::fs::read(state.data_dir.join("covers").join(&kept_uuid)).unwrap(), b"chosen");
+    assert_eq!(crate::testutil::read(&state, state.data_dir.join("covers").join(&kept_uuid)).await, b"chosen");
 
     // Repairing the file marks the cover; nothing is left to attend to.
     let (status, v) = send(&app, Method::POST, &format!("/api/books/{old}/repair"), Some(&cookie), None).await;

@@ -438,6 +438,8 @@ pub async fn update(
 pub(crate) async fn remove_files(state: &AppState, uuid: &str) {
     let _ = tokio::fs::remove_dir_all(audio_dir(state, uuid)).await;
     let _ = tokio::fs::remove_file(cover_path(state, uuid)).await;
+    state.storage.remove_dir(&audio_dir(state, uuid)).await;
+    state.storage.remove(&cover_path(state, uuid)).await;
 }
 
 pub async fn delete(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<StatusCode, Response> {
@@ -518,6 +520,8 @@ async fn register_part(
     bytes: i64,
     fallback_title: &str,
 ) -> Result<(), Response> {
+    // Kept in the bucket too, when there is one (storage.rs).
+    state.storage.persist(path).await.map_err(internal)?;
     let probe = path.to_path_buf();
     let tags = tokio::task::spawn_blocking(move || read_tags(&probe)).await.unwrap_or_default();
     let position: i64 =
@@ -750,7 +754,9 @@ pub async fn delete_file(
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let _ = tokio::fs::remove_file(part_path(&state, &book.uuid, &part)).await;
+    let path = part_path(&state, &book.uuid, &part);
+    let _ = tokio::fs::remove_file(&path).await;
+    state.storage.remove(&path).await;
     detail(&state, &headers, user.0.id, id).await
 }
 
@@ -789,6 +795,7 @@ pub async fn new_feed_key(
 async fn store_cover(state: &AppState, id: i64, uuid: &str, data: &[u8], mime: &str) -> Result<(), Response> {
     tokio::fs::create_dir_all(state.data_dir.join("audio_covers")).await.map_err(|e| internal(e.into()))?;
     tokio::fs::write(cover_path(state, uuid), data).await.map_err(|e| internal(e.into()))?;
+    state.storage.persist(&cover_path(state, uuid)).await.map_err(internal)?;
     sqlx::query("UPDATE audiobooks SET cover_mime = $1, updated_at = $2 WHERE id = $3")
         .bind(mime)
         .bind(now_ts())
@@ -821,6 +828,7 @@ async fn cover_response(state: &AppState, uuid: &str) -> Result<Response, Respon
         .map_err(|e| internal(e.into()))?
         .flatten();
     let mime = mime.ok_or_else(not_found)?;
+    state.storage.fetch(&cover_path(state, uuid)).await;
     let data = tokio::fs::read(cover_path(state, uuid)).await.map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
@@ -854,7 +862,11 @@ fn byte_range(header: Option<&str>, size: u64) -> Option<Option<(u64, u64)>> {
 
 /// Send an audio file, whole or the part asked for. Podcast apps need the
 /// latter to resume and to seek without fetching everything before.
-async fn send_audio(path: &std::path::Path, mime: &str, headers: &HeaderMap) -> Result<Response, Response> {
+async fn send_audio(state: &AppState, path: &std::path::Path, mime: &str, headers: &HeaderMap) -> Result<Response, Response> {
+    // Only in the bucket: the part asked for comes straight from there.
+    if let Some(size) = state.storage.remote_size(path).await {
+        return send_remote_audio(state, path, size, mime, headers).await;
+    }
     let mut file = tokio::fs::File::open(path).await.map_err(|_| not_found())?;
     let size = file.metadata().await.map_err(|e| internal(e.into()))?.len();
     let wanted = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
@@ -877,6 +889,32 @@ async fn send_audio(path: &std::path::Path, mime: &str, headers: &HeaderMap) -> 
     response.body(body).map_err(|e| internal(e.into()))
 }
 
+/// The same as send_audio, for a file that is only in the bucket: the
+/// range asked for is fetched from there and passed on as it comes.
+async fn send_remote_audio(state: &AppState, path: &std::path::Path, size: u64, mime: &str, headers: &HeaderMap) -> Result<Response, Response> {
+    let wanted = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
+    let Some(range) = byte_range(wanted, size) else {
+        return Ok((StatusCode::RANGE_NOT_SATISFIABLE, [(header::CONTENT_RANGE, format!("bytes */{size}"))]).into_response());
+    };
+    let (start, end) = range.unwrap_or((0, size.saturating_sub(1)));
+    let length = if size == 0 { 0 } else { end - start + 1 };
+    let body = if length == 0 {
+        Body::empty()
+    } else {
+        Body::from_stream(state.storage.remote_range(path, start, end + 1).await.map_err(internal)?)
+    };
+    let mut response = Response::builder()
+        .status(if range.is_some() { StatusCode::PARTIAL_CONTENT } else { StatusCode::OK })
+        .header(header::CONTENT_TYPE, mime)
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CONTENT_LENGTH, length)
+        .header(header::CACHE_CONTROL, "private, no-store");
+    if range.is_some() {
+        response = response.header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{size}"));
+    }
+    response.body(body).map_err(|e| internal(e.into()))
+}
+
 /// One file, for listening in the web interface.
 pub async fn audio(
     State(state): State<AppState>,
@@ -887,7 +925,7 @@ pub async fn audio(
     on(&state).await?;
     let book = fetch(&state, user.0.id, id).await?;
     let part = parts(&state, book.id).await?.into_iter().find(|p| p.id == file_id).ok_or_else(not_found)?;
-    send_audio(&part_path(&state, &book.uuid, &part), &part.mime, &headers).await
+    send_audio(&state, &part_path(&state, &book.uuid, &part), &part.mime, &headers).await
 }
 
 // ---- The podcast feed -------------------------------------------------------
@@ -1031,7 +1069,7 @@ async fn feed_audio(
         .into_iter()
         .find(|p| p.uuid == uuid)
         .ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
-    send_audio(&part_path(&state, &book.uuid, &part), &part.mime, &headers).await
+    send_audio(&state, &part_path(&state, &book.uuid, &part), &part.mime, &headers).await
 }
 
 #[cfg(test)]

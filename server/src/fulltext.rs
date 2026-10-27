@@ -185,6 +185,7 @@ async fn index_book(state: &AppState, id: i64, uuid: &str, sha: &str) -> anyhow:
     }
 
     let path = book_path(state, uuid, Format::Epub);
+    state.storage.fetch(&path).await;
     let found = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<Part>> {
         let bytes = std::fs::read(path)?;
         Ok(parts(&booktext::sections(bytes)?))

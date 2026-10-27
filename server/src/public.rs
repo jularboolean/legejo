@@ -209,7 +209,7 @@ pub async fn shelf_cover(
     .await
     .map_err(|e| internal(e.into()))?;
     let mime = mime.flatten().ok_or_else(not_found)?;
-    let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(id.to_string()))
+    let data = tokio::fs::read(crate::shelves::shelf_cover_on_disk(&state, id).await)
         .await
         .map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
@@ -326,6 +326,8 @@ pub async fn import_book(
     if tokio::fs::hard_link(&src_file, &dst_file).await.is_err() {
         tokio::fs::copy(&src_file, &dst_file).await.map_err(|e| internal(e.into()))?;
     }
+    // In a bucket the two are two objects.
+    state.storage.persist(&dst_file).await.map_err(internal)?;
 
     let cover_mime: Option<String> = sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1")
         .bind(source.id)
@@ -333,10 +335,12 @@ pub async fn import_book(
         .await
         .map_err(|e| internal(e.into()))?;
     if cover_mime.is_some() {
-        let src_cover = state.data_dir.join("covers").join(&source.uuid);
+        let src_cover = crate::books::cover_on_disk(&state, &source.uuid).await;
         let dst_cover = state.data_dir.join("covers").join(&uuid);
         if tokio::fs::copy(&src_cover, &dst_cover).await.is_err() {
             tracing::warn!("import: cover file missing for {}", source.uuid);
+        } else if let Err(e) = state.storage.persist(&dst_cover).await {
+            tracing::warn!("import: cover for {uuid} not kept: {e:#}");
         }
     }
 

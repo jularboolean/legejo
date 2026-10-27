@@ -339,6 +339,7 @@ mod tests {
             db: db.clone(),
             backend: Backend::Sqlite,
             data_dir: std::env::temp_dir(),
+            storage: std::sync::Arc::new(crate::storage::Storage::local(std::env::temp_dir())),
             kepubify: None,
             http: reqwest::Client::new(),
             live: std::sync::Arc::new(crate::live::Live::fixed(None, None, None)),

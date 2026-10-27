@@ -422,7 +422,7 @@ pub async fn cover(
 ) -> Result<Response, Response> {
     let (uuid, cover_mime, _) = owned_book(&state, user.id, id).await?;
     let mime = cover_mime.ok_or_else(not_found)?;
-    let data = tokio::fs::read(state.data_dir.join("covers").join(&uuid))
+    let data = tokio::fs::read(crate::books::cover_on_disk(&state, &uuid).await)
         .await
         .map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), data).into_response())

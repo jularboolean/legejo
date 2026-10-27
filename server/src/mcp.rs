@@ -586,7 +586,7 @@ async fn book_text(state: &AppState, user: &UserInfo, id: i64) -> Result<(String
     if detail.book.format != "epub" {
         return Err(format!("the text of a {} file cannot be read here, only that of EPUB books", detail.book.format.to_uppercase()));
     }
-    let path = state.data_dir.join("books").join(format!("{}.epub", detail.book.uuid));
+    let path = crate::books::book_on_disk(state, &detail.book.uuid, crate::formats::Format::Epub).await;
     let bytes = tokio::fs::read(&path).await.map_err(|_| "the book's file is missing".to_string())?;
     let sections = tokio::task::spawn_blocking(move || booktext::sections(bytes))
         .await

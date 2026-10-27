@@ -358,7 +358,7 @@ async fn a_linked_shelf_shows_each_book_whole_and_is_searched() {
         out
     };
     std::fs::create_dir_all(state.data_dir.join("shelf_covers")).unwrap();
-    std::fs::write(state.data_dir.join("shelf_covers").join(shelf.to_string()), &png).unwrap();
+    crate::testutil::put(&state, state.data_dir.join("shelf_covers").join(shelf.to_string()), &png).await;
     sqlx::query("UPDATE shelves SET cover_mime = 'image/png' WHERE id = ?").bind(shelf).execute(&db).await.unwrap();
     send(&app, Method::GET, &format!("/api/linked-shelves/{id}"), Some(&b), None).await;
     let (_, v) = send(&app, Method::GET, "/api/linked-shelves", Some(&b), None).await;

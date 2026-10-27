@@ -253,6 +253,39 @@ image or a Compose file behind their own reverse proxy:
 With SQLite, the database lives in the same volume as the books. For
 PostgreSQL, add `DATABASE_URL`.
 
+### Book files in S3 or R2
+
+Legejo can keep the book files, covers, audiobooks, avatars and exports in an
+S3 bucket (Cloudflare R2, AWS, MinIO, Backblaze, Hetzner and others) instead
+of a volume. With PostgreSQL for the database, the container then keeps
+nothing it cannot lose, and runs on platforms without a persistent disk.
+
+```sh
+LEGEJO_STORAGE=s3://my-bucket/legejo
+AWS_ACCESS_KEY_ID=…
+AWS_SECRET_ACCESS_KEY=…
+AWS_REGION=auto                                          # R2; your region elsewhere
+AWS_ENDPOINT_URL=https://<account>.r2.cloudflarestorage.com  # leave out for AWS
+DATABASE_URL=postgres://…
+```
+
+Every file is uploaded when it is written and removed when it is deleted;
+`/data` becomes a cache that files are fetched to when they are first read,
+and where the KEPUB copies and thumbnails made from them stay. Audiobooks are
+played straight from the bucket, a range at a time. The cache is not trimmed:
+give it room for the files people read, or let a restart start it afresh.
+
+To move an existing library, stop Legejo and run, with the same variables
+set:
+
+```sh
+docker compose run --rm legejo legejo storage migrate
+```
+
+It copies every file of `/data` that belongs in the bucket, skips those
+already there, and can be run again. SQLite still works with a bucket, but
+the database is then the one thing left in `/data`: keep that on a volume.
+
 ### Configuration
 
 Everything is configured with environment variables, and all of them are
@@ -263,7 +296,8 @@ works with Docker and Kubernetes secrets.
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | SQLite in the data directory | `postgres://user:password@host/db` or `sqlite://path` |
-| `LEGEJO_DATA_DIR` | `/data` | Book files, covers and the SQLite database |
+| `LEGEJO_DATA_DIR` | `/data` | Book files, covers and the SQLite database; with `LEGEJO_STORAGE`, a cache of the bucket |
+| `LEGEJO_STORAGE` | | `s3://bucket/prefix`: keep book files, covers, audiobooks, avatars and exports in an S3 bucket, with the `AWS_*` variables above |
 | `LEGEJO_ADDR` | `0.0.0.0:3000` | Address to listen on |
 | `LEGEJO_PUBLIC_URL` | | The public `https://` address of the instance |
 | `LEGEJO_SECURE_COOKIES` | on with an `https` public URL | Mark session cookies `Secure`. Set to `false` to serve over plain HTTP |

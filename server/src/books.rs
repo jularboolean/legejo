@@ -203,13 +203,31 @@ pub(crate) fn book_path(state: &AppState, uuid: &str, format: Format) -> std::pa
     state.data_dir.join("books").join(format!("{uuid}.{}", format.as_str()))
 }
 
+/// A book's cover image on the disk, fetched from the bucket when the data
+/// directory is only a cache (storage.rs). The path may not exist: no cover.
+pub(crate) async fn cover_on_disk(state: &AppState, uuid: &str) -> std::path::PathBuf {
+    let path = state.data_dir.join("covers").join(uuid);
+    state.storage.fetch(&path).await;
+    path
+}
+
+/// A book's file in a known format on the disk, fetched like a cover.
+pub(crate) async fn book_on_disk(state: &AppState, uuid: &str, format: Format) -> std::path::PathBuf {
+    let path = book_path(state, uuid, format);
+    state.storage.fetch(&path).await;
+    path
+}
+
 /// A book's file and its format, by the book's uuid. A uuid no book has
 /// counts as EPUB, so that the caller's own "not found" stays in charge.
 pub(crate) async fn book_file(state: &AppState, uuid: &str) -> (std::path::PathBuf, Format) {
     let name: Option<String> =
         sqlx::query_scalar("SELECT format FROM books WHERE uuid = $1").bind(uuid).fetch_optional(&state.db).await.ok().flatten();
     let format = Format::parse(name.as_deref().unwrap_or("epub"));
-    (book_path(state, uuid, format), format)
+    let path = book_path(state, uuid, format);
+    // From the bucket, when the data directory is only a cache (storage.rs).
+    state.storage.fetch(&path).await;
+    (path, format)
 }
 
 /// A title as a file name, for a download.
@@ -1066,6 +1084,9 @@ pub async fn archive(
     if files.is_empty() {
         return Err(not_found());
     }
+    for (_, path) in &files {
+        state.storage.fetch(path).await;
+    }
     let tmp_dir = state.data_dir.join("tmp");
     tokio::fs::create_dir_all(&tmp_dir).await.map_err(|e| internal(e.into()))?;
     let tmp = tmp_dir.join(format!("archive-{}.zip", new_uuid()));
@@ -1595,18 +1616,18 @@ async fn insert_book(
     let uuid = new_uuid();
     let file_size = bytes.len() as i64;
     let sha256 = sha256_hex(bytes);
-    tokio::fs::write(book_path(state, &uuid, format), bytes)
-        .await
-        .map_err(|e| internal(e.into()))?;
+    let path = book_path(state, &uuid, format);
+    tokio::fs::write(&path, bytes).await.map_err(|e| internal(e.into()))?;
+    state.storage.persist(&path).await.map_err(internal)?;
 
     // Some EPUBs declare their cover XHTML page as the cover item; only a
     // real image is worth storing.
     let cover_mime = match &parsed.cover {
         Some((_, mime)) if !mime.starts_with("image/") => None,
         Some((data, mime)) => {
-            tokio::fs::write(covers_dir.join(&uuid), data)
-                .await
-                .map_err(|e| internal(e.into()))?;
+            let cover = covers_dir.join(&uuid);
+            tokio::fs::write(&cover, data).await.map_err(|e| internal(e.into()))?;
+            state.storage.persist(&cover).await.map_err(internal)?;
             Some(mime.clone())
         }
         None => None,
@@ -1780,6 +1801,7 @@ pub(crate) async fn ensure_thumb(state: &AppState, uuid: &str) -> Option<std::pa
         return Some(dst);
     }
     let src = state.data_dir.join("covers").join(uuid);
+    state.storage.fetch(&src).await;
     let target = dst.clone();
     match tokio::task::spawn_blocking(move || make_thumbnail(&src, &target)).await {
         Ok(Ok(())) => Some(dst),
@@ -1854,9 +1876,9 @@ pub(crate) async fn cover_response(
             }
         }
     }
-    let data = tokio::fs::read(state.data_dir.join("covers").join(uuid))
-        .await
-        .map_err(|_| not_found())?;
+    let path = state.data_dir.join("covers").join(uuid);
+    state.storage.fetch(&path).await;
+    let data = tokio::fs::read(path).await.map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, cache)], data).into_response())
 }
 
@@ -1985,9 +2007,13 @@ pub(crate) async fn remove_book(state: &AppState, owner_id: i64, id: i64, uuid: 
         .map_err(|e| internal(e.into()))?;
     // The row is gone, and with it the format: one of these is the file.
     for format in [Format::Epub, Format::Pdf, Format::Cbz] {
-        let _ = tokio::fs::remove_file(book_path(state, uuid, format)).await;
+        let path = book_path(state, uuid, format);
+        let _ = tokio::fs::remove_file(&path).await;
+        state.storage.remove(&path).await;
     }
-    let _ = tokio::fs::remove_file(state.data_dir.join("covers").join(uuid)).await;
+    let cover = state.data_dir.join("covers").join(uuid);
+    let _ = tokio::fs::remove_file(&cover).await;
+    state.storage.remove(&cover).await;
     let _ = tokio::fs::remove_file(state.data_dir.join("kepub").join(format!("{uuid}.kepub.epub"))).await;
     drop_thumb(state, uuid).await;
     Ok(())
@@ -2026,9 +2052,9 @@ pub(crate) async fn apply_cover(
     let state = state.clone();
     let uuid = uuid.to_string();
     // Update the catalog cover; the old thumbnail no longer matches.
-    tokio::fs::write(state.data_dir.join("covers").join(&uuid), &bytes)
-        .await
-        .map_err(|e| internal(e.into()))?;
+    let cover = state.data_dir.join("covers").join(&uuid);
+    tokio::fs::write(&cover, &bytes).await.map_err(|e| internal(e.into()))?;
+    state.storage.persist(&cover).await.map_err(internal)?;
     drop_thumb(&state, &uuid).await;
     // A new cover is a new work: it is not free until the owner says so.
     sqlx::query(
@@ -2088,6 +2114,9 @@ pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Res
 /// follow, and the converted copy for Kobo is made again when next asked for.
 async fn file_changed(state: &AppState, id: i64, uuid: &str) {
     let (path, _) = book_file(state, uuid).await;
+    if let Err(e) = state.storage.persist(&path).await {
+        tracing::error!("storage: book {uuid} changed but could not be kept: {e:#}");
+    }
     if let Ok(data) = tokio::fs::read(&path).await {
         let _ = sqlx::query("UPDATE books SET file_size = $1, file_sha256 = $2 WHERE id = $3")
             .bind(data.len() as i64)
@@ -2145,12 +2174,16 @@ pub(crate) async fn tend_file(state: &AppState, book: &Book, repair: bool) -> an
         return Ok(false);
     }
     let path = book_path(state, &book.uuid, Format::Epub);
+    state.storage.fetch(&path).await;
     let (title, author, language, series, series_index) =
         (book.title.clone(), book.author.clone(), book.language.clone(), book.series.clone(), book.series_index);
     // The catalog's cover, when it is an image a file can carry.
     let cover_mime: Option<String> =
         sqlx::query_scalar("SELECT cover_mime FROM books WHERE id = $1").bind(book.id).fetch_optional(&state.db).await?.flatten();
     let cover = cover_mime.filter(|m| m.starts_with("image/")).map(|mime| (state.data_dir.join("covers").join(&book.uuid), mime));
+    if let Some((cover, _)) = &cover {
+        state.storage.fetch(cover).await;
+    }
     let (changed, fixed) = tokio::task::spawn_blocking(move || -> anyhow::Result<(bool, Vec<String>)> {
         let original = std::fs::read(&path)?;
         let mut current = original.clone();
@@ -2244,6 +2277,7 @@ pub async fn backfill_health(state: AppState) {
         recover_cover(&state, id, &uuid).await;
         // A book with no licence stated gets the one its file claims.
         let path = book_path(&state, &uuid, Format::Epub);
+        state.storage.fetch(&path).await;
         let claimed = tokio::task::spawn_blocking(move || std::fs::read(path).map(|b| epubfix::claims_copyright(&b)).unwrap_or(false)).await;
         if claimed.unwrap_or(false) {
             let _ = sqlx::query("UPDATE books SET license = $1 WHERE id = $2 AND (license IS NULL OR license = '')")
@@ -2270,17 +2304,23 @@ async fn recover_cover(state: &AppState, id: i64, uuid: &str) {
         return;
     }
     let path = book_path(state, uuid, Format::Epub);
+    state.storage.fetch(&path).await;
     let found = tokio::task::spawn_blocking(move || std::fs::read(path).ok().and_then(|b| epubfix::cover(&b))).await.ok().flatten();
     let Some((data, mime)) = found.filter(|(_, mime)| mime.starts_with("image/")) else {
         return;
     };
     let target = state.data_dir.join("covers").join(uuid);
+    let to_keep = target.clone();
     let written = tokio::task::spawn_blocking(move || {
         std::fs::create_dir_all(target.parent().unwrap_or(std::path::Path::new(".")))?;
         write_atomic(&target, &data)
     })
     .await;
-    if !matches!(written, Ok(Ok(()))) {
+    let written = match written {
+        Ok(Ok(())) => state.storage.persist(&to_keep).await.is_ok(),
+        _ => false,
+    };
+    if !written {
         tracing::warn!("cover for {uuid} could not be written");
         return;
     }

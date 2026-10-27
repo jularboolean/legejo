@@ -435,9 +435,9 @@ pub async fn upload_avatar(
     tokio::fs::create_dir_all(state.data_dir.join("avatars"))
         .await
         .map_err(|e| internal(e.into()))?;
-    tokio::fs::write(avatar_path(&state, user.0.id), &bytes)
-        .await
-        .map_err(|e| internal(e.into()))?;
+    let path = avatar_path(&state, user.0.id);
+    tokio::fs::write(&path, &bytes).await.map_err(|e| internal(e.into()))?;
+    state.storage.persist(&path).await.map_err(internal)?;
     sqlx::query("UPDATE users SET avatar_mime = $1 WHERE id = $2")
         .bind(&mime)
         .bind(user.0.id)
@@ -456,7 +456,9 @@ pub async fn delete_avatar(
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let _ = tokio::fs::remove_file(avatar_path(&state, user.0.id)).await;
+    let path = avatar_path(&state, user.0.id);
+    let _ = tokio::fs::remove_file(&path).await;
+    state.storage.remove(&path).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -476,7 +478,9 @@ pub async fn avatar(
     let mime = mime.flatten().ok_or_else(|| {
         (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))).into_response()
     })?;
-    let data = tokio::fs::read(avatar_path(&state, id)).await.map_err(|_| {
+    let path = avatar_path(&state, id);
+    state.storage.fetch(&path).await;
+    let data = tokio::fs::read(path).await.map_err(|_| {
         (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))).into_response()
     })?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
@@ -628,9 +632,13 @@ pub(crate) async fn remove_user(state: &AppState, user_id: i64, username: &str) 
         .await
         .map_err(|e| internal(e.into()))?;
     for id in shelves {
-        let _ = tokio::fs::remove_file(state.data_dir.join("shelf_covers").join(id.to_string())).await;
+        let path = state.data_dir.join("shelf_covers").join(id.to_string());
+        let _ = tokio::fs::remove_file(&path).await;
+        state.storage.remove(&path).await;
     }
-    let _ = tokio::fs::remove_file(avatar_path(&state, user_id)).await;
+    let path = avatar_path(&state, user_id);
+    let _ = tokio::fs::remove_file(&path).await;
+    state.storage.remove(&path).await;
     let _ = tokio::fs::remove_dir_all(state.data_dir.join("exports").join(user_id.to_string())).await;
 
     // Everything else (shelves, sessions, progress, follows, exports) cascades.

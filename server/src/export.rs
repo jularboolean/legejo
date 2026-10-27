@@ -574,6 +574,7 @@ pub async fn start(State(state): State<AppState>, user: AuthUser) -> Result<(Sta
 
 async fn remove_export(state: &AppState, user_id: i64, export_id: i64) {
     let _ = tokio::fs::remove_dir_all(export_dir(state, user_id, export_id)).await;
+    state.storage.remove_dir(&export_dir(state, user_id, export_id)).await;
     let _ = sqlx::query("UPDATE exports SET status = 'expired', parts = '[]' WHERE id = $1").bind(export_id).execute(&state.db).await;
 }
 
@@ -610,6 +611,7 @@ pub async fn download(
         return Err(not_found());
     }
     let path = export_dir(&state, user.0.id, id).join(&part);
+    state.storage.fetch(&path).await;
     let mut res = tower_http::services::ServeFile::new(&path)
         .oneshot(req)
         .await
@@ -672,6 +674,7 @@ pub async fn run_pending(state: &AppState, me: &str) {
                 Err(e) => {
                     tracing::error!("export {id} failed: {e:#}");
                     let _ = tokio::fs::remove_dir_all(export_dir(state, user_id, id)).await;
+                    state.storage.remove_dir(&export_dir(state, user_id, id)).await;
                     let _ = sqlx::query("UPDATE exports SET status = 'failed', error = $1, finished_at = $2 WHERE id = $3")
                         .bind(e.to_string())
                         .bind(now_ts())
@@ -775,6 +778,9 @@ async fn build(state: &AppState, id: i64, user_id: i64, me: &str) -> anyhow::Res
             let name = crate::formats::stem(book.file.trim_start_matches("books/"));
             (state.data_dir.join("covers").join(&book.uuid), format!("covers/{name}.{ext}"))
         });
+        if let Some((src, _)) = &cover {
+            state.storage.fetch(src).await;
+        }
         // A new part when this book would push the current one over the cap.
         if part.written > 0 && part.written + book.file_size as u64 > PART_LIMIT {
             let d = dir.clone();
@@ -820,6 +826,10 @@ async fn build(state: &AppState, id: i64, user_id: i64, me: &str) -> anyhow::Res
     }
     let d = dir.clone();
     finished.push(tokio::task::spawn_blocking(move || finish_part(&d, part)).await??);
+    // Kept in the bucket too, so that a download outlives a restart (storage.rs).
+    for (name, _) in &finished {
+        state.storage.persist(&dir.join(name)).await?;
+    }
 
     let parts: Vec<Value> = finished.iter().map(|(name, size)| json!({ "name": name, "size": size })).collect();
     sqlx::query(

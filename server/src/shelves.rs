@@ -463,7 +463,9 @@ pub async fn delete(
         .execute(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    let _ = tokio::fs::remove_file(shelf_cover_path(&state, id)).await;
+    let path = shelf_cover_path(&state, id);
+    let _ = tokio::fs::remove_file(&path).await;
+    state.storage.remove(&path).await;
     crate::audit::log(
         &state,
         crate::audit::by(&user.0),
@@ -476,6 +478,14 @@ pub async fn delete(
 
 fn shelf_cover_path(state: &AppState, id: i64) -> std::path::PathBuf {
     state.data_dir.join("shelf_covers").join(id.to_string())
+}
+
+/// A shelf's picture on the disk, fetched from the bucket when the data
+/// directory is only a cache (storage.rs).
+pub(crate) async fn shelf_cover_on_disk(state: &AppState, id: i64) -> std::path::PathBuf {
+    let path = shelf_cover_path(state, id);
+    state.storage.fetch(&path).await;
+    path
 }
 
 pub async fn upload_cover(
@@ -491,9 +501,9 @@ pub async fn upload_cover(
     tokio::fs::create_dir_all(state.data_dir.join("shelf_covers"))
         .await
         .map_err(|e| internal(e.into()))?;
-    tokio::fs::write(shelf_cover_path(&state, id), &bytes)
-        .await
-        .map_err(|e| internal(e.into()))?;
+    let path = shelf_cover_path(&state, id);
+    tokio::fs::write(&path, &bytes).await.map_err(|e| internal(e.into()))?;
+    state.storage.persist(&path).await.map_err(internal)?;
 
     sqlx::query("UPDATE shelves SET cover_mime = $1 WHERE id = $2 AND owner_id = $3")
         .bind(&mime)
@@ -520,7 +530,9 @@ pub async fn delete_cover(
     if result.rows_affected() == 0 {
         return Err(not_found());
     }
-    let _ = tokio::fs::remove_file(shelf_cover_path(&state, id)).await;
+    let path = shelf_cover_path(&state, id);
+    let _ = tokio::fs::remove_file(&path).await;
+    state.storage.remove(&path).await;
     Ok(Json(fetch_shelf(&state, user.0.id, id).await?))
 }
 
@@ -537,6 +549,6 @@ pub async fn cover(
             .await
             .map_err(|e| internal(e.into()))?;
     let mime = mime.flatten().ok_or_else(not_found)?;
-    let data = tokio::fs::read(shelf_cover_path(&state, id)).await.map_err(|_| not_found())?;
+    let data = tokio::fs::read(shelf_cover_on_disk(&state, id).await).await.map_err(|_| not_found())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }

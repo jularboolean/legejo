@@ -290,7 +290,7 @@ pub async fn shelf_cover(State(state): State<AppState>, Path(token): Path<String
         .map_err(internal)?
         .flatten();
     let mime = mime.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
-    let data = tokio::fs::read(state.data_dir.join("shelf_covers").join(shared.shelf_id.to_string()))
+    let data = tokio::fs::read(crate::shelves::shelf_cover_on_disk(&state, shared.shelf_id).await)
         .await
         .map_err(|_| StatusCode::NOT_FOUND.into_response())?;
     Ok((crate::images::headers(&mime), data).into_response())
@@ -300,7 +300,7 @@ pub async fn shelf_cover(State(state): State<AppState>, Path(token): Path<String
 pub async fn cover(State(state): State<AppState>, Path((token, id)): Path<(String, i64)>) -> Result<Response, Response> {
     let (uuid, cover_mime, _) = shared_book(&state, &token, id).await?;
     let mime = cover_mime.ok_or_else(|| StatusCode::NOT_FOUND.into_response())?;
-    let data = tokio::fs::read(state.data_dir.join("covers").join(&uuid)).await.map_err(|_| StatusCode::NOT_FOUND.into_response())?;
+    let data = tokio::fs::read(crate::books::cover_on_disk(&state, &uuid).await).await.map_err(|_| StatusCode::NOT_FOUND.into_response())?;
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, max-age=3600")], data).into_response())
 }
 

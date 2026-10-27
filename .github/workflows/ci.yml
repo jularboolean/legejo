@@ -18,6 +18,12 @@ jobs:
         with:
           workspaces: server
       - run: cargo test --locked
+      # Again with the data directory in a bucket (in memory) and a disk that
+      # forgets after every request: a file written but not kept there, or
+      # read without being fetched, fails a test (storage.rs).
+      - run: cargo test --locked
+        env:
+          LEGEJO_TEST_BUCKET: "1"
 
   web:
     runs-on: ubuntu-latest
