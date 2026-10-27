@@ -78,6 +78,7 @@
 	function refused(field: unknown): Outcome {
 		const known: Record<string, string> = {
 			url: t('conn.urlInvalid'),
+			scheme: t('conn.urlScheme'),
 			from: t('conn.fromInvalid'),
 			to: t('conn.toMissing'),
 			host: t('conn.hostMissing'),

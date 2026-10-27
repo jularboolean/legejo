@@ -119,6 +119,9 @@ async fn the_public_address_is_checked_against_this_instance() {
     for bad in ["ftp://books.example.org", "https://books.example.org/library", "not a url"] {
         assert_eq!(send(&app, Method::PUT, "/api/admin/connections/public-url", Some(&cookie), Some(json!({ "url": bad }))).await.0, StatusCode::UNPROCESSABLE_ENTITY, "{bad}");
     }
+    // An address without its scheme gets an answer of its own.
+    let (_, e) = send(&app, Method::PUT, "/api/admin/connections/public-url", Some(&cookie), Some(json!({ "url": "localhost:3013" }))).await;
+    assert_eq!(e["error"], "scheme");
     let ours = serve(app.clone()).await;
     let (_, t) = send(&app, Method::POST, "/api/admin/connections/public-url/test", Some(&cookie), Some(json!({ "url": ours }))).await;
     assert_eq!((t["ok"].clone(), t["https"].clone()), (json!(true), json!(false)), "{t}");

@@ -287,7 +287,7 @@ impl MailForm {
 }
 
 /// PUT /api/admin/connections/mail
-pub async fn put_mail(State(state): State<AppState>, admin: AdminUser, Json(form): Json<MailForm>) -> Result<Json<Connections>, Response> {
+pub async fn put_mail(State(state): State<AppState>, admin: AdminUser, headers: HeaderMap, Json(form): Json<MailForm>) -> Result<Json<Connections>, Response> {
     if state.live.env.mail {
         return Err(fail(StatusCode::CONFLICT, "env"));
     }
@@ -308,7 +308,7 @@ pub async fn put_mail(State(state): State<AppState>, admin: AdminUser, Json(form
     };
     save.await.map_err(|e| internal(e.into()))?;
     changed(&state, &admin, "mail", json!({ "host": form.host.trim(), "on": on })).await?;
-    get(State(state), admin, HeaderMap::new()).await
+    get(State(state), admin, headers).await
 }
 
 /// POST /api/admin/connections/mail/test: send a mail with what the form
@@ -365,7 +365,7 @@ impl LibrarianForm {
 }
 
 /// PUT /api/admin/connections/librarian
-pub async fn put_librarian(State(state): State<AppState>, admin: AdminUser, Json(form): Json<LibrarianForm>) -> Result<Json<Connections>, Response> {
+pub async fn put_librarian(State(state): State<AppState>, admin: AdminUser, headers: HeaderMap, Json(form): Json<LibrarianForm>) -> Result<Json<Connections>, Response> {
     if state.live.env.ai {
         return Err(fail(StatusCode::CONFLICT, "env"));
     }
@@ -380,7 +380,7 @@ pub async fn put_librarian(State(state): State<AppState>, admin: AdminUser, Json
     };
     save.await.map_err(|e| internal(e.into()))?;
     changed(&state, &admin, "librarian", json!({ "base_url": form.base_url, "model": form.model })).await?;
-    get(State(state), admin, HeaderMap::new()).await
+    get(State(state), admin, headers).await
 }
 
 /// POST /api/admin/connections/librarian/test: one short question to the
@@ -431,6 +431,9 @@ fn clean_url(raw: &str) -> Result<Option<String>, Response> {
     if raw.is_empty() {
         return Ok(None);
     }
+    if !raw.contains("://") {
+        return Err(fail(StatusCode::UNPROCESSABLE_ENTITY, "scheme"));
+    }
     let url = reqwest::Url::parse(raw).map_err(|_| fail(StatusCode::UNPROCESSABLE_ENTITY, "url"))?;
     if !matches!(url.scheme(), "https" | "http") || url.host_str().is_none() || url.path() != "/" || url.query().is_some() {
         return Err(fail(StatusCode::UNPROCESSABLE_ENTITY, "url"));
@@ -439,14 +442,14 @@ fn clean_url(raw: &str) -> Result<Option<String>, Response> {
 }
 
 /// PUT /api/admin/connections/public-url
-pub async fn put_public_url(State(state): State<AppState>, admin: AdminUser, Json(form): Json<PublicUrlForm>) -> Result<Json<Connections>, Response> {
+pub async fn put_public_url(State(state): State<AppState>, admin: AdminUser, headers: HeaderMap, Json(form): Json<PublicUrlForm>) -> Result<Json<Connections>, Response> {
     if state.live.env.public_url {
         return Err(fail(StatusCode::CONFLICT, "env"));
     }
     let url = clean_url(&form.url)?;
     store(&state, "public_url", url.as_deref()).await.map_err(|e| internal(e.into()))?;
     changed(&state, &admin, "public_url", json!({ "url": url })).await?;
-    get(State(state), admin, HeaderMap::new()).await
+    get(State(state), admin, headers).await
 }
 
 /// POST /api/admin/connections/public-url/test: ask the address for this
