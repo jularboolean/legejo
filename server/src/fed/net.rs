@@ -209,7 +209,7 @@ pub async fn get_public(
     limit: usize,
     timeout: std::time::Duration,
 ) -> Result<Fetched, FetchError> {
-    let allow_private = state.fed.config.as_ref().is_some_and(|c| c.allow_private);
+    let allow_private = state.fed.allow_private;
     let url = parse(url, allow_private)?;
     let resp = state.fed.http.get(url).header("accept", accept).timeout(timeout).send().await.map_err(send_error)?;
     if !resp.status().is_success() {

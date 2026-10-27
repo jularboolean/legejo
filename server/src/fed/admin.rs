@@ -44,7 +44,7 @@ pub struct FedSettings {
 
 async fn current(state: &AppState) -> FedSettings {
     FedSettings {
-        public_url: state.fed.config.as_ref().map(|c| c.base.clone()),
+        public_url: state.fed.config().map(|c| c.base.clone()),
         mode: super::mode(state).await,
         contact: super::setting(state, "federation_contact").await.filter(|c| !c.is_empty()),
         max_epub_mb: super::max_epub_bytes(state).await / (1024 * 1024),
@@ -56,7 +56,7 @@ async fn suggested_instances(state: &AppState) -> Vec<String> {
     if !state.settings.shelf_suggestions {
         return Vec::new();
     }
-    let own = state.fed.config.as_ref().map(|c| c.host.to_lowercase());
+    let own = state.fed.config().map(|c| c.host.to_lowercase());
     let known: Vec<String> = sqlx::query_scalar("SELECT domain FROM ap_instances").fetch_all(&state.db).await.unwrap_or_default();
     let mut out: Vec<String> = Vec::new();
     for s in super::remote::SUGGESTIONS {
@@ -85,7 +85,7 @@ pub async fn update_settings(
     admin: AdminUser,
     Json(req): Json<UpdateSettings>,
 ) -> Result<Json<FedSettings>, Response> {
-    if req.mode != Mode::Off && state.fed.config.is_none() {
+    if req.mode != Mode::Off && state.fed.config().is_none() {
         return Err(err(StatusCode::UNPROCESSABLE_ENTITY, "no public url"));
     }
     let before = super::mode(&state).await;
@@ -144,7 +144,7 @@ pub struct Preview {
 }
 
 async fn fetch_nodeinfo(state: &AppState, domain: &str) -> Result<Preview, &'static str> {
-    let config = state.fed.config.as_ref().ok_or("no public url")?;
+    let config = state.fed.config().ok_or("no public url")?;
     let scheme = if config.allow_private && (domain.starts_with("127.") || domain.starts_with("localhost")) { "http" } else { "https" };
     let links = net::get_plain_json(state, &format!("{scheme}://{domain}/.well-known/nodeinfo"))
         .await
@@ -308,7 +308,7 @@ pub async fn overview(State(state): State<AppState>, _admin: AdminUser) -> Resul
     .fetch_all(&state.db)
     .await
     .map_err(internal)?;
-    let host = state.fed.config.as_ref().map(|c| c.host.clone()).unwrap_or_default();
+    let host = state.fed.config().map(|c| c.host.clone()).unwrap_or_default();
     for s in &mut shelves {
         s.handle = format!("@{}@{host}", s.ap_slug);
     }

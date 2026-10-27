@@ -2,9 +2,8 @@
 //! behind the librarian and the public address. The environment wins: a
 //! group set there (LEGEJO_SMTP_HOST, LEGEJO_AI_API_KEY, LEGEJO_PUBLIC_URL)
 //! is shown as such and cannot be changed in the browser. Otherwise what the
-//! admin saves is kept in `settings` and used at once, without a restart;
-//! only federation and OIDC take a new public address at the next start, as
-//! it is the instance's name there.
+//! admin saves is kept in `settings` and used at once, without a restart,
+//! federation included.
 //!
 //! Passwords and keys are kept as they are in the database (so they are in
 //! its backups), and never handed back: the admin page learns only that one
@@ -473,6 +472,10 @@ pub async fn test_public_url(State(state): State<AppState>, _admin: AdminUser, J
 
 async fn changed(state: &AppState, admin: &AdminUser, what: &str, details: serde_json::Value) -> Result<(), Response> {
     state.live.reload(&state.db).await.map_err(internal)?;
+    if what == "public_url" {
+        // Federation names the instance by it, from now on.
+        state.fed.set_config(crate::fed::FedConfig::from_url(state.live.public_url()));
+    }
     crate::audit::log(state, crate::audit::by(&admin.0), "admin.connections", json!({ "what": what, "details": details })).await;
     Ok(())
 }

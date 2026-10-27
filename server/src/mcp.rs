@@ -83,7 +83,7 @@ fn origin_allowed(state: &AppState, headers: &HeaderMap) -> bool {
     };
     let origin_host = origin.split("://").nth(1).unwrap_or("").to_ascii_lowercase();
     let request_host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
-    let public_host = state.fed.config.as_ref().map(|c| c.host.to_ascii_lowercase());
+    let public_host = state.fed.config().map(|c| c.host.to_ascii_lowercase());
     !origin_host.is_empty() && (origin_host == request_host || Some(origin_host) == public_host)
 }
 

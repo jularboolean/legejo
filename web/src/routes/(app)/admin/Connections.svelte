@@ -19,6 +19,7 @@
 	// The public address, mail and the librarian's model, set up here unless
 	// the environment sets them (then shown, and locked). Each has a test that
 	// tries what the form says before it is saved.
+	import { invalidateAll } from '$app/navigation';
 	import { t } from '#lib/i18n';
 
 	type Outcome = { ok: boolean; text: string } | null;
@@ -108,6 +109,8 @@
 		c = r.body as ConnectionsData;
 		url = c.public_url.value ?? '';
 		urlOutcome = { ok: true, text: t('conn.saved') };
+		// The federation tab shows whether the address lets it be switched on.
+		await invalidateAll();
 	}
 
 	const mailBody = () => ({ ...mail, password: mail.password === '' ? undefined : mail.password });

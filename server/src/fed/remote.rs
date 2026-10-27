@@ -359,7 +359,7 @@ pub struct FedStatus {
 
 pub async fn status(State(state): State<AppState>, user: AuthUser) -> Json<FedStatus> {
     let mode = super::mode(&state).await;
-    let host = state.fed.config.as_ref().map(|c| c.host.clone());
+    let host = state.fed.config().map(|c| c.host.clone());
     let pending_instances = if user.0.is_admin && mode == super::Mode::Allowlist {
         sqlx::query_scalar("SELECT COUNT(DISTINCT domain) FROM ap_instance_requests").fetch_one(&state.db).await.unwrap_or(0)
     } else {
@@ -450,7 +450,7 @@ pub async fn suggestions(State(state): State<AppState>, user: AuthUser) -> Resul
         return Ok(Json(Vec::new()));
     }
     let followed: Vec<String> = follow_items(&state, user.0.id, None).await?.into_iter().map(|f| f.handle.to_lowercase()).collect();
-    let own = state.fed.config.as_ref().map(|c| c.host.to_lowercase());
+    let own = state.fed.config().map(|c| c.host.to_lowercase());
     Ok(Json(
         SUGGESTIONS
             .iter()

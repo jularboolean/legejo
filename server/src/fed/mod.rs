@@ -81,7 +81,11 @@ impl FedConfig {
 
 /// Federation runtime shared through AppState.
 pub struct Fed {
-    pub config: Option<FedConfig>,
+    /// Where this instance lives; changed when the admin saves a new public
+    /// address (live.rs), so read it with `config()` each time.
+    config: std::sync::RwLock<Option<FedConfig>>,
+    /// LEGEJO_FED_ALLOW_PRIVATE: fixed, as the client below is built with it.
+    pub allow_private: bool,
     /// SSRF-filtered client for everything fetched from other servers.
     pub http: reqwest::Client,
     /// Pokes the delivery worker and reconciler after a change.
@@ -99,7 +103,8 @@ impl Fed {
         };
         Ok(Arc::new(Fed {
             http: net::client(&agent, allow_private)?,
-            config,
+            config: std::sync::RwLock::new(config),
+            allow_private,
             wake: tokio::sync::Notify::new(),
             rate: Mutex::new(HashMap::new()),
         }))
@@ -107,6 +112,15 @@ impl Fed {
 
     pub fn disabled() -> Arc<Fed> {
         Fed::new(None).expect("client without config")
+    }
+
+    pub fn config(&self) -> Option<FedConfig> {
+        self.config.read().unwrap().clone()
+    }
+
+    /// A new public address, in use from now on.
+    pub fn set_config(&self, config: Option<FedConfig>) {
+        *self.config.write().unwrap() = config;
     }
 }
 
@@ -147,7 +161,7 @@ pub async fn mode(state: &AppState) -> Mode {
 
 /// The config when federation is switched on, else None (404 everywhere).
 pub async fn active(state: &AppState) -> Option<FedConfig> {
-    let config = state.fed.config.clone()?;
+    let config = state.fed.config()?;
     (mode(state).await != Mode::Off).then_some(config)
 }
 

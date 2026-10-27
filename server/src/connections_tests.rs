@@ -133,6 +133,9 @@ async fn the_public_address_is_checked_against_this_instance() {
 
     let (_, c) = send(&app, Method::PUT, "/api/admin/connections/public-url", Some(&cookie), Some(json!({ "url": "https://books.example.org/" }))).await;
     assert_eq!((c["public_url"]["source"].clone(), c["public_url"]["value"].clone()), (json!("admin"), json!("https://books.example.org")));
-    // Links use it at once.
+    // Links use it at once, and so does federation.
     assert_eq!(crate::invite::base(&state, &axum::http::HeaderMap::new()), "https://books.example.org");
+    assert_eq!(state.fed.config().map(|c| c.host).as_deref(), Some("books.example.org"));
+    let (_, f) = send(&app, Method::GET, "/api/admin/federation", Some(&cookie), None).await;
+    assert_eq!(f["public_url"], "https://books.example.org");
 }

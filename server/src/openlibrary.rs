@@ -77,7 +77,7 @@ async fn throttle_covers() {
 }
 
 fn user_agent(state: &AppState) -> String {
-    let site = state.fed.config.as_ref().map(|c| c.base.clone()).unwrap_or_else(|| "self-hosted".into());
+    let site = state.fed.config().map(|c| c.base.clone()).unwrap_or_else(|| "self-hosted".into());
     match &state.live.mail() {
         Some(m) => format!("Legejo/{} ({site}; {})", env!("CARGO_PKG_VERSION"), m.from),
         None => format!("Legejo/{} ({site})", env!("CARGO_PKG_VERSION")),

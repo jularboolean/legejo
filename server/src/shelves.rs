@@ -109,7 +109,7 @@ async fn decorate(state: &AppState, user_id: i64, shelves: &mut [Shelf]) {
         .fetch_one(&state.db)
         .await
         .unwrap_or_default();
-    let host = state.fed.config.as_ref().map(|c| c.host.clone());
+    let host = state.fed.config().map(|c| c.host.clone());
     for shelf in shelves {
         shelf.suggested_slug = crate::fed::slugify(&format!("{username}-{}", shelf.name));
         shelf.handle = match (&host, &shelf.ap_slug) {
