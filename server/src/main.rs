@@ -429,7 +429,7 @@ async fn main() -> anyhow::Result<()> {
                 println!("A link for {name} to choose a new password, valid for {} hours:", register::HANDED_RESET_HOURS);
                 println!("{link}");
                 if link.starts_with('/') {
-                    println!("(LEGEJO_PUBLIC_URL is not set: put the address of this Legejo in front of it.)");
+                    println!("(No public address is set: put the address of this Legejo in front of it.)");
                 }
                 std::process::exit(0);
             }
