@@ -18,7 +18,8 @@ services:
       - legejo-data:/data
     environment:
       DATABASE_URL: postgres://legejo:legejo@db/legejo
-      LEGEJO_ADMIN_USER: admin
+      # The admin made at the first start, instead of in the browser:
+      # LEGEJO_ADMIN_USER: admin
       # LEGEJO_ADMIN_PASSWORD: change-me
       # LEGEJO_PUBLIC_URL: https://books.example.org
     depends_on:

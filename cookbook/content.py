@@ -47,12 +47,12 @@ CHAPTERS = [
  [
  ("Running Legejo with Docker",
   "<p>You want a Legejo of your own, with as little ceremony as possible.</p>",
-  """<p>Fetch the Compose file, start it, and read the first password out of the log:</p>
+  """<p>Fetch the Compose file and start it:</p>
 <pre>curl -O https://raw.githubusercontent.com/jularboolean/legejo/main/docker-compose.yml
-docker compose up -d
-docker compose logs legejo | grep -A3 Bootstrap</pre>
-<p>Open <code>http://localhost:3000</code> and log in as <code>admin</code> with the password
-from the log.</p>""",
+docker compose up -d</pre>
+<p>Open <code>http://localhost:3000</code>. A new Legejo asks its first visitor to create the
+admin account: choose the language, a username and a password, and you are in, with this manual
+on the first shelf.</p>""",
   """<p>Legejo is a single container. Books, covers and the database live in the
 <code>legejo-data</code> volume, mounted at <code>/data</code>. That volume is your library: a
 container started without it keeps everything inside itself, and loses it when the container is
@@ -60,12 +60,16 @@ removed.</p>
 <p>The image is <code>slurvdjur/legejo</code> on Docker Hub, for <code>linux/amd64</code> and
 <code>linux/arm64</code>, tagged with the full version, the minor version, the major version and
 <code>latest</code>. A running instance idles at around 30&#160;MB of memory, so a Raspberry Pi
-or the smallest VPS will do.</p>"""),
+or the smallest VPS will do.</p>
+<p>The way to create the admin closes once an account exists. Until then, anyone who reaches the
+instance could take it, so create the account straight away when it is on the internet from the
+start (or see the next recipe).</p>"""),
 
- ("Choosing the First Password Yourself",
-  "<p>You would rather not go looking for a generated password in a log.</p>",
+ ("Making the Admin Before the First Visit",
+  "<p>You want the admin account in place before anyone can open the site.</p>",
   """<p>Set <code>LEGEJO_ADMIN_PASSWORD</code> (and <code>LEGEJO_ADMIN_USER</code>, if
-<code>admin</code> does not suit you) before the first start.</p>""",
+<code>admin</code> does not suit you) before the first start. The account is made at the start,
+and the browser shows the ordinary login.</p>""",
   """<p>Both are only read when the database is empty. Changing them later does nothing; change
 the password on the <strong>Account</strong> page instead. Any setting can be read from a file by
 adding <code>_FILE</code> to its name, for example
@@ -896,8 +900,8 @@ Both ways are noted in the system log (Recipe 12.5).</p>"""),
 <tr><td><code>LEGEJO_ADDR</code></td><td><code>0.0.0.0:3000</code></td><td>Address to listen on</td></tr>
 <tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>The public <code>https://</code> address</td></tr>
 <tr><td><code>LEGEJO_SECURE_COOKIES</code></td><td>on with <code>https</code></td><td><code>false</code> to serve over plain HTTP</td></tr>
-<tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>First admin, when the database is empty</td></tr>
-<tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td>generated</td><td>Its password; printed once in the log</td></tr>
+<tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>First admin, made at the start with the password below</td></tr>
+<tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td></td><td>Its password; unset, the first visitor creates the admin in the browser</td></tr>
 <tr><td><code>LEGEJO_MAX_UPLOAD_MB</code></td><td><code>200</code></td><td>Largest accepted upload</td></tr>
 <tr><td><code>LEGEJO_LOG_FORMAT</code></td><td><code>text</code></td><td><code>json</code> for one object per line</td></tr>
 <tr><td><code>LEGEJO_IMPORT_DIR</code></td><td></td><td>Folder watched for books</td></tr>

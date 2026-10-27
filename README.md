@@ -196,11 +196,17 @@ version (`1.19.0`, `1.19`, `1`) and `latest`.
 ```sh
 curl -O https://raw.githubusercontent.com/jularboolean/legejo/main/docker-compose.yml
 docker compose up -d
-docker compose logs legejo | grep -A3 Bootstrap
 ```
 
-Open <http://localhost:3000> and log in as `admin` with the password printed in
-the log. Books and the database are stored in the `legejo-data` volume.
+Open <http://localhost:3000> and create the admin account: the first visitor of
+a new instance is asked to make it, in the language of their choice, and the
+way closes once an account exists. Books and the database are stored in the
+`legejo-data` volume.
+
+An instance reachable from the internet from its first start can be claimed by
+whoever opens it first. Create the account straight away, or set
+`LEGEJO_ADMIN_PASSWORD` (and `LEGEJO_ADMIN_USER`) to have it made at the start
+instead; every setting can still be given as an environment variable.
 
 For PostgreSQL instead of SQLite, use
 [`docker-compose.postgres.yml`](docker-compose.postgres.yml). An existing SQLite
@@ -229,8 +235,9 @@ image or a Compose file behind their own reverse proxy:
 - **Storage:** a persistent volume mounted at `/data`.
 - **Environment:**
   - `LEGEJO_PUBLIC_URL`: the `https://` address of the domain.
-  - `LEGEJO_ADMIN_PASSWORD`: the admin password, so you do not have to find
-    the generated one in the logs. It is only used when the database is empty.
+  - `LEGEJO_ADMIN_PASSWORD`: optional, the admin password, so the account
+    exists before anyone opens the site. Without it, the first visitor creates
+    the admin in the browser. It is only used when the database is empty.
   - `LEGEJO_CLIENT_IP_HEADER=X-Forwarded-For`: lets login throttling work per
     client. Traefik and Caddy, which these platforms use, replace that header
     in their default configuration; leave the variable unset if yours is
@@ -253,8 +260,8 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_ADDR` | `0.0.0.0:3000` | Address to listen on |
 | `LEGEJO_PUBLIC_URL` | | The public `https://` address of the instance |
 | `LEGEJO_SECURE_COOKIES` | on with an `https` public URL | Mark session cookies `Secure`. Set to `false` to serve over plain HTTP |
-| `LEGEJO_ADMIN_USER` | `admin` | Initial admin account, created when the database is empty |
-| `LEGEJO_ADMIN_PASSWORD` | generated | Its password; printed once in the log when generated |
+| `LEGEJO_ADMIN_USER` | `admin` | Initial admin account, made at the start when the database is empty and `LEGEJO_ADMIN_PASSWORD` is set |
+| `LEGEJO_ADMIN_PASSWORD` | | Its password. Unset, the first visitor creates the admin in the browser |
 | `LEGEJO_MAX_UPLOAD_MB` | `200` | Largest accepted upload |
 | `LEGEJO_LOG_FORMAT` | `text` | `json` for one JSON object per line. The level is set with `RUST_LOG` |
 | `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |

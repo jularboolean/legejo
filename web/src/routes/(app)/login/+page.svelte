@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { nextPage } from '#lib/nextPage';
 	import Logo from '#lib/Logo.svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, LANGUAGES, setLocale, t } from '#lib/i18n';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -23,6 +23,47 @@
 	// Where to go once logged in: the page that sent us here, if any.
 	const next = nextPage(page.url.searchParams.get('next'));
 	const ssoHref = $derived(next === '/' ? '/api/auth/oidc/start' : `/api/auth/oidc/start?next=${encodeURIComponent(next)}`);
+
+	// First start: no account yet, so this one becomes the admin. Taken once;
+	// the page itself switches to logging in if someone was first.
+	// svelte-ignore state_referenced_locally
+	let creating = $state(data.setup);
+	let repeat = $state('');
+
+	async function createAdmin(e: SubmitEvent) {
+		e.preventDefault();
+		error = '';
+		if (password.length < 8) {
+			error = t('account.passwordTooShort');
+			return;
+		}
+		if (password !== repeat) {
+			error = t('setup.mismatch');
+			return;
+		}
+		busy = true;
+		try {
+			const res = await fetch('/api/auth/setup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ username, password, locale: getLocale() })
+			});
+			if (res.ok) {
+				await invalidateAll();
+				goto('/');
+			} else if (res.status === 409) {
+				// Someone was first: an ordinary login from here.
+				creating = false;
+				error = t('setup.taken');
+			} else {
+				error = t('setup.failed');
+			}
+		} catch {
+			error = t('common.network');
+		} finally {
+			busy = false;
+		}
+	}
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
@@ -55,6 +96,42 @@
 </script>
 
 <div class="wrap">
+	{#if creating}
+	<form onsubmit={createAdmin}>
+		<h1>
+			<Logo size={124} variant="pair" />
+			<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
+		</h1>
+		<div class="welcome">
+			<h2>{t('setup.title')}</h2>
+			<p>{t('setup.lead')}</p>
+		</div>
+		<label>
+			{t('setup.language')}
+			<select value={getLocale()} onchange={(e) => setLocale(e.currentTarget.value)}>
+				{#each LANGUAGES as language (language.code)}
+					<option value={language.code}>{language.label}</option>
+				{/each}
+			</select>
+		</label>
+		<label>
+			{t('login.username')}
+			<input bind:value={username} autocomplete="username" required />
+		</label>
+		<label>
+			{t('login.password')}
+			<input type="password" bind:value={password} autocomplete="new-password" minlength="8" required />
+		</label>
+		<label>
+			{t('setup.repeat')}
+			<input type="password" bind:value={repeat} autocomplete="new-password" minlength="8" required />
+		</label>
+		{#if error}
+			<p class="error">{error}</p>
+		{/if}
+		<button disabled={busy}>{busy ? t('setup.submitting') : t('setup.submit')}</button>
+	</form>
+	{:else}
 	<form onsubmit={submit}>
 		<h1>
 			<Logo size={124} variant="pair" />
@@ -83,6 +160,7 @@
 			<a class="register" href="/forgot">{t('login.forgot')}</a>
 		{/if}
 	</form>
+	{/if}
 </div>
 
 <style>
@@ -121,6 +199,17 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.welcome h2 {
+		margin: 0 0 0.35rem;
+		font-size: 1.15rem;
+		text-align: center;
+	}
+	.welcome p {
+		margin: 0;
+		font-size: 0.88rem;
+		color: var(--muted);
+		text-align: center;
+	}
 	label {
 		display: flex;
 		flex-direction: column;

@@ -47,12 +47,12 @@ CHAPTERS = [
  [
  ("Funkciigi Legejon per Docker",
   "<p>Vi volas propran Legejon, kun kiel eble plej malmulte da ceremonio.</p>",
-  """<p>Elŝutu la Compose-dosieron, startigu ĝin kaj legu la unuan pasvorton el la protokolo:</p>
+  """<p>Elŝutu la Compose-dosieron kaj startigu ĝin:</p>
 <pre>curl -O https://raw.githubusercontent.com/jularboolean/legejo/main/docker-compose.yml
-docker compose up -d
-docker compose logs legejo | grep -A3 Bootstrap</pre>
-<p>Malfermu <code>http://localhost:3000</code> kaj ensalutu kiel <code>admin</code> per la pasvorto
-el la protokolo.</p>""",
+docker compose up -d</pre>
+<p>Malfermu <code>http://localhost:3000</code>. Nova Legejo petas sian unuan vizitanton krei la
+administrantan konton: elektu la lingvon, uzantnomon kaj pasvorton, kaj vi estas ene, kun ĉi tiu
+manlibro sur la unua breto.</p>""",
   """<p>Legejo estas unu sola ujo. Libroj, kovriloj kaj la datumbazo loĝas en la
 volumo <code>legejo-data</code>, muntita ĉe <code>/data</code>. Tiu volumo estas via biblioteko:
 ujo startigita sen ĝi tenas ĉion en si mem kaj perdas ĝin, kiam la ujo estas
@@ -60,12 +60,16 @@ forigita.</p>
 <p>La bildo estas <code>slurvdjur/legejo</code> ĉe Docker Hub, por <code>linux/amd64</code> kaj
 <code>linux/arm64</code>, etikedita per la plena versio, la minora versio, la ĉefa versio kaj
 <code>latest</code>. Funkcianta instanco senokupe uzas ĉirkaŭ 30&#160;MB da memoro, do Raspberry Pi
-aŭ la plej malgranda VPS sufiĉas.</p>"""),
+aŭ la plej malgranda VPS sufiĉas.</p>
+<p>La vojo por krei la administranton fermiĝas, tuj kiam konto ekzistas. Ĝis tiam ĉiu, kiu atingas
+la instancon, povus preni ĝin, do kreu la konton tuj, kiam ĝi estas en la interreto de la komenco
+(aŭ vidu la sekvan recepton).</p>"""),
 
- ("Mem elekti la unuan pasvorton",
-  "<p>Vi preferus ne serĉi generitan pasvorton en protokolo.</p>",
+ ("Krei la administranton antaŭ la unua vizito",
+  "<p>Vi volas, ke la administranta konto ekzistu, antaŭ ol iu ajn povas malfermi la retejon.</p>",
   """<p>Agordu <code>LEGEJO_ADMIN_PASSWORD</code> (kaj <code>LEGEJO_ADMIN_USER</code>, se
-<code>admin</code> ne plaĉas al vi) antaŭ la unua starto.</p>""",
+<code>admin</code> ne plaĉas al vi) antaŭ la unua starto. La konto estas kreata ĉe la starto, kaj
+la retumilo montras la ordinaran ensaluton.</p>""",
   """<p>Ambaŭ estas legataj nur, kiam la datumbazo estas malplena. Ŝanĝi ilin poste faras nenion; ŝanĝu
 anstataŭe la pasvorton en la paĝo <strong>Konto</strong>. Ĉiu agordo povas esti legata el dosiero, se oni
 aldonas <code>_FILE</code> al ĝia nomo, ekzemple
@@ -903,8 +907,8 @@ funkcias. Ambaŭ manieroj estas notataj en la sistema protokolo (Recepto 12.5).<
 <tr><td><code>LEGEJO_ADDR</code></td><td><code>0.0.0.0:3000</code></td><td>Adreso, ĉe kiu aŭskulti</td></tr>
 <tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>La publika adreso <code>https://</code></td></tr>
 <tr><td><code>LEGEJO_SECURE_COOKIES</code></td><td>ŝaltita kun <code>https</code></td><td><code>false</code> por servi per simpla HTTP</td></tr>
-<tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>Unua administranto, kiam la datumbazo estas malplena</td></tr>
-<tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td>generita</td><td>Ĝia pasvorto; presita unufoje en la protokolo</td></tr>
+<tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>Unua administranto, kreata ĉe la starto kun la suba pasvorto</td></tr>
+<tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td></td><td>Ĝia pasvorto; sen ĝi la unua vizitanto kreas la administranton en la retumilo</td></tr>
 <tr><td><code>LEGEJO_MAX_UPLOAD_MB</code></td><td><code>200</code></td><td>Plej granda akceptata alŝuto</td></tr>
 <tr><td><code>LEGEJO_LOG_FORMAT</code></td><td><code>text</code></td><td><code>json</code> por unu objekto po linio</td></tr>
 <tr><td><code>LEGEJO_IMPORT_DIR</code></td><td></td><td>Dosierujo observata por libroj</td></tr>

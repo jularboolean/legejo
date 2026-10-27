@@ -138,7 +138,7 @@ async fn me(app: &Router, session: &str) -> Value {
 async fn off_unless_configured() {
     let (app, _, _) = test_app().await;
     let (_, body) = send(&app, Method::GET, "/api/auth/config", None, None).await;
-    assert_eq!(body, json!({ "oidc": null }));
+    assert_eq!(body["oidc"], json!(null));
     assert_eq!(raw(&app, "/api/auth/oidc/start", None).await.0, StatusCode::NOT_FOUND);
     assert_eq!(raw(&app, "/api/auth/oidc/callback?code=x&state=y", None).await.0, StatusCode::NOT_FOUND);
 }

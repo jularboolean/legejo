@@ -482,7 +482,7 @@ pub async fn avatar(
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
 
-const LOCALES: [&str; 7] = ["en", "sv", "fi", "eo", "fr", "de", "es"];
+pub(crate) const LOCALES: [&str; 7] = ["en", "sv", "fi", "eo", "fr", "de", "es"];
 
 #[derive(Deserialize)]
 pub struct UpdateLocale {

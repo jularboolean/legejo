@@ -42,6 +42,7 @@ mod pubdate;
 mod readingtime;
 mod register;
 mod search;
+mod setup;
 mod shelves;
 #[cfg(test)]
 mod testutil;
@@ -214,6 +215,7 @@ fn router(state: AppState) -> Router {
         .route("/users/{id}/avatar", get(account::avatar))
         .route("/users/search", get(shelves::search_users))
         .route("/auth/config", get(oidc::config))
+        .route("/auth/setup", post(setup::create))
         .route("/auth/oidc/start", get(oidc::start))
         .route("/auth/oidc/callback", get(oidc::callback))
         .route("/account/oidc", get(oidc::account_status))

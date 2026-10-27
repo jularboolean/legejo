@@ -1,6 +1,5 @@
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand::Rng;
 use sqlx::any::AnyPoolOptions;
 use sqlx::migrate::Migrator;
 use sqlx::{AnyPool, Executor};
@@ -166,10 +165,10 @@ pub async fn verify_dummy(password: &str) {
     .await;
 }
 
-/// If no users exist, create the initial admin account.
-/// Username/password come from LEGEJO_ADMIN_USER / LEGEJO_ADMIN_PASSWORD;
-/// if no password is set, a random one is generated and printed once.
-/// Returns the new admin's id when one was created: the instance is new.
+/// If no users exist and LEGEJO_ADMIN_PASSWORD is set, create the initial
+/// admin account from it (and LEGEJO_ADMIN_USER, "admin" when unset).
+/// Without the password the first visitor creates it in the browser
+/// (setup.rs). Returns the new admin's id when one was created.
 pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<Option<i64>> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
@@ -178,36 +177,21 @@ pub async fn bootstrap_admin(pool: &AnyPool) -> anyhow::Result<Option<i64>> {
         return Ok(None);
     }
 
-    let username = crate::settings::var("LEGEJO_ADMIN_USER")?.unwrap_or_else(|| "admin".into());
-    let (password, generated) = match crate::settings::var("LEGEJO_ADMIN_PASSWORD")? {
-        Some(p) => (p, false),
-        None => (random_password(16), true),
+    let Some(password) = crate::settings::var("LEGEJO_ADMIN_PASSWORD")? else {
+        println!("\n==============================================");
+        println!("  No account yet: open Legejo in a browser");
+        println!("  and create the admin account there.");
+        println!("==============================================\n");
+        return Ok(None);
     };
-
+    let username = crate::settings::var("LEGEJO_ADMIN_USER")?.unwrap_or_else(|| "admin".into());
     let hash = hash_password(&password).await?;
     let id: i64 = sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, 1) RETURNING id")
         .bind(&username)
         .bind(&hash)
         .fetch_one(pool)
         .await?;
-
-    if generated {
-        println!("\n==============================================");
-        println!("  Bootstrap: admin account created");
-        println!("  username: {username}");
-        println!("  password: {password}");
-        println!("  (shown only once; change it after login)");
-        println!("==============================================\n");
-    } else {
-        tracing::info!("bootstrap: admin account '{username}' created from env");
-    }
+    tracing::info!("bootstrap: admin account '{username}' created from env");
     Ok(Some(id))
 }
 
-fn random_password(len: usize) -> String {
-    const CHARS: &[u8] = b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let mut rng = rand::thread_rng();
-    (0..len)
-        .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
-        .collect()
-}

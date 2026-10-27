@@ -311,3 +311,50 @@ async fn a_missing_web_file_is_not_cached() {
     assert_eq!(get("/_app/immutable/nodes/0.new.js").await, (StatusCode::NOT_FOUND, "no-store".into()));
     assert_eq!(get("/books/1").await, (StatusCode::OK, "no-cache".into()));
 }
+
+#[tokio::test]
+async fn the_first_visitor_creates_the_admin_and_then_the_way_is_closed() {
+    let (app, db, _) = test_app().await;
+    let (_, config) = send(&app, Method::GET, "/api/auth/config", None, None).await;
+    assert_eq!(config["setup"], true);
+
+    // Too short a password or a bad name is refused, and nothing is made.
+    let (status, _) = send(&app, Method::POST, "/api/auth/setup", None, Some(json!({ "username": "ada", "password": "short" }))).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    let (status, _) = send(&app, Method::POST, "/api/auth/setup", None, Some(json!({ "username": "  ", "password": "long enough" }))).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // The first visitor becomes admin, in the language chosen, and is logged in.
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/auth/setup")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({ "username": "ada", "password": "long enough", "locale": "eo" }).to_string()))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let cookie = res.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap().split(';').next().unwrap().to_string();
+    let (_, me) = send(&app, Method::GET, "/api/auth/me", Some(&cookie), None).await;
+    assert_eq!((me["username"].clone(), me["is_admin"].clone(), me["locale"].clone()), (json!("ada"), json!(true), json!("eo")));
+    // The library begins with the manual.
+    let books: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM books").fetch_one(&db).await.unwrap();
+    assert!(books >= 1);
+
+    // From now on the way is closed.
+    let (_, config) = send(&app, Method::GET, "/api/auth/config", None, None).await;
+    assert_eq!(config["setup"], false);
+    let (status, _) = send(&app, Method::POST, "/api/auth/setup", None, Some(json!({ "username": "mallory", "password": "long enough" }))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let admins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetch_one(&db).await.unwrap();
+    assert_eq!(admins, 1);
+}
+
+#[tokio::test]
+async fn an_instance_with_accounts_has_no_setup() {
+    let (app, db, _) = test_app().await;
+    add_user(&db, "alice").await;
+    let (_, config) = send(&app, Method::GET, "/api/auth/config", None, None).await;
+    assert_eq!(config["setup"], false);
+    let (status, _) = send(&app, Method::POST, "/api/auth/setup", None, Some(json!({ "username": "bob", "password": "long enough" }))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}

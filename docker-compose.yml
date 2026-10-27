@@ -1,9 +1,8 @@
 # Legejo with SQLite (no database server needed):
 #
 #   docker compose up -d
-#   docker compose logs legejo | grep -A3 Bootstrap    # initial admin password
 #
-# Then open http://localhost:3000.
+# Then open http://localhost:3000 and create the admin account there.
 services:
   legejo:
     image: slurvdjur/legejo:1
@@ -15,8 +14,9 @@ services:
       - legejo-data:/data
       # - ./import:/import              # watched import folder, see LEGEJO_IMPORT_DIR
     environment:
-      LEGEJO_ADMIN_USER: admin
-      # LEGEJO_ADMIN_PASSWORD: change-me # otherwise generated and printed once
+      # The admin made at the first start, instead of in the browser:
+      # LEGEJO_ADMIN_USER: admin
+      # LEGEJO_ADMIN_PASSWORD: change-me
       # LEGEJO_PUBLIC_URL: https://books.example.org
       # Mail (needed for self-registration and password reset):
       # LEGEJO_SMTP_HOST: smtp.example.org

@@ -162,6 +162,8 @@ impl Oidc {
 #[derive(Serialize)]
 pub struct AuthConfig {
     oidc: Option<OidcInfo>,
+    /// No account yet: the first visitor creates the admin (setup.rs).
+    setup: bool,
 }
 
 #[derive(Serialize)]
@@ -170,7 +172,10 @@ struct OidcInfo {
 }
 
 pub async fn config(State(state): State<AppState>) -> Json<AuthConfig> {
-    Json(AuthConfig { oidc: state.oidc.as_ref().map(|o| OidcInfo { name: o.config.name.clone() }) })
+    Json(AuthConfig {
+        oidc: state.oidc.as_ref().map(|o| OidcInfo { name: o.config.name.clone() }),
+        setup: crate::setup::needed(&state).await,
+    })
 }
 
 fn random_hex(bytes: usize) -> String {
