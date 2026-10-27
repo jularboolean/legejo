@@ -96,7 +96,7 @@ async fn setup() -> (Client, AnyPool, String) {
 /// As setup, with LEGEJO_FULLTEXT set as given; also returns the state.
 async fn setup_with(fulltext: bool) -> (Client, AnyPool, String, crate::AppState) {
     let (_, db, mut state) = test_app().await;
-    state.settings = Arc::new(Settings { mcp: true, fulltext, ..Settings::default() });
+    state.settings = Arc::new(Settings { mcp: true, fulltext: Some(fulltext), ..Settings::default() });
     let app = crate::router(state.clone());
     let (_, cookie) = add_user(&db, "alice").await;
     let (status, v) = send(&app, Method::POST, "/api/account/app-passwords", Some(&cookie), Some(json!({ "name": "Assistant" }))).await;

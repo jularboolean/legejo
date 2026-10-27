@@ -272,7 +272,7 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_MAX_UPLOAD_MB` | `200` | Largest accepted upload |
 | `LEGEJO_LOG_FORMAT` | `text` | `json` for one JSON object per line. The level is set with `RUST_LOG` |
 | `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |
-| `LEGEJO_FULLTEXT` | `false` | `true` turns on searching inside the books. The text of the EPUBs is then kept in the database, once per text; started without it, the text is dropped |
+| `LEGEJO_FULLTEXT` | | Searching inside the books, also a switch on the Admin page. `true` or `false` here wins over the switch. While on, the text of the EPUBs is kept in the database, once per text; switched off, the text is dropped |
 | `LEGEJO_AI_API_KEY` | | Turns on the librarian. The key of the account that pays |
 | `LEGEJO_AI_BASE_URL` | `https://api.openai.com/v1` | The provider's chat API, for the librarian |
 | `LEGEJO_AI_MODEL` | `gpt-5.4-mini` | The model the librarian is |

@@ -274,8 +274,8 @@ kaj tajpu.</p>""",
 librojn sur bretoj, kiujn aliaj kunhavigas kun vi, kaj, sub <strong>Ĉe aliaj instancoj</strong>,
 librojn sur la bretoj el aliaj Legejo-instancoj, kiujn vi sekvas, ĉiu kun butono por aldoni ĝin al
 via biblioteko.</p>
-<p>Kie tiu, kiu funkciigas la instancon, agordis <code>LEGEJO_FULLTEXT=true</code>, marku <strong>Serĉi
-en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
+<p>Kie la administranto ŝaltis <strong>Serĉi en la teksto de la libroj</strong> en la paĝo
+Administrado, marku <strong>Serĉi en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
 la trafaj fragmentoj; elektu unu por malfermi la libron kun la serĉo en ĝi. Ĉiu vorto devas aperi,
 vorto trovas ankaŭ pli longajn vortojn, kiujn ĝi komencas, kaj vortoj inter citiloj devas stari unu
 post la alia. Ankaŭ libroj sur kunhavigitaj bretoj estas traserĉataj kaj citataj, sed legeblaj nur
@@ -789,7 +789,7 @@ ensaluti, sen ke io alia estas ĝenata. Via kutima pasvorto plu funkcias ĉie.</
   """<p>Ĉi tio estas servilo de Model Context Protocol, kaj ĝi povas nur legi. La asistanto povas
 serĉi en via biblioteko, rigardi libron, viajn bretojn kaj vian legadon, legi la enhavtabelon kaj
 la sekciojn de libro, serĉi ene de libro, kaj vidi la bretojn, kiujn aliaj kunhavigas kun vi. Kie
-la instanco konservas la tekston de la libroj (<code>LEGEJO_FULLTEXT</code>), ĝi povas ankaŭ
+la instanco konservas la tekston de la libroj (ŝaltilo en la paĝo Administrado), ĝi povas ankaŭ
 serĉi en la teksto de ĉiuj samtempe. Ĝi vidas vian
 bibliotekon kaj nenion alian, kaj la teksto de libro forlasas la servilon nur kiam la asistanto
 petas ĝin.</p>
@@ -859,7 +859,7 @@ kontrolita retpoŝtadreso.</p>"""),
  ("Elekti, kion la instanco proponas",
   "<p>Vi volas scii, kio povas esti ŝaltata kaj malŝaltata.</p>",
   """<p>En la paĝo Administrado: la serĉoj en Libris kaj Open Library, memregistriĝo, subteno de
-aŭdlibroj, serĉado de vortoj dum legado, katalogoj de aliaj bibliotekoj, markoj el Kobo-legiloj, la Kobo-vendejo apud
+aŭdlibroj, serĉado en la teksto de la libroj, serĉado de vortoj dum legado, katalogoj de aliaj bibliotekoj, markoj el Kobo-legiloj, la Kobo-vendejo apud
 Legejo, bretoj per privata ligilo, kaj federacio kun sia listo de permesitaj kaj blokitaj instancoj.
 La modelo de la bibliotekisto ankaŭ agordiĝas tie, kun sia API-adreso, modelo kaj ŝlosilo, kaj
 <strong>Testi</strong>, kiu demandas al ĝi unu mallongan demandon.</p>
@@ -924,7 +924,7 @@ funkcias. Ambaŭ manieroj estas notataj en la sistema protokolo (Recepto 12.5).<
 <tr><td><code>LEGEJO_IMPORT_DIR</code></td><td></td><td>Dosierujo observata por libroj</td></tr>
 <tr><td><code>LEGEJO_AUDIOBOOK_IMPORT_DIR</code></td><td></td><td>Dosierujo observata por aŭdlibroj</td></tr>
 <tr><td><code>LEGEJO_MCP</code></td><td><code>false</code></td><td>La servilo por AI-asistantoj</td></tr>
-<tr><td><code>LEGEJO_FULLTEXT</code></td><td><code>false</code></td><td>Serĉado ene de la libroj</td></tr>
+<tr><td><code>LEGEJO_FULLTEXT</code></td><td></td><td>Serĉado ene de la libroj; venkas super la ŝaltilo en la paĝo Administrado</td></tr>
 <tr><td><code>LEGEJO_SHELF_SUGGESTIONS</code></td><td>ŝaltita</td><td><code>off</code> kaŝas la proponitajn bretojn</td></tr>
 <tr><td><code>LEGEJO_AI_API_KEY</code></td><td></td><td>Ŝaltas la bibliotekiston</td></tr>
 <tr><td><code>LEGEJO_SMTP_HOST</code></td><td></td><td>Retpoŝta servilo; retpoŝto estas malŝaltita, se ĝi mankas</td></tr>

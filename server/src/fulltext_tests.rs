@@ -17,7 +17,7 @@ use serde_json::json;
 fn with_fulltext(state: &AppState, on: bool) -> (Router, AppState) {
     let mut state = state.clone();
     let mut settings = (*state.settings).clone();
-    settings.fulltext = on;
+    settings.fulltext = Some(on);
     state.settings = Arc::new(settings);
     (crate::router(state.clone()), state)
 }

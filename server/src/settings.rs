@@ -97,9 +97,11 @@ pub struct Settings {
     pub secure_cookies: bool,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
     pub mcp: bool,
-    /// Keep the text of the books for searching inside them (fulltext.rs).
-    /// Off unless LEGEJO_FULLTEXT=true: it takes room in the database.
-    pub fulltext: bool,
+    /// Keep the text of the books for searching inside them (fulltext.rs):
+    /// LEGEJO_FULLTEXT when it is set. None leaves it to the admin page
+    /// (live.rs), where it is off until switched on: it takes room in the
+    /// database.
+    pub fulltext: Option<bool>,
     /// Kobo's own services, reached for a device that keeps the Kobo store
     /// beside Legejo (kobostore.rs). Fixed; tests point them elsewhere.
     pub kobo: KoboServices,
@@ -179,7 +181,7 @@ impl Default for Settings {
             audio_import: None,
             secure_cookies: false,
             mcp: false,
-            fulltext: false,
+            fulltext: None,
             kobo: KoboServices::default(),
             dictionary: DictionaryServices::default(),
             shelf_suggestions: true,
@@ -225,7 +227,10 @@ impl Settings {
             None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
         };
         let mcp = flag("LEGEJO_MCP")?;
-        let fulltext = flag("LEGEJO_FULLTEXT")?;
+        let fulltext = match var("LEGEJO_FULLTEXT")? {
+            Some(_) => Some(flag("LEGEJO_FULLTEXT")?),
+            None => None,
+        };
         Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()? })
     }
 }

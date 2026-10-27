@@ -58,6 +58,10 @@ pub struct Settings {
     /// operator has turned it on (LEGEJO_FULLTEXT).
     #[serde(skip_serializing_if = "Option::is_none")]
     fulltext: Option<crate::fulltext::Status>,
+    /// The switch for search inside the books, and whether LEGEJO_FULLTEXT
+    /// sets it instead (then it cannot be changed here).
+    fulltext_enabled: bool,
+    fulltext_env: bool,
     /// The model behind the librarian and its use over the last 30 days;
     /// absent when the operator has set none up (LEGEJO_AI_API_KEY).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,6 +84,8 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
             .map_err(|e| internal(e.into()))?,
         mail_configured: state.live.mail().is_some(),
         // Only information: if it cannot be had, the settings still can.
+        fulltext_enabled: crate::fulltext::enabled(state),
+        fulltext_env: state.settings.fulltext.is_some(),
         fulltext: if crate::fulltext::enabled(state) {
             crate::fulltext::status(state).await.map_err(|e| tracing::warn!("full-text status: {e:#}")).ok()
         } else {
@@ -115,6 +121,8 @@ pub struct UpdateSettings {
     shelf_links_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     author_facts_enabled: Option<bool>,
+    /// Absent from older clients: unchanged. Ignored when LEGEJO_FULLTEXT is set.
+    fulltext_enabled: Option<bool>,
     registration_enabled: bool,
 }
 
@@ -166,6 +174,12 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let (Some(on), None) = (req.fulltext_enabled, state.settings.fulltext) {
+        set_setting(&state, "fulltext_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+        state.live.set_fulltext(on);
+    }
     set_setting(
         &state,
         "registration_enabled",
@@ -186,6 +200,7 @@ pub async fn update_settings(
             "kobo_store_enabled": req.kobo_store_enabled,
             "dictionary_enabled": req.dictionary_enabled,
             "shelf_links_enabled": req.shelf_links_enabled,
+            "fulltext_enabled": req.fulltext_enabled,
             "author_facts_enabled": req.author_facts_enabled,
             "registration_enabled": req.registration_enabled,
         }),

@@ -272,8 +272,8 @@ and type.</p>""",
 on shelves that others share with you, and, under <strong>On other instances</strong>, books on
 the shelves from other Legejo instances that you follow, each with a button to add it to your
 library.</p>
-<p>Where whoever runs the instance has set <code>LEGEJO_FULLTEXT=true</code>, tick <strong>Search
-inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
+<p>Where the admin has switched on <strong>Search inside the books</strong> on the Admin page,
+tick <strong>Search inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
 the passages that match; choose one to open the book with the search in it. Every word must occur, a
 word also finds longer words it begins, and words in double quotes must stand in a row. Books on
 shared shelves are searched too, and quoted, but are read only once you take them.</p>
@@ -781,7 +781,7 @@ without anything else being disturbed. Your normal password still works everywhe
   """<p>This is a Model Context Protocol server, and it is read-only. The assistant can search
 your library, look at a book, your shelves and your reading, read a book's table of contents and
 its sections, search inside a book, and see the shelves others share with you. Where the instance
-keeps the text of the books (<code>LEGEJO_FULLTEXT</code>), it can also search the text of them all
+keeps the text of the books (a switch on the Admin page), it can also search the text of them all
 at once. It sees your
 library and nothing else, and the text of a book only leaves the server when the assistant asks
 for it.</p>
@@ -852,7 +852,7 @@ verified email address.</p>"""),
  ("Choosing What the Instance Offers",
   "<p>You want to know what can be switched on and off.</p>",
   """<p>On the Admin page: the Libris and Open Library lookups, self-registration, audiobook
-support, looking words up while reading, catalogs of other libraries, highlights from Kobo
+support, searching inside the books, looking words up while reading, catalogs of other libraries, highlights from Kobo
 e-readers, the Kobo store beside Legejo, shelves by private link, and federation with its list of allowed and blocked instances.
 The librarian's model is set up there too, with its API address, model and key, and a
 <strong>Test</strong> that asks it one short question.</p>
@@ -916,7 +916,7 @@ Both ways are noted in the system log (Recipe 12.5).</p>"""),
 <tr><td><code>LEGEJO_IMPORT_DIR</code></td><td></td><td>Folder watched for books</td></tr>
 <tr><td><code>LEGEJO_AUDIOBOOK_IMPORT_DIR</code></td><td></td><td>Folder watched for audiobooks</td></tr>
 <tr><td><code>LEGEJO_MCP</code></td><td><code>false</code></td><td>The server for AI assistants</td></tr>
-<tr><td><code>LEGEJO_FULLTEXT</code></td><td><code>false</code></td><td>Searching inside the books</td></tr>
+<tr><td><code>LEGEJO_FULLTEXT</code></td><td></td><td>Searching inside the books; wins over the switch on the Admin page</td></tr>
 <tr><td><code>LEGEJO_SHELF_SUGGESTIONS</code></td><td>on</td><td><code>off</code> hides the suggested shelves</td></tr>
 <tr><td><code>LEGEJO_AI_API_KEY</code></td><td></td><td>Turns on the librarian</td></tr>
 <tr><td><code>LEGEJO_SMTP_HOST</code></td><td></td><td>Mail server; mail is off when unset</td></tr>

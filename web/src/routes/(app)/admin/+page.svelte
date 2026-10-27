@@ -34,6 +34,7 @@
 	let whatsNewOpen = $state(false);
 	let shelfLinksEnabled = $state(data.settings.shelf_links_enabled ?? false);
 	let authorFactsEnabled = $state(data.settings.author_facts_enabled ?? false);
+	let fulltextEnabled = $state(data.settings.fulltext_enabled ?? false);
 	let registrationEnabled = $state(data.settings.registration_enabled);
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
@@ -76,6 +77,7 @@
 					dictionary_enabled: dictionaryEnabled,
 					shelf_links_enabled: shelfLinksEnabled,
 					author_facts_enabled: authorFactsEnabled,
+					fulltext_enabled: data.settings.fulltext_env ? undefined : fulltextEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
@@ -93,6 +95,7 @@
 				dictionary_enabled?: boolean;
 				shelf_links_enabled?: boolean;
 				author_facts_enabled?: boolean;
+				fulltext_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
 			audiobooksEnabled = settings.audiobooks_enabled;
@@ -102,6 +105,7 @@
 			dictionaryEnabled = settings.dictionary_enabled ?? false;
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			authorFactsEnabled = settings.author_facts_enabled ?? false;
+			fulltextEnabled = settings.fulltext_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
 			registrationEnabled = settings.registration_enabled;
@@ -167,6 +171,12 @@
 		const previous = authorFactsEnabled;
 		authorFactsEnabled = enabled;
 		if (!(await saveSettings())) authorFactsEnabled = previous;
+	}
+
+	async function toggleFulltext(enabled: boolean) {
+		const previous = fulltextEnabled;
+		fulltextEnabled = enabled;
+		if (!(await saveSettings())) fulltextEnabled = previous;
 	}
 
 	async function toggleRegistration(enabled: boolean) {
@@ -260,19 +270,28 @@
 		{t('admin.dictionaryToggle')}
 	</label>
 	<p class="hint">{t('admin.dictionaryHint')}</p>
-	<p class="fulltext">
-		<strong>{t('admin.fulltextToggle')}:</strong>
-		{#if data.settings.fulltext}
-			{@const ft = data.settings.fulltext}
-			{t('admin.fulltextOn', {
+	{#if data.settings.fulltext_env}
+		<p class="fulltext">
+			<strong>{t('admin.fulltextToggle')}:</strong>
+			{data.settings.fulltext_enabled ? t('admin.fulltextIsOn') : t('admin.fulltextOff')}
+		</p>
+		<p class="hint">{t('conn.fromEnv', { name: 'LEGEJO_FULLTEXT' })}</p>
+	{:else}
+		<label class="toggle">
+			<input type="checkbox" checked={fulltextEnabled} disabled={saving} onchange={(e) => toggleFulltext(e.currentTarget.checked)} />
+			{t('admin.fulltextToggle')}
+		</label>
+	{/if}
+	{#if data.settings.fulltext}
+		{@const ft = data.settings.fulltext}
+		<p class="hint">
+			{t('admin.fulltextProgress', {
 				books: ft.books,
 				pending: ft.pending,
 				size: (ft.bytes / 1_000_000).toLocaleString(getLocale(), { maximumFractionDigits: 1 })
 			})}
-		{:else}
-			{t('admin.fulltextOff')}
-		{/if}
-	</p>
+		</p>
+	{/if}
 	<p class="hint">{t('admin.fulltextHint')}</p>
 </section>
 

@@ -41,8 +41,9 @@ fn internal(e: impl std::fmt::Display) -> Response {
 }
 
 /// Whether the operator has turned the search inside the books on.
+/// LEGEJO_FULLTEXT when set, else the admin page's switch.
 pub fn enabled(state: &AppState) -> bool {
-    state.settings.fulltext
+    state.settings.fulltext.unwrap_or_else(|| state.live.fulltext())
 }
 
 /// How far the index has come, for the admin page.

@@ -139,3 +139,29 @@ async fn the_public_address_is_checked_against_this_instance() {
     let (_, f) = send(&app, Method::GET, "/api/admin/federation", Some(&cookie), None).await;
     assert_eq!(f["public_url"], "https://books.example.org");
 }
+
+#[tokio::test]
+async fn search_inside_the_books_is_switched_on_the_admin_page() {
+    let (app, db, state) = test_app().await;
+    let cookie = admin(&db).await;
+    let (_, s) = send(&app, Method::GET, "/api/admin/settings", Some(&cookie), None).await;
+    assert_eq!((s["fulltext_enabled"].clone(), s["fulltext_env"].clone()), (json!(false), json!(false)));
+    let body = |on: bool| json!({ "libris_enabled": false, "registration_enabled": false, "fulltext_enabled": on });
+    let (_, s) = send(&app, Method::PUT, "/api/admin/settings", Some(&cookie), Some(body(true))).await;
+    assert_eq!(s["fulltext_enabled"], true);
+    assert!(crate::fulltext::enabled(&state), "on at once");
+    // Kept for the next start.
+    let again = crate::live::Live::load(&db).await.unwrap();
+    assert!(again.fulltext());
+
+    // LEGEJO_FULLTEXT set wins, and the switch does nothing.
+    let mut settings = (*state.settings).clone();
+    settings.fulltext = Some(false);
+    let mut locked = state.clone();
+    locked.settings = std::sync::Arc::new(settings);
+    let app = crate::router(locked.clone());
+    let (_, s) = send(&app, Method::GET, "/api/admin/settings", Some(&cookie), None).await;
+    assert_eq!((s["fulltext_enabled"].clone(), s["fulltext_env"].clone()), (json!(false), json!(true)));
+    send(&app, Method::PUT, "/api/admin/settings", Some(&cookie), Some(body(true))).await;
+    assert!(!crate::fulltext::enabled(&locked));
+}
