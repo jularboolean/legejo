@@ -4,6 +4,32 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.33.0 (2026-10-27)
+
+- **A new Legejo is set up in the browser.** The first visitor of a new
+  instance is asked to create the admin account, in the language they
+  choose, and lands in the library with the manual on the first shelf. No
+  password to find in the log. `LEGEJO_ADMIN_PASSWORD` still makes the
+  account at the start, for an instance that is on the internet from the
+  first minute.
+- **Mail, the public address and the librarian on the Admin page.** Each can
+  be set up there and tried before it is saved: a test mail, a check that
+  the address leads to this instance, one short question to the model. What
+  is saved is used at once, federation included. Search inside the books is
+  a switch there too.
+- **Environment variables keep working, and win.** An instance that sets
+  mail, the librarian, the public address or search inside the books with
+  environment variables runs as before; the Admin page shows those settings
+  and cannot change them. To move one to the Admin page, remove the variable
+  and fill it in there.
+- **Book files in an S3 bucket.** With `LEGEJO_STORAGE=s3://bucket/prefix`
+  and the usual `AWS_*` variables, book files, covers, audiobooks, avatars
+  and exports are kept in a bucket such as Cloudflare R2, and `/data` is
+  only a cache. With PostgreSQL, Legejo then runs on hosts without a lasting
+  disk. `legejo storage migrate` moves an existing library there.
+- **Downloading a book no longer starts the page indicator,** which went on
+  and after a while said the connection seemed slow.
+
 ## 1.32.1 (2026-10-27)
 
 - **The filters reach Format on a phone.** The filter panel ran on below

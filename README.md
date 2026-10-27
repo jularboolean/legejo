@@ -25,7 +25,8 @@ is built around EPUB; PDF files and comics (CBZ) are read in the browser too,
 and kept in the same library and handed to your devices as they are. Audiobooks can live there too: each one
 becomes a private podcast feed for the podcast app you already use.
 
-It runs as a single container with SQLite or PostgreSQL and is built with Rust
+It runs as a single container with SQLite or PostgreSQL, with the book files
+on a volume or in an S3 bucket such as Cloudflare R2, and is built with Rust
 (Axum) and SvelteKit.
 
 <p>
@@ -38,7 +39,7 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
 - [Why Legejo?](#why-legejo)
 - [Why not?](#why-not)
 - [Features](#features): [Library](#library) · [Shelves to share](#shelves-to-share) · [Reading](#reading) · [Audiobooks](#audiobooks-optional) · [LibrAIrian](#the-librairian-optional) · [Catalogs](#catalogs-of-other-libraries-optional) · [Federation](#federation) · [Accounts](#accounts-and-administration) · [Self-hosting](#for-self-hosters)
-- [Running Legejo with Docker](#running-legejo-with-docker) · [Platforms](#coolify-dokploy-and-similar-platforms) · [Configuration](#configuration)
+- [Running Legejo with Docker](#running-legejo-with-docker) · [Platforms](#coolify-dokploy-and-similar-platforms) · [S3 or R2](#book-files-in-s3-or-r2) · [Configuration](#configuration)
 - [Building from source](#building-from-source)
 - [Built with](#built-with)
 - [License](#license)
@@ -50,8 +51,11 @@ It runs as a single container with SQLite or PostgreSQL and is built with Rust
   for performance, and it feels instant.
 - **Light.** One small container and no runtime to tune. A running instance idles
   at around 30 MB of memory, so it is at home on a Raspberry Pi or the smallest VPS.
-- **Easy to self-host.** `docker compose up` and you are done: SQLite is built in
-  and needs no configuration. PostgreSQL is there if you want it.
+- **Easy to self-host.** `docker compose up`, open the page and create your
+  account there: SQLite is built in and needs no configuration, and mail, the
+  public address and the librarian are set up on the Admin page, each with a
+  test. PostgreSQL and an S3 bucket for the book files are there if you want
+  them, for hosts without a lasting disk.
 - **Made for e-readers.** Kobo sync, KOReader sync and OPDS are core features, not
   plugins, and your reading position follows you between them.
 - **One library.** EPUB is what Legejo reads, mends and converts. PDF files and
@@ -182,8 +186,11 @@ picture and a description of its own, and you decide how far it reaches.
 - A choice of design for each device: light, dark, following the system, or Zamenhof, in the browns of an old textbook with the green star of Esperanto. Animations can be turned on.
 
 ### For self-hosters
+- The first visitor of a new instance creates the admin account in the browser, in their language; no password to find in a log.
+- Mail, the public address, the librarian's model and search inside the books are set up on the Admin page, each tried with a button before it is saved. Environment variables still work, and win.
 - A new instance begins with one book in its library: *The Legejo Cookbook*, the user manual, in the public domain. Delete it when you no longer need it.
 - SQLite with zero configuration, or PostgreSQL.
+- Book files, covers and audiobooks on a volume, or in an S3 bucket (Cloudflare R2, AWS, MinIO and others), with `legejo storage migrate` to move them there.
 - A watched import folder for EPUB, PDF and CBZ files.
 - Prometheus metrics, JSON logs, throttling of password guessing, and secrets from files.
 
