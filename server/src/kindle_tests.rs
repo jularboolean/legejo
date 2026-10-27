@@ -60,9 +60,9 @@ pub(crate) async fn mail_sink_many(count: usize) -> (u16, tokio::task::JoinHandl
 
 #[tokio::test]
 async fn a_book_is_mailed_to_the_kindle() {
-    let (_, db, mut state) = test_app().await;
+    let (_, db, state) = test_app().await;
     let (port, sink) = mail_sink().await;
-    state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <books@legejo.test>"));
+    state.live.set_mail(Some(crate::mail::MailConfig::local(port, "Legejo <books@legejo.test>")));
     let app = crate::router(state.clone());
     let (alice, a) = add_user(&db, "alice").await;
     let (_, b) = add_user(&db, "bob").await;

@@ -5,6 +5,7 @@
 	import Tabs from '#lib/Tabs.svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { isNewer, latestRelease, type Release } from '#lib/version';
+	import Connections from './Connections.svelte';
 	import Federation from './Federation.svelte';
 	import Users from './Users.svelte';
 	import type { PageData } from './$types';
@@ -37,9 +38,6 @@
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
 	let errorMsg = $state('');
-	let testTo = $state('');
-	let testMsg = $state('');
-	let testError = $state('');
 
 	// Is there a newer Legejo? Asked of GitHub from this browser, on request.
 	let versionState = $state<'idle' | 'checking' | 'latest' | 'newer' | 'failed'>('idle');
@@ -175,26 +173,6 @@
 		const previous = registrationEnabled;
 		registrationEnabled = enabled;
 		if (!(await saveSettings())) registrationEnabled = previous;
-	}
-
-	async function sendTest() {
-		testMsg = '';
-		testError = '';
-		try {
-			const res = await fetch('/api/admin/test-mail', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ to: testTo })
-			});
-			if (res.ok) {
-				testMsg = t('admin.testSent');
-			} else {
-				const body = await res.json().catch(() => null);
-				testError = body?.error ?? t('edit.saveFailed');
-			}
-		} catch {
-			testError = t('common.network');
-		}
 	}
 </script>
 
@@ -337,33 +315,9 @@
 	{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 </section>
 
-{#if data.settings.librarian}
-	{@const ai = data.settings.librarian}
-	<section>
-		<h2>{t('librarian.heading')}</h2>
-		<p class="hint">{t('admin.librarianHint', { model: ai.model, endpoint: ai.endpoint })}</p>
-		<p class="hint">
-			{t('admin.librarianUse', { questions: ai.questions, input: ai.prompt_tokens, output: ai.completion_tokens })}
-		</p>
-	</section>
+{#if data.connections}
+	<Connections connections={data.connections} usage={data.settings.librarian ?? null} />
 {/if}
-
-<section>
-	<h2>{t('admin.mail')}</h2>
-	<p class="hint">
-		{mailConfigured ? t('admin.mailConfigured') : t('admin.mailNotConfigured')}
-	</p>
-	{#if mailConfigured}
-		<div class="mailtest">
-			<input bind:value={testTo} type="email" placeholder={t('admin.testTo')} />
-			<button type="button" class="ghost" onclick={sendTest} disabled={!testTo.trim()}>
-				{t('admin.testSend')}
-			</button>
-		</div>
-		{#if testMsg}<p class="ok">{testMsg}</p>{/if}
-		{#if testError}<p class="error">{testError}</p>{/if}
-	{/if}
-</section>
 
 <section>
 	<h2>{t('admin.version')}</h2>

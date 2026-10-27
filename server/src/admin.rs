@@ -78,7 +78,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
-        mail_configured: state.mail.is_some(),
+        mail_configured: state.live.mail().is_some(),
         // Only information: if it cannot be had, the settings still can.
         fulltext: if crate::fulltext::enabled(state) {
             crate::fulltext::status(state).await.map_err(|e| tracing::warn!("full-text status: {e:#}")).ok()
@@ -192,34 +192,6 @@ pub async fn update_settings(
     )
     .await;
     current_settings(&state).await
-}
-
-#[derive(Deserialize)]
-pub struct TestMail {
-    to: String,
-}
-
-/// Lets the admin prove the mail settings work before enabling registration.
-pub async fn test_mail(
-    State(state): State<AppState>,
-    _admin: AdminUser,
-    Json(req): Json<TestMail>,
-) -> Result<StatusCode, Response> {
-    crate::register::send_mail(
-        &state,
-        req.to.trim(),
-        "Legejo test mail",
-        "<p>The mail settings work. Greetings from Legejo!</p>",
-    )
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::BAD_GATEWAY,
-            Json(serde_json::json!({ "error": format!("{e}") })),
-        )
-            .into_response()
-    })?;
-    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -376,9 +348,9 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         .await
         .map_err(|e| internal(e.into()))?
         .flatten();
-    let librarian = state.settings.ai.is_some() && crate::librarian::turned_on(&state, user.0.id).await;
+    let librarian = state.live.ai().is_some() && crate::librarian::turned_on(&state, user.0.id).await;
     Ok(Json(Config {
-        send_to_kindle: state.mail.is_some() && kindle.is_some(),
+        send_to_kindle: state.live.mail().is_some() && kindle.is_some(),
         librarian,
         catalogs: crate::catalogs::allowed(&state, user.0.id).await,
         catalogs_available: crate::catalogs::enabled(&state).await,

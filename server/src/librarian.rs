@@ -297,7 +297,7 @@ pub async fn ask(
     user: AuthUser,
     Json(req): Json<Question>,
 ) -> Result<Json<Answer>, Response> {
-    let Some(ai) = state.settings.ai.as_ref() else {
+    let Some(ai) = state.live.ai() else {
         return Err(fail(StatusCode::NOT_FOUND, "off"));
     };
     let question: String = req.question.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_QUESTION_CHARS).collect();
@@ -376,14 +376,14 @@ pub async fn ask(
     let answers = if known.len() <= CLOSE_READING_MAX {
         // Read closely from end to end.
         let parts = lines.chunks(PART).map(|part| format!("CATALOGUE\n{}", part.join("\n"))).collect();
-        ask_parts(&state, ai, INSTRUCTIONS, parts, &question, &mut used).await
+        ask_parts(&state, &ai, INSTRUCTIONS, parts, &question, &mut used).await
     } else {
         // Too many for that: a quick pass by title, author and shelves, and
         // a close reading of what it turns up.
         let mut briefs: Vec<String> = books.iter().map(|b| brief(b, &of(&shelves, b.id), &of(&tags, b.id), None)).collect();
         briefs.extend(shared.iter().map(|h| brief(&h.book, &[], &[], Some(&format!("not the user's own: on the shared shelf {}", h.shelf_name)))));
         let parts = briefs.chunks(QUICK_PART).map(|part| format!("CATALOGUE\n{}", part.join("\n"))).collect();
-        ask_parts(&state, ai, QUICK_PASS, parts, &question, &mut used).await
+        ask_parts(&state, &ai, QUICK_PASS, parts, &question, &mut used).await
     };
     let per_part = if known.len() <= CLOSE_READING_MAX { PER_PART } else { MAX_CANDIDATES };
     let (mut prompt_tokens, mut completion_tokens, failed) = (used.prompt_tokens, used.completion_tokens, used.failed);
@@ -397,7 +397,7 @@ pub async fn ask(
     let mut picked = candidates.clone();
     if candidates.len() > 1 {
         let list: Vec<&str> = candidates.iter().filter_map(|id| line_of.get(id).map(|l| l.as_str())).collect();
-        match ask_model(&state, ai, SECOND_LOOK, &format!("CANDIDATES\n{}", list.join("\n")), &question).await {
+        match ask_model(&state, &ai, SECOND_LOOK, &format!("CANDIDATES\n{}", list.join("\n")), &question).await {
             Ok(reply) => {
                 prompt_tokens += reply.prompt_tokens;
                 completion_tokens += reply.completion_tokens;
@@ -454,7 +454,7 @@ pub struct Summary {
 }
 
 pub async fn summary(state: &AppState) -> Option<Summary> {
-    let ai = state.settings.ai.as_ref()?;
+    let ai = state.live.ai()?;
     let (questions, prompt_tokens, completion_tokens): (i64, i64, i64) = sqlx::query_as(
         "SELECT COUNT(*), CAST(COALESCE(SUM(prompt_tokens), 0) AS BIGINT), CAST(COALESCE(SUM(completion_tokens), 0) AS BIGINT)
          FROM ai_usage WHERE at > $1",

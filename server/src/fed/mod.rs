@@ -29,7 +29,7 @@ use std::sync::{Arc, Mutex};
 pub const AS_PUBLIC: &str = "https://www.w3.org/ns/activitystreams#Public";
 pub const AP_JSON: &str = "application/activity+json";
 
-/// Where this instance lives on the web, from LEGEJO_PUBLIC_URL.
+/// Where this instance lives on the web, from its public address.
 #[derive(Clone, Debug)]
 pub struct FedConfig {
     /// "https://a.example", no trailing slash.
@@ -43,13 +43,14 @@ pub struct FedConfig {
 }
 
 impl FedConfig {
-    pub fn from_env() -> Option<FedConfig> {
-        let raw = crate::settings::var_lossy("LEGEJO_PUBLIC_URL")?;
+    /// From the public address (the environment's or the admin page's).
+    pub fn from_url(raw: Option<String>) -> Option<FedConfig> {
+        let raw = raw?;
         let base = raw.trim().trim_end_matches('/').to_string();
         let allow_private = crate::settings::var_lossy("LEGEJO_FED_ALLOW_PRIVATE").is_some_and(|v| v == "1");
         let url = reqwest::Url::parse(&base).ok()?;
         if url.scheme() != "https" && !allow_private {
-            tracing::warn!("LEGEJO_PUBLIC_URL must be https; federation unavailable");
+            tracing::warn!("the public address must be https; federation unavailable");
             return None;
         }
         let host = match url.port() {

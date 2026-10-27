@@ -30,9 +30,9 @@ fn token_in(message: &str) -> String {
 
 #[tokio::test]
 async fn a_new_address_is_used_once_the_link_sent_to_it_is_opened() {
-    let (_, db, mut state) = test_app().await;
+    let (_, db, state) = test_app().await;
     let (port, sink) = crate::kindle_tests::mail_sink_many(2).await;
-    state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+    state.live.set_mail(Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>")));
     let app = crate::router(state);
     let (alice, cookie) = add_user(&db, "alice").await;
     with_password(&db, alice).await;

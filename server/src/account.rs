@@ -63,9 +63,9 @@ async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Respon
         .fetch_one(&state.db)
         .await
         .map_err(|e| internal(e.into()))?;
-    account.mail_from = state.mail.as_ref().and_then(|m| m.from_address());
-    account.mail_configured = state.mail.is_some();
-    account.librarian_available = state.settings.ai.is_some();
+    account.mail_from = state.live.mail().as_ref().and_then(|m| m.from_address());
+    account.mail_configured = state.live.mail().is_some();
+    account.librarian_available = state.live.ai().is_some();
     account.fediverse_available = crate::fed::active(state).await.is_some();
     account.catalogs_available = crate::catalogs::enabled(state).await;
     Ok(account)
@@ -321,7 +321,7 @@ async fn change_email(
     if taken > 0 {
         return Err((StatusCode::CONFLICT, Json(serde_json::json!({ "error": "that email is in use" }))).into_response());
     }
-    if state.mail.is_none() {
+    if state.live.mail().is_none() {
         if state.oidc.is_some() {
             return Err(unprocessable("email cannot be confirmed without mail"));
         }

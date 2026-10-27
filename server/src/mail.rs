@@ -17,6 +17,7 @@ pub struct MailConfig {
     pub from: String,
     host: String,
     port: u16,
+    user: Option<String>,
     credentials: Option<Credentials>,
     tls: Tls,
 }
@@ -28,7 +29,8 @@ enum Tls {
     None,
 }
 
-/// Read the configuration once at startup; None means mail is off.
+/// The configuration from the environment; None when LEGEJO_SMTP_HOST is
+/// unset (an admin may then set mail up in the browser, live.rs).
 pub fn from_env() -> anyhow::Result<Option<MailConfig>> {
     use crate::settings::var;
     let Some(host) = var("LEGEJO_SMTP_HOST")? else {
@@ -38,23 +40,48 @@ pub fn from_env() -> anyhow::Result<Option<MailConfig>> {
         .ok_or_else(|| anyhow::anyhow!("LEGEJO_SMTP_HOST is set but LEGEJO_MAIL_FROM is missing"))?;
     let port: u16 = var("LEGEJO_SMTP_PORT")?.and_then(|p| p.parse().ok()).unwrap_or(587);
     // The password may also come from a file (LEGEJO_SMTP_PASSWORD_FILE).
-    let credentials = match var("LEGEJO_SMTP_USER")? {
-        Some(user) => Some(Credentials::new(user, var("LEGEJO_SMTP_PASSWORD")?.unwrap_or_default())),
-        None => None,
-    };
-    let tls = match var("LEGEJO_SMTP_TLS")?.as_deref() {
-        Some("tls") => Tls::Tls,
-        Some("none") => Tls::None,
-        _ => Tls::StartTls,
-    };
-    Ok(Some(MailConfig { from, host, port, credentials, tls }))
+    let user = var("LEGEJO_SMTP_USER")?;
+    let password = var("LEGEJO_SMTP_PASSWORD")?.unwrap_or_default();
+    Ok(Some(MailConfig::new(host, port, user, password, var("LEGEJO_SMTP_TLS")?.as_deref().unwrap_or(""), from)))
 }
 
 impl MailConfig {
+    /// `tls` is "tls", "none" (tests only) or anything else for STARTTLS.
+    pub fn new(host: String, port: u16, user: Option<String>, password: String, tls: &str, from: String) -> Self {
+        let user = user.filter(|u| !u.is_empty());
+        let credentials = user.clone().map(|u| Credentials::new(u, password));
+        let tls = match tls {
+            "tls" => Tls::Tls,
+            "none" => Tls::None,
+            _ => Tls::StartTls,
+        };
+        MailConfig { from, host, port, user, credentials, tls }
+    }
+
+    pub fn user(&self) -> Option<&str> {
+        self.user.as_deref()
+    }
+
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    pub fn tls_name(&self) -> &'static str {
+        match self.tls {
+            Tls::StartTls => "starttls",
+            Tls::Tls => "tls",
+            Tls::None => "none",
+        }
+    }
+
     /// An unencrypted server on this machine, without credentials.
     #[cfg(test)]
     pub fn local(port: u16, from: &str) -> Self {
-        MailConfig { from: from.into(), host: "127.0.0.1".into(), port, credentials: None, tls: Tls::None }
+        MailConfig { from: from.into(), host: "127.0.0.1".into(), port, user: None, credentials: None, tls: Tls::None }
     }
 
     /// The bare address mail is sent from, without the display name.

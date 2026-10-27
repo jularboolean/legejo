@@ -32,6 +32,7 @@ mod invite;
 mod kobo;
 mod kosync;
 mod libris;
+mod live;
 mod license;
 mod mail;
 mod opds;
@@ -75,6 +76,8 @@ mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
 mod kobospan;
+#[cfg(test)]
+mod connections_tests;
 mod esperanto;
 mod dictionary;
 #[cfg(test)]
@@ -116,9 +119,9 @@ pub struct AppState {
     pub kepubify: Option<PathBuf>,
     /// Shared client for outgoing requests (Libris lookups).
     pub http: reqwest::Client,
-    /// SMTP settings from the environment; None = mail (and thereby
-    /// registration) is unavailable.
-    pub mail: Option<mail::MailConfig>,
+    /// Mail, the librarian's model and the public address: from the
+    /// environment or set by an admin in the browser (live.rs).
+    pub live: std::sync::Arc<live::Live>,
     /// Limits concurrent cover decoding for thumbnails (memory).
     pub thumb_gate: std::sync::Arc<tokio::sync::Semaphore>,
     /// Federation: config, SSRF-safe client, worker wake-up.
@@ -176,12 +179,19 @@ fn router(state: AppState) -> Router {
         .route("/auth/me", get(auth::me))
         .route("/config", get(admin::config))
         .route("/admin/settings", get(admin::get_settings).put(admin::update_settings))
+        .route("/admin/connections", get(live::get))
+        .route("/admin/connections/mail", axum::routing::put(live::put_mail))
+        .route("/admin/connections/mail/test", post(live::test_mail))
+        .route("/admin/connections/librarian", axum::routing::put(live::put_librarian))
+        .route("/admin/connections/librarian/test", post(live::test_librarian))
+        .route("/admin/connections/public-url", axum::routing::put(live::put_public_url))
+        .route("/admin/connections/public-url/test", post(live::test_public_url))
+        .route("/instance", get(live::instance))
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))
         .route("/admin/users/{id}", axum::routing::delete(admin::delete_user))
         .route("/admin/users/{id}/admin", axum::routing::put(admin::set_admin))
         .route("/admin/users/{id}/reset", post(register::admin_reset))
-        .route("/admin/test-mail", post(admin::test_mail))
         .route("/admin/invites", post(invite::create))
         .route("/admin/invites/{id}", axum::routing::delete(invite::withdraw))
         .route("/admin/invites/{id}/renew", post(invite::renew))
@@ -438,13 +448,19 @@ async fn main() -> anyhow::Result<()> {
         Some("json") => tracing_subscriber::fmt().json().with_env_filter(filter).init(),
         _ => tracing_subscriber::fmt().with_ansi(ansi).with_env_filter(filter).init(),
     }
-    let settings = std::sync::Arc::new(settings::Settings::from_env()?);
+    let mut settings = settings::Settings::from_env()?;
 
     let data_dir = PathBuf::from(settings::var("LEGEJO_DATA_DIR")?.unwrap_or_else(|| "data".into()));
     std::fs::create_dir_all(&data_dir)?;
 
     let (db, backend) = db::connect(&data_dir).await?;
     let first_admin = db::bootstrap_admin(&db).await?;
+    // Mail, the librarian and the public address: the environment, else the admin page.
+    let live = std::sync::Arc::new(live::Live::load(&db).await?);
+    if settings::var("LEGEJO_SECURE_COOKIES")?.is_none() {
+        settings.secure_cookies = live.public_url().is_some_and(|u| u.starts_with("https://"));
+    }
+    let settings = std::sync::Arc::new(settings);
 
     let kepubify = find_kepubify();
     match &kepubify {
@@ -455,16 +471,16 @@ async fn main() -> anyhow::Result<()> {
         .user_agent(concat!("Legejo/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
-    let mail = mail::from_env()?;
-    match &mail {
-        Some(_) => tracing::info!("mail configured (LEGEJO_SMTP_HOST)"),
-        None => tracing::info!("mail not configured; self-registration unavailable"),
+    match live.mail() {
+        Some(_) => tracing::info!("mail configured"),
+        None => tracing::info!("mail not configured (admin page or LEGEJO_SMTP_HOST); self-registration unavailable"),
     }
     let thumb_gate = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
-    let fed_config = fed::FedConfig::from_env();
+    // The public address names the instance in the fediverse: taken at the start.
+    let fed_config = fed::FedConfig::from_url(live.public_url());
     match &fed_config {
         Some(c) => tracing::info!("federation possible as {} (admin setting decides)", c.base),
-        None => tracing::info!("LEGEJO_PUBLIC_URL unset; federation unavailable"),
+        None => tracing::info!("no public address; federation unavailable"),
     }
     let fed = fed::Fed::new(fed_config)?;
     let export_wake = std::sync::Arc::new(tokio::sync::Notify::new());
@@ -486,7 +502,7 @@ async fn main() -> anyhow::Result<()> {
     if settings.metrics != settings::Metrics::Off {
         tracing::info!("metrics at /metrics ({})", if matches!(settings.metrics, settings::Metrics::Token(_)) { "bearer token" } else { "open" });
     }
-    let state = AppState { db, backend, data_dir, kepubify, http, mail, thumb_gate, fed, export_wake, oidc, settings };
+    let state = AppState { db, backend, data_dir, kepubify, http, live, thumb_gate, fed, export_wake, oidc, settings };
     tokio::spawn(books::backfill_thumbs(state.clone()));
     tokio::spawn(books::backfill_sha256(state.clone()));
     tokio::spawn(books::backfill_health(state.clone()));

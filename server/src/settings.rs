@@ -100,9 +100,6 @@ pub struct Settings {
     /// Keep the text of the books for searching inside them (fulltext.rs).
     /// Off unless LEGEJO_FULLTEXT=true: it takes room in the database.
     pub fulltext: bool,
-    /// The language model behind the librarian (librarian.rs). None unless
-    /// LEGEJO_AI_API_KEY is set.
-    pub ai: Option<Ai>,
     /// Kobo's own services, reached for a device that keeps the Kobo store
     /// beside Legejo (kobostore.rs). Fixed; tests point them elsewhere.
     pub kobo: KoboServices,
@@ -183,7 +180,6 @@ impl Default for Settings {
             secure_cookies: false,
             mcp: false,
             fulltext: false,
-            ai: None,
             kobo: KoboServices::default(),
             dictionary: DictionaryServices::default(),
             shelf_suggestions: true,
@@ -230,18 +226,24 @@ impl Settings {
         };
         let mcp = flag("LEGEJO_MCP")?;
         let fulltext = flag("LEGEJO_FULLTEXT")?;
-        let ai = match var("LEGEJO_AI_API_KEY")? {
-            None => None,
-            Some(key) => Some(Ai {
-                key: key.trim().to_string(),
-                base_url: var("LEGEJO_AI_BASE_URL")?
-                    .map(|u| u.trim().trim_end_matches('/').to_string())
-                    .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
-                model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
-            }),
-        };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, ai, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()? })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()? })
     }
+}
+
+/// The language model behind the librarian from the environment; None
+/// unless LEGEJO_AI_API_KEY is set (an admin may then set it up in the
+/// browser, live.rs).
+pub fn ai_from_env() -> anyhow::Result<Option<Ai>> {
+    let Some(key) = var("LEGEJO_AI_API_KEY")? else {
+        return Ok(None);
+    };
+    Ok(Some(Ai {
+        key: key.trim().to_string(),
+        base_url: var("LEGEJO_AI_BASE_URL")?
+            .map(|u| u.trim().trim_end_matches('/').to_string())
+            .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
+        model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
+    }))
 }
 
 /// LEGEJO_SHELF_SUGGESTIONS: on unless "off" (or "false", "0", "no").

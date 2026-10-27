@@ -842,7 +842,7 @@ async fn build(state: &AppState, id: i64, user_id: i64, me: &str) -> anyhow::Res
 async fn notify(state: &AppState, user_id: i64, username: &str) {
     let email: Option<String> =
         sqlx::query_scalar("SELECT email FROM users WHERE id = $1").bind(user_id).fetch_optional(&state.db).await.ok().flatten();
-    let (Some(email), Some(_)) = (email, &state.mail) else { return };
+    let (Some(email), Some(_)) = (email, &state.live.mail()) else { return };
     let link = match &state.fed.config {
         Some(c) => format!("{}/account", c.base),
         None => "/account".into(),

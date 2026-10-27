@@ -88,8 +88,11 @@ PostgreSQL.</p>"""),
 
  ("Meti Legejon en la interreton",
   "<p>Vi volas atingi la bibliotekon ekster via hejmo kaj konekti legilon al ĝi.</p>",
-  """<p>Metu Legejon malantaŭ inversan prokurilon, kiu finas TLS, kaj agordu
-<code>LEGEJO_PUBLIC_URL</code> al la <code>https://</code>-adreso, per kiu homoj atingas ĝin.</p>""",
+  """<p>Metu Legejon malantaŭ inversan prokurilon, kiu finas TLS, kaj donu la
+<code>https://</code>-adreson, per kiu homoj atingas ĝin, sub <strong>Publika adreso</strong> en la
+paĝo Administrado. <strong>Testi</strong> demandas la adreson, ĉu ĝi kondukas al ĉi tiu Legejo;
+<strong>Konservi</strong> ekuzas ĝin. <code>LEGEJO_PUBLIC_URL</code> faras la samon, kaj tiam
+venkas.</p>""",
   """<p>Kobo-sinkronigo, ligiloj en retleteroj, federacio kaj instalado de Legejo kiel aplikaĵo ĉiuj dependas
 de tio, ke tiu adreso estas ĝusta. Kun publika <code>https</code>-adreso, seancaj kuketoj estas markitaj
 <code>Secure</code>; agordu <code>LEGEJO_SECURE_COOKIES=false</code> nur, se vi vere servas per simpla
@@ -828,11 +831,16 @@ bretoj, markoj, notoj kaj legado, por ĉiam. Vian propran konton vi forigas en l
 
  ("Agordi retpoŝton",
   "<p>Invitoj, novaj pasvortoj kaj Sendi al Kindle ĉiuj bezonas sendi retpoŝton.</p>",
-  """<p>Agordu <code>LEGEJO_SMTP_HOST</code> kaj <code>LEGEJO_MAIL_FROM</code>, kaj laŭbezone
-<code>LEGEJO_SMTP_PORT</code> (587), <code>LEGEJO_SMTP_USER</code>,
+  """<p>En la paĝo Administrado, sub <strong>Retpoŝto</strong>, plenigu la servilon, pordon,
+sekurecon, uzantnomon, pasvorton kaj sendanton, kiujn donas via retpoŝta provizanto.
+<strong>Sendi provan retleteron</strong> provas ilin antaŭ ol vi konservas, al via propra adreso
+aŭ alia; <strong>Konservi</strong> tuj ekuzas ilin.</p>""",
+  """<p>La samon oni povas agordi per <code>LEGEJO_SMTP_HOST</code> kaj <code>LEGEJO_MAIL_FROM</code>,
+kaj laŭbezone <code>LEGEJO_SMTP_PORT</code> (587), <code>LEGEJO_SMTP_USER</code>,
 <code>LEGEJO_SMTP_PASSWORD</code> kaj <code>LEGEJO_SMTP_TLS</code> (<code>starttls</code>,
-<code>tls</code> aŭ <code>none</code>).</p>""",
-  """<p>Retpoŝto estas malŝaltita, kiam la retpoŝta servilo ne estas agordita, kaj ĉio, kio
+<code>tls</code> aŭ <code>none</code>); tiam la paĝo Administrado montras ilin kaj ne povas ŝanĝi
+ilin. La pasvorto konservita en la paĝo Administrado estas tenata en la datumbazo.</p>
+<p>Retpoŝto estas malŝaltita, kiam la retpoŝta servilo ne estas agordita, kaj ĉio, kio
 dependas de ĝi, estas kaŝita. Forgesitan pasvorton oni povas tamen ripari sen ĝi (Recepto 12.8).</p>"""),
 
  ("Ensaluti per komuna ensaluto",
@@ -852,10 +860,12 @@ kontrolita retpoŝtadreso.</p>"""),
   "<p>Vi volas scii, kio povas esti ŝaltata kaj malŝaltata.</p>",
   """<p>En la paĝo Administrado: la serĉoj en Libris kaj Open Library, memregistriĝo, subteno de
 aŭdlibroj, serĉado de vortoj dum legado, katalogoj de aliaj bibliotekoj, markoj el Kobo-legiloj, la Kobo-vendejo apud
-Legejo, bretoj per privata ligilo, kaj federacio kun sia listo de permesitaj kaj blokitaj instancoj.</p>
-<p>Per mediovariablo: la bibliotekisto (<code>LEGEJO_AI_API_KEY</code>, kun
-<code>LEGEJO_AI_BASE_URL</code> kaj <code>LEGEJO_AI_MODEL</code>) kaj la servilo por
-AI-asistantoj (<code>LEGEJO_MCP</code>).</p>""",
+Legejo, bretoj per privata ligilo, kaj federacio kun sia listo de permesitaj kaj blokitaj instancoj.
+La modelo de la bibliotekisto ankaŭ agordiĝas tie, kun sia API-adreso, modelo kaj ŝlosilo, kaj
+<strong>Testi</strong>, kiu demandas al ĝi unu mallongan demandon.</p>
+<p>Per mediovariablo: la servilo por AI-asistantoj (<code>LEGEJO_MCP</code>), kaj la
+bibliotekisto, se vi preferas (<code>LEGEJO_AI_API_KEY</code>, kun <code>LEGEJO_AI_BASE_URL</code>
+kaj <code>LEGEJO_AI_MODEL</code>).</p>""",
   """<p>La bibliotekisto funkcias kun ĉiu provizanto, kiu havas babil-API laŭ la maniero de OpenAI,
 inkluzive de modelo, kiun vi mem funkciigas. Vi pagas la petojn: demando sendas la katalogon de
 la libroj de tiu uzanto, do ĝia kosto kreskas kun la biblioteko. Kelkcent libroj prenas ĉirkaŭ
@@ -894,7 +904,7 @@ elektas novan pasvorton kaj estas elsalutita ĉie aliloke.</p>
 <code>docker-compose.yml</code> de la instanco:</p>
 <pre>docker compose exec legejo legejo reset-password &lt;username&gt;</pre>
 <p>Ĝi presas tian ligilon por iu ajn uzanto.</p>""",
-  """<p>La ligilo komenciĝas per <code>LEGEJO_PUBLIC_URL</code>, kiam tiu estas agordita; alie
+  """<p>La ligilo komenciĝas per la publika adreso, kiam ĝi ekzistas; alie
 metu la adreson de la instanco antaŭ ĝi. Ĝis la ligilo estas uzita, la malnova pasvorto plu
 funkcias. Ambaŭ manieroj estas notataj en la sistema protokolo (Recepto 12.5).</p>"""),
 

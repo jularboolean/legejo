@@ -88,8 +88,10 @@ PostgreSQL.</p>"""),
 
  ("Putting Legejo on the Internet",
   "<p>You want to reach the library from outside your home, and connect an e-reader to it.</p>",
-  """<p>Put Legejo behind a reverse proxy that terminates TLS, and set
-<code>LEGEJO_PUBLIC_URL</code> to the <code>https://</code> address people reach it on.</p>""",
+  """<p>Put Legejo behind a reverse proxy that terminates TLS, and give the <code>https://</code>
+address people reach it on under <strong>Public address</strong> on the Admin page.
+<strong>Test</strong> asks the address whether it leads to this Legejo; <strong>Save</strong>
+puts it to use. <code>LEGEJO_PUBLIC_URL</code> does the same, and then wins.</p>""",
   """<p>Kobo sync, links in emails, federation and installing Legejo as an app all depend on
 that address being right. With an <code>https</code> public address, session cookies are marked
 <code>Secure</code>; set <code>LEGEJO_SECURE_COOKIES=false</code> only if you truly serve plain
@@ -822,11 +824,16 @@ page.</p>"""),
 
  ("Setting Up Mail",
   "<p>Invitations, password resets and Send to Kindle all need to send mail.</p>",
-  """<p>Set <code>LEGEJO_SMTP_HOST</code> and <code>LEGEJO_MAIL_FROM</code>, and as needed
-<code>LEGEJO_SMTP_PORT</code> (587), <code>LEGEJO_SMTP_USER</code>,
+  """<p>On the Admin page, under <strong>Email</strong>, fill in the server, port, security,
+username, password and sender your mail provider gives you. <strong>Send a test mail</strong>
+tries them before you save, to your own address or another; <strong>Save</strong> puts them to
+use at once.</p>""",
+  """<p>The same can be set with <code>LEGEJO_SMTP_HOST</code> and <code>LEGEJO_MAIL_FROM</code>,
+and as needed <code>LEGEJO_SMTP_PORT</code> (587), <code>LEGEJO_SMTP_USER</code>,
 <code>LEGEJO_SMTP_PASSWORD</code> and <code>LEGEJO_SMTP_TLS</code> (<code>starttls</code>,
-<code>tls</code> or <code>none</code>).</p>""",
-  """<p>Mail is off when the host is unset, and everything that depends on it is hidden. A
+<code>tls</code> or <code>none</code>); then the Admin page shows them and cannot change them.
+The password saved on the Admin page is kept in the database.</p>
+<p>Mail is off when no server is given, and everything that depends on it is hidden. A
 forgotten password can still be put right without it (Recipe 12.8).</p>"""),
 
  ("Signing In with Single Sign-On",
@@ -846,10 +853,12 @@ verified email address.</p>"""),
   "<p>You want to know what can be switched on and off.</p>",
   """<p>On the Admin page: the Libris and Open Library lookups, self-registration, audiobook
 support, looking words up while reading, catalogs of other libraries, highlights from Kobo
-e-readers, the Kobo store beside Legejo, shelves by private link, and federation with its list of allowed and blocked instances.</p>
-<p>By environment variable: the librarian (<code>LEGEJO_AI_API_KEY</code>, with
-<code>LEGEJO_AI_BASE_URL</code> and <code>LEGEJO_AI_MODEL</code>) and the server for AI
-assistants (<code>LEGEJO_MCP</code>).</p>""",
+e-readers, the Kobo store beside Legejo, shelves by private link, and federation with its list of allowed and blocked instances.
+The librarian's model is set up there too, with its API address, model and key, and a
+<strong>Test</strong> that asks it one short question.</p>
+<p>By environment variable: the server for AI assistants (<code>LEGEJO_MCP</code>), and the
+librarian if you prefer (<code>LEGEJO_AI_API_KEY</code>, with <code>LEGEJO_AI_BASE_URL</code> and
+<code>LEGEJO_AI_MODEL</code>).</p>""",
   """<p>The librarian works with any provider that has an OpenAI-style chat API, a model you run
 yourself included. You pay for the requests: a question sends the catalogue of that user's books,
 so its cost grows with the library. A few hundred books take some twenty thousand tokens. The
@@ -887,7 +896,7 @@ password and are logged out everywhere else.</p>
 <code>docker-compose.yml</code>:</p>
 <pre>docker compose exec legejo legejo reset-password &lt;username&gt;</pre>
 <p>It prints such a link for any user.</p>""",
-  """<p>The link begins with <code>LEGEJO_PUBLIC_URL</code> when it is set; otherwise put the
+  """<p>The link begins with the public address when there is one; otherwise put the
 instance's address in front of it. Until the link is used, the old password keeps working.
 Both ways are noted in the system log (Recipe 12.5).</p>"""),
 

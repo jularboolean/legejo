@@ -55,7 +55,8 @@ async fn build(fed: std::sync::Arc<crate::fed::Fed>, settings: crate::settings::
         data_dir,
         kepubify: None,
         http: reqwest::Client::new(),
-        mail: None,
+        // The public address as federation has it, as at a real start.
+        live: std::sync::Arc::new(crate::live::Live::fixed(None, None, fed.config.as_ref().map(|c| c.base.clone()))),
         thumb_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
         fed,
         export_wake: std::sync::Arc::new(tokio::sync::Notify::new()),

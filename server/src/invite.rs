@@ -32,13 +32,11 @@ fn gone() -> Response {
     err(StatusCode::GONE, "the link is invalid or has expired")
 }
 
-/// Base URL for links. LEGEJO_PUBLIC_URL wins when set, because behind a
-/// reverse proxy X-Forwarded-Proto may be wrong.
+/// Base URL for links. The public address wins when there is one (the
+/// environment's or the admin page's), because behind a reverse proxy
+/// X-Forwarded-Proto may be wrong.
 pub(crate) fn base(state: &AppState, headers: &HeaderMap) -> String {
-    match &state.fed.config {
-        Some(c) => c.base.clone(),
-        None => crate::register::base_url(headers),
-    }
+    state.live.public_url().unwrap_or_else(|| crate::register::base_url(headers))
 }
 
 #[derive(Serialize)]
@@ -113,7 +111,7 @@ pub async fn create(
     };
     let link = format!("{}/invite?token={token}", base(&state, &headers));
     let (mailed, mail_error) = match &email {
-        Some(e) if state.mail.is_some() => match send_invite(&state, e, &username, &admin.0.username, &link).await {
+        Some(e) if state.live.mail().is_some() => match send_invite(&state, e, &username, &admin.0.username, &link).await {
             Ok(()) => (true, None),
             Err(why) => (false, Some(why)),
         },
@@ -148,7 +146,7 @@ pub async fn renew(
         .map_err(internal)?;
     let link = format!("{}/invite?token={token}", base(&state, &headers));
     let (mailed, mail_error) = match &email {
-        Some(e) if state.mail.is_some() => match send_invite(&state, e, &username, &admin.0.username, &link).await {
+        Some(e) if state.live.mail().is_some() => match send_invite(&state, e, &username, &admin.0.username, &link).await {
             Ok(()) => (true, None),
             Err(why) => (false, Some(why)),
         },

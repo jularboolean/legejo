@@ -1905,7 +1905,7 @@ pub async fn send_to_kindle(
 ) -> Result<StatusCode, Response> {
     let fail = |status: StatusCode, code: &str| (status, Json(serde_json::json!({ "error": code }))).into_response();
     let (uuid, _, title) = owned_book(&state, user.0.id, id).await?;
-    let Some(mail) = state.mail.as_ref() else {
+    let Some(mail) = state.live.mail() else {
         return Err(fail(StatusCode::CONFLICT, "no-mail"));
     };
     let address: Option<String> = sqlx::query_scalar("SELECT kindle_email FROM users WHERE id = $1")
@@ -1949,7 +1949,7 @@ pub async fn send_to_kindle(
         .collect();
     let name = if name.trim_matches(['_', ' ']).is_empty() { "book" } else { name.trim() };
     let filename = format!("{name}.{}", format.as_str());
-    if let Err(e) = crate::mail::send_file(mail, &address, &title, &title, &filename, format.mime(), data).await {
+    if let Err(e) = crate::mail::send_file(&mail, &address, &title, &title, &filename, format.mime(), data).await {
         tracing::warn!("send to kindle: {e:#}");
         return Err(fail(StatusCode::BAD_GATEWAY, "mail-failed"));
     }

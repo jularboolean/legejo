@@ -31,17 +31,14 @@ pub async fn registration_enabled(state: &AppState) -> Result<bool, sqlx::Error>
 }
 
 pub async fn send_mail(state: &AppState, to: &str, subject: &str, html: &str) -> anyhow::Result<()> {
-    let config = state
-        .mail
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("mail is not configured (LEGEJO_SMTP_* environment)"))?;
-    crate::mail::send(config, to, subject, html).await
+    let config = state.live.mail().ok_or_else(|| anyhow::anyhow!("mail is not set up (admin page or LEGEJO_SMTP_*)"))?;
+    crate::mail::send(&config, to, subject, html).await
 }
 
 /// Public: lets the login page decide whether to show the register link.
 pub async fn enabled(State(state): State<AppState>) -> Result<Json<serde_json::Value>, Response> {
     let enabled = registration_enabled(&state).await.map_err(|e| internal(e.into()))?;
-    Ok(Json(json!({ "enabled": enabled, "mail_configured": state.mail.is_some() })))
+    Ok(Json(json!({ "enabled": enabled, "mail_configured": state.live.mail().is_some() })))
 }
 
 #[derive(Deserialize)]
@@ -218,7 +215,7 @@ pub async fn forgot(
     headers: HeaderMap,
     Json(req): Json<ForgotRequest>,
 ) -> Result<StatusCode, Response> {
-    if state.mail.is_none() {
+    if state.live.mail().is_none() {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "error": "mail is not configured" })),
@@ -381,7 +378,7 @@ pub async fn admin_reset(
 
 /// `legejo reset-password <user>`: prints a reset link for the user, made
 /// straight in the database, for when nobody can log in as admin. The link
-/// starts with LEGEJO_PUBLIC_URL when it is set; otherwise only its path is
+/// starts with the public address when there is one; otherwise only its path is
 /// printed, to be put after the instance's address.
 /// Returns the user's name as stored and the link.
 pub async fn reset_password_command(db: &sqlx::AnyPool, username: &str) -> anyhow::Result<(String, String)> {
@@ -394,7 +391,7 @@ pub async fn reset_password_command(db: &sqlx::AnyPool, username: &str) -> anyho
     };
     let token = issue_reset_token(db, id, HANDED_RESET_HOURS).await?;
     crate::audit::log_db(db, None, "user.reset_link", json!({ "user_id": id, "username": name, "from": "command line" })).await;
-    let base = crate::settings::var_lossy("LEGEJO_PUBLIC_URL").map(|u| u.trim().trim_end_matches('/').to_string()).unwrap_or_default();
+    let base = crate::live::Live::load(db).await.ok().and_then(|l| l.public_url()).unwrap_or_default();
     Ok((name, format!("{base}/reset?token={token}")))
 }
 
@@ -409,9 +406,9 @@ mod tests {
         use axum::body::Body;
         use axum::http::{header, Request};
         use tower::ServiceExt;
-        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (_, db, state) = crate::testutil::test_app_fed().await;
         let (port, sink) = crate::kindle_tests::mail_sink().await;
-        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        state.live.set_mail(Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>")));
         let app = crate::router(state.clone());
         let (ada, _) = add_user(&db, "ada").await;
         sqlx::query("UPDATE users SET email = 'ada@example.org' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
@@ -443,9 +440,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_reset_link_is_kept_while_it_lasts_and_mail_is_rationed() {
-        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (_, db, state) = crate::testutil::test_app_fed().await;
         let (port, sink) = crate::kindle_tests::mail_sink_many(2).await;
-        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        state.live.set_mail(Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>")));
         let app = crate::router(state.clone());
         let (ada, _) = add_user(&db, "ada").await;
         sqlx::query("UPDATE users SET email = 'ada@example.org' WHERE id = ?").bind(ada).execute(&db).await.unwrap();
@@ -483,9 +480,9 @@ mod tests {
 
     #[tokio::test]
     async fn registration_mails_the_name_as_text_and_shares_the_ration() {
-        let (_, db, mut state) = crate::testutil::test_app_fed().await;
+        let (_, db, state) = crate::testutil::test_app_fed().await;
         let (port, sink) = crate::kindle_tests::mail_sink().await;
-        state.mail = Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>"));
+        state.live.set_mail(Some(crate::mail::MailConfig::local(port, "Legejo <mail@legejo.test>")));
         let app = crate::router(state.clone());
         sqlx::query("INSERT INTO settings (key, value) VALUES ('registration_enabled', 'true')").execute(&db).await.unwrap();
         let register = |name: &str, email: &str| {

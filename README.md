@@ -140,7 +140,7 @@ picture and a description of its own, and you decide how far it reaches.
 - A reading page with what you are reading, what you want to read, and statistics. A book can be marked as read by hand, or started over, which forgets the place in it on a Kobo too.
 - **Kobo sync:** Legejo acts as the Kobo store for your e-reader. EPUB books, shelves (as collections) and reading progress sync both ways: a book read in the browser opens on the Kobo at the same sentence after its next sync, and the other way round. Books are converted to KEPUB on the fly. Comics (CBZ) are made into fixed-layout books for the device, one page per image. An admin setting keeps the Kobo store working beside Legejo: books bought from Kobo arrive on the device next to your own, and Legejo passes what concerns them on to Kobo. Without it, the built-in Kobo store does not work while a Kobo syncs with Legejo.
 - **KOReader sync:** a kosync-compatible progress server for KOReader on Kobo, PocketBook, Onyx Boox, Kindle and Android, also for books that Kobo sync put on a Kobo. In a PDF or a comic the page is shared both ways with the browser's reader.
-- **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (`LEGEJO_SMTP_*`).
+- **Send to Kindle:** give the address of your Kindle on your account page and mail a book to it with one button. Needs mail to be set up (Admin page or `LEGEJO_SMTP_*`).
 - **OPDS 1.2** catalog for reading apps such as KOReader and Moon+ Reader, with a separate app password per app.
 - **AI assistants (optional):** a read-only [MCP](https://modelcontextprotocol.io) server lets an assistant you already use look up your books, shelves and reading progress, and read or search the text of a book.
 
@@ -216,9 +216,16 @@ installation can be moved to PostgreSQL with the bundled `import-sqlite` tool:
 docker compose -f docker-compose.postgres.yml run --rm legejo import-sqlite /data/legejo.db
 ```
 
-Put Legejo behind a reverse proxy that terminates TLS, and set
-`LEGEJO_PUBLIC_URL` to the address users reach it on. Kobo sync, links in
+Put Legejo behind a reverse proxy that terminates TLS, and give the address
+users reach it on, under **Public address** on the Admin page (with a test
+that it leads to this instance) or as `LEGEJO_PUBLIC_URL`. Kobo sync, links in
 emails and federation depend on it.
+
+Mail, the librarian's model and the public address can each be set up on the
+Admin page, with a button that tries them before they are saved. Set as
+environment variables instead, they are shown there and cannot be changed in
+the browser; the environment always wins. Passwords and keys saved on the
+Admin page are kept in the database, and so in its backups.
 
 The image has a health check built in, so Docker and deployment platforms can
 tell when the server is ready. What changed in each version is in the
@@ -270,7 +277,8 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_AI_BASE_URL` | `https://api.openai.com/v1` | The provider's chat API, for the librarian |
 | `LEGEJO_AI_MODEL` | `gpt-5.4-mini` | The model the librarian is |
 
-**The librarian.** With `LEGEJO_AI_API_KEY` set, users can turn on the
+**The librarian.** Once a model is set up (on the Admin page, or with
+`LEGEJO_AI_API_KEY`), users can turn on the
 librarian from their account page. Each question sends the catalogue of that
 user's books to the model, in parts, so the cost of a question grows with the
 size of the library: a few hundred books take some twenty thousand tokens.
@@ -297,7 +305,7 @@ Clients that reserve the `Authorization` header for OAuth can send the app
 password in an `X-Api-Key` header instead. OAuth sign-in itself is not supported.
 The text of a book only leaves the server when the assistant asks for it.
 
-**Mail** (self-registration, invitations, password reset):
+**Mail** (self-registration, invitations, password reset), also on the Admin page:
 
 | Variable | Default | Description |
 |---|---|---|

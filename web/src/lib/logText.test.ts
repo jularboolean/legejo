@@ -47,7 +47,7 @@ describe('the system log', () => {
 		const actions = loggedActions();
 		// The search itself must keep working: these are logged for certain.
 		expect(actions).toEqual(expect.arrayContaining(['book.uploaded', 'audiobook.added', 'book.sent_to_kindle']));
-		const special = ['account.updated', 'shelf.edited', 'admin.settings', 'kobo.synced', 'book.edited'];
+		const special = ['account.updated', 'shelf.edited', 'admin.settings', 'admin.connections', 'kobo.synced', 'book.edited'];
 		const missing = actions.filter((action) => !special.includes(action) && !(`log.${action}` in en));
 		expect(missing, 'actions without a text in the web app (add log.<action> to the translations)').toEqual([]);
 	});

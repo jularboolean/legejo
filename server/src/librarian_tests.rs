@@ -50,11 +50,9 @@ async fn model() -> (String, Arc<Mutex<Vec<(String, Value)>>>) {
 
 #[tokio::test]
 async fn the_librarian_picks_from_the_users_own_books() {
-    let (_, db, mut state) = test_app().await;
+    let (_, db, state) = test_app().await;
     let (url, seen) = model().await;
-    let mut settings = crate::settings::Settings::default();
-    settings.ai = Some(crate::settings::Ai { base_url: url, key: "secret-key".into(), model: "test-model".into() });
-    state.settings = Arc::new(settings);
+    state.live.set_ai(Some(crate::settings::Ai { base_url: url, key: "secret-key".into(), model: "test-model".into() }));
     let app = crate::router(state.clone());
     let (_, a) = add_user(&db, "alice").await;
     let (_, b) = add_user(&db, "bob").await;

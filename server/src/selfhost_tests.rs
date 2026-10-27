@@ -118,7 +118,7 @@ async fn mail_from_one_client_address_is_rationed() {
     let (_, _, mut state) = test_app().await;
     state.settings = Arc::new(limits(3, Some("x-real-ip")));
     // Nothing is sent for an address nobody has, so the server need not exist.
-    state.mail = Some(crate::mail::MailConfig::local(1, "Legejo <mail@legejo.test>"));
+    state.live.set_mail(Some(crate::mail::MailConfig::local(1, "Legejo <mail@legejo.test>")));
     let app = crate::router(state);
     let forgot = |email: String, ip: &'static str| {
         let app = app.clone();

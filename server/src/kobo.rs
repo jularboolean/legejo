@@ -96,7 +96,7 @@ fn dashed(uuid: &str) -> String {
     }
 }
 
-/// External base URL for this token's endpoints. LEGEJO_PUBLIC_URL wins when
+/// External base URL for this token's endpoints. The public address wins when
 /// set: behind a reverse proxy the request may claim http, and every URL
 /// handed to the device would then redirect to https, which a PUT or POST
 /// does not survive. Otherwise derived from the request (development).
@@ -109,8 +109,8 @@ fn origin_url(state: &AppState, headers: &HeaderMap) -> String {
 }
 
 fn base_url(state: &AppState, headers: &HeaderMap, token: &str) -> String {
-    if let Some(config) = &state.fed.config {
-        return format!("{}/api/kobo/{token}", config.base);
+    if let Some(base) = state.live.public_url() {
+        return format!("{base}/api/kobo/{token}");
     }
     let proto = headers
         .get("x-forwarded-proto")

@@ -341,7 +341,7 @@ mod tests {
             data_dir: std::env::temp_dir(),
             kepubify: None,
             http: reqwest::Client::new(),
-            mail: None,
+            live: std::sync::Arc::new(crate::live::Live::fixed(None, None, None)),
             thumb_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
             fed: crate::fed::Fed::disabled(),
             export_wake: std::sync::Arc::new(tokio::sync::Notify::new()),
