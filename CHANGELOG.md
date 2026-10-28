@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.34.0 (2026-10-28)
+
+- **Share a highlight as a picture.** Share, by a highlight on My notes or
+  in the reader, draws the passage beside the book's cover, with the title
+  and author, ready to post on Mastodon, Bluesky or anywhere else. On a
+  phone it goes straight to the share sheet; elsewhere the picture can be
+  copied or downloaded. Your words for the post, and a description of the
+  picture for those who cannot see it, are there to copy. The picture is
+  made in the browser; nothing is published. A passage longer than 500
+  characters is cut.
+- Updated DOMPurify, which cleans the books' content in the reader, and
+  rustls.
+
 ## 1.33.0 (2026-10-27)
 
 - **A new Legejo is set up in the browser.** The first visitor of a new

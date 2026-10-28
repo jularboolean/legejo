@@ -1,6 +1,6 @@
 {
 	"name": "legejo-web",
-	"version": "1.33.0",
+	"version": "1.34.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
 	"type": "module",

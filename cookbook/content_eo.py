@@ -487,6 +487,19 @@ malfermi la retlegilon ĉe la fragmento; via loko en la libro restas, kie ĝi es
 <strong>Eksporti ĉion</strong> donas la notojn de ĉiuj libroj en unu dosiero.</p>""",
   "<p>Markdown malfermiĝas en ĉiu notaplikaĵo kaj ĉiu tekstoredaktilo. Notoj faritaj sur Kobo ankaŭ estas en la listo, markitaj Kobo.</p>"),
 
+ ("Kunhavigi fragmenton",
+  "<p>Fragmento estas tro bona por teni ĝin por vi, kaj vi volas afiŝi ĝin.</p>",
+  """<p>Elektu <strong>Kunhavigi</strong> apud marko en <strong>Miaj notoj</strong>, aŭ malfermu la
+markon en la retlegilo kaj elektu <strong>Kunhavigi</strong> tie. Legejo desegnas bildon de ĝi: la
+fragmento apud la kovrilo, kun la titolo kaj la aŭtoro. Sur telefono, <strong>Kunhavigi</strong>
+en la fenestro donas la bildon al Mastodon, Bluesky aŭ kiu ajn aplikaĵo vi elektas; aliloke,
+<strong>Kopii la bildon</strong> aŭ <strong>Elŝuti</strong> ĝin kaj aldonu ĝin al via afiŝo.</p>
+<p>Skribu, kion vi volas diri kun ĝi, sub <strong>Viaj vortoj por la afiŝo</strong>; ili
+komenciĝas per via noto kaj finiĝas per tio, el kie la fragmento venas. <strong>Kopii la
+priskribon</strong> donas la fragmenton kiel tekston, por aldoni ĝin al la bildo kiel ĝian
+priskribon por tiuj, kiuj ne povas vidi ĝin.</p>""",
+  "<p>La bildo estas farita en via retumilo, kaj Legejo publikigas nenion. Fragmento pli longa ol 500 signoj estas tranĉita, kun tripunkto.</p>"),
+
  ("Legi per la klavaro",
   "<p>Vi preferas klavojn al la muso.</p>",
   """<p>Premu <code>?</code> por la listo. Resume:</p>

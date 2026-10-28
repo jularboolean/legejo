@@ -483,6 +483,18 @@ passage; your place in the book stays where it was. <strong>Export all</strong> 
 book's notes in one file.</p>""",
   "<p>Markdown opens in any note-taking app and any text editor. Notes made on a Kobo are on the list too, marked Kobo.</p>"),
 
+ ("Sharing a Passage",
+  "<p>A passage is too good to keep to yourself, and you want to post it.</p>",
+  """<p>Choose <strong>Share</strong> by a highlight in <strong>My notes</strong>, or open the
+highlight in the reader and choose <strong>Share</strong> there. Legejo draws a picture of it: the
+passage beside the cover, with the title and the author. On a phone, <strong>Share</strong> in
+the window hands the picture to Mastodon, Bluesky or whatever app you choose; elsewhere,
+<strong>Copy picture</strong> or <strong>Download</strong> it and add it to your post.</p>
+<p>Write what you want to say with it under <strong>Your words for the post</strong>; they
+start as your note and end with where the passage is from. <strong>Copy description</strong>
+gives the passage as text, to add to the picture as its description for those who cannot see it.</p>""",
+  "<p>The picture is made in your browser, and nothing is published by Legejo. A passage longer than 500 characters is cut, with an ellipsis.</p>"),
+
  ("Reading with the Keyboard",
   "<p>You prefer keys to the mouse.</p>",
   """<p>Press <code>?</code> for the list. In short:</p>
