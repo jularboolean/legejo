@@ -42,6 +42,7 @@
 		type SpeechState
 	} from './speech';
 	import AnnotateBar from './AnnotateBar.svelte';
+	import ShareQuote from '#lib/ShareQuote.svelte';
 	import HelpPanel from './HelpPanel.svelte';
 	import NotesPanel from './NotesPanel.svelte';
 	import SpeechBar from './SpeechBar.svelte';
@@ -484,6 +485,8 @@
 	let pending = $state<Passage | null>(null);
 	/** A highlight opened for its note, or for removal. */
 	let editing = $state<Annotation | null>(null);
+	/** A highlight being made into a picture to post. */
+	let sharing = $state<Annotation | null>(null);
 	let annotating = $state(false);
 	let annotateError = $state<string | null>(null);
 	/** With a mouse, the note of the highlight under the pointer is shown beside it. */
@@ -789,6 +792,12 @@
 		}
 	}
 
+	function shareAnnotation() {
+		const target = editing;
+		dismissAnnotate();
+		sharing = target;
+	}
+
 	async function goToAnnotation(a: Annotation) {
 		if (!a.cfi) return;
 		leaving();
@@ -987,7 +996,8 @@
 	}
 
 	function onWindowKey(event: KeyboardEvent) {
-		if (event.defaultPrevented) return;
+		// The share dialog has the keys to itself.
+		if (event.defaultPrevented || sharing) return;
 		const el = event.target as Element | null;
 		// Leave keys alone while a control is being operated.
 		if (el?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
@@ -1418,9 +1428,11 @@
 			onhighlight={saveHighlight}
 			onsave={saveNote}
 			ondelete={deleteAnnotation}
+			onshare={editing ? shareAnnotation : null}
 			oncancel={dismissAnnotate}
 		/>
 	{/if}
+
 
 	{#if speechState !== 'off'}
 		<SpeechBar
@@ -1521,6 +1533,18 @@
 		onclose={closePanel}
 	/>
 </div>
+
+<!-- Outside the reader, so that it has the catalog's own look. -->
+<ShareQuote
+	open={sharing !== null}
+	quote={sharing?.text ?? ''}
+	note={sharing?.note ?? null}
+	title={book.title}
+	author={book.author}
+	{coverUrl}
+	color={sharing?.color}
+	onclose={() => (sharing = null)}
+/>
 
 <style>
 	.reader {

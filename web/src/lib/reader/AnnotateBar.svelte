@@ -4,7 +4,7 @@
 	// page, where the reading-aloud controls sit otherwise, or at its top
 	// when the passage is low on the page, so that it never covers it.
 	import { tick } from 'svelte';
-	import { BookA, Highlighter, MessageSquarePlus, TextSelect, Trash2, X } from '@lucide/svelte';
+	import { BookA, Highlighter, MessageSquarePlus, Share2, TextSelect, Trash2, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
 
@@ -32,9 +32,11 @@
 		/** The note of an existing highlight. */
 		onsave: (note: string | null) => void;
 		ondelete: () => void;
+		/** Share an existing highlight as a picture; null where it cannot be. */
+		onshare?: (() => void) | null;
 		oncancel: () => void;
 	};
-	let { text, note, editing, saving, error, raised, top = false, faded = false, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, oncancel }: Props = $props();
+	let { text, note, editing, saving, error, raised, top = false, faded = false, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, onshare = null, oncancel }: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
 	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
@@ -143,6 +145,12 @@
 				<Trash2 size={15} />
 				{t('reader.notes.delete')}
 			</button>
+			{#if onshare}
+				<button type="button" class="act" onclick={onshare} disabled={saving}>
+					<Share2 size={15} />
+					{t('share.button')}
+				</button>
+			{/if}
 			{#if !writing}
 				<button type="button" class="act" onclick={startNote} disabled={saving}>
 					<MessageSquarePlus size={15} />

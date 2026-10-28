@@ -1,0 +1,196 @@
+// A highlight as a picture to post: the passage set in the book face beside
+// the cover, with the title and author under it. Drawn in the browser on a
+// canvas; the server is not asked for anything but the cover.
+
+/** Longer passages are cut: a card is for a quotation, not a page. */
+export const MAX_QUOTE_CHARS = 500;
+
+export const CARD_WIDTH = 1200;
+const MIN_HEIGHT = 675;
+const MAX_HEIGHT = 1500;
+const PAD = 80;
+const COVER_WIDTH = 300;
+const GAP = 70;
+/** Quote sizes to try, largest first, until the passage fits. */
+const QUOTE_SIZES = [54, 48, 44, 40, 36, 32, 29, 26];
+const LINE = 1.45;
+const TITLE_LINE = 54;
+
+const BOOK_FACE = '"Literata Variable", Georgia, serif';
+const TITLE_FACE = 'Fraunces, Georgia, serif';
+const UI_FACE = '"Inter Variable", system-ui, sans-serif';
+
+const PAPER = '#f6f2ea';
+const INK = '#1f2325';
+const MUTED = '#6c7477';
+const GOLD = '#c19a4b';
+
+export type CardInput = {
+	quote: string;
+	title: string;
+	author: string | null;
+	cover: CanvasImageSource | null;
+	/** The cover's width over its height. */
+	coverRatio?: number;
+	/** The highlight's colour, for the bar beside the passage. */
+	color?: string | null;
+};
+
+/** The passage as it goes on the card: whitespace made even, and cut at a word when too long. */
+export function cardQuote(text: string, max = MAX_QUOTE_CHARS): string {
+	const even = text.replace(/\s+/g, ' ').trim();
+	if (even.length <= max) return even;
+	const cut = even.slice(0, max);
+	const space = cut.lastIndexOf(' ');
+	return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
+/** Break text into lines no wider than `width`, as measured. A word wider than a line stands alone. */
+export function wrap(text: string, width: number, measure: (s: string) => number): string[] {
+	const lines: string[] = [];
+	let line = '';
+	for (const word of text.split(' ')) {
+		const next = line ? `${line} ${word}` : word;
+		if (line && measure(next) > width) {
+			lines.push(line);
+			line = word;
+		} else line = next;
+	}
+	if (line) lines.push(line);
+	return lines;
+}
+
+/** The largest size at which the passage fits in `height`, and its lines; the smallest size if none does. */
+export function fit(
+	text: string,
+	width: number,
+	height: number,
+	measureAt: (size: number) => (s: string) => number
+): { size: number; lines: string[] } {
+	let best = { size: QUOTE_SIZES[QUOTE_SIZES.length - 1], lines: [] as string[] };
+	for (const size of QUOTE_SIZES) {
+		const lines = wrap(text, width, measureAt(size));
+		best = { size, lines };
+		if (lines.length * size * LINE <= height) break;
+	}
+	return best;
+}
+
+/** A colour safe to paint with: a hex colour as given, else the default. */
+function barColor(color: string | null | undefined): string {
+	return color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : GOLD;
+}
+
+/** Make sure the faces the card is set in are loaded, so the canvas does not fall back. */
+export async function loadFaces(text: string): Promise<void> {
+	if (typeof document === 'undefined' || !document.fonts) return;
+	await Promise.all([
+		document.fonts.load(`400 40px ${BOOK_FACE}`, text),
+		document.fonts.load(`italic 400 40px ${BOOK_FACE}`, text),
+		document.fonts.load(`600 40px ${TITLE_FACE}`),
+		document.fonts.load(`500 20px ${UI_FACE}`)
+	]).catch(() => {});
+}
+
+/** Draw the card; the canvas is sized to fit the passage. */
+export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return;
+	const quote = cardQuote(input.quote);
+	const textX = input.cover ? PAD + COVER_WIDTH + GAP : PAD;
+	const textWidth = CARD_WIDTH - textX - PAD;
+	const coverHeight = input.cover ? COVER_WIDTH / (input.coverRatio || 2 / 3) : 0;
+
+	const measureAt = (size: number) => {
+		ctx.font = `400 ${size}px ${BOOK_FACE}`;
+		return (s: string) => ctx.measureText(s).width;
+	};
+	// Room for the passage: what is left of the tallest card after the
+	// quotation mark above it and the book's name below.
+	const markRoom = 70;
+	const footRoom = 190;
+	const { size, lines } = fit(quote, textWidth - 30, MAX_HEIGHT - 2 * PAD - markRoom - footRoom, measureAt);
+	const quoteHeight = lines.length * size * LINE;
+
+	ctx.font = `600 40px ${TITLE_FACE}`;
+	const titleLines = wrap(input.title, textWidth, (s) => ctx.measureText(s).width).slice(0, 2);
+	const textHeight = markRoom + quoteHeight + 60 + titleLines.length * TITLE_LINE + (input.author ? 50 : 0) + 40;
+	const height = Math.round(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, textHeight + 2 * PAD, coverHeight + 2 * PAD + 40)));
+
+	canvas.width = CARD_WIDTH;
+	canvas.height = height;
+	ctx.fillStyle = PAPER;
+	ctx.fillRect(0, 0, CARD_WIDTH, height);
+
+	if (input.cover) {
+		const y = PAD;
+		ctx.save();
+		ctx.shadowColor = 'rgba(30, 25, 15, 0.28)';
+		ctx.shadowBlur = 30;
+		ctx.shadowOffsetY = 10;
+		ctx.fillStyle = PAPER;
+		ctx.fillRect(PAD, y, COVER_WIDTH, coverHeight);
+		ctx.restore();
+		ctx.drawImage(input.cover, PAD, y, COVER_WIDTH, coverHeight);
+	}
+
+	// The passage sits in the middle of the room it has, the book under it.
+	let y = PAD + Math.max(0, (height - 2 * PAD - 40 - textHeight) / 2);
+	ctx.fillStyle = barColor(input.color);
+	ctx.font = `600 120px ${TITLE_FACE}`;
+	ctx.textBaseline = 'alphabetic';
+	ctx.fillText('“', textX - 6, y + 90);
+	y += markRoom;
+
+	ctx.fillRect(textX, y + 6, 5, quoteHeight - size * (LINE - 1));
+	ctx.fillStyle = INK;
+	ctx.font = `400 ${size}px ${BOOK_FACE}`;
+	ctx.textBaseline = 'top';
+	for (const line of lines) {
+		ctx.fillText(line, textX + 30, y + (size * (LINE - 1)) / 2);
+		y += size * LINE;
+	}
+
+	y += 60;
+	ctx.fillStyle = INK;
+	ctx.font = `600 40px ${TITLE_FACE}`;
+	for (const line of titleLines) {
+		ctx.fillText(line, textX, y);
+		y += TITLE_LINE;
+	}
+	if (input.author) {
+		ctx.fillStyle = MUTED;
+		ctx.font = `italic 400 32px ${BOOK_FACE}`;
+		ctx.fillText(input.author, textX, y + 8, textWidth);
+	}
+
+	ctx.fillStyle = MUTED;
+	ctx.font = `500 22px ${UI_FACE}`;
+	ctx.textAlign = 'right';
+	ctx.textBaseline = 'alphabetic';
+	ctx.fillText('Legejo', CARD_WIDTH - PAD, height - PAD / 2);
+	ctx.textAlign = 'left';
+}
+
+/** The words that go with the picture: the sharer's own, then where the passage is from. */
+export function postText(comment: string, from: string): string {
+	const own = comment.trim();
+	return own ? `${own}\n\n${from}` : from;
+}
+
+/** The picture described, for those who cannot see it. */
+export function altText(quote: string, title: string, author: string | null): string {
+	return `“${cardQuote(quote)}” — ${title}${author ? `, ${author}` : ''}`;
+}
+
+/** A name for the file: the title in plain letters. */
+export function fileName(title: string): string {
+	const plain = title
+		.normalize('NFKD')
+		.replace(/[̀-ͯ]/g, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-|-$/g, '')
+		.slice(0, 50);
+	return `${plain || 'quote'}-quote.png`;
+}

@@ -4,8 +4,9 @@
 	// can be written or changed here, a highlight removed, and each opens the
 	// book at its place.
 	import { page } from '$app/state';
-	import { Download, Highlighter, NotebookPen, Pencil, Search, Trash2 } from '@lucide/svelte';
+	import { Download, Highlighter, NotebookPen, Pencil, Search, Share2, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
+	import ShareQuote from '#lib/ShareQuote.svelte';
 	import { cover } from '#lib/cover';
 	import { t } from '#lib/i18n';
 	import { byBook, placeLine, search, type Note } from '#lib/notes';
@@ -29,6 +30,7 @@
 	let saving = $state(false);
 	let failed = $state<number | null>(null);
 	let removing = $state<Note | null>(null);
+	let sharing = $state<Note | null>(null);
 
 	function edit(n: Note) {
 		editing = n.id;
@@ -66,6 +68,9 @@
 
 	const coverUrl = (b: { bookId: number; changedAt: string }) =>
 		`/api/books/${b.bookId}/cover?size=thumb&v=${encodeURIComponent(b.changedAt)}`;
+	// The card is printed large: the whole cover, not the thumbnail.
+	const fullCover = (n: Note) =>
+		n.book_has_cover ? `/api/books/${n.book_id}/cover?v=${encodeURIComponent(n.book_changed_at)}` : null;
 </script>
 
 <div class="heading">
@@ -133,6 +138,7 @@
 									<a href={`/books/${n.book_id}/read?at=${n.id}&from=notes`}><Highlighter size={13} /> {t('notes.inBook')}</a>
 								{/if}
 								<button type="button" class="link" onclick={() => edit(n)}><Pencil size={13} /> {n.note ? t('notes.editNote') : t('notes.addNote')}</button>
+								<button type="button" class="link" onclick={() => (sharing = n)}><Share2 size={13} /> {t('share.button')}</button>
 								<button type="button" class="link quiet" onclick={() => (removing = n)} aria-label={t('notes.remove')}><Trash2 size={13} /></button>
 							</div>
 						{/if}
@@ -142,6 +148,17 @@
 		</section>
 	{/each}
 {/if}
+
+<ShareQuote
+	open={sharing !== null}
+	quote={sharing?.text ?? ''}
+	note={sharing?.note ?? null}
+	title={sharing?.book_title ?? ''}
+	author={sharing?.book_author ?? null}
+	coverUrl={sharing ? fullCover(sharing) : null}
+	color={sharing?.color}
+	onclose={() => (sharing = null)}
+/>
 
 <ConfirmDialog
 	open={removing !== null}
