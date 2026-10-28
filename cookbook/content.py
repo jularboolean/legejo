@@ -654,7 +654,7 @@ do not take them.</p>"""),
   """<p>Get the books through OPDS. On the <strong>Account</strong> page, under
 <strong>OPDS catalog</strong>, is the address to add as a catalog in KOReader. Log in with your
 username and an app password (Recipe 11.2).</p>""",
-  """<p>The catalog lists your books, your shelves and your series, and can be searched.</p>
+  """<p>The catalog lists your books, your authors, your shelves and your series, and can be searched.</p>
 <p>KOReader on a Kobo can also read the books that Kobo sync put on the device. Legejo
 knows those files too, so the reading position of such a book finds its way here as well
 (Recipe 8.6).</p>"""),

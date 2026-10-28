@@ -660,7 +660,7 @@ ne akceptas ilin.</p>"""),
   """<p>Prenu la librojn per OPDS. Sur la paĝo <strong>Konto</strong>, sub
 <strong>OPDS-katalogo</strong>, estas la adreso, kiun vi aldonu kiel katalogon en KOReader.
 Ensalutu per via uzantnomo kaj aplikaĵa pasvorto (Recepto 11.2).</p>""",
-  """<p>La katalogo listigas viajn librojn, bretojn kaj seriojn, kaj eblas serĉi en ĝi.</p>
+  """<p>La katalogo listigas viajn librojn, aŭtorojn, bretojn kaj seriojn, kaj eblas serĉi en ĝi.</p>
 <p>KOReader sur Kobo ankaŭ povas legi la librojn, kiujn la Kobo-sinkronigo metis en la aparaton.
 Legejo konas ankaŭ tiujn dosierojn, do la legopozicio de tia libro same trovas la vojon ĉi tien
 (Recepto 8.6).</p>"""),

@@ -4,6 +4,24 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.35.0 (2026-10-28)
+
+- **Turning a page is a sheet of paper.** Going forward, the page is
+  lifted off and drawn aside to the left, over the next one; going back,
+  the page before comes in from the left and lies down again, on one page
+  as on a spread. Turning back no longer stutters. The page animation is
+  still a choice in the reader's settings.
+- **The shared picture follows your design.** A highlight shared as a
+  picture is drawn in the colours of the design you have chosen, light,
+  dark or Zamenhof, with the two doves at its foot.
+- **Authors in the OPDS catalog.** Reading apps that use the catalog, such
+  as KOReader, can browse your books by author. Each author is a person, as
+  in the library: "Selma Lagerlöf" and "Lagerlöf, Selma" are one, and the
+  two in "Maj Sjöwall, Per Wahlöö" are two.
+- **KOReader on a Kobo finds books sent by Kobo sync.** KOReader there
+  reads the KEPUB the Kobo was sent; Legejo now knows that file too, so the
+  place you sync from KOReader reaches the book.
+
 ## 1.34.0 (2026-10-28)
 
 - **Share a highlight as a picture.** Share, by a highlight on My notes or
