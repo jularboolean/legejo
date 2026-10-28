@@ -309,11 +309,11 @@
 	let leaf: ViewTransition | null = null;
 
 	/**
-	 * Turn the page as a leaf of paper, when the reader has asked for page
+	 * Turn the page as a sheet of paper, when the reader has asked for page
 	 * animation and the browser can take a picture of the page as it was (a
 	 * view transition: the chapters are in frames no other way can show).
-	 * The picture turns over its edge, or the spine of a spread, above the
-	 * new page (reader.css). False when the page is to turn without it.
+	 * The picture is drawn aside, off the new page (reader.css). False when
+	 * the page is to turn without it.
 	 */
 	function canTurnLeaf(): boolean {
 		return (
@@ -350,11 +350,11 @@
 		return true;
 	}
 
-	// ---- A leaf that follows the finger -------------------------------------------
+	// ---- A sheet that follows the finger ------------------------------------------
 
 	/**
-	 * A page pulled by a finger, on one page (not a spread): the leaf turns as
-	 * far as the finger has gone across the page, and on letting go turns the
+	 * A page pulled by a finger, on one page (not a spread): the sheet goes as
+	 * far as the finger has gone across the page, and on letting go goes the
 	 * rest of the way, or falls back and the page stays. The transition runs
 	 * as a page turn does, held still and set by the finger.
 	 */
@@ -433,7 +433,7 @@
 		return true;
 	}
 
-	/** The leaf falls back flat, and the page turns back under it to where it was. */
+	/** The sheet falls back in place, and the page turns back under it to where it was. */
 	async function fallBack(current: NonNullable<typeof pulled>) {
 		const animations = current.animations ?? [];
 		const start = performance.now();

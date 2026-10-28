@@ -140,16 +140,12 @@ html.legejo-reading body {
 	}
 }
 
-/* A page turning as a leaf of paper (Reader.svelte, turnLeaf): a picture of
-   the page as it was turns over above the new one. On one page it turns
-   over its left edge, like a leaf of a book whose spine is there; it
-   darkens as it rises, and the page under it lightens as it comes out of
-   its shadow. A spread cannot turn over its spine this way (that takes a
-   picture of each page, and there is one of the whole): it is lifted off
-   and drawn aside like a sheet off a pile, over the next one. Going back,
-   one page or two, the page as it was is drawn aside the other way, off
-   the page before it: the leaf coming back would have to be the new page,
-   which is drawn live while the book is still laying it out, and stutters. */
+/* A page turning as a sheet of paper (Reader.svelte, turnLeaf): a picture
+   of the page as it was is lifted off and drawn aside, like a sheet off a
+   pile, over the page that comes next: to the left going forward, to the
+   right going back, on one page as on a spread. What moves is always that
+   picture: the new page is drawn live while the book is still laying it
+   out, and moving it stutters. */
 html[data-turn]::view-transition-old(root),
 html[data-turn]::view-transition-new(root) {
 	animation: none;
@@ -158,69 +154,22 @@ html[data-turn]::view-transition-old(legejo-leaf),
 html[data-turn]::view-transition-new(legejo-leaf) {
 	mix-blend-mode: normal;
 	backface-visibility: hidden;
-	animation-duration: var(--leaf-ms, 0.5s);
+	animation-duration: var(--leaf-ms, 0.55s);
 	animation-fill-mode: both;
+	animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
 }
-html[data-turn^='spread'],
-html[data-turn$='back'] {
-	--leaf-ms: 0.55s;
-}
-
-/* What moves is always the picture of the page as it was, above the new one. */
 html[data-turn]::view-transition-old(legejo-leaf) {
 	z-index: 2;
+	animation-name: sheet-off;
 }
 html[data-turn]::view-transition-new(legejo-leaf) {
 	z-index: 1;
-}
-
-/* One page forward: the leaf turns over its left edge. */
-html[data-turn='single-forward']::view-transition-old(legejo-leaf) {
-	transform-origin: 0 50%;
-	--leaf-to: -100deg;
-	animation-name: leaf-over;
-	animation-timing-function: cubic-bezier(0.45, 0.05, 0.4, 1);
-}
-html[data-turn='single-forward']::view-transition-new(legejo-leaf) {
-	animation-name: leaf-under;
-	animation-timing-function: ease-out;
-}
-
-/* A spread forward, and any page back: the sheet is drawn aside. */
-html[data-turn='spread-forward']::view-transition-old(legejo-leaf),
-html[data-turn$='back']::view-transition-old(legejo-leaf) {
-	animation-name: sheet-off;
-	animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
+	animation-name: sheet-under;
 }
 html[data-turn$='back']::view-transition-old(legejo-leaf) {
 	--sheet-way: 1;
 }
-html[data-turn='spread-forward']::view-transition-new(legejo-leaf),
-html[data-turn$='back']::view-transition-new(legejo-leaf) {
-	animation-name: sheet-under;
-	animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
-}
 
-@keyframes leaf-over {
-	from {
-		transform: perspective(1800px) rotateY(0deg);
-		filter: brightness(1);
-		box-shadow: 0 0 0 rgb(0 0 0 / 0);
-	}
-	to {
-		transform: perspective(1800px) rotateY(var(--leaf-to, -100deg));
-		filter: brightness(0.7);
-		box-shadow: 0 0 48px rgb(0 0 0 / 0.35);
-	}
-}
-@keyframes leaf-under {
-	from {
-		filter: brightness(0.82);
-	}
-	to {
-		filter: brightness(1);
-	}
-}
 /* --sheet-way: -1 draws the sheet off to the left, 1 to the right. */
 @keyframes sheet-off {
 	from {
