@@ -442,8 +442,8 @@ agordas <strong>Tekstgrandeco</strong>, <strong>Tiparo</strong> (Propra de la li
 Senserifa), <strong>Linidistanco</strong>, <strong>Marĝenoj</strong> kaj <strong>Ĝisrandigo</strong>.</p>""",
   """<p><strong>Vortodivido</strong> dividas longajn vortojn ĉe la fino de linio, laŭ la lingvo,
 kiun la libro indikas; jen unu kialo, kial Recepto 2.2 zorgas pri lingvoj. <strong>Paĝa animacio</strong>
-turnas la paĝon kiel folion de libro: en telefono ĝi sekvas vian fingron, kiam vi tiras la paĝon
-flanken, kaj du paĝoj apude estas tirataj for kiel folio. La klavoj <code>+</code> kaj <code>−</code> ŝanĝas
+tiras la paĝon flanken kiel folion de stako, maldekstren antaŭen kaj dekstren malantaŭen: en
+telefono ĝi sekvas vian fingron, kiam vi tiras la paĝon flanken. La klavoj <code>+</code> kaj <code>−</code> ŝanĝas
 la tekstgrandecon sen malfermi la panelon. La agordoj restas en la aparato, en kiu vi faris ilin.</p>"""),
 
  ("Trovi la vojon en libro",
