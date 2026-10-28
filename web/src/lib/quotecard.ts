@@ -24,10 +24,23 @@ const LOGO_RATIO = 321.825 / 341.68;
 const BOOK_FACE = '"Literata Variable", Georgia, serif';
 const TITLE_FACE = 'Fraunces, Georgia, serif';
 
-const PAPER = '#f6f2ea';
-const INK = '#1f2325';
-const MUTED = '#6c7477';
-const GOLD = '#c19a4b';
+/** The colours of the card: the design chosen in the app, or these. */
+export type Palette = { paper: string; ink: string; muted: string; mark: string };
+
+export const DEFAULT_PALETTE: Palette = { paper: '#f6f2ea', ink: '#1f2325', muted: '#6c7477', mark: '#c19a4b' };
+
+/** The app's colours as the page shows them now: --card, --fg, --muted and --gold. */
+export function pageColors(): Palette {
+	if (typeof document === 'undefined') return DEFAULT_PALETTE;
+	const style = getComputedStyle(document.documentElement);
+	const take = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+	return {
+		paper: take('--card', DEFAULT_PALETTE.paper),
+		ink: take('--fg', DEFAULT_PALETTE.ink),
+		muted: take('--muted', DEFAULT_PALETTE.muted),
+		mark: take('--gold', DEFAULT_PALETTE.mark)
+	};
+}
 
 export type CardInput = {
 	quote: string;
@@ -40,6 +53,7 @@ export type CardInput = {
 	color?: string | null;
 	/** The two doves, drawn at the foot. */
 	logo?: CanvasImageSource | null;
+	palette?: Palette;
 };
 
 /** The passage as it goes on the card: whitespace made even, and cut at a word when too long. */
@@ -83,8 +97,8 @@ export function fit(
 }
 
 /** A colour safe to paint with: a hex colour as given, else the default. */
-function barColor(color: string | null | undefined): string {
-	return color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : GOLD;
+function barColor(color: string | null | undefined, fallback: string): string {
+	return color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
 }
 
 /** Make sure the faces the card is set in are loaded, so the canvas does not fall back. */
@@ -102,6 +116,7 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 	const ctx = canvas.getContext('2d');
 	if (!ctx) return;
 	const quote = cardQuote(input.quote);
+	const colors = input.palette ?? DEFAULT_PALETTE;
 	const textX = input.cover ? PAD + COVER_WIDTH + GAP : PAD;
 	const textWidth = CARD_WIDTH - textX - PAD;
 	const coverHeight = input.cover ? COVER_WIDTH / (input.coverRatio || 2 / 3) : 0;
@@ -124,7 +139,7 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 
 	canvas.width = CARD_WIDTH;
 	canvas.height = height;
-	ctx.fillStyle = PAPER;
+	ctx.fillStyle = colors.paper;
 	ctx.fillRect(0, 0, CARD_WIDTH, height);
 
 	if (input.cover) {
@@ -133,7 +148,7 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 		ctx.shadowColor = 'rgba(30, 25, 15, 0.28)';
 		ctx.shadowBlur = 30;
 		ctx.shadowOffsetY = 10;
-		ctx.fillStyle = PAPER;
+		ctx.fillStyle = colors.paper;
 		ctx.fillRect(PAD, y, COVER_WIDTH, coverHeight);
 		ctx.restore();
 		ctx.drawImage(input.cover, PAD, y, COVER_WIDTH, coverHeight);
@@ -141,14 +156,14 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 
 	// The passage sits in the middle of the room it has, the book under it.
 	let y = PAD + Math.max(0, (height - 2 * PAD - FOOT - textHeight) / 2);
-	ctx.fillStyle = barColor(input.color);
+	ctx.fillStyle = barColor(input.color, colors.mark);
 	ctx.font = `600 120px ${TITLE_FACE}`;
 	ctx.textBaseline = 'alphabetic';
 	ctx.fillText('“', textX - 6, y + 90);
 	y += markRoom;
 
 	ctx.fillRect(textX, y + 6, 5, quoteHeight - size * (LINE - 1));
-	ctx.fillStyle = INK;
+	ctx.fillStyle = colors.ink;
 	ctx.font = `400 ${size}px ${BOOK_FACE}`;
 	ctx.textBaseline = 'top';
 	for (const line of lines) {
@@ -157,14 +172,14 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 	}
 
 	y += 60;
-	ctx.fillStyle = INK;
+	ctx.fillStyle = colors.ink;
 	ctx.font = `600 40px ${TITLE_FACE}`;
 	for (const line of titleLines) {
 		ctx.fillText(line, textX, y);
 		y += TITLE_LINE;
 	}
 	if (input.author) {
-		ctx.fillStyle = MUTED;
+		ctx.fillStyle = colors.muted;
 		ctx.font = `italic 400 32px ${BOOK_FACE}`;
 		ctx.fillText(input.author, textX, y + 8, textWidth);
 	}

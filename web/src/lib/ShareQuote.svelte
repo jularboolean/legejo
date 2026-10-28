@@ -5,7 +5,7 @@
 	import { Check, ClipboardCopy, Download, Share2, X } from '@lucide/svelte';
 	import { fade, pop } from '#lib/motion';
 	import { t } from '#lib/i18n';
-	import { altText, drawCard, fileName, loadFaces, postText } from '#lib/quotecard';
+	import { altText, drawCard, fileName, loadFaces, pageColors, postText } from '#lib/quotecard';
 	import doves from '#lib/assets/legejo.svg?url';
 
 	type Props = {
@@ -61,7 +61,8 @@
 			cover,
 			coverRatio: cover ? cover.naturalWidth / cover.naturalHeight : undefined,
 			color,
-			logo
+			logo,
+			palette: pageColors()
 		});
 		const blob = await new Promise<Blob | null>((resolve) => target.toBlob(resolve, 'image/png'));
 		if (!blob) {

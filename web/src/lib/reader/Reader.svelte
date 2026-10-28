@@ -325,22 +325,41 @@
 		);
 	}
 
-	function turnLeaf(forward: boolean, go: () => Promise<unknown>): boolean {
+	/** How long a page coming back waits outside for the book to lay it out. */
+	const BACK_WAITS_MS = 1200;
+
+	/** `held`: a finger moves the sheet, not the clock. */
+	function turnLeaf(forward: boolean, go: () => Promise<unknown>, held = false): boolean {
 		if (!canTurnLeaf() || !engine) return false;
 		leaf?.skipTransition();
 		const html = document.documentElement;
 		const surface = engine.surface;
 		// Seen from the reader: a next page in a right-to-left book turns the other way.
-		html.dataset.turn = `${engine.spread ? 'spread' : 'single'}-${forward !== rtl ? 'forward' : 'back'}`;
+		const back = forward === rtl;
+		html.dataset.turn = `${engine.spread ? 'spread' : 'single'}-${back ? 'back' : 'forward'}`;
 		surface.style.setProperty('view-transition-name', 'legejo-leaf');
 		// The browser draws nothing while it waits for the new page, and
 		// epub.js waits for a frame to finish turning: the turn is set going,
 		// and the transition goes on a moment later with the new page as it
 		// comes (the new side of a view transition is live, not a picture).
+		let turned: Promise<unknown> = Promise.resolve();
 		const turning = document.startViewTransition(() =>
-			Promise.race([go(), new Promise((resolve) => setTimeout(resolve, 60))])
+			Promise.race([(turned = go()), new Promise((resolve) => setTimeout(resolve, 60))])
 		);
 		leaf = turning;
+		// The page coming back is the one that moves, and it is live: it
+		// waits outside until the book has laid it out, then comes in whole.
+		if (back && !held) {
+			turning.ready
+				.then(async () => {
+					const animations = leafAnimations();
+					for (const a of animations) a.pause();
+					await Promise.race([turned, new Promise((resolve) => setTimeout(resolve, BACK_WAITS_MS))]);
+					await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+					if (leaf === turning) for (const a of animations) a.play();
+				})
+				.catch(() => {});
+		}
 		turning.finished.finally(() => {
 			if (leaf !== turning) return;
 			leaf = null;
@@ -395,7 +414,7 @@
 			beforeTurn();
 			let turned: Promise<unknown> = Promise.resolve();
 			const go = () => (turned = (forward ? engine!.next() : engine!.prev()).catch(() => {}));
-			if (!turnLeaf(forward, go) || !leaf) return false;
+			if (!turnLeaf(forward, go, true) || !leaf) return false;
 			const transition = leaf;
 			pulled = { forward, width: engine.surface.getBoundingClientRect().width || window.innerWidth, progress: 0, animations: null, transition, turned };
 			const mine = pulled;
