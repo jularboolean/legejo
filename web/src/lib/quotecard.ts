@@ -15,9 +15,9 @@ const GAP = 70;
 const QUOTE_SIZES = [54, 48, 44, 40, 36, 32, 29, 26];
 const LINE = 1.45;
 const TITLE_LINE = 54;
-/** The strip at the foot for the doves and the name. */
-const FOOT = 90;
-const LOGO_HEIGHT = 64;
+/** The strip at the foot for the doves. */
+const FOOT = 70;
+const LOGO_HEIGHT = 52;
 /** The doves' width over their height (assets/legejo.svg). */
 const LOGO_RATIO = 321.825 / 341.68;
 
@@ -38,7 +38,7 @@ export type CardInput = {
 	coverRatio?: number;
 	/** The highlight's colour, for the bar beside the passage. */
 	color?: string | null;
-	/** The two doves, drawn beside the name at the foot. */
+	/** The two doves, drawn at the foot. */
 	logo?: CanvasImageSource | null;
 };
 
@@ -93,8 +93,7 @@ export async function loadFaces(text: string): Promise<void> {
 	await Promise.all([
 		document.fonts.load(`400 40px ${BOOK_FACE}`, text),
 		document.fonts.load(`italic 400 40px ${BOOK_FACE}`, text),
-		document.fonts.load(`600 40px ${TITLE_FACE}`),
-		document.fonts.load(`600 38px ${TITLE_FACE}`, 'Legejo')
+		document.fonts.load(`600 40px ${TITLE_FACE}`)
 	]).catch(() => {});
 }
 
@@ -170,19 +169,11 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 		ctx.fillText(input.author, textX, y + 8, textWidth);
 	}
 
-	// The doves and the name, at the foot on the right.
-	const footMiddle = height - PAD / 2 - LOGO_HEIGHT / 2 + 4;
-	ctx.fillStyle = INK;
-	ctx.font = `600 38px ${TITLE_FACE}`;
-	ctx.textAlign = 'right';
-	ctx.textBaseline = 'middle';
-	ctx.fillText('Legejo', CARD_WIDTH - PAD, footMiddle);
+	// The doves, at the foot on the right.
 	if (input.logo) {
 		const width = LOGO_HEIGHT * LOGO_RATIO;
-		const nameWidth = ctx.measureText('Legejo').width;
-		ctx.drawImage(input.logo, CARD_WIDTH - PAD - nameWidth - 16 - width, footMiddle - LOGO_HEIGHT / 2, width, LOGO_HEIGHT);
+		ctx.drawImage(input.logo, CARD_WIDTH - PAD - width, height - PAD / 2 - LOGO_HEIGHT, width, LOGO_HEIGHT);
 	}
-	ctx.textAlign = 'left';
 }
 
 /** The words that go with the picture: the sharer's own, then where the passage is from. */
