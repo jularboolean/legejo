@@ -36,6 +36,7 @@ mod live;
 mod license;
 mod mail;
 mod opds;
+mod people;
 mod openlibrary;
 mod progress;
 mod public;
@@ -343,6 +344,8 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/file", get(opds::download))
         .route("/shelves", get(opds::shelves))
         .route("/shelves/{id}", get(opds::shelf))
+        .route("/authors", get(opds::authors))
+        .route("/authors/{key}", get(opds::author))
         .route("/series", get(opds::series_list))
         .route("/series/{name}", get(opds::series))
         // A shelf by its private link: no login, the token is the key.

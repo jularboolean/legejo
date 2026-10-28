@@ -208,6 +208,7 @@ pub async fn root(_user: BasicUser) -> Response {
     let mut xml = feed_open("legejo:root", "Legejo", "/api/opds", NAV_TYPE);
     xml.push_str(&nav_entry("All books", "Every book in the catalog", "/api/opds/books", ACQ_TYPE));
     xml.push_str(&nav_entry("Shelves", "Books by shelf", "/api/opds/shelves", NAV_TYPE));
+    xml.push_str(&nav_entry("Authors", "Books by author", "/api/opds/authors", NAV_TYPE));
     xml.push_str(&nav_entry("Series", "Books by series", "/api/opds/series", NAV_TYPE));
     xml.push_str("</feed>\n");
     feed_response(NAV_TYPE, xml)
@@ -220,8 +221,13 @@ fn series_number(i: f64) -> String {
 
 /// Series have no id; the name goes in the path, percent-encoded.
 fn series_href(name: &str) -> String {
-    let mut out = String::from("/api/opds/series/");
-    for b in name.bytes() {
+    path_under("/api/opds/series/", name)
+}
+
+/// `base` and then `part`, percent-encoded as one segment of a path.
+fn path_under(base: &str, part: &str) -> String {
+    let mut out = String::from(base);
+    for b in part.bytes() {
         if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
             out.push(b as char);
         } else {
@@ -272,6 +278,88 @@ pub async fn series(
 
     let mut xml = feed_open(&format!("legejo:series:{}", name.to_lowercase()), &name, &series_href(&name), ACQ_TYPE);
     for book in &books {
+        xml.push_str(&book_entry(book));
+    }
+    xml.push_str("</feed>\n");
+    Ok(feed_response(ACQ_TYPE, xml))
+}
+
+/// An author is a person, as the library has them: one entry for "Selma
+/// Lagerlöf" and "Lagerlöf, Selma", and one each for the two in "Maj
+/// Sjöwall, Per Wahlöö". The person's key goes in the path.
+fn author_href(key: &str) -> String {
+    path_under("/api/opds/authors/", key)
+}
+
+pub async fn authors(State(state): State<AppState>, user: BasicUser) -> Result<Response, Response> {
+    let fields: Vec<String> = sqlx::query_scalar("SELECT author FROM books WHERE owner_id = $1 AND author IS NOT NULL")
+        .bind(user.id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+
+    // Per person: how often each spelling is used, and the number of books.
+    let mut people: std::collections::HashMap<String, (std::collections::HashMap<String, (usize, String)>, usize)> =
+        std::collections::HashMap::new();
+    for field in &fields {
+        for p in crate::people::split(Some(field)) {
+            let (spellings, books) = people.entry(p.key).or_default();
+            let spelling = spellings.entry(p.name).or_insert((0, p.sort));
+            spelling.0 += 1;
+            *books += 1;
+        }
+    }
+    // The most common spelling names the person; ordered by surname.
+    let mut listed: Vec<(String, String, String, usize)> = people
+        .into_iter()
+        .map(|(key, (spellings, books))| {
+            let (name, (_, sort)) = spellings
+                .into_iter()
+                .max_by(|a, b| a.1.0.cmp(&b.1.0).then_with(|| b.0.cmp(&a.0)))
+                .unwrap_or_default();
+            (key, name, sort, books)
+        })
+        .collect();
+    listed.sort_by_cached_key(|(key, _, sort, _)| (crate::authorfacts::key_of(sort), key.clone()));
+
+    let mut xml = feed_open("legejo:authors", "Authors", "/api/opds/authors", NAV_TYPE);
+    for (key, name, _, count) in &listed {
+        let books = if *count == 1 { "1 book".to_string() } else { format!("{count} books") };
+        xml.push_str(&nav_entry(name, &books, &author_href(key), ACQ_TYPE));
+    }
+    xml.push_str("</feed>\n");
+    Ok(feed_response(NAV_TYPE, xml))
+}
+
+pub async fn author(
+    State(state): State<AppState>,
+    user: BasicUser,
+    Path(key): Path<String>,
+) -> Result<Response, Response> {
+    let candidates: Vec<Book> = sqlx::query_as(&format!(
+        "SELECT {BOOK_COLUMNS_B} FROM books b
+         WHERE b.owner_id = $1 AND b.author IS NOT NULL
+         ORDER BY LOWER(b.title), b.id"
+    ))
+    .bind(user.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut name = None;
+    let books: Vec<&Book> = candidates
+        .iter()
+        .filter(|b| match crate::people::split(b.author.as_deref()).into_iter().find(|p| p.key == key) {
+            Some(p) => {
+                name.get_or_insert(p.name);
+                true
+            }
+            None => false,
+        })
+        .collect();
+    let name = name.ok_or_else(not_found)?;
+
+    let mut xml = feed_open(&format!("legejo:author:{key}"), &name, &author_href(&key), ACQ_TYPE);
+    for book in books {
         xml.push_str(&book_entry(book));
     }
     xml.push_str("</feed>\n");

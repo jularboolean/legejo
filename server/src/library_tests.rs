@@ -957,3 +957,52 @@ async fn libris_is_off_until_an_admin_turns_it_on() {
     let (_, config) = send(&app, Method::GET, "/api/config", Some(&cookie), None).await;
     assert_eq!(config["libris_enabled"], true);
 }
+
+#[tokio::test]
+async fn opds_lists_authors_as_people() {
+    use base64::Engine;
+    let (app, db, _) = test_app().await;
+    let (alice, _) = add_user(&db, "alice").await;
+    let hash = crate::db::hash_password("kontots lösenord").await.unwrap();
+    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?").bind(&hash).bind(alice).execute(&db).await.unwrap();
+    for (title, author) in [
+        ("Gösta Berlings saga", "Selma Lagerlöf"),
+        ("Kejsarn av Portugallien", "Lagerlöf, Selma, 1858-1940"),
+        ("Roseanna", "Maj Sjöwall, Per Wahlöö"),
+        ("Röda rummet", "August Strindberg"),
+    ] {
+        let (id, _) = add_book(&db, alice, title).await;
+        sqlx::query("UPDATE books SET author = ? WHERE id = ?").bind(author).bind(id).execute(&db).await.unwrap();
+    }
+    let auth = base64::engine::general_purpose::STANDARD.encode("alice:kontots lösenord");
+    let get = |uri: &str| {
+        let req = Request::builder().uri(uri).header(header::AUTHORIZATION, format!("Basic {auth}")).body(Body::empty()).unwrap();
+        let app = app.clone();
+        async move {
+            let res = app.oneshot(req).await.unwrap();
+            let status = res.status();
+            let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+            (status, String::from_utf8(bytes.to_vec()).unwrap())
+        }
+    };
+
+    let (_, root) = get("/api/opds").await;
+    assert!(root.contains(r#"href="/api/opds/authors""#), "the root leads to the authors");
+
+    let (status, list) = get("/api/opds/authors").await;
+    assert_eq!(status, StatusCode::OK);
+    let titles: Vec<&str> = list.split("<entry>").skip(1).map(|e| e.split("<title>").nth(1).unwrap().split("</title>").next().unwrap()).collect();
+    // By surname, each person once, the two of a pair apart.
+    assert_eq!(titles, ["Selma Lagerlöf", "Maj Sjöwall", "August Strindberg", "Per Wahlöö"]);
+    assert!(list.contains("<content type=\"text\">2 books</content>"));
+
+    let (status, selma) = get("/api/opds/authors/selma%20lagerlof").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(selma.contains("<title>Selma Lagerlöf</title>"));
+    assert!(selma.contains("Gösta Berlings saga") && selma.contains("Kejsarn av Portugallien"));
+    assert!(!selma.contains("Roseanna"));
+
+    let (_, per) = get("/api/opds/authors/per%20wahloo").await;
+    assert!(per.contains("Roseanna"));
+    assert_eq!(get("/api/opds/authors/nobody").await.0, StatusCode::NOT_FOUND);
+}

@@ -3,7 +3,7 @@
 //! a book lands among the owner's annotations, and what it asks for comes
 //! back in its own shape, so that it keeps what it has.
 
-use crate::testutil::{add_user, send, test_app};
+use crate::testutil::{add_book, add_user, send, test_app};
 use axum::body::Body;
 use axum::http::{header, HeaderMap, Method, Request, StatusCode};
 use axum::Router;
@@ -358,4 +358,26 @@ async fn a_highlight_made_in_the_web_reader_goes_to_the_device_placed_by_kepub_s
     assert_eq!(v["annotations"].as_array().unwrap().len(), 0);
     let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
     assert_eq!(list.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn the_kepub_a_kobo_gets_is_known_to_koreader_by_its_own_fingerprint() {
+    let (_, db, state) = test_app().await;
+    let (alice, _) = add_user(&db, "alice").await;
+    let (book, uuid) = add_book(&db, alice, "Alice").await;
+    // The KEPUB the device is sent, as kepubify leaves it in the cache.
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    let kepub = dir.join(format!("{uuid}.kepub.epub"));
+    tokio::fs::write(&kepub, crate::kobospan::sample_kepub()).await.unwrap();
+
+    assert_eq!(crate::kobo::ensure_kepub(&state, &uuid).await.as_deref(), Some(kepub.as_path()));
+    let md5 = crate::kosync::partial_md5(&kepub).unwrap();
+    let known: Vec<i64> = sqlx::query_scalar("SELECT book_id FROM book_file_ids WHERE md5 = ?").bind(&md5).fetch_all(&db).await.unwrap();
+    assert_eq!(known, [book]);
+
+    // Sent again: still once.
+    crate::kobo::ensure_kepub(&state, &uuid).await;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM book_file_ids WHERE md5 = ?").bind(&md5).fetch_one(&db).await.unwrap();
+    assert_eq!(count, 1);
 }

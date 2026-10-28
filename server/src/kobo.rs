@@ -1871,7 +1871,30 @@ const KEPUB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
 
 /// Convert to kepub with the external `kepubify` binary, caching the result.
 /// Returns None (fall back to plain epub) when conversion is unavailable or fails.
-async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
+pub(crate) async fn ensure_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
+    let kepub = make_kepub(state, uuid).await?;
+    remember_kepub(state, uuid, &kepub).await;
+    Some(kepub)
+}
+
+/// KOReader on a Kobo opens the KEPUB the Kobo was sent, not the EPUB, and
+/// knows it by its own fingerprint of that file: kept among the book's file
+/// ids, so that its progress finds the book (kosync.rs).
+async fn remember_kepub(state: &AppState, uuid: &str, kepub: &std::path::Path) {
+    let path = kepub.to_path_buf();
+    let Ok(Ok(md5)) = tokio::task::spawn_blocking(move || crate::kosync::partial_md5(&path)).await else { return };
+    let _ = sqlx::query(
+        "INSERT INTO book_file_ids (md5, book_id)
+         SELECT $1, id FROM books WHERE uuid = $2
+         ON CONFLICT (md5, book_id) DO NOTHING",
+    )
+    .bind(&md5)
+    .bind(uuid)
+    .execute(&state.db)
+    .await;
+}
+
+async fn make_kepub(state: &AppState, uuid: &str) -> Option<std::path::PathBuf> {
     let out_dir = state.data_dir.join("kepub");
     let out = out_dir.join(format!("{uuid}.kepub.epub"));
     if tokio::fs::try_exists(&out).await.unwrap_or(false) {
