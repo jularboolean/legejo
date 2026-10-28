@@ -15,10 +15,14 @@ const GAP = 70;
 const QUOTE_SIZES = [54, 48, 44, 40, 36, 32, 29, 26];
 const LINE = 1.45;
 const TITLE_LINE = 54;
+/** The strip at the foot for the doves and the name. */
+const FOOT = 90;
+const LOGO_HEIGHT = 64;
+/** The doves' width over their height (assets/legejo.svg). */
+const LOGO_RATIO = 321.825 / 341.68;
 
 const BOOK_FACE = '"Literata Variable", Georgia, serif';
 const TITLE_FACE = 'Fraunces, Georgia, serif';
-const UI_FACE = '"Inter Variable", system-ui, sans-serif';
 
 const PAPER = '#f6f2ea';
 const INK = '#1f2325';
@@ -34,6 +38,8 @@ export type CardInput = {
 	coverRatio?: number;
 	/** The highlight's colour, for the bar beside the passage. */
 	color?: string | null;
+	/** The two doves, drawn beside the name at the foot. */
+	logo?: CanvasImageSource | null;
 };
 
 /** The passage as it goes on the card: whitespace made even, and cut at a word when too long. */
@@ -88,7 +94,7 @@ export async function loadFaces(text: string): Promise<void> {
 		document.fonts.load(`400 40px ${BOOK_FACE}`, text),
 		document.fonts.load(`italic 400 40px ${BOOK_FACE}`, text),
 		document.fonts.load(`600 40px ${TITLE_FACE}`),
-		document.fonts.load(`500 20px ${UI_FACE}`)
+		document.fonts.load(`600 38px ${TITLE_FACE}`, 'Legejo')
 	]).catch(() => {});
 }
 
@@ -109,13 +115,13 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 	// quotation mark above it and the book's name below.
 	const markRoom = 70;
 	const footRoom = 190;
-	const { size, lines } = fit(quote, textWidth - 30, MAX_HEIGHT - 2 * PAD - markRoom - footRoom, measureAt);
+	const { size, lines } = fit(quote, textWidth - 30, MAX_HEIGHT - 2 * PAD - FOOT - markRoom - footRoom, measureAt);
 	const quoteHeight = lines.length * size * LINE;
 
 	ctx.font = `600 40px ${TITLE_FACE}`;
 	const titleLines = wrap(input.title, textWidth, (s) => ctx.measureText(s).width).slice(0, 2);
-	const textHeight = markRoom + quoteHeight + 60 + titleLines.length * TITLE_LINE + (input.author ? 50 : 0) + 40;
-	const height = Math.round(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, textHeight + 2 * PAD, coverHeight + 2 * PAD + 40)));
+	const textHeight = markRoom + quoteHeight + 60 + titleLines.length * TITLE_LINE + (input.author ? 50 : 0);
+	const height = Math.round(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, textHeight + 2 * PAD + FOOT, coverHeight + 2 * PAD + FOOT)));
 
 	canvas.width = CARD_WIDTH;
 	canvas.height = height;
@@ -135,7 +141,7 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 	}
 
 	// The passage sits in the middle of the room it has, the book under it.
-	let y = PAD + Math.max(0, (height - 2 * PAD - 40 - textHeight) / 2);
+	let y = PAD + Math.max(0, (height - 2 * PAD - FOOT - textHeight) / 2);
 	ctx.fillStyle = barColor(input.color);
 	ctx.font = `600 120px ${TITLE_FACE}`;
 	ctx.textBaseline = 'alphabetic';
@@ -164,11 +170,18 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 		ctx.fillText(input.author, textX, y + 8, textWidth);
 	}
 
-	ctx.fillStyle = MUTED;
-	ctx.font = `500 22px ${UI_FACE}`;
+	// The doves and the name, at the foot on the right.
+	const footMiddle = height - PAD / 2 - LOGO_HEIGHT / 2 + 4;
+	ctx.fillStyle = INK;
+	ctx.font = `600 38px ${TITLE_FACE}`;
 	ctx.textAlign = 'right';
-	ctx.textBaseline = 'alphabetic';
-	ctx.fillText('Legejo', CARD_WIDTH - PAD, height - PAD / 2);
+	ctx.textBaseline = 'middle';
+	ctx.fillText('Legejo', CARD_WIDTH - PAD, footMiddle);
+	if (input.logo) {
+		const width = LOGO_HEIGHT * LOGO_RATIO;
+		const nameWidth = ctx.measureText('Legejo').width;
+		ctx.drawImage(input.logo, CARD_WIDTH - PAD - nameWidth - 16 - width, footMiddle - LOGO_HEIGHT / 2, width, LOGO_HEIGHT);
+	}
 	ctx.textAlign = 'left';
 }
 

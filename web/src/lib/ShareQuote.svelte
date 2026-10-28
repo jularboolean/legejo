@@ -6,6 +6,7 @@
 	import { fade, pop } from '#lib/motion';
 	import { t } from '#lib/i18n';
 	import { altText, drawCard, fileName, loadFaces, postText } from '#lib/quotecard';
+	import doves from '#lib/assets/legejo.svg?url';
 
 	type Props = {
 		open: boolean;
@@ -35,7 +36,7 @@
 	const canShare = $derived(file !== null && typeof navigator !== 'undefined' && !!navigator.canShare?.({ files: [file] }));
 	const canCopyImage = typeof window !== 'undefined' && 'ClipboardItem' in window && !!navigator.clipboard?.write;
 
-	async function loadCover(url: string): Promise<HTMLImageElement | null> {
+	async function loadImage(url: string): Promise<HTMLImageElement | null> {
 		const img = new Image();
 		img.src = url;
 		try {
@@ -48,14 +49,19 @@
 
 	async function draw(target: HTMLCanvasElement) {
 		failed = false;
-		const [cover] = await Promise.all([coverUrl ? loadCover(coverUrl) : null, loadFaces(quote + title + (author ?? ''))]);
+		const [cover, logo] = await Promise.all([
+			coverUrl ? loadImage(coverUrl) : null,
+			loadImage(doves),
+			loadFaces(quote + title + (author ?? ''))
+		]);
 		drawCard(target, {
 			quote,
 			title,
 			author,
 			cover,
 			coverRatio: cover ? cover.naturalWidth / cover.naturalHeight : undefined,
-			color
+			color,
+			logo
 		});
 		const blob = await new Promise<Blob | null>((resolve) => target.toBlob(resolve, 'image/png'));
 		if (!blob) {
