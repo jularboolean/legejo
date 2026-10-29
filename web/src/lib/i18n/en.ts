@@ -1163,7 +1163,7 @@ export const en = {
 	'catalogs.turnOn': "Show catalogs in my menu",
 	'catalogs.turnedOff': "You have not turned catalogs on. That is done at",
 	'catalogs.unavailable': "Catalogs are not turned on for this instance.",
-	'catalogs.suggest.unglue': "Books under Creative Commons licences, most of them in English.",
+	'catalogs.suggest.litteraturbanken': "Free books in Swedish, from Litteraturbanken.",
 	'catalogs.suggest.ebooksgratuits': "Free books in French.",
 	'catalogs.suggest.bnr': "Free books in French, from French-speaking Switzerland.",
 	'catalogs.suggest.qumran': "Free books in German and English.",

@@ -1159,7 +1159,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnOn': "Näytä luettelot valikossani",
 	'catalogs.turnedOff': "Et ole ottanut luetteloita käyttöön. Se tehdään sivulla",
 	'catalogs.unavailable': "Luettelot eivät ole käytössä tässä instanssissa.",
-	'catalogs.suggest.unglue': "Creative Commons -lisensoituja kirjoja, useimmat englanniksi.",
+	'catalogs.suggest.litteraturbanken': "Vapaita kirjoja ruotsiksi, Ruotsin kirjallisuuspankista Litteraturbankenista.",
 	'catalogs.suggest.ebooksgratuits': "Vapaita kirjoja ranskaksi.",
 	'catalogs.suggest.bnr': "Vapaita kirjoja ranskaksi, ranskankielisestä Sveitsistä.",
 	'catalogs.suggest.qumran': "Vapaita kirjoja saksaksi ja englanniksi.",

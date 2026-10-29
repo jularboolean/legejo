@@ -1159,7 +1159,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnOn': "Afficher les catalogues dans mon menu",
 	'catalogs.turnedOff': "Vous n’avez pas activé les catalogues. Cela se fait dans",
 	'catalogs.unavailable': "Les catalogues ne sont pas activés sur cette instance.",
-	'catalogs.suggest.unglue': "Des livres sous licences Creative Commons, la plupart en anglais.",
+	'catalogs.suggest.litteraturbanken': "Des livres libres en suédois, de la Litteraturbanken.",
 	'catalogs.suggest.ebooksgratuits': "Des livres libres en français.",
 	'catalogs.suggest.bnr': "Des livres libres en français, de Suisse romande.",
 	'catalogs.suggest.qumran': "Des livres libres en allemand et en anglais.",

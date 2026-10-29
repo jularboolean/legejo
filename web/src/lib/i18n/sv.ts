@@ -1165,7 +1165,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnOn': "Visa Kataloger i min meny",
 	'catalogs.turnedOff': "Du har inte slagit på Kataloger. Det gör du på",
 	'catalogs.unavailable': "Kataloger är inte påslaget för den här instansen.",
-	'catalogs.suggest.unglue': "Böcker under Creative Commons-licenser, de flesta på engelska.",
+	'catalogs.suggest.litteraturbanken': "Fria böcker på svenska, från Litteraturbanken.",
 	'catalogs.suggest.ebooksgratuits': "Fria böcker på franska.",
 	'catalogs.suggest.bnr': "Fria böcker på franska, från franskspråkiga Schweiz.",
 	'catalogs.suggest.qumran': "Fria böcker på tyska och engelska.",

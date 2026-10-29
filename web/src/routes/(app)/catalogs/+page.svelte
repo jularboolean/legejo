@@ -15,7 +15,7 @@
 	/** Catalogs known to work, offered until the user has them. */
 	const SUGGESTED: { title: string; url: string; about: Parameters<typeof t>[0] }[] = [
 		{ title: 'Project Gutenberg', url: 'https://www.gutenberg.org/ebooks.opds/', about: 'catalogs.suggest.gutenberg' },
-		{ title: 'Unglue.it', url: 'https://unglue.it/api/opds/', about: 'catalogs.suggest.unglue' },
+		{ title: 'Litteraturbanken', url: 'https://litteraturbanken.se/api/opds', about: 'catalogs.suggest.litteraturbanken' },
 		{
 			title: 'Ebooks libres et gratuits',
 			url: 'https://www.ebooksgratuits.com/opds/index.php',
