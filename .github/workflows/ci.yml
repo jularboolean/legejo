@@ -13,6 +13,12 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
+      # The compose files people download from main must stay valid.
+      - name: Compose files are valid
+        working-directory: .
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.postgres.yml config -q
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

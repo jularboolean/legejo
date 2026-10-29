@@ -14,10 +14,12 @@ services:
       - legejo-data:/data
       # - ./import:/import              # watched import folder, see LEGEJO_IMPORT_DIR
     environment:
+      # The https:// address people reach Legejo at. Empty counts as unset:
+      # it can then be set on the Admin page instead.
+      LEGEJO_PUBLIC_URL: ""
       # The admin made at the first start, instead of in the browser:
       # LEGEJO_ADMIN_USER: admin
       # LEGEJO_ADMIN_PASSWORD: change-me
-      # LEGEJO_PUBLIC_URL: https://books.example.org
       # Mail (needed for self-registration and password reset):
       # LEGEJO_SMTP_HOST: smtp.example.org
       # LEGEJO_SMTP_USER: legejo
