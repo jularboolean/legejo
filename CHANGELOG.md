@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.35.1 (2026-10-29)
+
+- **Login throttling behind a proxy can no longer be steered.** With
+  `LEGEJO_CLIENT_IP_HEADER=X-Forwarded-For`, Legejo took the first address
+  in the header, which a visitor can write themselves, and so could make
+  their failed logins count against someone else's address. It now takes the
+  last address, the one your proxy added. Behind two proxies, such as
+  Cloudflare in front of another, name the header the outer one sets
+  (`CF-Connecting-IP`).
+- **Logins are `Secure` as soon as an https address is saved.** A public
+  address set on the Admin page marked new session cookies `Secure` only
+  after Legejo was restarted. Now it does so at once.
+  `LEGEJO_SECURE_COOKIES` still decides when it is set.
+
 ## 1.35.0 (2026-10-28)
 
 - **Turning a page is a sheet of paper.** Going forward, the page is
