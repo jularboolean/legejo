@@ -14,6 +14,13 @@ describe('translations', () => {
 		}
 	});
 
+	it('have every key of the English texts, in every language', () => {
+		for (const [code, messages] of Object.entries(locales)) {
+			const missing = Object.keys(en).filter((key) => !(key in messages));
+			expect(missing, `${code} lacks texts`).toEqual([]);
+		}
+	});
+
 	it('use only the placeholders the English text has', () => {
 		for (const [code, messages] of Object.entries(locales)) {
 			for (const [key, text] of Object.entries(messages)) {
