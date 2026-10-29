@@ -1171,6 +1171,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnedOff': "Et ole ottanut luetteloita käyttöön. Se tehdään sivulla",
 	'catalogs.unavailable': "Luettelot eivät ole käytössä tässä instanssissa.",
 	'catalogs.suggest.litteraturbanken': "Vapaita kirjoja ruotsiksi, Ruotsin kirjallisuuspankista Litteraturbankenista.",
+	'catalogs.suggest.bokselskap': "Vapaita kirjoja norjaksi, Bokselskapista.",
 	'catalogs.suggest.ebooksgratuits': "Vapaita kirjoja ranskaksi.",
 	'catalogs.suggest.bnr': "Vapaita kirjoja ranskaksi, ranskankielisestä Sveitsistä.",
 	'catalogs.suggest.qumran': "Vapaita kirjoja saksaksi ja englanniksi.",

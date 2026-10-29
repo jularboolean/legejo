@@ -1171,6 +1171,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnedOff': "Du hast die Kataloge nicht eingeschaltet. Das geht unter",
 	'catalogs.unavailable': "Kataloge sind für diese Instanz nicht eingeschaltet.",
 	'catalogs.suggest.litteraturbanken': "Freie Bücher auf Schwedisch, aus der Litteraturbanken.",
+	'catalogs.suggest.bokselskap': "Freie Bücher auf Norwegisch, von Bokselskap.",
 	'catalogs.suggest.ebooksgratuits': "Freie Bücher auf Französisch.",
 	'catalogs.suggest.bnr': "Freie Bücher auf Französisch, aus der Westschweiz.",
 	'catalogs.suggest.qumran': "Freie Bücher auf Deutsch und Englisch.",

@@ -1164,6 +1164,7 @@ export const en = {
 	'catalogs.turnedOff': "You have not turned catalogs on. That is done at",
 	'catalogs.unavailable': "Catalogs are not turned on for this instance.",
 	'catalogs.suggest.litteraturbanken': "Free books in Swedish, from Litteraturbanken.",
+	'catalogs.suggest.bokselskap': "Free books in Norwegian, from Bokselskap.",
 	'catalogs.suggest.ebooksgratuits': "Free books in French.",
 	'catalogs.suggest.bnr': "Free books in French, from French-speaking Switzerland.",
 	'catalogs.suggest.qumran': "Free books in German and English.",

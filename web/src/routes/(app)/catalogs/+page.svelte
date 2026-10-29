@@ -17,6 +17,11 @@
 		{ title: 'Project Gutenberg', url: 'https://www.gutenberg.org/ebooks.opds/', about: 'catalogs.suggest.gutenberg' },
 		{ title: 'Litteraturbanken', url: 'https://litteraturbanken.se/api/opds', about: 'catalogs.suggest.litteraturbanken' },
 		{
+			title: 'Bokselskap',
+			url: 'https://www.bokselskap.no/wp-content/themes/bokselskap/tekster/opds/root.xml',
+			about: 'catalogs.suggest.bokselskap'
+		},
+		{
 			title: 'Ebooks libres et gratuits',
 			url: 'https://www.ebooksgratuits.com/opds/index.php',
 			about: 'catalogs.suggest.ebooksgratuits'

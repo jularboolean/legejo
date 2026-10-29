@@ -1166,6 +1166,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'catalogs.turnedOff': "Du har inte slagit på Kataloger. Det gör du på",
 	'catalogs.unavailable': "Kataloger är inte påslaget för den här instansen.",
 	'catalogs.suggest.litteraturbanken': "Fria böcker på svenska, från Litteraturbanken.",
+	'catalogs.suggest.bokselskap': "Fria böcker på norska, från Bokselskap.",
 	'catalogs.suggest.ebooksgratuits': "Fria böcker på franska.",
 	'catalogs.suggest.bnr': "Fria böcker på franska, från franskspråkiga Schweiz.",
 	'catalogs.suggest.qumran': "Fria böcker på tyska och engelska.",
