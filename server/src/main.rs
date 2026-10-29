@@ -483,7 +483,7 @@ async fn main() -> anyhow::Result<()> {
         Some("json") => tracing_subscriber::fmt().json().with_env_filter(filter).init(),
         _ => tracing_subscriber::fmt().with_ansi(ansi).with_env_filter(filter).init(),
     }
-    let mut settings = settings::Settings::from_env()?;
+    let settings = settings::Settings::from_env()?;
 
     let data_dir = PathBuf::from(settings::var("LEGEJO_DATA_DIR")?.unwrap_or_else(|| "data".into()));
     std::fs::create_dir_all(&data_dir)?;
@@ -492,9 +492,6 @@ async fn main() -> anyhow::Result<()> {
     let first_admin = db::bootstrap_admin(&db).await?;
     // Mail, the librarian and the public address: the environment, else the admin page.
     let live = std::sync::Arc::new(live::Live::load(&db).await?);
-    if settings::var("LEGEJO_SECURE_COOKIES")?.is_none() {
-        settings.secure_cookies = live.public_url().is_some_and(|u| u.starts_with("https://"));
-    }
     let settings = std::sync::Arc::new(settings);
 
     let kepubify = find_kepubify();

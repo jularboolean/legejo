@@ -253,9 +253,10 @@ image or a Compose file behind their own reverse proxy:
     exists before anyone opens the site. Without it, the first visitor creates
     the admin in the browser. It is only used when the database is empty.
   - `LEGEJO_CLIENT_IP_HEADER=X-Forwarded-For`: lets login throttling work per
-    client. Traefik and Caddy, which these platforms use, replace that header
-    in their default configuration; leave the variable unset if yours is
-    configured to trust it from clients.
+    client. Legejo takes the last address in it, the one the platform's proxy
+    added, so an address a client writes there itself is not believed. Behind
+    a second proxy such as Cloudflare, name the header that one sets
+    (`CF-Connecting-IP`) instead.
 
 With SQLite, the database lives in the same volume as the books. For
 PostgreSQL, add `DATABASE_URL`.
@@ -384,7 +385,7 @@ HTTP 429 until the window has passed.
 | `LEGEJO_LOGIN_MAX_FAILURES` | `10` | Failures per username (and client IP, when known). `0` turns throttling off |
 | `LEGEJO_LOGIN_MAX_FAILURES_IP` | `50` | Failures per client IP across usernames, and per username across IPs |
 | `LEGEJO_LOGIN_WINDOW_MINUTES` | `15` | |
-| `LEGEJO_CLIENT_IP_HEADER` | | Header with the client IP set by your reverse proxy, e.g. `X-Real-IP`. Only set it if the proxy always overwrites it |
+| `LEGEJO_CLIENT_IP_HEADER` | | Header with the client IP set by your reverse proxy, e.g. `X-Real-IP`. For a list such as `X-Forwarded-For`, the last address is taken: the one the proxy in front of Legejo added |
 
 **Import folder.** EPUB, PDF and CBZ files placed in the folder (subfolders included) are
 added to a user's library once they have stopped changing. Afterwards they are

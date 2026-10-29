@@ -93,8 +93,9 @@ pub struct Settings {
     /// The same for audiobooks (audioimport.rs). None unless
     /// LEGEJO_AUDIOBOOK_IMPORT_DIR is set.
     pub audio_import: Option<ImportDir>,
-    /// Mark cookies Secure. On by default when LEGEJO_PUBLIC_URL is https.
-    pub secure_cookies: bool,
+    /// Mark cookies Secure, as LEGEJO_SECURE_COOKIES says; unset, it follows
+    /// the public address as it is now (auth::secure_cookies).
+    pub secure_cookies: Option<bool>,
     /// Serve the read-only MCP endpoint (mcp.rs). Off unless LEGEJO_MCP=true.
     pub mcp: bool,
     /// Keep the text of the books for searching inside them (fulltext.rs):
@@ -179,7 +180,7 @@ impl Default for Settings {
             metrics: Metrics::Off,
             import: None,
             audio_import: None,
-            secure_cookies: false,
+            secure_cookies: None,
             mcp: false,
             fulltext: None,
             kobo: KoboServices::default(),
@@ -223,8 +224,8 @@ impl Settings {
             }),
         };
         let secure_cookies = match var("LEGEJO_SECURE_COOKIES")? {
-            Some(_) => flag("LEGEJO_SECURE_COOKIES")?,
-            None => var("LEGEJO_PUBLIC_URL")?.is_some_and(|u| u.trim().starts_with("https://")),
+            Some(_) => Some(flag("LEGEJO_SECURE_COOKIES")?),
+            None => None,
         };
         let mcp = flag("LEGEJO_MCP")?;
         let fulltext = match var("LEGEJO_FULLTEXT")? {

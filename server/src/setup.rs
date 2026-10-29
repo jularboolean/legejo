@@ -67,7 +67,7 @@ pub async fn create(State(state): State<AppState>, jar: CookieJar, Json(req): Js
         .await
         .map_err(|e| internal(e.into()))?;
     let info = UserInfo { id, username, is_admin: true, locale, has_avatar: false };
-    Ok((jar.add(session_cookie(token, SESSION_DAYS, state.settings.secure_cookies)), Json(info)))
+    Ok((jar.add(session_cookie(token, SESSION_DAYS, crate::auth::secure_cookies(&state))), Json(info)))
 }
 
 fn err(status: StatusCode, message: &str) -> Response {

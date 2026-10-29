@@ -295,7 +295,7 @@ pub async fn start(
         .append_pair("nonce", &flow.nonce)
         .append_pair("code_challenge", &pkce_challenge(&flow.verifier))
         .append_pair("code_challenge_method", "S256");
-    (jar.add(flow_cookie(flow.encode(), FLOW_MINUTES, state.settings.secure_cookies)), Redirect::to(url.as_str())).into_response()
+    (jar.add(flow_cookie(flow.encode(), FLOW_MINUTES, crate::auth::secure_cookies(&state))), Redirect::to(url.as_str())).into_response()
 }
 
 #[derive(Deserialize)]
@@ -365,7 +365,7 @@ pub async fn callback(
         return not_configured();
     };
     let flow = jar.get(FLOW_COOKIE).and_then(|c| Flow::decode(c.value()));
-    let jar = jar.remove(flow_cookie(String::new(), 0, state.settings.secure_cookies));
+    let jar = jar.remove(flow_cookie(String::new(), 0, crate::auth::secure_cookies(&state)));
     let link = flow.as_ref().is_some_and(|f| f.link);
     let back = if link { "/account" } else { "/login" };
     let landing = flow.as_ref().and_then(|f| f.next.clone()).unwrap_or_else(|| "/".to_string());
@@ -381,7 +381,7 @@ pub async fn callback(
 
     match finish(&state, &oidc, &headers, flow, linking_user, q).await {
         Ok(Done::LoggedIn(user_id)) => match new_session(&state, user_id).await {
-            Ok(token) => (jar.add(auth::session_cookie(token, auth::SESSION_DAYS, state.settings.secure_cookies)), Redirect::to(&landing)).into_response(),
+            Ok(token) => (jar.add(auth::session_cookie(token, auth::SESSION_DAYS, crate::auth::secure_cookies(&state))), Redirect::to(&landing)).into_response(),
             Err(_) => (jar, Redirect::to(&format!("{back}?oidc=error"))).into_response(),
         },
         Ok(Done::Linked) => (jar, Redirect::to("/account?oidc=linked")).into_response(),

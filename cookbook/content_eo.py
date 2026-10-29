@@ -95,11 +95,12 @@ paĝo Administrado. <strong>Testi</strong> demandas la adreson, ĉu ĝi kondukas
 venkas.</p>""",
   """<p>Kobo-sinkronigo, ligiloj en retleteroj, federacio kaj instalado de Legejo kiel aplikaĵo ĉiuj dependas
 de tio, ke tiu adreso estas ĝusta. Kun publika <code>https</code>-adreso, seancaj kuketoj estas markitaj
-<code>Secure</code>; agordu <code>LEGEJO_SECURE_COOKIES=false</code> nur, se vi vere servas per simpla
+<code>Secure</code>, ekde kiam ĝi estas konservita; agordu <code>LEGEJO_SECURE_COOKIES=false</code> nur, se vi vere servas per simpla
 HTTP.</p>
 <p>Se via prokurilo metas kapon kun la adreso de la kliento, nomu ĝin en
 <code>LEGEJO_CLIENT_IP_HEADER</code>, por ke la bremsado de ensalutoj (Recepto 12.7) povu distingi
-klientojn. Faru tion nur, se la prokurilo ĉiam anstataŭigas la kapon.</p>
+klientojn. Listo kiel <code>X-Forwarded-For</code> estas legata laŭ sia lasta adreso, tiu, kiun
+via prokurilo aldonis; kion kliento skribis antaŭ ĝi, ne kalkuliĝas.</p>
 <p>Ĉe Coolify, Dokploy kaj similaj platformoj: uzu la bildon <code>slurvdjur/legejo:1</code>,
 direktu vian domajnon al la ujpordo <code>3000</code> kaj muntu daŭran volumon ĉe
 <code>/data</code>.</p>"""),

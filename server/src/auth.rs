@@ -103,6 +103,13 @@ fn internal(e: anyhow::Error) -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
 }
 
+/// Whether cookies are marked Secure: as LEGEJO_SECURE_COOKIES says, else
+/// when the public address is https, as it is now. The address can be set on
+/// the Admin page while Legejo runs; a cookie set after that is Secure.
+pub(crate) fn secure_cookies(state: &AppState) -> bool {
+    state.settings.secure_cookies.unwrap_or_else(|| state.live.public_url().is_some_and(|u| u.starts_with("https://")))
+}
+
 pub(crate) fn session_cookie(token: String, max_age_days: i64, secure: bool) -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE, token);
     cookie.set_path("/");
@@ -163,7 +170,7 @@ pub async fn login(
         locale: user.locale,
         has_avatar: user.has_avatar != 0,
     };
-    Ok((jar.add(session_cookie(token, SESSION_DAYS, state.settings.secure_cookies)), Json(info)))
+    Ok((jar.add(session_cookie(token, SESSION_DAYS, crate::auth::secure_cookies(&state))), Json(info)))
 }
 
 fn invalid_credentials() -> Response {

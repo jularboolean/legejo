@@ -29,9 +29,16 @@ use serde_json::json;
 
 fn client_ip(state: &AppState, headers: &HeaderMap) -> Option<String> {
     let name = state.settings.limits.ip_header.as_deref()?;
-    let value = headers.get(name)?.to_str().ok()?;
-    // X-Forwarded-For: the first entry is the client as the outermost proxy saw it.
-    let ip = value.split(',').next()?.trim();
+    last_hop(headers.get(name)?.to_str().ok()?)
+}
+
+/// The client as the proxy in front of Legejo saw it: the last entry of a
+/// list such as X-Forwarded-For. A proxy adds the address it was reached
+/// from at the end and passes on what the client sent before it, so only
+/// the last entry is the proxy's own; the first is whatever the client wrote.
+/// A header with one address (X-Real-IP, CF-Connecting-IP) is that address.
+fn last_hop(value: &str) -> Option<String> {
+    let ip = value.rsplit(',').next()?.trim();
     (!ip.is_empty() && ip.len() <= 64).then(|| ip.to_string())
 }
 
@@ -207,4 +214,19 @@ pub async fn recent_failures(state: &AppState) -> i64 {
         .fetch_one(&state.db)
         .await
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod hop_tests {
+    use super::last_hop;
+
+    #[test]
+    fn the_client_is_the_last_address_a_proxy_added() {
+        // What a client wrote itself comes first; the proxy's own entry last.
+        assert_eq!(last_hop("1.2.3.4, 203.0.113.9").as_deref(), Some("203.0.113.9"));
+        assert_eq!(last_hop("203.0.113.9").as_deref(), Some("203.0.113.9"));
+        assert_eq!(last_hop(" 2001:db8::1 ").as_deref(), Some("2001:db8::1"));
+        assert_eq!(last_hop("1.2.3.4, "), None);
+        assert_eq!(last_hop(&"9".repeat(65)), None);
+    }
 }

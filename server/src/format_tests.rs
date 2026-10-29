@@ -280,7 +280,9 @@ async fn koreader_and_the_web_share_the_page_of_a_pdf_or_a_comic() {
     // A comic read only in the browser: KOReader still finds its page.
     send(&app, Method::PUT, &format!("/api/books/{cbz_book}/progress"), Some(&cookie), Some(json!({ "cfi": "cbz:3", "percent": 0.4 }))).await;
     assert_eq!(ko(Method::GET, format!("/syncs/progress/{cbz_doc}"), None).await["progress"], "3");
-    // And KOReader's newer page goes the other way.
+    // And KOReader's newer page goes the other way. Newer by the clock: the
+    // later of two saves wins, and in a test they can fall in one millisecond.
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     ko(Method::PUT, "/syncs/progress".into(), Some(json!({ "document": cbz_doc, "progress": "5", "percentage": 0.5, "device": "Kobo", "device_id": "K1" }))).await;
     let v = ko(Method::GET, format!("/syncs/progress/{cbz_doc}"), None).await;
     assert_eq!((v["progress"].clone(), v["device_id"].clone()), (json!("5"), json!("K1")));

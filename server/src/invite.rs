@@ -241,7 +241,7 @@ pub async fn accept(
     tracing::info!("invite: {username} accepted");
     crate::audit::log(&state, Some((id, &username)), "user.invite_accepted", json!({})).await;
     let info = UserInfo { id, username, is_admin: false, locale, has_avatar: false };
-    Ok((jar.add(crate::auth::session_cookie(token, SESSION_DAYS, state.settings.secure_cookies)), Json(info)))
+    Ok((jar.add(crate::auth::session_cookie(token, SESSION_DAYS, crate::auth::secure_cookies(&state))), Json(info)))
 }
 
 #[cfg(test)]

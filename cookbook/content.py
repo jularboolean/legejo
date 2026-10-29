@@ -94,11 +94,12 @@ address people reach it on under <strong>Public address</strong> on the Admin pa
 puts it to use. <code>LEGEJO_PUBLIC_URL</code> does the same, and then wins.</p>""",
   """<p>Kobo sync, links in emails, federation and installing Legejo as an app all depend on
 that address being right. With an <code>https</code> public address, session cookies are marked
-<code>Secure</code>; set <code>LEGEJO_SECURE_COOKIES=false</code> only if you truly serve plain
+<code>Secure</code>, from the moment it is saved; set <code>LEGEJO_SECURE_COOKIES=false</code> only if you truly serve plain
 HTTP.</p>
 <p>If your proxy sets a header with the client's address, name it in
 <code>LEGEJO_CLIENT_IP_HEADER</code> so that login throttling (Recipe 12.7) can tell clients
-apart. Only do so if the proxy always overwrites the header.</p>
+apart. A list such as <code>X-Forwarded-For</code> is read from its last address, the one
+your proxy added; what a client wrote before it does not count.</p>
 <p>On Coolify, Dokploy and similar platforms: use the image <code>slurvdjur/legejo:1</code>,
 route your domain to container port <code>3000</code>, and mount a persistent volume at
 <code>/data</code>.</p>"""),

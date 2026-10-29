@@ -277,7 +277,7 @@ async fn login_cookie(app: &Router, user: &str, password: &str) -> String {
 #[tokio::test]
 async fn session_cookies_are_secure_when_configured() {
     let mut s = Settings::default();
-    s.secure_cookies = true;
+    s.secure_cookies = Some(true);
     let (app, db, _) = app_with(s).await;
     user_with_password(&db, "carol", "secret password").await;
     let cookie = login_cookie(&app, "carol", "secret password").await;
@@ -286,6 +286,32 @@ async fn session_cookies_are_secure_when_configured() {
 
     let (app, db, _) = app_with(Settings::default()).await;
     user_with_password(&db, "carol", "secret password").await;
+    assert!(!login_cookie(&app, "carol", "secret password").await.contains("Secure"));
+}
+
+#[tokio::test]
+async fn cookies_turn_secure_once_an_https_address_is_saved() {
+    let (app, db, _) = app_with(Settings::default()).await;
+    user_with_password(&db, "carol", "secret password").await;
+    sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'carol'").execute(&db).await.unwrap();
+    let before = login_cookie(&app, "carol", "secret password").await;
+    assert!(!before.contains("Secure"), "{before}");
+
+    // Set on the Admin page while Legejo runs: the next cookie is Secure, no restart.
+    let session = before.split(';').next().unwrap().to_string();
+    let (status, _) = send(&app, Method::PUT, "/api/admin/connections/public-url", Some(&session), Some(json!({ "url": "https://legejo.test" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let after = login_cookie(&app, "carol", "secret password").await;
+    assert!(after.contains("Secure"), "{after}");
+
+    // LEGEJO_SECURE_COOKIES=false still wins, for an instance served over plain HTTP.
+    let mut s = Settings::default();
+    s.secure_cookies = Some(false);
+    let (app, db, _) = app_with(s).await;
+    user_with_password(&db, "carol", "secret password").await;
+    sqlx::query("UPDATE users SET is_admin = 1 WHERE username = 'carol'").execute(&db).await.unwrap();
+    let session = login_cookie(&app, "carol", "secret password").await.split(';').next().unwrap().to_string();
+    send(&app, Method::PUT, "/api/admin/connections/public-url", Some(&session), Some(json!({ "url": "https://legejo.test" }))).await;
     assert!(!login_cookie(&app, "carol", "secret password").await.contains("Secure"));
 }
 
