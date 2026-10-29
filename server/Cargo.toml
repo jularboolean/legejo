@@ -40,7 +40,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 object_store = { version = "0.13", default-features = false, features = ["aws"] }
 futures-util = "0.3"
 bytes = "1"
-zip = { version = "3", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "smtp-transport", "builder"] }
 lofty = "0.25"
