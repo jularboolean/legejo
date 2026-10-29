@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.35.2 (2026-10-29)
+
+- **Two more libraries to begin with.** Under Catalogs, Litteraturbanken
+  (free books in Swedish) and Bokselskap (free books in Norwegian) are
+  suggested. Unglue.it is no longer among the suggestions.
+- **Searching inside the books in every language.** The texts of the
+  full-text search, and the time read on a Kobo, were in English in
+  Finnish, German, French and Spanish. They are translated now.
+- **`docker-compose.yml` works again.** Docker Compose refused the file
+  with "environment must be a mapping".
+- **A shorter README.** The configuration reference moved to
+  `docs/configuration.md`.
+
 ## 1.35.1 (2026-10-29)
 
 - **Login throttling behind a proxy can no longer be steered.** With
