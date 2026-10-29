@@ -1294,7 +1294,7 @@ fn opf_text(bytes: &[u8]) -> Option<String> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes.to_vec())).ok()?;
     let name = (0..archive.len()).find_map(|i| {
         let entry = archive.by_index_raw(i).ok()?;
-        let n = entry.name().to_string();
+        let n = entry.name().ok()?.to_string();
         n.to_lowercase().ends_with(".opf").then_some(n)
     })?;
     let mut text = String::new();

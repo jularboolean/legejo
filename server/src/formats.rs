@@ -214,7 +214,7 @@ fn comic_contents<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> (Vec<(Str
     let mut info: Option<String> = None;
     for i in 0..archive.len() {
         let Ok(file) = archive.by_index(i) else { continue };
-        let name = file.name().to_string();
+        let Ok(name) = file.name().map(|n| n.to_string()) else { continue };
         let base = name.rsplit('/').next().unwrap_or(&name);
         // Folders of thumbnails and the like that archivers on macOS add.
         if name.starts_with("__MACOSX/") || base.starts_with('.') {
@@ -521,7 +521,7 @@ mod tests {
         let mut book = zip::ZipArchive::new(Cursor::new(bytes.clone())).unwrap();
         // The marker comes first and is not compressed, as readers require.
         let first = book.by_index(0).unwrap();
-        assert_eq!((first.name(), first.compression()), ("mimetype", zip::CompressionMethod::Stored));
+        assert_eq!((first.name().unwrap().as_ref(), first.compression()), ("mimetype", zip::CompressionMethod::Stored));
         drop(first);
         let mut text = |name: &str| {
             let mut s = String::new();

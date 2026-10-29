@@ -419,7 +419,7 @@ fn resolve(base: &str, href: &str) -> Option<String> {
 
 fn load(bytes: &[u8]) -> anyhow::Result<Package> {
     let mut archive = open_archive(bytes)?;
-    let names: Vec<String> = (0..archive.len()).filter_map(|i| archive.by_index_raw(i).ok().map(|f| f.name().to_string())).collect();
+    let names: Vec<String> = (0..archive.len()).filter_map(|i| archive.by_index_raw(i).ok().and_then(|f| f.name().ok().map(|n| n.to_string()))).collect();
     let from_container = read_text(&mut archive, "META-INF/container.xml").and_then(|c| {
         tags(&c).iter().find(|t| t.local() == "rootfile").and_then(|t| attr(t.raw(&c), "full-path"))
     });
@@ -598,7 +598,7 @@ fn rewrite(bytes: &[u8], changes: &Changes) -> anyhow::Result<Vec<u8>> {
         written.insert("mimetype".to_string());
     }
     for i in 0..archive.len() {
-        let name = archive.by_index_raw(i)?.name().to_string();
+        let name = archive.by_index_raw(i)?.name()?.to_string();
         if !written.insert(name.clone()) {
             continue;
         }
@@ -1337,7 +1337,7 @@ pub(crate) mod tests {
     fn mimetype_first(bytes: &[u8]) -> bool {
         let mut archive = open_archive(bytes).unwrap();
         let first = archive.by_index(0).unwrap();
-        first.name() == "mimetype" && first.compression() == zip::CompressionMethod::Stored
+        first.name().is_ok_and(|n| n == "mimetype") && first.compression() == zip::CompressionMethod::Stored
     }
 
     fn codes(issues: &[Issue]) -> Vec<&str> {
@@ -1550,7 +1550,7 @@ pub(crate) mod tests {
         let mut archive = open_archive(&whole).unwrap();
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for i in 0..archive.len() {
-            if archive.by_index_raw(i).unwrap().name() != "mimetype" {
+            if archive.by_index_raw(i).unwrap().name().unwrap() != "mimetype" {
                 zip.raw_copy_file(archive.by_index_raw(i).unwrap()).unwrap();
             }
         }

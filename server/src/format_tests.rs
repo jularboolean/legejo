@@ -176,7 +176,7 @@ async fn pdf_and_cbz_are_kept_as_they_are() {
     let (status, kind, _, book) = get(&app, &url[url.find("/api/kobo/").unwrap()..], "").await;
     assert_eq!((status, kind.as_str()), (StatusCode::OK, "application/epub+zip"));
     let mut made = zip::ZipArchive::new(std::io::Cursor::new(book)).unwrap();
-    assert_eq!(made.file_names().filter(|name| name.starts_with("OEBPS/images/")).count(), 2);
+    assert_eq!(made.file_names().filter(|name| name.as_ref().is_ok_and(|n| n.starts_with("OEBPS/images/"))).count(), 2);
     let mut opf = String::new();
     std::io::Read::read_to_string(&mut made.by_name("OEBPS/content.opf").unwrap(), &mut opf).unwrap();
     assert!(opf.contains("pre-paginated") && opf.contains("<dc:title>L'Oreille cassée</dc:title>"), "{opf}");

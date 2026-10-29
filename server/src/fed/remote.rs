@@ -878,7 +878,7 @@ pub fn is_epub(bytes: &[u8]) -> bool {
     use std::io::Read;
     let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) else { return false };
     let Ok(mut first) = archive.by_index(0) else { return false };
-    if first.name() != "mimetype" {
+    if !first.name().is_ok_and(|n| n == "mimetype") {
         return false;
     }
     let mut s = String::new();

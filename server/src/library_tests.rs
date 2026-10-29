@@ -236,7 +236,7 @@ async fn export_metadata_and_whole_library() {
     let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     assert_eq!(bytes.len() as i64, size);
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
-    let names: Vec<String> = (0..zip.len()).map(|i| zip.by_index(i).unwrap().name().to_string()).collect();
+    let names: Vec<String> = (0..zip.len()).map(|i| zip.by_index(i).unwrap().name().unwrap().to_string()).collect();
     assert!(names.contains(&"README.txt".to_string()));
     assert!(names.contains(&"legejo.csv".to_string()));
     assert!(names.iter().filter(|n| n.starts_with("books/") && n.ends_with(".epub")).count() == 2, "{names:?}");
@@ -707,7 +707,7 @@ async fn copy_protected_files_are_refused_and_copyright_is_read_from_the_file() 
         let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
         for i in 0..archive.len() {
-            let name = archive.by_index_raw(i).unwrap().name().to_string();
+            let name = archive.by_index_raw(i).unwrap().name().unwrap().to_string();
             if name == "c.opf" {
                 let mut opf = String::new();
                 std::io::Read::read_to_string(&mut archive.by_index(i).unwrap(), &mut opf).unwrap();
