@@ -414,7 +414,9 @@ librojn elŝutas la servilo, neniam via retumilo.</p>"""),
   "<p>Vi faris belan breton de klasikaĵoj en la publika havaĵo kaj volas, ke homoj en aliaj instancoj ĝuu ĝin.</p>",
   """<p><em>Laŭvole: administranto ŝaltas federacion kaj decidas, kiuj instancoj estas permesitaj.</em></p>
 <p>Faru la breton <em>federaciita</em>. Ĝi ricevas adreson laŭ la formo
-<code>@shelf@your.instance</code>, kiun aliaj povas sekvi el alia Legejo, per <strong>Sekvi breton</strong>, aŭ el Mastodon.</p>""",
+<code>@shelf@your.instance</code>, kiun aliaj povas sekvi el alia Legejo, per <strong>Sekvi breton</strong>, aŭ el Mastodon.</p>
+<p>Sub <strong>Fediverso</strong> estas listigitaj la bretoj de la instancoj, kiujn via administranto
+konektis, ĉiu kun butono <strong>Sekvi</strong>, do por ili vi bezonas neniun adreson.</p>""",
   """<p>Nur liberaj libroj vojaĝas tiel: en la publika havaĵo aŭ sub Creative Commons, kun indikita fonto.
 Libro, kies dosiero asertas kopirajton, estas markita kiel protektita de la komenco kaj restas hejme.</p>
 <p>Sekvo al aŭ de instanco, kiu ankoraŭ ne estas permesita, atendas la administranton, kiu vidas ĝin

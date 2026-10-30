@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
         .route("/ap/actor", get(instance_actor))
         .route("/ap/actor/outbox", get(empty_outbox))
         .route("/ap/inbox", post(super::inbox::post))
+        .route("/ap/shelves", get(shelf_list))
         .route("/ap/shelves/{slug}", get(shelf_actor))
         .route("/ap/shelves/{slug}/inbox", post(super::inbox::post))
         .route("/ap/shelves/{slug}/outbox", get(outbox))
@@ -46,6 +47,9 @@ pub fn ap_json(value: Value) -> Response {
     )
         .into_response()
 }
+
+/// How much of a shelf's description the list gives.
+const SUMMARY_CHARS: usize = 240;
 
 pub fn not_found() -> Response {
     StatusCode::NOT_FOUND.into_response()
@@ -126,6 +130,36 @@ async fn nodeinfo(State(state): State<AppState>) -> Result<Response, Response> {
         objects::nodeinfo(mode.as_str(), contact.as_deref(), shelves, books).to_string(),
     )
         .into_response())
+}
+
+/// The federated shelves of this instance, for people on instances connected
+/// to it to choose from. Nothing here that the shelves' own pages do not say,
+/// and not who keeps them.
+async fn shelf_list(State(state): State<AppState>) -> Result<Response, Response> {
+    let c = on(&state).await?;
+    let shelves: Vec<FedShelf> = sqlx::query_as(&format!(
+        "{FED_SHELF_SELECT} WHERE s.visibility = 'federated' AND s.ap_slug IS NOT NULL ORDER BY LOWER(s.name)"
+    ))
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+    let counts: Vec<(i64, i64)> = sqlx::query_as("SELECT shelf_id, COUNT(*) FROM ap_published GROUP BY shelf_id")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+    let listed: Vec<Value> = shelves
+        .iter()
+        .filter_map(|s| {
+            let books = counts.iter().find(|(id, _)| *id == s.id)?.1;
+            Some(json!({
+                "handle": format!("@{}@{}", s.ap_slug, c.host),
+                "name": s.name,
+                "summary": objects::shorten(s.description.as_deref().unwrap_or(""), SUMMARY_CHARS),
+                "books": books,
+            }))
+        })
+        .collect();
+    Ok(axum::Json(json!({ "shelves": listed })).into_response())
 }
 
 async fn instance_actor(State(state): State<AppState>) -> Result<Response, Response> {

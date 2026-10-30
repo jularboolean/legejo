@@ -1299,6 +1299,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'admin.dictionaryToggle': "Serĉi vortojn dum legado",
 	'admin.dictionaryHint': "Elektu vorton en la retlegilo kaj serĉu ĝin: Esperanton en Reta Vortaro, kun tradukoj al la lingvo de la leganto, aliajn lingvojn en Vikivortaro. La servilo demandas anstataŭ la leganto; do la serĉitaj vortoj forlasas la instancon, sed ne kiu serĉis ilin.",
 	'fed.suggested': "Proponitaj bretoj",
+	'fed.connected': "Bretoj en konektitaj instancoj",
 	'fedAdmin.suggested': "Propono:",
 	'account.email': "Retpoŝto",
 	'account.emailHint': "Por restarigi la pasvorton. Nova adreso estas uzata, kiam vi malfermas la ligilon senditan al ĝi.",

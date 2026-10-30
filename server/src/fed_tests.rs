@@ -572,3 +572,72 @@ async fn the_books_of_followed_federated_shelves_are_searched() {
     let (_, v) = send(&app, Method::GET, "/api/search/elsewhere?q=cxambro", Some(&c), None).await;
     assert_eq!(v["federated"], json!([]));
 }
+
+#[test]
+fn a_list_of_shelves_speaks_only_for_its_own_instance() {
+    let list = json!({ "shelves": [
+        { "handle": "@klassiker@b.example", "name": "Klassiker", "summary": "Gamla böcker", "books": 3 },
+        { "handle": "@annan@c.example", "name": "Någon annans", "books": 1 },
+        { "handle": "@tom@b.example", "name": "  ", "books": 1 },
+        { "name": "Utan adress" },
+    ]});
+    let shelves = crate::fed::remote::parse_shelf_list("b.example", &list);
+    assert_eq!(shelves.len(), 1);
+    assert_eq!((shelves[0].name.as_str(), shelves[0].books), ("Klassiker", 3));
+    assert!(crate::fed::remote::parse_shelf_list("b.example", &json!({ "shelves": "nej" })).is_empty());
+}
+
+#[tokio::test]
+async fn the_shelves_of_connected_instances_are_offered_to_those_who_follow_none_of_them() {
+    let (app, db, state) = test_app_fed().await;
+    let (_, alice) = add_user(&db, "alice").await;
+
+    let (_, v) = send(&app, Method::GET, "/api/fed/connected", Some(&alice), None).await;
+    assert_eq!(v, json!([]), "nothing while federation is off");
+
+    set_mode(&db, "allowlist").await;
+    for (domain, status) in [("b.example", "allowed"), ("c.example", "blocked")] {
+        sqlx::query("INSERT INTO ap_instances (domain, status, added_at) VALUES (?, ?, '2026-10-30T00:00:00Z')").bind(domain).bind(status).execute(&db).await.unwrap();
+    }
+    let shelf = |host: &str| crate::fed::remote::ListedShelf { handle: format!("@klassiker@{host}"), name: "Klassiker".into(), summary: String::new(), books: 3 };
+    let due = std::time::Instant::now() + std::time::Duration::from_secs(600);
+    for host in ["b.example", "c.example"] {
+        state.fed.shelf_lists.lock().unwrap().insert(host.to_string(), (due, vec![shelf(host)]));
+    }
+    let (status, v) = send(&app, Method::GET, "/api/fed/connected", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v, json!([{ "domain": "b.example", "shelves": [{ "handle": "@klassiker@b.example", "name": "Klassiker", "summary": "", "books": 3 }] }]));
+}
+
+#[tokio::test]
+async fn an_instance_lists_its_federated_shelves_but_not_who_keeps_them() {
+    let (app, db, _state) = test_app_fed().await;
+    let (alice, cookie) = add_user(&db, "alice").await;
+    let (status, _) = send(&app, Method::GET, "/ap/shelves", None, None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "nothing while federation is off");
+    set_mode(&db, "open").await;
+    let (status, v) = send(&app, Method::GET, "/ap/shelves", None, None).await;
+    assert_eq!((status, v), (StatusCode::OK, json!({ "shelves": [] })));
+
+    let (book, _) = add_book(&db, alice, "Röda rummet").await;
+    free(&db, book).await;
+    let (_, v) = send(&app, Method::POST, "/api/shelves", Some(&cookie), Some(json!({ "name": "Klassiker", "description": "Gamla böcker" }))).await;
+    let shelf = v["id"].as_i64().unwrap();
+    sqlx::query("INSERT INTO shelf_books (shelf_id, book_id) VALUES (?, ?)").bind(shelf).bind(book).execute(&db).await.unwrap();
+    let fed = json!({ "name": "Klassiker", "description": "Gamla böcker", "visibility": "federated", "ap_slug": "klassiker" });
+    let (status, v) = send(&app, Method::PUT, &format!("/api/shelves/{shelf}"), Some(&cookie), Some(fed)).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+
+    // A shelf is listed once there is something on it to follow.
+    let (_, v) = send(&app, Method::GET, "/ap/shelves", None, None).await;
+    assert_eq!(v, json!({ "shelves": [] }));
+    sqlx::query("INSERT INTO ap_published (shelf_id, book_id, book_uuid, object_hash, published_at) VALUES (?, ?, 'u', 'h', '2026-10-30T00:00:00Z')")
+        .bind(shelf)
+        .bind(book)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (_, v) = send(&app, Method::GET, "/ap/shelves", None, None).await;
+    assert_eq!(v, json!({ "shelves": [{ "handle": "@klassiker@a.test", "name": "Klassiker", "summary": "Gamla böcker", "books": 1 }] }));
+    assert!(!v.to_string().contains("alice"));
+}

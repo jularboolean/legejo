@@ -92,6 +92,8 @@ pub struct Fed {
     pub wake: tokio::sync::Notify,
     /// Incoming activities per domain in the current minute (rate limit).
     pub rate: Mutex<HashMap<String, (std::time::Instant, u32)>>,
+    /// The shelves other instances list, until the time each list is due again.
+    pub shelf_lists: Mutex<HashMap<String, (std::time::Instant, Vec<remote::ListedShelf>)>>,
 }
 
 impl Fed {
@@ -107,6 +109,7 @@ impl Fed {
             allow_private,
             wake: tokio::sync::Notify::new(),
             rate: Mutex::new(HashMap::new()),
+            shelf_lists: Mutex::new(HashMap::new()),
         }))
     }
 

@@ -410,7 +410,9 @@ are fetched by the server, never by your browser.</p>"""),
   "<p>You have made a fine shelf of public-domain classics and want people on other instances to enjoy it.</p>",
   """<p><em>Optional: an admin turns federation on and decides which instances are allowed.</em></p>
 <p>Make the shelf <em>federated</em>. It gets an address of the form
-<code>@shelf@your.instance</code>, which others can follow from another Legejo, with <strong>Follow a shelf</strong>, or from Mastodon.</p>""",
+<code>@shelf@your.instance</code>, which others can follow from another Legejo, with <strong>Follow a shelf</strong>, or from Mastodon.</p>
+<p>Under <strong>Fediverse</strong>, the shelves of the instances your admin has connected are
+listed, each with a <strong>Follow</strong> button, so you need no address for those.</p>""",
   """<p>Only free books travel this way: public domain or Creative Commons, with a source given.
 A book whose file claims copyright is marked as protected from the start and stays home.</p>
 <p>A follow to or from an instance that is not yet allowed waits for the admin, who sees it as a

@@ -8,6 +8,7 @@
 	import { languageLabel } from '#lib/library';
 	import { licenseName, reasonText } from '#lib/license';
 	import type { FedBook, FedFollow, FollowState } from '#lib/types';
+	import type { FedConnected } from './+page';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -30,6 +31,14 @@
 		'not a shelf': 'fed.follow.notAShelf',
 		'already following': 'fed.follow.already'
 	};
+
+	/** What the connected instances list, less what is suggested above it already. */
+	function offered(instances: FedConnected[]): FedConnected[] {
+		const suggested = new Set(data.suggestions.map((s) => s.handle.toLowerCase()));
+		return instances
+			.map((i) => ({ ...i, shelves: i.shelves.filter((s) => !suggested.has(s.handle.toLowerCase())) }))
+			.filter((i) => i.shelves.length > 0);
+	}
 
 	/** Remote summaries may carry HTML; show them as plain text only. */
 	function plain(html: string | null): string {
@@ -216,6 +225,29 @@
 					{/each}
 				</ul>
 			{/if}
+
+			{#await data.connected.then(offered) then instances}
+				{#if instances.length > 0}
+					<h2>{t('fed.connected')}</h2>
+					{#each instances as instance (instance.domain)}
+						<h3 class="instance">{instance.domain}</h3>
+						<ul class="suggestions">
+							{#each instance.shelves as s (s.handle)}
+								<li>
+									<strong>{s.name}</strong>
+									<span class="follow-handle">{s.handle}</span>
+									{#if s.summary}<p class="hint">{s.summary}</p>{/if}
+									<span class="follow-handle">{s.books === 1 ? t('shelf.book') : t('shelf.books', { count: s.books })}</span>
+									<button type="button" onclick={() => followHandle(s.handle)} disabled={following}>
+										<UserPlus size={13} />
+										{t('fed.follow.submit')}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/each}
+				{/if}
+			{/await}
 
 			<h2>{t('fed.followed')}</h2>
 			{#if listError}<p class="error">{listError}</p>{/if}
@@ -500,6 +532,13 @@
 		padding: 0.75rem;
 		border: 1px solid var(--border);
 		border-radius: 10px;
+	}
+	.instance {
+		font-size: 0.95rem;
+		margin: 0 0 0.5rem;
+	}
+	.suggestions li + li {
+		margin-top: 0.5rem;
 	}
 	.suggestions .hint {
 		margin: 0;

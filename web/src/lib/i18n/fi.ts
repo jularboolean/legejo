@@ -1299,6 +1299,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'admin.dictionaryToggle': "Sanojen haku lukiessa",
 	'admin.dictionaryHint': "Valitse sana verkkolukijassa ja hae se: esperanto Reta Vortarosta käännöksineen lukijan kielelle, muut kielet Wikisanakirjasta. Palvelin kysyy lukijan puolesta, joten haetut sanat lähtevät instanssista, mutta ei tieto siitä, kuka ne haki.",
 	'fed.suggested': "Ehdotetut hyllyt",
+	'fed.connected': "Hyllyt yhdistetyissä instansseissa",
 	'fedAdmin.suggested': "Ehdotus:",
 	'account.email': "Sähköposti",
 	'account.emailHint': "Salasanan palauttamista varten. Uusi osoite otetaan käyttöön, kun avaat siihen lähetetyn linkin.",

@@ -1299,6 +1299,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'admin.dictionaryToggle': "Slå upp ord medan man läser",
 	'admin.dictionaryHint': "Markera ett ord i webbläsaren och slå upp det: esperanto i Reta Vortaro, med översättningar till läsarens språk, andra språk i Wiktionary. Servern frågar åt läsaren, så orden som slås upp lämnar instansen, men inte vem som slog upp dem.",
 	'fed.suggested': "Förslag på hyllor",
+	'fed.connected': "Hyllor på anslutna instanser",
 	'fedAdmin.suggested': "Förslag:",
 	'account.email': "E-post",
 	'account.emailHint': "För att återställa lösenordet. En ny adress används när du har öppnat länken som skickas dit.",

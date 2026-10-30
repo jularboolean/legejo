@@ -304,6 +304,7 @@ fn router(state: AppState) -> Router {
         .route("/fed/follows", get(fed::remote::list_follows).post(fed::remote::follow).delete(fed::remote::unfollow))
         .route("/fed/books", get(fed::remote::books))
         .route("/fed/suggestions", get(fed::remote::suggestions))
+        .route("/fed/connected", get(fed::remote::connected))
         .route("/search/elsewhere", get(shelflinks::search_elsewhere))
         .route("/fed/import", post(fed::remote::import))
         .route("/admin/federation", get(fed::admin::get_settings).put(fed::admin::update_settings))

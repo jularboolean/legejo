@@ -14,6 +14,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::time::{Duration, Instant};
 
 fn err(status: StatusCode, msg: &str) -> Response {
     (status, Json(json!({ "error": msg }))).into_response()
@@ -460,6 +461,93 @@ pub async fn suggestions(State(state): State<AppState>, user: AuthUser) -> Resul
             .cloned()
             .collect(),
     ))
+}
+
+/// A shelf from another instance's list at /ap/shelves.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct ListedShelf {
+    pub handle: String,
+    pub name: String,
+    pub summary: String,
+    pub books: i64,
+}
+
+#[derive(Serialize)]
+pub struct ConnectedInstance {
+    domain: String,
+    shelves: Vec<ListedShelf>,
+}
+
+const CONNECTED_MAX: i64 = 20;
+const LISTED_MAX: usize = 200;
+const LIST_TIMEOUT: Duration = Duration::from_secs(8);
+const LIST_KEPT: Duration = Duration::from_secs(3600);
+/// An instance that did not answer is asked again sooner.
+const LIST_RETRY: Duration = Duration::from_secs(300);
+
+/// What can be taken from an instance's list: only shelves on that instance,
+/// so that a list cannot put words in another instance's mouth.
+pub fn parse_shelf_list(domain: &str, list: &Value) -> Vec<ListedShelf> {
+    let suffix = format!("@{}", domain.to_lowercase());
+    let shelves = list["shelves"].as_array().map(Vec::as_slice).unwrap_or_default();
+    shelves
+        .iter()
+        .filter_map(|s| {
+            let handle = s["handle"].as_str()?;
+            let name = s["name"].as_str().filter(|n| !n.trim().is_empty())?;
+            if !handle.starts_with('@') || !handle.to_lowercase().ends_with(&suffix) || handle.len() > 300 {
+                return None;
+            }
+            Some(ListedShelf {
+                handle: handle.to_string(),
+                name: objects::shorten(name, 120),
+                summary: objects::shorten(s["summary"].as_str().unwrap_or(""), 240),
+                books: s["books"].as_i64().unwrap_or(0),
+            })
+        })
+        .take(LISTED_MAX)
+        .collect()
+}
+
+async fn shelves_of(state: &AppState, domain: &str) -> Vec<ListedShelf> {
+    if let Some((due, shelves)) = state.fed.shelf_lists.lock().unwrap().get(domain) {
+        if *due > Instant::now() {
+            return shelves.clone();
+        }
+    }
+    let url = format!("https://{domain}/ap/shelves");
+    let answer = tokio::time::timeout(LIST_TIMEOUT, net::get_plain_json(state, &url)).await;
+    let (keep, shelves) = match answer {
+        Ok(Ok(list)) => (LIST_KEPT, parse_shelf_list(domain, &list)),
+        _ => (LIST_RETRY, Vec::new()),
+    };
+    state.fed.shelf_lists.lock().unwrap().insert(domain.to_string(), (Instant::now() + keep, shelves.clone()));
+    shelves
+}
+
+/// GET /api/fed/connected: the shelves of the instances an admin has
+/// connected, for those who do not know an address to paste.
+pub async fn connected(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<ConnectedInstance>>, Response> {
+    if super::active(&state).await.is_none() {
+        return Ok(Json(Vec::new()));
+    }
+    let domains: Vec<String> = sqlx::query_scalar("SELECT domain FROM ap_instances WHERE status = 'allowed' ORDER BY domain LIMIT $1")
+        .bind(CONNECTED_MAX)
+        .fetch_all(&state.db)
+        .await
+        .map_err(internal)?;
+    let followed: Vec<String> = follow_items(&state, user.0.id, None).await?.into_iter().map(|f| f.handle.to_lowercase()).collect();
+    let lists = futures_util::future::join_all(domains.iter().map(|d| shelves_of(&state, d))).await;
+    let instances = domains
+        .into_iter()
+        .zip(lists)
+        .map(|(domain, shelves)| ConnectedInstance {
+            domain,
+            shelves: shelves.into_iter().filter(|s| !followed.contains(&s.handle.to_lowercase())).collect(),
+        })
+        .filter(|instance| !instance.shelves.is_empty())
+        .collect();
+    Ok(Json(instances))
 }
 
 pub async fn list_follows(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<FollowItem>>, Response> {
