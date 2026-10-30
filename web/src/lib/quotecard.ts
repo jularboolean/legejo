@@ -17,7 +17,9 @@ const LINE = 1.45;
 const TITLE_LINE = 54;
 /** The strip at the foot for the doves. */
 const FOOT = 70;
-const LOGO_HEIGHT = 52;
+const SHADOW_HEIGHT = 68;
+/** How much of the ink the doves' shadow has: to be noticed second, if at all. */
+const SHADOW_INK = 0.16;
 /** The doves' width over their height (assets/legejo.svg). */
 const LOGO_RATIO = 321.825 / 341.68;
 
@@ -51,7 +53,7 @@ export type CardInput = {
 	coverRatio?: number;
 	/** The highlight's colour, for the bar beside the passage. */
 	color?: string | null;
-	/** The two doves, drawn at the foot. */
+	/** The two doves, a shadow at the foot. */
 	logo?: CanvasImageSource | null;
 	palette?: Palette;
 };
@@ -189,11 +191,27 @@ export function drawCard(canvas: HTMLCanvasElement, input: CardInput): void {
 		ctx.fillText(input.author, textX, y + 8, textWidth);
 	}
 
-	// The doves, at the foot on the right.
+	// The doves, at the foot on the right: a shadow, without a colour of their own.
 	if (input.logo) {
-		const width = LOGO_HEIGHT * LOGO_RATIO;
-		ctx.drawImage(input.logo, CARD_WIDTH - PAD - width, height - PAD / 2 - LOGO_HEIGHT, width, LOGO_HEIGHT);
+		const shadow = silhouette(input.logo, SHADOW_HEIGHT, colors.ink);
+		ctx.globalAlpha = SHADOW_INK;
+		ctx.drawImage(shadow, CARD_WIDTH - PAD - shadow.width, height - PAD / 2 - shadow.height);
+		ctx.globalAlpha = 1;
 	}
+}
+
+/** The picture's outline, filled with one colour. */
+function silhouette(logo: CanvasImageSource, height: number, ink: string): HTMLCanvasElement {
+	const shape = document.createElement('canvas');
+	shape.width = Math.round(height * LOGO_RATIO);
+	shape.height = Math.round(height);
+	const ctx = shape.getContext('2d');
+	if (!ctx) return shape;
+	ctx.drawImage(logo, 0, 0, shape.width, shape.height);
+	ctx.globalCompositeOperation = 'source-in';
+	ctx.fillStyle = ink;
+	ctx.fillRect(0, 0, shape.width, shape.height);
+	return shape;
 }
 
 /** The words that go with the picture: the sharer's own, then where the passage is from. */
