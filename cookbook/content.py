@@ -91,7 +91,13 @@ PostgreSQL.</p>"""),
   """<p>Put Legejo behind a reverse proxy that terminates TLS, and give the <code>https://</code>
 address people reach it on under <strong>Public address</strong> on the Admin page.
 <strong>Test</strong> asks the address whether it leads to this Legejo; <strong>Save</strong>
-puts it to use. <code>LEGEJO_PUBLIC_URL</code> does the same, and then wins.</p>""",
+puts it to use. <code>LEGEJO_PUBLIC_URL</code> does the same, and then wins.</p>
+<p><strong>Test</strong> runs on the server itself, so it can pass where the outside cannot get
+in. <strong>Test from outside</strong> has instances.legejo.se try the address from the Internet.
+The address is not kept; an instance that answers is counted once a month, by a random id.</p>
+<p>To be found by others, turn on <strong>Show my instance publicly</strong> on the Admin page. The
+list at instances.legejo.se then shows the address, the version, whether federation is on and
+whether anyone can sign up, and nothing else.</p>""",
   """<p>Kobo sync, links in emails, federation and installing Legejo as an app all depend on
 that address being right. With an <code>https</code> public address, session cookies are marked
 <code>Secure</code>, from the moment it is saved; set <code>LEGEJO_SECURE_COOKIES=false</code> only if you truly serve plain

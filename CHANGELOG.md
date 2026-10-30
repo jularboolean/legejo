@@ -4,6 +4,24 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.36.0 (2026-10-30)
+
+- **Be found, if you want to.** A new setting on the Admin page, Show my
+  instance publicly, puts your instance on the list at instances.legejo.se,
+  so that others can find it. The list shows its address, its version,
+  whether federation is on and whether anyone can sign up, and nothing
+  else. It is off until you turn it on, and an instance that turns it off
+  leaves the list within a day. Instances that anyone can join link to
+  their sign-up page.
+- **Test your address from outside.** Beside the test of the public address,
+  Test from outside has instances.legejo.se try it from the internet. The
+  ordinary test runs on the server itself, and can pass where no one
+  outside can get in. It runs only when you press it, and it sends the
+  address. The address is not kept; an instance that answers is counted
+  once a month, by a random id.
+- **Missing covers in catalogs.** A cover that a catalog names but does not
+  have no longer counts as a server error.
+
 ## 1.35.2 (2026-10-29)
 
 - **Two more libraries to begin with.** Under Catalogs, Litteraturbanken

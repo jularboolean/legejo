@@ -92,7 +92,14 @@ PostgreSQL.</p>"""),
 <code>https://</code>-adreson, per kiu homoj atingas ĝin, sub <strong>Publika adreso</strong> en la
 paĝo Administrado. <strong>Testi</strong> demandas la adreson, ĉu ĝi kondukas al ĉi tiu Legejo;
 <strong>Konservi</strong> ekuzas ĝin. <code>LEGEJO_PUBLIC_URL</code> faras la samon, kaj tiam
-venkas.</p>""",
+venkas.</p>
+<p><strong>Testi</strong> okazas en la servilo mem, do ĝi povas sukcesi, kie la ekstero ne povas
+eniri. <strong>Testi de ekstere</strong> igas instances.legejo.se provi la adreson de la interreto.
+La adreso ne estas konservata; instanco, kiu respondas, estas kalkulata unufoje monate, per hazarda
+identigilo.</p>
+<p>Por esti trovebla de aliaj, ŝaltu <strong>Montri mian instancon publike</strong> en la paĝo
+Administrado. La listo ĉe instances.legejo.se tiam montras la adreson, la version, ĉu federacio estas
+ŝaltita kaj ĉu ĉiu povas registriĝi, kaj nenion alian.</p>""",
   """<p>Kobo-sinkronigo, ligiloj en retleteroj, federacio kaj instalado de Legejo kiel aplikaĵo ĉiuj dependas
 de tio, ke tiu adreso estas ĝusta. Kun publika <code>https</code>-adreso, seancaj kuketoj estas markitaj
 <code>Secure</code>, ekde kiam ĝi estas konservita; agordu <code>LEGEJO_SECURE_COOKIES=false</code> nur, se vi vere servas per simpla
