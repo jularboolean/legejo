@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.0 (2026-10-30)
+
+- **Find shelves without knowing their address.** The Fediverse page now
+  shows the shelves of the instances your admin has connected, with a Follow
+  button on each. Until now you needed the exact address of a shelf. Both
+  instances need this version; one that is older is left out.
+
 ## 1.36.0 (2026-10-30)
 
 - **Be found, if you want to.** A new setting on the Admin page, Show my
