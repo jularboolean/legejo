@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { altText, cardQuote, fileName, fit, postText, wrap } from './quotecard';
+import { altText, cardQuote, fileName, fit, postText, within, wrap } from './quotecard';
 
 // Every character 10 units wide, at any size; or `size / 2` wide at a size.
 const mono = (s: string) => s.length * 10;
@@ -70,5 +70,19 @@ describe('the words beside the picture', () => {
 	it('name the file after the title', () => {
 		expect(fileName('Röda rummet')).toBe('roda-rummet-quote.png');
 		expect(fileName('…')).toBe('quote-quote.png');
+	});
+});
+
+describe('within', () => {
+	it('gives what the work comes to', async () => {
+		await expect(within(Promise.resolve('ok'), 1000, 'late')).resolves.toBe('ok');
+	});
+
+	it('does not wait for work that never ends', async () => {
+		await expect(within(new Promise<string>(() => {}), 5, 'late')).resolves.toBe('late');
+	});
+
+	it('passes a failure on', async () => {
+		await expect(within(Promise.reject(new Error('no')), 1000, 'late')).rejects.toThrow('no');
 	});
 });

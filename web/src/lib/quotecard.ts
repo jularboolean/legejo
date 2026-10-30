@@ -101,6 +101,11 @@ function barColor(color: string | null | undefined, fallback: string): string {
 	return color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
 }
 
+/** What `work` comes to, or `fallback` if it has not come to anything in time. */
+export function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+	return Promise.race([work, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))]);
+}
+
 /** Make sure the faces the card is set in are loaded, so the canvas does not fall back. */
 export async function loadFaces(text: string): Promise<void> {
 	if (typeof document === 'undefined' || !document.fonts) return;

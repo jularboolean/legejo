@@ -5,7 +5,7 @@
 	import { Check, ClipboardCopy, Download, Share2, X } from '@lucide/svelte';
 	import { fade, pop } from '#lib/motion';
 	import { t } from '#lib/i18n';
-	import { altText, drawCard, fileName, loadFaces, pageColors, postText } from '#lib/quotecard';
+	import { altText, drawCard, fileName, loadFaces, pageColors, postText, within } from '#lib/quotecard';
 	import doves from '#lib/assets/legejo.svg?url';
 
 	type Props = {
@@ -21,6 +21,10 @@
 		onclose: () => void;
 	};
 	let { open, quote, note, title, author, coverUrl, color = null, onclose }: Props = $props();
+
+	/** How long a cover, the doves or a typeface may take, and then the picture itself. */
+	const LOAD_MS = 5000;
+	const DRAW_MS = 10000;
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let file = $state<File | null>(null);
@@ -47,13 +51,7 @@
 		}
 	}
 
-	async function draw(target: HTMLCanvasElement) {
-		failed = false;
-		const [cover, logo] = await Promise.all([
-			coverUrl ? loadImage(coverUrl) : null,
-			loadImage(doves),
-			loadFaces(quote + title + (author ?? ''))
-		]);
+	async function render(target: HTMLCanvasElement, cover: HTMLImageElement | null, logo: HTMLImageElement | null) {
 		drawCard(target, {
 			quote,
 			title,
@@ -64,13 +62,33 @@
 			logo,
 			palette: pageColors()
 		});
-		const blob = await new Promise<Blob | null>((resolve) => target.toBlob(resolve, 'image/png'));
-		if (!blob) {
+		return within(new Promise<Blob | null>((resolve) => target.toBlob(resolve, 'image/png')), DRAW_MS, null);
+	}
+
+	// Whatever goes wrong, the dialog does not stay on "Drawing": what will not
+	// load in time is left out, and only then is the picture given up on.
+	async function draw(target: HTMLCanvasElement) {
+		failed = false;
+		try {
+			const [cover, logo] = await Promise.all([
+				coverUrl ? within(loadImage(coverUrl), LOAD_MS, null) : null,
+				within(loadImage(doves), LOAD_MS, null),
+				within(loadFaces(quote + title + (author ?? '')), LOAD_MS, undefined)
+			]);
+			const blob = await render(target, cover, logo).catch((e) => {
+				if (!cover) throw e;
+				// A cover from elsewhere bars the canvas from being read. A new
+				// canvas, as the used one stays barred.
+				console.warn('quote card: drawn without the cover:', e);
+				return render(document.createElement('canvas'), null, logo);
+			});
+			if (!blob) throw new Error('the canvas gave no picture');
+			file = new File([blob], fileName(title), { type: 'image/png' });
+			picture = URL.createObjectURL(blob);
+		} catch (e) {
+			console.error('quote card:', e);
 			failed = true;
-			return;
 		}
-		file = new File([blob], fileName(title), { type: 'image/png' });
-		picture = URL.createObjectURL(blob);
 	}
 
 	// Drawn anew each time it is opened, for the highlight it is opened on.
