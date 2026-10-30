@@ -4,6 +4,14 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.1 (2026-10-30)
+
+- **The shared picture no longer stays on "Drawing the picture".** What will
+  not load in time is left out, a cover that cannot be used is left off the
+  picture, and if no picture can be made you are told so.
+- **The two doves on the shared picture are a faint shadow.** They sit at
+  the foot on the right, in the colour of the text.
+
 ## 1.37.0 (2026-10-30)
 
 - **Find shelves without knowing their address.** The Fediverse page now
