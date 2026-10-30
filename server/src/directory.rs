@@ -34,7 +34,8 @@ pub async fn instance(State(state): State<AppState>) -> Response {
         "software": "legejo",
         "version": env!("CARGO_PKG_VERSION"),
         "federation": crate::fed::active(&state).await.is_some(),
-        "audiobooks": crate::audiobooks::enabled(&state).await,
+        // Signing up takes a mail to confirm, so without mail no one can.
+        "open_signup": state.live.mail().is_some() && crate::register::registration_enabled(&state).await.unwrap_or(false),
     }))
     .into_response()
 }
@@ -92,7 +93,7 @@ mod tests {
         assert_eq!((status, v["directory_listed"].clone()), (StatusCode::OK, json!(true)));
         let (status, v) = send(&app, Method::GET, "/api/directory", None, None).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(v, json!({ "software": "legejo", "version": env!("CARGO_PKG_VERSION"), "federation": false, "audiobooks": false }));
+        assert_eq!(v, json!({ "software": "legejo", "version": env!("CARGO_PKG_VERSION"), "federation": false, "open_signup": false }));
 
         let (status, _) = send(&app, Method::PUT, "/api/admin/settings", Some(&admin), Some(settings(false))).await;
         assert_eq!(status, StatusCode::OK);

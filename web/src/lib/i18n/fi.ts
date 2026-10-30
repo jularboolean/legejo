@@ -1167,7 +1167,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsToggle': "Muiden kirjastojen luettelot",
 	'admin.catalogsHint': "Antaa käyttäjien lisätä muiden kirjastojen OPDS-luetteloita, esimerkiksi Project Gutenbergin, selata niitä täällä ja hakea niistä kirjoja. Palvelin hakee silloin käyttäjien antamista osoitteista; oman verkkosi sisäiset osoitteet torjutaan. Jokainen käyttäjä ottaa toiminnon käyttöön itselleen.",
 	'admin.directoryToggle': "Näytä instanssini julkisesti",
-	'admin.directoryHint': "Lisää tämän instanssin julkiseen luetteloon osoitteessa instances.legejo.se, jotta muut voivat löytää sen. Luettelossa näkyvät vain osoite, versio sekä se, ovatko federointi ja äänikirjat käytössä. Jos poistat tämän käytöstä, instanssi poistuu luettelosta vuorokauden kuluessa.",
+	'admin.directoryHint': "Lisää tämän instanssin julkiseen luetteloon osoitteessa instances.legejo.se, jotta muut voivat löytää sen. Luettelossa näkyvät vain osoite, versio sekä se, onko federointi käytössä ja voiko kuka tahansa rekisteröityä. Jos poistat tämän käytöstä, instanssi poistuu luettelosta vuorokauden kuluessa.",
 	'admin.directoryNeedsAddress': "Määritä ensin julkinen https-osoite.",
 	'catalogs.accountIntro': "Lisää muiden kirjastojen OPDS-luetteloita, esimerkiksi Project Gutenberg, selaa niitä täällä ja hae kirjoja kirjastoosi. Toiminto on pois päältä, kunnes otat sen käyttöön. Pois kytkeminen vain piilottaa sivun: luettelosi säilyvät, samoin hakemasi kirjat.",
 	'catalogs.turnOn': "Näytä luettelot valikossani",

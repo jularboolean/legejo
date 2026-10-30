@@ -47,8 +47,8 @@ PostgreSQL, add `DATABASE_URL`.
 **Show my instance publicly**, on the Admin page, puts the instance on the list
 at <https://instances.legejo.se>. It is off until you turn it on, and needs an
 `https` public address. The instance then sends the list its address, and answers
-`GET /api/directory` with its version and whether federation and audiobooks are
-on: that is all the list knows. Turned off, that address answers 404 and the
+`GET /api/directory` with its version, whether federation is on and whether
+anyone can sign up: that is all the list knows. Turned off, that address answers 404 and the
 instance leaves the list within a day.
 
 ## Book files in S3 or R2
