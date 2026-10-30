@@ -5,16 +5,20 @@
 //! and takes the instance off it.
 
 use crate::admin::setting_bool;
+use crate::auth::AdminUser;
+use crate::live::{clean_url, instance_id, PublicUrlForm};
 use crate::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::time::Duration;
 
 const ANNOUNCE_URL: &str = "https://instances.legejo.se/announce";
 const ANNOUNCE_TIMEOUT: Duration = Duration::from_secs(15);
+const CHECK_URL: &str = "https://instances.legejo.se/check";
+const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub async fn listed(state: &AppState) -> bool {
     setting_bool(state, "directory_listed", false).await.unwrap_or(false)
@@ -57,6 +61,41 @@ pub fn announce(state: &AppState) {
     });
 }
 
+/// POST /api/admin/connections/public-url/test-outside: have the service try
+/// the address from the internet. Only when an admin asks: this is the one
+/// thing besides the list that leaves the instance, and it sends the address.
+pub async fn test_outside(State(state): State<AppState>, _admin: AdminUser, Json(form): Json<PublicUrlForm>) -> Result<Json<Value>, Response> {
+    let Some(url) = clean_url(&form.url)? else {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(json!({ "error": "url" }))).into_response());
+    };
+    let ours = instance_id(&state.db).await.map_err(|e| {
+        tracing::error!("internal error: {e}");
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    })?;
+    let sent = state.http.post(CHECK_URL).json(&json!({ "url": url })).timeout(CHECK_TIMEOUT).send().await;
+    let answer = match sent {
+        Ok(r) if r.status().is_success() || r.status() == StatusCode::UNPROCESSABLE_ENTITY => r.json::<Value>().await.ok(),
+        Ok(r) if r.status() == StatusCode::TOO_MANY_REQUESTS => return Ok(Json(json!({ "ok": false, "error": "too many" }))),
+        _ => None,
+    };
+    Ok(Json(judge(answer, &ours)))
+}
+
+/// What the service's answer means here: only this instance's own id proves
+/// that it was this instance that was reached.
+fn judge(answer: Option<Value>, ours: &str) -> Value {
+    let Some(answer) = answer else {
+        return json!({ "ok": false, "error": "unavailable" });
+    };
+    if answer["reachable"] != true && answer["reason"] != "not legejo" {
+        return json!({ "ok": false, "error": "unreachable", "reason": answer["reason"] });
+    }
+    if answer["id"].as_str() != Some(ours) {
+        return json!({ "ok": false, "error": "another server" });
+    }
+    json!({ "ok": true, "version": answer["version"] })
+}
+
 pub async fn announce_at_start(state: AppState) {
     if listed(&state).await {
         announce(&state);
@@ -77,6 +116,26 @@ mod tests {
 
     fn settings(listed: bool) -> serde_json::Value {
         json!({ "libris_enabled": false, "registration_enabled": false, "directory_listed": listed })
+    }
+
+    #[test]
+    fn a_test_from_outside_counts_only_when_this_instance_answered() {
+        let judge = super::judge;
+        let reached = |id: &str| Some(json!({ "reachable": true, "id": id, "version": "1.2.3" }));
+        assert_eq!(judge(reached("ours"), "ours"), json!({ "ok": true, "version": "1.2.3" }));
+        assert_eq!(judge(reached("theirs"), "ours")["error"], "another server");
+        let away = json!({ "reachable": false, "reason": "no answer" });
+        assert_eq!(judge(Some(away), "ours"), json!({ "ok": false, "error": "unreachable", "reason": "no answer" }));
+        assert_eq!(judge(Some(json!({ "reachable": false, "reason": "not legejo" })), "ours")["error"], "another server");
+        // A service that is down says nothing about the instance.
+        assert_eq!(judge(None, "ours")["error"], "unavailable");
+    }
+
+    #[tokio::test]
+    async fn the_public_id_tells_the_version() {
+        let (app, _, _state) = test_app().await;
+        let (status, v) = send(&app, Method::GET, "/api/instance", None, None).await;
+        assert_eq!((status, v["version"].clone()), (StatusCode::OK, json!(env!("CARGO_PKG_VERSION"))));
     }
 
     #[tokio::test]

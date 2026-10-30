@@ -100,6 +100,25 @@
 			: failed(String(r.body.error));
 	}
 
+	const outsideUrl = $derived(c.public_url.source === 'env' ? (c.public_url.value ?? '') : url.trim());
+
+	async function testOutside() {
+		urlBusy = true;
+		const r = await call('/api/admin/connections/public-url/test-outside', 'POST', { url: outsideUrl });
+		urlBusy = false;
+		if (!r || 'ok' in r) return void (urlOutcome = r);
+		if (r.status !== 200) return void (urlOutcome = refused(r.body.error));
+		const errors: Record<string, Parameters<typeof t>[0]> = {
+			unreachable: 'conn.outsideNo',
+			'another server': 'conn.outsideOther',
+			'too many': 'conn.outsideTooMany',
+			unavailable: 'conn.outsideUnavailable'
+		};
+		urlOutcome = r.body.ok
+			? { ok: true, text: t('conn.outsideOk', { version: String(r.body.version) }) }
+			: { ok: false, text: t(errors[String(r.body.error)] ?? 'conn.outsideUnavailable') };
+	}
+
 	async function saveUrl() {
 		urlBusy = true;
 		const r = await call('/api/admin/connections/public-url', 'PUT', { url });
@@ -178,6 +197,12 @@
 			<button type="button" class="ghost" onclick={testUrl} disabled={urlBusy || !url.trim()}>{t('conn.test')}</button>
 			<button type="button" onclick={saveUrl} disabled={urlBusy}>{t('conn.save')}</button>
 		</div>
+	{/if}
+	{#if outsideUrl}
+		<div class="actions">
+			<button type="button" class="ghost" onclick={testOutside} disabled={urlBusy}>{t('conn.testOutside')}</button>
+		</div>
+		<p class="hint">{t('conn.testOutsideHint')}</p>
 	{/if}
 	{#if urlOutcome}<p class={urlOutcome.ok ? 'ok' : 'error'}>{urlOutcome.text}</p>{/if}
 </section>

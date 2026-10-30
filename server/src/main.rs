@@ -192,6 +192,7 @@ fn router(state: AppState) -> Router {
         .route("/admin/connections/librarian/test", post(live::test_librarian))
         .route("/admin/connections/public-url", axum::routing::put(live::put_public_url))
         .route("/admin/connections/public-url/test", post(live::test_public_url))
+        .route("/admin/connections/public-url/test-outside", post(directory::test_outside))
         .route("/instance", get(live::instance))
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))

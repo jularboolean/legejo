@@ -186,7 +186,7 @@ pub async fn instance_id(db: &sqlx::AnyPool) -> Result<String, sqlx::Error> {
 /// Public: GET /api/instance.
 pub async fn instance(State(state): State<AppState>) -> Result<Json<serde_json::Value>, Response> {
     let id = instance_id(&state.db).await.map_err(|e| internal(e.into()))?;
-    Ok(Json(json!({ "id": id })))
+    Ok(Json(json!({ "id": id, "version": env!("CARGO_PKG_VERSION") })))
 }
 
 // ---------------------------------------------------------------- admin API
@@ -433,12 +433,12 @@ pub async fn test_librarian(State(state): State<AppState>, _admin: AdminUser, Js
 #[derive(Deserialize)]
 pub struct PublicUrlForm {
     #[serde(default)]
-    url: String,
+    pub url: String,
 }
 
 /// "https://books.example.org" from what was typed; Err for anything that is
 /// not an http(s) address with nothing after the host.
-fn clean_url(raw: &str) -> Result<Option<String>, Response> {
+pub(crate) fn clean_url(raw: &str) -> Result<Option<String>, Response> {
     let raw = raw.trim().trim_end_matches('/');
     if raw.is_empty() {
         return Ok(None);

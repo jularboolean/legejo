@@ -51,6 +51,15 @@ at <https://instances.legejo.se>. It is off until you turn it on, and needs an
 anyone can sign up: that is all the list knows. Turned off, that address answers 404 and the
 instance leaves the list within a day.
 
+### Testing from outside
+
+**Test from outside**, under Public address on the Admin page, has
+instances.legejo.se try the address from the internet: useful because the
+ordinary test runs on the server itself, and can pass where the outside cannot
+get in. It runs only when an admin presses it, and sends the address. The address
+is not kept. An instance that answers is counted once a month by the random id
+it gives at `/api/instance`, and those counts are dropped after a year.
+
 ## Book files in S3 or R2
 
 Legejo can keep the book files, covers, audiobooks, avatars and exports in an
