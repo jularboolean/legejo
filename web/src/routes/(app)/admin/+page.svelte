@@ -28,6 +28,7 @@
 	let openLibraryEnabled = $state(data.settings.openlibrary_enabled ?? false);
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
+	let directoryListed = $state(data.settings.directory_listed ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
 	let koboStoreEnabled = $state(data.settings.kobo_store_enabled ?? false);
 	let dictionaryEnabled = $state(data.settings.dictionary_enabled ?? false);
@@ -39,6 +40,7 @@
 	const mailConfigured = data.settings.mail_configured;
 	let saving = $state(false);
 	let errorMsg = $state('');
+	let directoryError = $state('');
 
 	// Is there a newer Legejo? Asked of GitHub from this browser, on request.
 	let versionState = $state<'idle' | 'checking' | 'latest' | 'newer' | 'failed'>('idle');
@@ -63,6 +65,7 @@
 	async function saveSettings() {
 		saving = true;
 		errorMsg = '';
+		directoryError = '';
 		try {
 			const res = await fetch('/api/admin/settings', {
 				method: 'PUT',
@@ -77,12 +80,15 @@
 					dictionary_enabled: dictionaryEnabled,
 					shelf_links_enabled: shelfLinksEnabled,
 					author_facts_enabled: authorFactsEnabled,
+					directory_listed: directoryListed,
 					fulltext_enabled: data.settings.fulltext_env ? undefined : fulltextEnabled,
 					registration_enabled: registrationEnabled
 				})
 			});
 			if (!res.ok) {
-				errorMsg = t('edit.saveFailed');
+				const body = await res.json().catch(() => null);
+				if (body?.error === 'public address needed') directoryError = t('admin.directoryNeedsAddress');
+				else errorMsg = t('edit.saveFailed');
 				return false;
 			}
 			const settings: {
@@ -95,6 +101,7 @@
 				dictionary_enabled?: boolean;
 				shelf_links_enabled?: boolean;
 				author_facts_enabled?: boolean;
+				directory_listed?: boolean;
 				fulltext_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
@@ -105,6 +112,7 @@
 			dictionaryEnabled = settings.dictionary_enabled ?? false;
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			authorFactsEnabled = settings.author_facts_enabled ?? false;
+			directoryListed = settings.directory_listed ?? false;
 			fulltextEnabled = settings.fulltext_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
@@ -141,6 +149,12 @@
 		const previous = catalogsEnabled;
 		catalogsEnabled = enabled;
 		if (!(await saveSettings())) catalogsEnabled = previous;
+	}
+
+	async function toggleDirectory(enabled: boolean) {
+		const previous = directoryListed;
+		directoryListed = enabled;
+		if (!(await saveSettings())) directoryListed = previous;
 	}
 
 	async function toggleKoboAnnotations(enabled: boolean) {
@@ -307,6 +321,17 @@
 		{t('admin.catalogsToggle')}
 	</label>
 	<p class="hint">{t('admin.catalogsHint')}</p>
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={directoryListed}
+			disabled={saving}
+			onchange={(e) => toggleDirectory(e.currentTarget.checked)}
+		/>
+		{t('admin.directoryToggle')}
+	</label>
+	<p class="hint">{t('admin.directoryHint')}</p>
+	{#if directoryError}<p class="error">{directoryError}</p>{/if}
 	<label class="toggle">
 		<input
 			type="checkbox"

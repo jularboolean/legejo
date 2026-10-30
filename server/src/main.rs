@@ -2,6 +2,7 @@
 #![recursion_limit = "256"]
 
 mod account;
+mod directory;
 mod admin;
 mod annotations;
 mod app_passwords;
@@ -175,6 +176,7 @@ fn router(state: AppState) -> Router {
     let avatar = DefaultBodyLimit::max(images::MAX_AVATAR_BYTES + MULTIPART_SLACK);
     let api = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/directory", get(directory::instance))
         .route(
             "/auth/login",
             post(auth::login).layer(axum::middleware::from_fn_with_state(state.clone(), ratelimit::login)),
@@ -548,6 +550,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(pubdate::backfill(state.clone()));
     tokio::spawn(kosync::backfill(state.clone()));
     tokio::spawn(fed::deliver::worker(state.clone()));
+    tokio::spawn(directory::announce_at_start(state.clone()));
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
     tokio::spawn(fulltext::worker(state.clone()));

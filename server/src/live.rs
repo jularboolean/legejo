@@ -461,6 +461,7 @@ pub async fn put_public_url(State(state): State<AppState>, admin: AdminUser, hea
     let url = clean_url(&form.url)?;
     store(&state, "public_url", url.as_deref()).await.map_err(|e| internal(e.into()))?;
     changed(&state, &admin, "public_url", json!({ "url": url })).await?;
+    crate::directory::announce_at_start(state.clone()).await;
     get(State(state), admin, headers).await
 }
 

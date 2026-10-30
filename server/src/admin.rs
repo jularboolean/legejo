@@ -51,6 +51,8 @@ pub struct Settings {
     dictionary_enabled: bool,
     shelf_links_enabled: bool,
     author_facts_enabled: bool,
+    /// On the public list of instances.
+    directory_listed: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -79,6 +81,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         dictionary_enabled: crate::dictionary::enabled(state).await,
         shelf_links_enabled: crate::shelflinks::enabled(state).await,
         author_facts_enabled: crate::authorfacts::enabled(state).await,
+        directory_listed: crate::directory::listed(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -121,6 +124,8 @@ pub struct UpdateSettings {
     shelf_links_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     author_facts_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    directory_listed: Option<bool>,
     /// Absent from older clients: unchanged. Ignored when LEGEJO_FULLTEXT is set.
     fulltext_enabled: Option<bool>,
     registration_enabled: bool,
@@ -131,6 +136,10 @@ pub async fn update_settings(
     admin: AdminUser,
     Json(req): Json<UpdateSettings>,
 ) -> Result<Json<Settings>, Response> {
+    if req.directory_listed == Some(true) && crate::directory::address(&state).is_none() {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "public address needed" }))).into_response());
+    }
+    let was_listed = crate::directory::listed(&state).await;
     set_setting(&state, "libris_enabled", if req.libris_enabled { "true" } else { "false" })
         .await
         .map_err(|e| internal(e.into()))?;
@@ -174,6 +183,14 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.directory_listed {
+        set_setting(&state, "directory_listed", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+        if on && !was_listed {
+            crate::directory::announce(&state);
+        }
+    }
     if let (Some(on), None) = (req.fulltext_enabled, state.settings.fulltext) {
         set_setting(&state, "fulltext_enabled", if on { "true" } else { "false" })
             .await
@@ -202,6 +219,7 @@ pub async fn update_settings(
             "shelf_links_enabled": req.shelf_links_enabled,
             "fulltext_enabled": req.fulltext_enabled,
             "author_facts_enabled": req.author_facts_enabled,
+            "directory_listed": req.directory_listed,
             "registration_enabled": req.registration_enabled,
         }),
     )
