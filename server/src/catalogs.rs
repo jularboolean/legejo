@@ -739,9 +739,11 @@ pub async fn image(
 ) -> Result<Response, Response> {
     require(&state, &user).await?;
     owned(&state, user.0.id, id).await?;
-    let got = net::get_public(&state, &params.url, "image/*", IMAGE_LIMIT, FEED_TIMEOUT)
-        .await
-        .map_err(|e| fetch_failed(&params.url, e))?;
+    let got = net::get_public(&state, &params.url, "image/*", IMAGE_LIMIT, FEED_TIMEOUT).await.map_err(|e| match e {
+        // Catalogs name covers they do not have: no fault of anyone's.
+        FetchError::Status(404 | 410) => err(StatusCode::NOT_FOUND, "no cover"),
+        e => fetch_failed(&params.url, e),
+    })?;
     let mime = got.content_type.as_deref().unwrap_or("").split(';').next().unwrap_or("").trim().to_ascii_lowercase();
     if !matches!(mime.as_str(), "image/jpeg" | "image/png" | "image/webp" | "image/gif") {
         return Err(err(StatusCode::BAD_GATEWAY, "not an image"));

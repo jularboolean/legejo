@@ -320,6 +320,9 @@ async fn from_an_added_catalog_to_a_book_in_the_library() {
     assert_eq!(status, StatusCode::OK);
     let (status, _) = send(&app, Method::GET, &format!("/api/catalogs/{id}/image?url={}", enc(&format!("{there}/covers/rr.svg"))), Some(&alice), None).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
+    // A cover the catalog names but does not have is simply not there.
+    let (status, _) = send(&app, Method::GET, &format!("/api/catalogs/{id}/image?url={}", enc(&format!("{there}/covers/none.png"))), Some(&alice), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     // Fetching the book: an ordinary book, named by its own file, and logged.
     let body = json!({ "href": href, "title": "Röda rummet", "format": "epub" });
