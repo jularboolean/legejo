@@ -882,7 +882,10 @@ must be signed with RS256. Password login keeps working beside it.
 <code>LEGEJO_OIDC_NAME</code> is the label on the button; <code>LEGEJO_OIDC_AUTO_CREATE=true</code>
 creates accounts for people not seen before; <code>LEGEJO_OIDC_ADMIN_GROUP</code> makes members
 of a group admins. Someone signing in for the first time is matched to an account with the same
-verified email address.</p>"""),
+verified email address.</p>
+<p>An account made this way has no password. It is changed or deleted with no password to give,
+for a quarter of an hour after signing in; after that, the Account page asks you to sign in again.
+A password chosen there can be used from then on.</p>"""),
 
  ("Choosing What the Instance Offers",
   "<p>You want to know what can be switched on and off.</p>",

@@ -25,6 +25,9 @@ pub struct Account {
     /// with Amazon. None when the server sends no mail.
     #[sqlx(skip)]
     pub mail_from: Option<String>,
+    /// Whether the owner knows the password: an account made at a single
+    /// sign-on has none to give until they choose one.
+    pub password_set: crate::db::DbFlag,
     /// Whether the user has turned the librarian on (librarian.rs).
     pub librarian: crate::db::DbFlag,
     /// Whether there is a librarian to turn on: the operator has set a
@@ -57,7 +60,7 @@ fn unprocessable(msg: &str) -> Response {
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
     let mut account: Account = sqlx::query_as(
-        "SELECT username, email, pending_email, kobo_token, kindle_email, librarian, fediverse, catalogs FROM users WHERE id = $1",
+        "SELECT username, email, pending_email, kobo_token, kindle_email, password_set, librarian, fediverse, catalogs FROM users WHERE id = $1",
     )
         .bind(user_id)
         .fetch_one(&state.db)
@@ -173,8 +176,41 @@ pub async fn get(State(state): State<AppState>, user: AuthUser) -> Result<Json<A
     Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
+/// How long after signing in an account without a password can be changed.
+const FRESH_LOGIN_MINUTES: i64 = 15;
+
+/// That it is the owner at the keyboard, and not someone at a session left
+/// open: the current password, or, for an account that has none, a sign-in
+/// only just made at the provider.
+async fn prove_owner(state: &AppState, user_id: i64, jar: &CookieJar, password: &str) -> Result<(), Response> {
+    let (hash, password_set): (String, crate::db::DbFlag) = sqlx::query_as("SELECT password_hash, password_set FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    let refused = |error: &str| (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": error }))).into_response();
+    if password_set.as_bool() {
+        return if crate::db::verify_password(&hash, password).await.map_err(internal)? {
+            Ok(())
+        } else {
+            Err(refused("wrong current password"))
+        };
+    }
+    let token = jar.get(auth::SESSION_COOKIE).map(|c| c.value().to_string()).unwrap_or_default();
+    let fresh: Option<i64> = sqlx::query_scalar("SELECT 1 FROM sessions WHERE token = $1 AND user_id = $2 AND created_at >= $3")
+        .bind(token)
+        .bind(user_id)
+        .bind(crate::db::ts_in_minutes(-FRESH_LOGIN_MINUTES))
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    fresh.map(|_| ()).ok_or_else(|| refused("sign in again"))
+}
+
 #[derive(Deserialize)]
 pub struct UpdateAccount {
+    /// Not for an account without a password.
+    #[serde(default)]
     current_password: String,
     username: String,
     new_password: Option<String>,
@@ -196,19 +232,7 @@ pub async fn update(
         return Err(unprocessable("password must be at least 8 characters"));
     }
 
-    // Any account change requires the current password.
-    let hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
-        .bind(user.0.id)
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| internal(e.into()))?;
-    if !crate::db::verify_password(&hash, &req.current_password).await.map_err(internal)? {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(serde_json::json!({ "error": "wrong current password" })),
-        )
-            .into_response());
-    }
+    prove_owner(&state, user.0.id, &jar, &req.current_password).await?;
 
     let result = sqlx::query("UPDATE users SET username = $1 WHERE id = $2")
         .bind(username)
@@ -235,7 +259,7 @@ pub async fn update(
     let password_changed = new_password.is_some();
     if let Some(password) = new_password {
         let new_hash = crate::db::hash_password(&password).await.map_err(internal)?;
-        sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+        sqlx::query("UPDATE users SET password_hash = $1, password_set = 1 WHERE id = $2")
             .bind(&new_hash)
             .bind(user.0.id)
             .execute(&state.db)
@@ -541,6 +565,8 @@ pub async fn delete_kobo_token(
 
 #[derive(Deserialize)]
 pub struct DeleteAccount {
+    /// Not for an account without a password.
+    #[serde(default)]
     password: String,
 }
 
@@ -553,18 +579,7 @@ pub async fn delete_account(
     jar: CookieJar,
     Json(req): Json<DeleteAccount>,
 ) -> Result<CookieJar, Response> {
-    let hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
-        .bind(user.0.id)
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| internal(e.into()))?;
-    if !crate::db::verify_password(&hash, &req.password).await.map_err(internal)? {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(serde_json::json!({ "error": "wrong current password" })),
-        )
-            .into_response());
-    }
+    prove_owner(&state, user.0.id, &jar, &req.password).await?;
     if user.0.is_admin {
         let admins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1")
             .fetch_one(&state.db)

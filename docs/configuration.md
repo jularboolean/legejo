@@ -175,6 +175,10 @@ as the redirect URI at the provider; ID tokens must be signed with RS256.
 A user signing in for the first time is matched to an existing account with the
 same verified email address, or can link their account from the account page.
 
+An account created at sign-on has no password. Its owner changes or deletes it
+without one for 15 minutes after signing in, and is asked to sign in again after
+that. A password chosen on the account page is then required like any other.
+
 **Login throttling.** Failed logins on the web and over OPDS are counted. When
 the limit is reached within the window, further attempts are answered with
 HTTP 429 until the window has passed.

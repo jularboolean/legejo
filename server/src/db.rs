@@ -26,6 +26,12 @@ pub fn now_ts() -> String {
     time::OffsetDateTime::now_utc().format(&TS_FORMAT).unwrap_or_default()
 }
 
+pub fn ts_in_minutes(minutes: i64) -> String {
+    (time::OffsetDateTime::now_utc() + time::Duration::minutes(minutes))
+        .format(&TS_FORMAT)
+        .unwrap_or_default()
+}
+
 pub fn ts_in_hours(hours: i64) -> String {
     (time::OffsetDateTime::now_utc() + time::Duration::hours(hours))
         .format(&TS_FORMAT)

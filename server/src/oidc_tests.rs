@@ -234,3 +234,41 @@ async fn a_logged_in_user_can_link_their_account() {
     let (location, session) = login(&app, &p, json!({ "sub": "b-2" }), Some("legejo_session=nope"), true).await;
     assert_eq!((location.as_str(), session), ("/account?oidc=failed", None));
 }
+
+#[tokio::test]
+async fn an_account_made_at_sign_on_can_be_changed_and_deleted_after_a_fresh_sign_in() {
+    let (_, db, mut state) = test_app().await;
+    let p = provider().await;
+    state.oidc = Oidc::new(Some(config(&p, true)));
+    let app = crate::router(state);
+    let (_, session) = login(&app, &p, json!({ "sub": "d-1", "preferred_username": "dora" }), None, false).await;
+    let cookie = session.unwrap();
+    let cookie = cookie.split(';').next().unwrap().to_string();
+
+    let (_, account) = send(&app, Method::GET, "/api/account", Some(&cookie), None).await;
+    assert_eq!(account["password_set"], false);
+
+    // Just signed in: no password to give.
+    let (status, v) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "username": "dora2" }))).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+
+    // Later, someone at the open session has to sign in again.
+    let token = cookie.split('=').nth(1).unwrap().to_string();
+    sqlx::query("UPDATE sessions SET created_at = '2020-01-01T00:00:00.000Z' WHERE token = ?").bind(&token).execute(&db).await.unwrap();
+    let (status, v) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "username": "dora3" }))).await;
+    assert_eq!((status, v["error"].clone()), (StatusCode::FORBIDDEN, json!("sign in again")));
+    let (status, v) = send(&app, Method::DELETE, "/api/account", Some(&cookie), Some(json!({}))).await;
+    assert_eq!((status, v["error"].clone()), (StatusCode::FORBIDDEN, json!("sign in again")));
+
+    // Signed in again, a password can be chosen, and is then the proof.
+    let (_, session) = login(&app, &p, json!({ "sub": "d-1" }), None, false).await;
+    let cookie = session.unwrap().split(';').next().unwrap().to_string();
+    let (status, _) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "username": "dora2", "new_password": "ett bra lösenord" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, account) = send(&app, Method::GET, "/api/account", Some(&cookie), None).await;
+    assert_eq!(account["password_set"], true);
+    let (status, _) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "username": "dora3" }))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "username": "dora3", "current_password": "ett bra lösenord" }))).await;
+    assert_eq!(status, StatusCode::OK);
+}

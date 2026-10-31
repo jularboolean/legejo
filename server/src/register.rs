@@ -290,7 +290,7 @@ pub async fn reset(
     // Following a link mailed to the address proves ownership, so the reset
     // also completes a pending email verification.
     sqlx::query(
-        "UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL,
+        "UPDATE users SET password_hash = $1, password_set = 1, reset_token = NULL, reset_expires = NULL,
                           verify_token = NULL, verify_expires = NULL,
                           invite_token = NULL, invite_expires = NULL
          WHERE id = $2",

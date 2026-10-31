@@ -285,6 +285,8 @@ export type Account = {
 	kobo_token: string | null;
 	/** Where Send to Kindle mails the user's books. */
 	kindle_email: string | null;
+	/** False for an account made at a single sign-on, until a password is chosen. */
+	password_set: boolean;
 	/** The address those mails come from; null when the server sends no mail. */
 	mail_from: string | null;
 	/** Whether the user has turned the librarian on. */

@@ -892,7 +892,10 @@ ID-ĵetonoj devas esti subskribitaj per RS256. Ensaluto per pasvorto plu funkcia
 <code>LEGEJO_OIDC_NAME</code> estas la teksto sur la butono; <code>LEGEJO_OIDC_AUTO_CREATE=true</code>
 kreas kontojn por homoj ne antaŭe viditaj; <code>LEGEJO_OIDC_ADMIN_GROUP</code> faras la membrojn
 de grupo administrantoj. Iu, kiu ensalutas unuafoje, estas ligata al konto kun la sama
-kontrolita retpoŝtadreso.</p>"""),
+kontrolita retpoŝtadreso.</p>
+<p>Konto kreita tiel ne havas pasvorton. Ĝi estas ŝanĝebla aŭ forigebla sen pasvorto dum kvarono de
+horo post ensaluto; poste la paĝo Konto petas vin ensaluti denove. Pasvorto elektita tie uzeblas
+ekde tiam.</p>"""),
 
  ("Elekti, kion la instanco proponas",
   "<p>Vi volas scii, kio povas esti ŝaltata kaj malŝaltata.</p>",

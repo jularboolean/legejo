@@ -647,12 +647,12 @@ async fn create_user(state: &AppState, oidc: &Oidc, claims: &Claims) -> Result<i
     let hash = crate::db::hash_password(&random_hex(32)).await.map_err(internal)?;
     let is_admin = oidc.config.admin_group.as_deref().is_some_and(|g| in_group(claims, g));
     let insert = match &email {
-        Some(email) => sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin, email) VALUES ($1, $2, $3, $4) RETURNING id")
+        Some(email) => sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin, email, password_set) VALUES ($1, $2, $3, $4, 0) RETURNING id")
             .bind(&username)
             .bind(&hash)
             .bind(DbFlag::from(is_admin))
             .bind(email),
-        None => sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3) RETURNING id")
+        None => sqlx::query_scalar("INSERT INTO users (username, password_hash, is_admin, password_set) VALUES ($1, $2, $3, 0) RETURNING id")
             .bind(&username)
             .bind(&hash)
             .bind(DbFlag::from(is_admin)),

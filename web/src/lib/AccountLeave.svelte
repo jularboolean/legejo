@@ -78,6 +78,7 @@
 	const percent = $derived(current && current.total > 0 ? Math.round((current.done / current.total) * 100) : 0);
 
 	// ---- Delete account
+	let { passwordSet }: { passwordSet: boolean } = $props();
 	let password = $state('');
 	let understood = $state(false);
 	let confirmOpen = $state(false);
@@ -99,7 +100,9 @@
 			}
 			const body = await res.json().catch(() => null);
 			deleteError =
-				body?.error === 'wrong current password'
+				body?.error === 'sign in again'
+					? t('account.signInAgain')
+					: body?.error === 'wrong current password'
 					? t('leave.wrongPassword')
 					: body?.error === 'the last admin cannot delete their account'
 						? t('leave.lastAdmin')
@@ -179,16 +182,25 @@
 <section class="leave danger-zone">
 	<h2>{t('leave.deleteHeading')}</h2>
 	<p class="intro">{t('leave.deleteIntro')}</p>
-	<label>
-		{t('account.currentPassword')}
-		<input type="password" bind:value={password} autocomplete="current-password" />
-	</label>
+	{#if passwordSet}
+		<label>
+			{t('account.currentPassword')}
+			<input type="password" bind:value={password} autocomplete="current-password" />
+		</label>
+	{/if}
 	<label class="check">
 		<input type="checkbox" bind:checked={understood} />
 		{t('leave.understood')}
 	</label>
-	{#if deleteError}<p class="error">{deleteError}</p>{/if}
-	<button type="button" class="ghost danger" disabled={!password || !understood} onclick={() => (confirmOpen = true)}>
+	{#if deleteError}
+		<p class="error">
+			{deleteError}
+			{#if deleteError === t('account.signInAgain')}
+				<a href="/api/auth/oidc/start" data-sveltekit-reload>{t('account.signInAgainLink')}</a>
+			{/if}
+		</p>
+	{/if}
+	<button type="button" class="ghost danger" disabled={(passwordSet && !password) || !understood} onclick={() => (confirmOpen = true)}>
 		<Trash2 size={13} />
 		{t('leave.delete')}
 	</button>

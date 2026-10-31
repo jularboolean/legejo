@@ -221,7 +221,7 @@ pub async fn accept(
     let hash = crate::db::hash_password(&req.password).await.map_err(internal)?;
     // The admin supplied the address, so it counts as verified.
     sqlx::query(
-        "UPDATE users SET password_hash = $1, invite_token = NULL, invite_expires = NULL,
+        "UPDATE users SET password_hash = $1, password_set = 1, invite_token = NULL, invite_expires = NULL,
                           verify_token = NULL, verify_expires = NULL
          WHERE id = $2",
     )

@@ -102,7 +102,8 @@
 				await invalidateAll();
 			} else {
 				const body = await res.json().catch(() => null);
-				if (res.status === 403) errorMsg = t('account.wrongPassword');
+				if (body?.error === 'sign in again') errorMsg = t('account.signInAgain');
+				else if (res.status === 403) errorMsg = t('account.wrongPassword');
 				else if (res.status === 409 && body?.error?.includes('email')) errorMsg = t('account.emailTaken');
 				else if (res.status === 409) errorMsg = t('account.usernameTaken');
 				else if (body?.error === 'not an email address') errorMsg = t('account.emailInvalid');
@@ -359,20 +360,29 @@
 			autocomplete="new-password"
 			minlength="8"
 		/>
-		<span class="hint">{t('account.newPasswordHint')}</span>
+		<span class="hint">{account.password_set ? t('account.newPasswordHint') : t('account.noPasswordHint')}</span>
 	</label>
-	<label>
-		{t('account.currentPassword')}
-		<input
-			type="password"
-			bind:value={form.current_password}
-			autocomplete="current-password"
-			required
-		/>
-		<span class="hint">{t('account.currentPasswordHint')}</span>
-	</label>
+	{#if account.password_set}
+		<label>
+			{t('account.currentPassword')}
+			<input
+				type="password"
+				bind:value={form.current_password}
+				autocomplete="current-password"
+				required
+			/>
+			<span class="hint">{t('account.currentPasswordHint')}</span>
+		</label>
+	{/if}
 
-	{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
+	{#if errorMsg}
+		<p class="error">
+			{errorMsg}
+			{#if errorMsg === t('account.signInAgain')}
+				<a href="/api/auth/oidc/start" data-sveltekit-reload>{t('account.signInAgainLink')}</a>
+			{/if}
+		</p>
+	{/if}
 	{#if saved}<p class="saved">{t('account.saved')}</p>{/if}
 
 	<div class="actions">
@@ -436,7 +446,7 @@
 
 <OidcLink />
 
-<AccountLeave />
+<AccountLeave passwordSet={account.password_set} />
 {:else if tab === 'design'}
 
 <DesignPicker />
