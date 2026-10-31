@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.2 (2026-10-31)
+
+- **Accounts made through single sign-on can be changed and deleted.** They
+  have no password, and the Account page asked for one. Such an account can
+  now be changed or deleted for 15 minutes after signing in; after that, the
+  page asks you to sign in again. You can choose a password there too.
+
 ## 1.37.1 (2026-10-30)
 
 - **The shared picture no longer stays on "Drawing the picture".** What will
