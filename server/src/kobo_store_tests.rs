@@ -4,6 +4,7 @@
 
 use crate::testutil::{add_user, send, test_app};
 use axum::body::Body;
+use base64::Engine;
 use axum::http::{header, HeaderMap, Method, Request, StatusCode};
 use axum::Router;
 use serde_json::{json, Value};
@@ -302,6 +303,9 @@ async fn a_failed_kobo_sync_loses_nothing() {
     // Kobo out of reach: Legejo's part as usual, and Kobo's token stays where it was.
     let down = setup(&nowhere().await, true, false).await;
     sqlx::query("UPDATE users SET kobo_token = ? WHERE username = 'alice'").bind(&s.token).execute(&down.db).await.unwrap();
+    // One instance, reached twice.
+    let id = crate::live::instance_id(&s.db).await.unwrap();
+    sqlx::query("INSERT INTO settings (key, value) VALUES ('instance_id', ?)").bind(id).execute(&down.db).await.unwrap();
     let down_uri = format!("/api/kobo/{}/v1/library/sync", s.token);
     let (status, headers, v) = device(&down.app, Method::GET, &down_uri, Some(&first), None).await;
     assert_eq!(status, StatusCode::OK, "{v}");
@@ -427,4 +431,31 @@ async fn highlights_of_kobos_books_are_kobos() {
     let (status, _, v) = device(&s.app, Method::GET, &format!("/api/v3/content/{OURS_DASHED}/annotations?limit=100"), None, None).await;
     assert_eq!((status, v), (StatusCode::OK, json!({ "annotations": [], "nextPageOffsetToken": null })));
     assert!(kobo.seen().iter().all(|s| !s.uri.contains(OURS_DASHED)));
+}
+
+#[tokio::test]
+async fn a_token_from_another_library_starts_the_sync_over() {
+    let (_kobo, base) = start_kobo().await;
+    let s = setup(&base, false, false).await;
+    let uri = format!("/api/kobo/{}/v1/library/sync", s.token);
+    let (_, headers, v) = device(&s.app, Method::GET, &uri, None, None).await;
+    assert_eq!(ids(&v), vec![OURS_DASHED.to_string()]);
+    let ours = headers.get("x-kobo-synctoken").unwrap().to_str().unwrap().to_string();
+    let (_, _, v) = device(&s.app, Method::GET, &uri, Some(&ours), None).await;
+    assert_eq!(ids(&v), Vec::<String>::new(), "nothing new with this library's own token");
+
+    // A device coming from another server, or from before tokens said whose
+    // they are, with a watermark past every book here.
+    let foreign = |owner: Value| {
+        let mut token = json!({ "books_created": "2999-01-01T00:00:00.000Z", "books_updated": "2999-01-01T00:00:00.000Z",
+                                "state_updated": "2999-01-01T00:00:00.000Z", "tags_updated": "2999-01-01T00:00:00.000Z" });
+        if !owner.is_null() {
+            token["owner"] = owner;
+        }
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(token.to_string())
+    };
+    for token in [foreign(json!("another-instance:1")), foreign(Value::Null)] {
+        let (_, _, v) = device(&s.app, Method::GET, &uri, Some(&token), None).await;
+        assert_eq!(ids(&v), vec![OURS_DASHED.to_string()], "the library arrives after all");
+    }
 }

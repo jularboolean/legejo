@@ -140,6 +140,11 @@ struct SyncToken {
     /// kept beside Legejo (kobostore.rs).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     kobo: String,
+    /// Whose library the watermarks are of: `<instance>:<user>`. A device
+    /// that moves keeps its token, and another library's times say nothing
+    /// about this one.
+    #[serde(default)]
+    owner: String,
 }
 
 impl SyncToken {
@@ -162,6 +167,15 @@ impl SyncToken {
     fn encode(&self) -> String {
         base64::engine::general_purpose::URL_SAFE_NO_PAD
             .encode(serde_json::to_vec(self).unwrap_or_default())
+    }
+
+    /// This token, for this library: one from another starts over from the
+    /// beginning, keeping only Kobo's part, which goes with the device.
+    fn for_owner(self, owner: String) -> Self {
+        if self.owner == owner {
+            return self;
+        }
+        SyncToken { kobo: self.kobo, owner, ..SyncToken::default() }
     }
 }
 
@@ -1221,7 +1235,8 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
     let headers = headers.clone();
     let user_id = user_from_token(&state, &token).await?;
     let base = base_url(&state, &headers, &token);
-    let mut sync_token = SyncToken::from_headers(&headers);
+    let instance = crate::live::instance_id(&state.db).await.map_err(|e| internal(e.into()))?;
+    let mut sync_token = SyncToken::from_headers(&headers).for_owner(format!("{instance}:{user_id}"));
     let created_wm = sync_token.books_created.clone();
     let mut items: Vec<Value> = Vec::new();
     let mut continue_sync = false;
@@ -1723,6 +1738,11 @@ pub async fn reading_state_get(
     Ok(Json(json!([reading_state])))
 }
 
+/// Whether two reading states put the reader in the same place and status.
+fn same_place(a: &Value, b: &Value) -> bool {
+    ["/CurrentBookmark/Location", "/CurrentBookmark/ProgressPercent", "/StatusInfo/Status"].iter().all(|part| a.pointer(part) == b.pointer(part))
+}
+
 pub async fn reading_state_put(
     State(state): State<AppState>,
     Path((token, uuid)): Path<(String, String)>,
@@ -1742,16 +1762,24 @@ pub async fn reading_state_put(
         })?;
     if let Some(obj) = incoming.as_object_mut() {
         obj.insert("EntitlementId".into(), json!(dashed(&book.uuid)));
-        obj.insert("LastModified".into(), json!(now()));
     }
-    // A state without statistics keeps the ones already counted.
-    if incoming.get("Statistics").is_none() {
-        if let Some((stored, _)) = stored_reading_state(&state, user_id, book.id).await? {
-            if let Some(statistics) = stored.get("Statistics") {
-                incoming["Statistics"] = statistics.clone();
+    let stored = stored_reading_state(&state, user_id, book.id).await?;
+    // What a state leaves out stays as it was.
+    if let Some((stored, _)) = &stored {
+        for part in ["Statistics", "CurrentBookmark"] {
+            if let (None, Some(kept)) = (incoming.get(part), stored.get(part)) {
+                incoming[part] = kept.clone();
             }
         }
     }
+    // The device reports its place when a book is opened or closed, read or
+    // not. Only a place it has moved from is news: otherwise the book stays
+    // as old as it was, and a place read in the web since still counts.
+    let received = match &stored {
+        Some((stored, at)) if same_place(stored, &incoming) => at.clone(),
+        _ => now(),
+    };
+    incoming["LastModified"] = json!(received);
 
     sqlx::query(
         "INSERT INTO kobo_reading_state (user_id, book_id, state, updated_at)
@@ -1762,7 +1790,7 @@ pub async fn reading_state_put(
     .bind(user_id)
     .bind(book.id)
     .bind(incoming.to_string())
-    .bind(now())
+    .bind(&received)
     .execute(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;

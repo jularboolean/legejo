@@ -425,3 +425,44 @@ async fn the_kobo_reading_time_is_kept_and_the_web_opens_at_the_kobo_line() {
     assert_eq!(p["percent"], 0.95, "{p}");
     assert!(p.get("kobo_text").is_none(), "{p}");
 }
+
+#[tokio::test]
+async fn a_device_that_only_opened_a_book_does_not_outvote_the_web() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let uuid = "5f1c2a9d3b4e4c6f8a7b9c0d1e2f3a4d";
+    let book: i64 = sqlx::query_scalar("INSERT INTO books (uuid, owner_id, title, file_size) VALUES (?, ?, 'Alice', 1) RETURNING id")
+        .bind(uuid)
+        .bind(alice)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join(format!("{uuid}.kepub.epub")), crate::kobospan::sample_kepub()).await.unwrap();
+    let token = kobo_token(&app, &a).await;
+    let dashed = format!("{}-{}-{}-{}-{}", &uuid[0..8], &uuid[8..12], &uuid[12..16], &uuid[16..20], &uuid[20..32]);
+    let state_url = format!("/api/kobo/{token}/v1/library/{dashed}/state");
+    let place = |value: &str, percent: i64| json!({ "ReadingStates": [{
+        "StatusInfo": { "Status": "Reading" },
+        "CurrentBookmark": { "ProgressPercent": percent, "Location": { "Value": value, "Type": "KoboSpan", "Source": "OEBPS/xhtml/ch1.xhtml" } },
+    }] });
+
+    // The device has been at the start; then the book is read on in the web.
+    send(&app, Method::PUT, &state_url, None, Some(place("kobo.1.1", 5))).await;
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/4/1:0)", "percent": 0.42, "text": "“Why,” said the Gryphon, “you first form\n into a line" });
+    send(&app, Method::PUT, &format!("/api/books/{book}/progress"), Some(&a), Some(web)).await;
+
+    // The device reports the place it already had: the web's still stands.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    send(&app, Method::PUT, &state_url, None, Some(place("kobo.1.1", 5))).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Value"], "kobo.5.1", "{v}");
+
+    // Read further on the device, and that is the latest word.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    send(&app, Method::PUT, &state_url, None, Some(place("kobo.1.3", 6))).await;
+    let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Value"], "kobo.1.3", "{v}");
+}
