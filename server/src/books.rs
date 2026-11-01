@@ -1741,7 +1741,7 @@ pub async fn series(
 }
 
 /// (uuid, cover_mime, title) of a book the user owns.
-async fn owned_book(
+pub(crate) async fn owned_book(
     state: &AppState,
     user_id: i64,
     book_id: i64,

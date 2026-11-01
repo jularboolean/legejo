@@ -990,6 +990,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'book.annotations': "{count} korostusta ja muistiinpanoa",
 	'book.annotationsOne': "1 korostus",
 	'book.annotationsExport': "Vie Markdownina",
+	'book.annotatedPdf': "PDF korostuksineen ja muistiinpanoineen",
 	'reader.help': 'Pikanäppäimet',
 	'reader.help.next': 'Seuraava sivu',
 	'reader.help.prev': 'Edellinen sivu',

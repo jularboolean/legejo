@@ -990,6 +990,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'book.annotations': "{count} subrayados y notas",
 	'book.annotationsOne': "1 subrayado",
 	'book.annotationsExport': "Exportar como Markdown",
+	'book.annotatedPdf': "PDF con resaltados y notas",
 	'reader.help': 'Atajos de teclado',
 	'reader.help.next': 'Página siguiente',
 	'reader.help.prev': 'Página anterior',

@@ -372,6 +372,10 @@
 						<a href={`/notes#book-${book.id}`}>{book.annotation_count === 1 ? t('book.annotationsOne') : t('book.annotations', { count: book.annotation_count })}</a>
 						·
 						<a href={`/api/books/${book.id}/annotations/export`} download>{t('book.annotationsExport')}</a>
+						{#if book.format === 'pdf'}
+							·
+							<a href={`/api/books/${book.id}/annotated`} download>{t('book.annotatedPdf')}</a>
+						{/if}
 					</p>
 				{/if}
 				<div class="rating"><Rating value={rating} onchange={rate} /></div>
@@ -755,6 +759,7 @@
 		color: var(--gold);
 	}
 	.notes {
+		flex-wrap: wrap;
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;

@@ -985,6 +985,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'book.annotations': "{count} understrykningar och anteckningar",
 	'book.annotationsOne': "1 understrykning",
 	'book.annotationsExport': "Exportera som Markdown",
+	'book.annotatedPdf': "PDF med understrykningar och anteckningar",
 	'reader.help': 'Tangentbordsgenvägar',
 	'reader.help.next': 'Nästa sida',
 	'reader.help.prev': 'Föregående sida',

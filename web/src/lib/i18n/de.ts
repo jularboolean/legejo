@@ -990,6 +990,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'book.annotations': "{count} Markierungen und Notizen",
 	'book.annotationsOne': "1 Markierung",
 	'book.annotationsExport': "Als Markdown exportieren",
+	'book.annotatedPdf': "PDF mit Markierungen und Notizen",
 	'reader.help': 'Tastenkürzel',
 	'reader.help.next': 'Nächste Seite',
 	'reader.help.prev': 'Vorherige Seite',

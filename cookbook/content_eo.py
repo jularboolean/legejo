@@ -488,7 +488,7 @@ kaj notoj libro havas.</p>"""),
   """<p>Malfermu <strong>Markoj kaj notoj</strong> (la klavo <code>N</code>). Ĉiu ero montras
 la fragmenton kaj la noton; alklako kondukas vin tien. La elŝuta butono supre en la panelo
 donas ilin ĉiujn kiel Markdown-dosieron, same kiel <strong>Eksporti kiel Markdown</strong> sur la
-paĝo de la libro.</p>
+paĝo de la libro. Por PDF, la paĝo de la libro ankaŭ proponas kopion de la dosiero kun viaj markoj kaj notoj en ĝi, kiel ĉiu PDF-legilo montras ilin. La dosiero en la biblioteko restas, kia ĝi estas.</p>
 <p>Por ĉiuj libroj samtempe, malfermu <strong>Miaj notoj</strong> en la flanka menuo. La markoj
 staras libro post libro, en la ordo, en kiu ili venas en la teksto, ĉiu kun sia ĉapitro kaj kiom
 antaŭen en la libro ĝi troviĝas, kaj kun la paĝo de la presita eldono, kiam la libro havas tian.

@@ -983,6 +983,7 @@ export const en = {
 	'book.annotations': "{count} highlights and notes",
 	'book.annotationsOne': "1 highlight",
 	'book.annotationsExport': "Export as Markdown",
+	'book.annotatedPdf': "PDF with highlights and notes",
 	'reader.help': 'Keyboard shortcuts',
 	'reader.help.next': 'Next page',
 	'reader.help.prev': 'Previous page',

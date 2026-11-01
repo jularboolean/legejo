@@ -2,6 +2,7 @@
 #![recursion_limit = "256"]
 
 mod account;
+mod pdfnotes;
 mod directory;
 mod admin;
 mod annotations;
@@ -275,6 +276,7 @@ fn router(state: AppState) -> Router {
         .route("/changelog", get(changelog::get))
         .route("/books/{id}/annotations", get(annotations::list).post(annotations::create))
         .route("/books/{id}/annotations/export", get(annotations::export))
+        .route("/books/{id}/annotated", get(pdfnotes::annotated))
         .route("/annotations", get(annotations::all))
         .route("/annotations/export", get(annotations::export_all))
         .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))

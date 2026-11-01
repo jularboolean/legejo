@@ -483,7 +483,8 @@ highlights and notes a book has.</p>"""),
   """<p>Open <strong>Highlights and notes</strong> (the <code>N</code> key). Each entry shows
 the passage and the note; a click takes you there. The download button at the top of the panel
 gives you all of them as a Markdown file, and so does <strong>Export as Markdown</strong> on the
-book page.</p>
+book page. For a PDF, the book page also offers a copy of the file with your highlights and notes
+in it, as any PDF reader shows them. The file in the library stays as it is.</p>
 <p>For every book at once, open <strong>My notes</strong> in the sidebar. The highlights stand
 book by book, in the order they come in the text, each with its chapter and how far through the
 book it is, and the page of the printed edition when the book has one. Search them, write or
