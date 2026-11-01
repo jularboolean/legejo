@@ -80,6 +80,7 @@ mod catalog_tests;
 #[cfg(test)]
 mod kobo_annotations_tests;
 mod kobospan;
+mod kobotrace;
 #[cfg(test)]
 mod connections_tests;
 mod esperanto;
@@ -285,9 +286,9 @@ fn router(state: AppState) -> Router {
         .route("/librarian", post(librarian::ask))
         // A Kobo's highlights and notes, which the device sends to the site
         // root (kobo::reading_services); the same routes exist under the token.
-        .route("/v3/{*rest}", axum::routing::any(kobo::reading_services))
-        .route("/UserStorage/{*rest}", axum::routing::any(kobo::reading_services))
-        .route("/internal/{*rest}", axum::routing::any(kobo::reading_services))
+        .route("/v3/{*rest}", axum::routing::any(kobo::reading_services).layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace)))
+        .route("/UserStorage/{*rest}", axum::routing::any(kobo::reading_services).layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace)))
+        .route("/internal/{*rest}", axum::routing::any(kobo::reading_services).layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace)))
         .route("/shelves/{id}/links", get(shelflinks::list).post(shelflinks::create))
         .route("/shelves/{id}/links/{link}", axum::routing::delete(shelflinks::remove))
         .route("/linked-shelves", get(shelflinks::linked_list).post(shelflinks::follow))
@@ -386,7 +387,8 @@ fn router(state: AppState) -> Router {
         .route("/api/internal/{*rest}", axum::routing::any(kobo::reading_services))
         .fallback(kobostore::fallback)
         .layer(axum::middleware::from_fn_with_state(state.clone(), kobostore::beside))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log));
+        .layer(axum::middleware::from_fn_with_state(state.clone(), kobo::access_log))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace));
 
     let app = Router::new()
         .nest("/api", api)

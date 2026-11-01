@@ -376,7 +376,29 @@ async fn user_of_device(state: &AppState, headers: &HeaderMap) -> Option<i64> {
 }
 
 /// Headers whose values are secrets: logged by length only.
-const SECRET_HEADERS: [&str; 4] = ["authorization", "cookie", "x-kobo-userkey", "x-kobo-devicetoken"];
+pub(crate) const SECRET_HEADERS: [&str; 4] = ["authorization", "cookie", "x-kobo-userkey", "x-kobo-devicetoken"];
+
+/// Who is asking, for the log: the token's user, else the device's.
+pub(crate) async fn user_label(state: &AppState, token: &str, headers: &HeaderMap) -> String {
+    let owner = if token.is_empty() {
+        match user_of_device(state, headers).await {
+            Some(id) => sqlx::query_scalar("SELECT username FROM users WHERE id = $1").bind(id).fetch_optional(&state.db).await.ok().flatten(),
+            None => None,
+        }
+    } else {
+        actor_for_token(state, token).await.map(|(_, name)| name)
+    };
+    owner.unwrap_or_else(|| "?".into())
+}
+
+/// A sync token for the log: Legejo's watermarks, without Kobo's own token.
+pub(crate) fn sync_token_shown(raw: &str) -> String {
+    let token = SyncToken::from_headers(&HeaderMap::from_iter(raw.parse().ok().map(|v| (header::HeaderName::from_static("x-kobo-synctoken"), v))));
+    format!(
+        "created:{} updated:{} state:{} tags:{} owner:{} kobo:<{} bytes>",
+        token.books_created, token.books_updated, token.state_updated, token.tags_updated, token.owner, token.kobo.len()
+    )
+}
 
 /// The path with the sync token taken out: /api/kobo/<token>/… → /api/kobo/…/….
 fn without_token(path: &str) -> String {

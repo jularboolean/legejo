@@ -112,6 +112,9 @@ pub struct Settings {
     /// Suggest shelves on other instances to follow (fed::remote). On
     /// unless LEGEJO_SHELF_SUGGESTIONS=off.
     pub shelf_suggestions: bool,
+    /// Log all that is said with a Kobo (kobotrace.rs). Off unless
+    /// LEGEJO_KOBO_TRACE=true.
+    pub kobo_trace: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -186,6 +189,7 @@ impl Default for Settings {
             kobo: KoboServices::default(),
             dictionary: DictionaryServices::default(),
             shelf_suggestions: true,
+            kobo_trace: false,
         }
     }
 }
@@ -232,7 +236,7 @@ impl Settings {
             Some(_) => Some(flag("LEGEJO_FULLTEXT")?),
             None => None,
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()? })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()?, kobo_trace: flag("LEGEJO_KOBO_TRACE")? })
     }
 }
 
