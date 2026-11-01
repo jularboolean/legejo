@@ -136,6 +136,10 @@ struct SyncToken {
     state_updated: String,
     #[serde(default)]
     tags_updated: String,
+    /// Empty until the first sync that knows of it: what was deleted before
+    /// that is no news to a device getting the library from scratch.
+    #[serde(default)]
+    books_deleted: String,
     /// Kobo's own sync token, as Kobo last sent it, when the Kobo store is
     /// kept beside Legejo (kobostore.rs).
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -288,6 +292,10 @@ pub async fn initialization(
         // Without the key they go to Kobo as before. The host alone: the
         // device strips any path from this key.
         resources["reading_services_host"] = json!(origin_url(&state, &headers));
+    } else if resources.get("reading_services_host").is_none() {
+        // Said outright: a device keeps the host it was last told, which may
+        // be another server's.
+        resources["reading_services_host"] = json!(state.settings.kobo.reading);
     }
 
     Ok((
@@ -1174,6 +1182,31 @@ fn reading_state_read_in_web(mut base: Value, at: &str, mut bookmark: Value) -> 
     base
 }
 
+/// A book that has left the library, for a device that may have it: the
+/// book is gone, so its id stands in for what the device expects to find.
+fn removed_entitlement(uuid: &str, deleted_at: &str) -> Value {
+    let id = dashed(uuid);
+    json!({
+        "ChangedEntitlement": {
+            "BookEntitlement": {
+                "Accessibility": "Full",
+                "ActivePeriod": { "From": deleted_at },
+                "Created": deleted_at,
+                "CrossRevisionId": id,
+                "Id": id,
+                "IsRemoved": true,
+                "IsHiddenFromArchive": false,
+                "IsLocked": false,
+                "LastModified": deleted_at,
+                "OriginCategory": "Imported",
+                "RevisionId": id,
+                "Status": "Deleted",
+            },
+            "BookMetadata": { "CrossRevisionId": id, "RevisionId": id, "EntitlementId": id, "WorkId": id, "Title": id },
+        }
+    })
+}
+
 fn entitlement(book: &Book, reading_state: Value, base: &str, kepub: bool, change_type: &str) -> Value {
     let uuid = dashed(&book.uuid);
     let last_modified = book.updated_at.as_deref().unwrap_or(&book.created_at);
@@ -1329,6 +1362,32 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         }
     }
 
+    // Books deleted from the library: the device is told to let them go.
+    if !continue_sync {
+        let last_seen = sync_token.books_deleted.clone();
+        if last_seen.is_empty() {
+            sync_token.books_deleted = now();
+        } else {
+            let gone: Vec<(String, String)> = sqlx::query_as(
+                "SELECT uuid, deleted_at FROM kobo_deleted_books
+                 WHERE owner_id = $1 AND deleted_at > $2
+                 ORDER BY deleted_at
+                 LIMIT $3",
+            )
+            .bind(user_id)
+            .bind(&last_seen)
+            .bind(SYNC_BATCH + 1)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|e| internal(e.into()))?;
+            continue_sync = gone.len() as i64 > SYNC_BATCH;
+            for (uuid, deleted_at) in gone.iter().take(SYNC_BATCH as usize) {
+                items.push(removed_entitlement(uuid, deleted_at));
+                sync_token.books_deleted = deleted_at.clone();
+            }
+        }
+    }
+
     // 3. Shelves as Kobo collections (tags), including deletions via tombstones.
     if !continue_sync {
         let tags_wm = sync_token.tags_updated.clone();
@@ -1441,10 +1500,16 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
             Ok(store) => {
                 store_count = Some(store.items.len());
                 items.extend(store.items);
+                // Kobo asking to go on from where it already is would never end.
+                let stuck = store.token.as_deref() == Some(sync_token.kobo.as_str());
                 if let Some(next) = store.token {
                     sync_token.kobo = next;
                 }
                 store_headers = store.headers;
+                if stuck && store_headers.iter().any(|(name, _)| *name == "x-kobo-sync") {
+                    tracing::warn!("kobo store: asked to go on without its sync token moving; stopping there");
+                    store_headers.retain(|(name, _)| *name != "x-kobo-sync");
+                }
             }
             Err(e) => {
                 tracing::warn!("kobo store: the library sync could not be fetched: {e:#}");
@@ -1769,6 +1834,18 @@ pub async fn reading_state_get(
     Ok(Json(json!([reading_state])))
 }
 
+fn state_taken(uuid: &str) -> Value {
+    json!({
+        "RequestResult": "Success",
+        "UpdateResults": [{
+            "EntitlementId": dashed(uuid),
+            "CurrentBookmarkResult": { "Result": "Success" },
+            "StatisticsResult": { "Result": "Success" },
+            "StatusInfoResult": { "Result": "Success" },
+        }],
+    })
+}
+
 /// Whether two reading states put the reader in the same place and status.
 fn same_place(a: &Value, b: &Value) -> bool {
     ["/CurrentBookmark/Location", "/CurrentBookmark/ProgressPercent", "/StatusInfo/Status"].iter().all(|part| a.pointer(part) == b.pointer(part))
@@ -1780,7 +1857,12 @@ pub async fn reading_state_put(
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, Response> {
     let user_id = user_from_token(&state, &token).await?;
-    let book = book_by_uuid(&state, user_id, &uuid).await?;
+    // A book the device has from elsewhere, or that has left the library: its
+    // place has nowhere to go, and the device must not keep trying to send it.
+    let Ok(book) = book_by_uuid(&state, user_id, &uuid).await else {
+        tracing::info!("kobo: a place in a book this library does not have ({uuid}) left aside");
+        return Ok(Json(state_taken(&uuid)));
+    };
 
     let mut incoming = body
         .get("ReadingStates")
@@ -1848,15 +1930,19 @@ pub async fn reading_state_put(
         tracing::info!("kobo: \"{}\" is unread on the device since {since}", book.title);
     }
 
-    Ok(Json(json!({
-        "RequestResult": "Success",
-        "UpdateResults": [{
-            "EntitlementId": dashed(&book.uuid),
-            "CurrentBookmarkResult": { "Result": "Success" },
-            "StatisticsResult": { "Result": "Success" },
-            "StatusInfoResult": { "Result": "Success" },
-        }],
-    })))
+    Ok(Json(state_taken(&book.uuid)))
+}
+
+/// POST /v1/analytics/event: what the device reports of itself. Passed on or
+/// dropped as the rest, but a failed sync is the one place the device says why.
+pub async fn analytics_event(State(state): State<AppState>, request: axum::extract::Request) -> Response {
+    let (parts, body) = request.into_parts();
+    let bytes = axum::body::to_bytes(body, 1024 * 1024).await.unwrap_or_default();
+    let text = String::from_utf8_lossy(&bytes);
+    if text.contains("FailedSync") {
+        tracing::warn!("kobo: the device reports a failed sync: {}", text.chars().take(600).collect::<String>());
+    }
+    crate::kobostore::fallback(State(state), axum::extract::Request::from_parts(parts, axum::body::Body::from(bytes))).await
 }
 
 /// "Remove from library" on the device. The book stays in the catalog but is

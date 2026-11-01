@@ -92,7 +92,7 @@ async fn off_by_default_the_device_is_not_told_about_us_and_keeps_its_highlights
     let (status, v) = send(&app, Method::GET, &format!("/api/kobo/{token}/v1/initialization"), None, None).await;
     assert_eq!(status, StatusCode::OK, "{v}");
     assert!(v["Resources"]["image_host"].is_string());
-    assert!(v["Resources"]["reading_services_host"].is_null());
+    assert_eq!(v["Resources"]["reading_services_host"], "https://readingservices.kobo.com", "Kobo's, as before, said outright");
     // The highlights are refused, never answered as "none".
     let (status, _) = from_device(&app, Method::GET, "/api/v3/content/abc/annotations?limit=100", DEVICE, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);

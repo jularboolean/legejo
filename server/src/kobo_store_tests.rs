@@ -459,3 +459,63 @@ async fn a_token_from_another_library_starts_the_sync_over() {
         assert_eq!(ids(&v), vec![OURS_DASHED.to_string()], "the library arrives after all");
     }
 }
+
+#[tokio::test]
+async fn what_the_device_asks_of_a_book_or_path_this_library_does_not_have() {
+    let (kobo, base) = start_kobo().await;
+    let s = setup(&base, false, false).await;
+    let root = format!("/api/kobo/{}", s.token);
+
+    // Its place in a book from elsewhere is left aside, and it can stop sending it.
+    let body = json!({ "ReadingStates": [{ "CurrentBookmark": { "ProgressPercent": 3 } }] });
+    let (status, _, v) = device(&s.app, Method::PUT, &format!("{root}/v1/library/{BOUGHT}/state"), None, Some(body)).await;
+    assert_eq!((status, v["RequestResult"].clone()), (StatusCode::OK, json!("Success")));
+
+    // The refresh of a sign-in that is ours.
+    let (status, _, v) = device(&s.app, Method::POST, &format!("{root}/v1/auth/refresh"), None, Some(json!({ "RefreshToken": "r" }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(v["AccessToken"].is_string(), "{v}");
+
+    // A path of the list that Legejo has nothing at.
+    let (status, _, v) = device(&s.app, Method::GET, &format!("{root}/v1/library/items"), None, None).await;
+    assert_eq!((status, v), (StatusCode::OK, json!({})));
+
+    // A failed sync reported is taken, and goes nowhere.
+    let (status, _, _) = device(&s.app, Method::POST, &format!("{root}/v1/analytics/event"), None, Some(json!({ "Events": [{ "EventType": "FailedSync" }] }))).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Without highlights here, the device is told so and not left with another server's host.
+    let (_, _, v) = device(&s.app, Method::GET, &format!("{root}/v1/initialization"), None, None).await;
+    assert_eq!(v["Resources"]["reading_services_host"], json!(base));
+    assert!(kobo.seen().is_empty(), "{:?}", kobo.seen());
+}
+
+#[tokio::test]
+async fn a_book_deleted_from_the_library_leaves_the_device_too() {
+    let (_kobo, base) = start_kobo().await;
+    let s = setup(&base, false, false).await;
+    let uri = format!("/api/kobo/{}/v1/library/sync", s.token);
+    let removed = |v: &Value| -> Vec<String> {
+        v.as_array().unwrap().iter().filter(|i| i["ChangedEntitlement"]["BookEntitlement"]["IsRemoved"] == true)
+            .map(|i| i["ChangedEntitlement"]["BookEntitlement"]["Id"].as_str().unwrap().to_string()).collect()
+    };
+    let (_, headers, v) = device(&s.app, Method::GET, &uri, None, None).await;
+    assert_eq!(ids(&v), vec![OURS_DASHED.to_string()]);
+    assert!(removed(&v).is_empty());
+    let first = headers.get("x-kobo-synctoken").unwrap().to_str().unwrap().to_string();
+
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    let book: i64 = sqlx::query_scalar("SELECT id FROM books").fetch_one(&s.db).await.unwrap();
+    let (status, _) = send(&s.app, Method::DELETE, &format!("/api/books/{book}"), Some(&s.cookie), None).await;
+    assert!(status.is_success(), "{status}");
+
+    let (_, headers, v) = device(&s.app, Method::GET, &uri, Some(&first), None).await;
+    assert_eq!(removed(&v), vec![OURS_DASHED.to_string()], "{v}");
+    let second = headers.get("x-kobo-synctoken").unwrap().to_str().unwrap().to_string();
+    let (_, _, v) = device(&s.app, Method::GET, &uri, Some(&second), None).await;
+    assert!(removed(&v).is_empty(), "told once: {v}");
+
+    // A new device has nothing to let go of.
+    let (_, _, v) = device(&s.app, Method::GET, &uri, None, None).await;
+    assert!(removed(&v).is_empty(), "{v}");
+}

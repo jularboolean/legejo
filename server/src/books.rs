@@ -1999,6 +1999,13 @@ pub async fn delete(
 
 /// The row and every file that belongs to the book.
 pub(crate) async fn remove_book(state: &AppState, owner_id: i64, id: i64, uuid: &str) -> Result<(), Response> {
+    sqlx::query("INSERT INTO kobo_deleted_books (uuid, owner_id, deleted_at) VALUES ($1, $2, $3) ON CONFLICT (uuid) DO NOTHING")
+        .bind(uuid)
+        .bind(owner_id)
+        .bind(crate::db::now_ts())
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
     sqlx::query("DELETE FROM books WHERE id = $1 AND owner_id = $2")
         .bind(id)
         .bind(owner_id)

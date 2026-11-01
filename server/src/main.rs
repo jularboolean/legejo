@@ -365,13 +365,15 @@ fn router(state: AppState) -> Router {
     let kobo = Router::new()
         .route("/v1/initialization", get(kobo::initialization))
         .route("/v1/auth/device", post(kobo::auth_device))
+        .route("/v1/auth/refresh", post(kobo::auth_device))
         .route("/v1/library/sync", get(kobo::library_sync))
         .route("/v1/library/{uuid}/metadata", get(kobo::library_metadata))
         .route(
             "/v1/library/{uuid}/state",
             get(kobo::reading_state_get).put(kobo::reading_state_put),
         )
-        .route("/v1/library/{uuid}", axum::routing::delete(kobo::library_delete))
+        // The other methods here are the list's own paths (/v1/library/items).
+        .route("/v1/library/{uuid}", axum::routing::delete(kobo::library_delete).fallback(kobostore::fallback))
         .route("/v1/library/tags", post(kobo::create_tag))
         .route(
             "/v1/library/tags/{tag_id}",
@@ -379,6 +381,7 @@ fn router(state: AppState) -> Router {
         )
         .route("/v1/library/tags/{tag_id}/items", post(kobo::add_tag_items))
         .route("/v1/library/tags/{tag_id}/items/delete", post(kobo::delete_tag_items))
+        .route("/v1/analytics/event", post(kobo::analytics_event))
         .route("/v1/download/{filename}", get(kobo::download))
         .route("/{image_id}/{width}/{height}/{grey}/image.jpg", get(kobo::image))
         .route("/{image_id}/{width}/{height}/{quality}/{grey}/image.jpg", get(kobo::image_quality))
