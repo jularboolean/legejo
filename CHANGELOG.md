@@ -4,6 +4,22 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.39.0 (2026-11-01)
+
+- **A PDF with your highlights and notes in it.** The page of a PDF book now
+  offers a copy with your highlights and notes written in as ordinary PDF
+  annotations, which other PDF readers can show. The book itself is not
+  changed.
+- **A Kobo finds a place in the whole book.** When the words of a place read
+  in the browser are not in the chapter the place names, the Kobo looks for
+  them through the rest of the book before it goes to the chapter's start.
+- **A book deleted in Legejo leaves the Kobo.** Before, it could stay on the
+  device. A Kobo can also renew its login, and always knows where to send
+  highlights.
+- **A log for when a Kobo will not sync.** `LEGEJO_KOBO_TRACE=true` writes all
+  that is said with a Kobo to the log, without tokens and keys but with
+  titles, places and highlights, so it is off unless asked for.
+
 ## 1.38.0 (2026-11-01)
 
 - **Better support for Esperanto: a new Zamenhof design.** The design for
