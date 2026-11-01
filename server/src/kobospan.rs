@@ -65,16 +65,36 @@ pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Place
 }
 
 /// As `place`, for a reader's place rather than a passage: where the words
-/// do not all agree, a stretch of them that does will do.
+/// do not all agree, a stretch of them that does will do. Words that the
+/// chapter named does not have are looked for in the rest of the book: it is
+/// the words that say where the reader is, and a CFI counts chapters in a
+/// book that need not be numbered alike in the web reader and here.
 pub fn place_near(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Placed>> {
-    placed(kepub, cfi, text, true)
+    if let Some(found) = placed(kepub, cfi, text, true)? {
+        return Ok(Some(found));
+    }
+    let mut doc = EpubDoc::from_reader(Cursor::new(kepub)).map_err(|e| anyhow::anyhow!("could not read the kepub: {e}"))?;
+    let ids: Vec<String> = doc.spine.iter().map(|s| s.idref.clone()).collect();
+    for id in ids {
+        let Some(path) = doc.resources.get(&id).map(|r| r.path.to_string_lossy().replace('\\', "/")) else { continue };
+        let Some((html, _)) = doc.get_resource_str(&id) else { continue };
+        if let Some(found) = find_in_chapter(&html, text, true) {
+            tracing::info!("kobo: the words of a place are in {path}, not in the chapter its CFI names ({cfi})");
+            return Ok(Some(placed_at(path, &html, found)));
+        }
+    }
+    Ok(None)
 }
 
 fn placed(kepub: &[u8], cfi: &str, text: &str, loose: bool) -> anyhow::Result<Option<Placed>> {
     let Some((path, html)) = chapter_of(kepub, cfi)? else { return Ok(None) };
-    Ok(find_in_chapter(&html, text, loose).map(|found| Placed {
-        chapter: path,
-        title: title_of(&html),
+    Ok(find_in_chapter(&html, text, loose).map(|found| placed_at(path, &html, found)))
+}
+
+fn placed_at(chapter: String, html: &str, found: Found) -> Placed {
+    Placed {
+        chapter,
+        title: title_of(html),
         start_id: found.start_id,
         start_path: found.start_path,
         start_char: found.start_char,
@@ -82,7 +102,7 @@ fn placed(kepub: &[u8], cfi: &str, text: &str, loose: bool) -> anyhow::Result<Op
         end_char: found.end_char,
         progress: found.progress,
         text: found.text,
-    }))
+    }
 }
 
 /// The file and text of the chapter the CFI names, in this KEPUB.
@@ -413,6 +433,17 @@ mod tests {
         // Unknown spans and chapters.
         assert_eq!(text_at(&kepub, "OEBPS/xhtml/ch1.xhtml", "kobo.99.1").unwrap(), None);
         assert_eq!(text_at(&kepub, "OEBPS/xhtml/nope.xhtml", "kobo.4.1").unwrap(), None);
+    }
+
+    #[test]
+    fn a_place_is_found_in_the_book_when_the_chapter_named_does_not_have_it() {
+        let kepub = sample_kepub();
+        // The CFI names the cover; the words are in the next chapter.
+        let cfi = "epubcfi(/6/2!/4/2/1:0)";
+        let words = "“Why,” said the Gryphon, “you first form into a line";
+        let found = place_near(&kepub, cfi, words).unwrap().unwrap();
+        assert_eq!((found.start_id.as_str(), found.chapter.as_str()), ("kobo.5.1", "OEBPS/xhtml/ch1.xhtml"));
+        assert!(place(&kepub, cfi, words).unwrap().is_none(), "a passage to mark stays in its chapter");
     }
 
     #[test]
