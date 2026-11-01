@@ -105,13 +105,17 @@ fn placed_at(chapter: String, html: &str, found: Found) -> Placed {
     }
 }
 
+/// What kepubify adds to a book's spine, as the blank title page it may put
+/// first. The web reader counts the book without them.
+const KEPUBIFY_ITEM: &str = "kepubify-";
+
 /// The file and text of the chapter the CFI names, in this KEPUB.
 fn chapter_of(kepub: &[u8], cfi: &str) -> anyhow::Result<Option<(String, String)>> {
     let Some((idref, index)) = spine_item_of(cfi) else { return Ok(None) };
     let mut doc = EpubDoc::from_reader(Cursor::new(kepub)).map_err(|e| anyhow::anyhow!("could not read the kepub: {e}"))?;
     let item = idref
         .and_then(|id| doc.spine.iter().find(|s| s.idref == id).cloned())
-        .or_else(|| index.and_then(|i| doc.spine.get(i).cloned()));
+        .or_else(|| index.and_then(|i| doc.spine.iter().filter(|s| !s.idref.starts_with(KEPUBIFY_ITEM)).nth(i).cloned()));
     let Some(item) = item else { return Ok(None) };
     let Some(path) = doc.resources.get(&item.idref).map(|r| r.path.to_string_lossy().replace('\\', "/")) else { return Ok(None) };
     let Some((html, _)) = doc.get_resource_str(&item.idref) else { return Ok(None) };
@@ -369,6 +373,12 @@ fn find_in_chapter(html: &str, needle: &str, loose: bool) -> Option<Found> {
 /// sentences are wrapped in kobo spans.
 #[cfg(test)]
 pub fn sample_kepub() -> Vec<u8> {
+    kepub_with(false)
+}
+
+/// The same, with or without the blank title page kepubify may put first.
+#[cfg(test)]
+fn kepub_with(title_page: bool) -> Vec<u8> {
     use std::io::Write;
     let chapter = r#"<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter X: The Lobster Quadrille</title></head><body>
@@ -388,18 +398,22 @@ reason is—” here the Mock Turtle yawned and shut his eyes.
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">sample</dc:identifier><dc:title>Sample</dc:title><dc:language>en</dc:language></metadata>
 <manifest>
+<item id="kepubify-titlepage-dummy" href="blank.xhtml" media-type="application/xhtml+xml"/>
 <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
 <item id="ch1" href="xhtml/ch1.xhtml" media-type="application/xhtml+xml"/>
 </manifest>
 <spine><itemref idref="cover"/><itemref idref="ch1"/></spine>
 </package>"#;
+    let spine = if title_page { r#"<spine><itemref idref="kepubify-titlepage-dummy"/><itemref idref="cover"/>"# } else { r#"<spine><itemref idref="cover"/>"# };
+    let opf = opf.replace(r#"<spine><itemref idref="cover"/>"#, spine);
     let container = r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#;
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
     let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for (name, content) in [
         ("mimetype", "application/epub+zip"),
         ("META-INF/container.xml", container),
-        ("OEBPS/content.opf", opf),
+        ("OEBPS/content.opf", opf.as_str()),
+        ("OEBPS/blank.xhtml", "<html><body><p>Page intentionally left blank</p></body></html>"),
         ("OEBPS/cover.xhtml", "<html><body><p>Cover</p></body></html>"),
         ("OEBPS/xhtml/ch1.xhtml", chapter),
     ] {
@@ -459,6 +473,16 @@ mod tests {
         // A passage to mark is exact, or not placed; nor is anything found in nothing like it.
         assert!(place(&kepub, cfi, "Why, said the Gryphon: you first form").unwrap().is_none());
         assert!(place_near(&kepub, cfi, "words that are in no chapter of this book whatsoever, none of them").unwrap().is_none());
+    }
+
+    #[test]
+    fn a_title_page_added_by_kepubify_does_not_count_as_a_chapter() {
+        let kepub = kepub_with(true);
+        // The web reader, reading the book as it was, counts the chapter second.
+        let cfi = "epubcfi(/6/4!/4/2/1:0)";
+        let found = place(&kepub, cfi, "“Why,” said the Gryphon, “you first form into a line").unwrap().unwrap();
+        assert_eq!((found.start_id.as_str(), found.chapter.as_str()), ("kobo.5.1", "OEBPS/xhtml/ch1.xhtml"));
+        assert_eq!(chapter_start(&kepub, cfi).unwrap().unwrap().chapter, "OEBPS/xhtml/ch1.xhtml");
     }
 
     #[test]

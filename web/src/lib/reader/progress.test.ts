@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sendUnsent } from './progress';
+import { CACHED_HEADER } from '#lib/offline/keys';
+import { createProgressStore, sendUnsent } from './progress';
 
 const KEY = 'legejo.reader.progress.4';
 
@@ -75,5 +76,29 @@ describe('sendUnsent', () => {
 		vi.stubGlobal('fetch', fetch);
 		await sendUnsent();
 		expect(fetch).not.toHaveBeenCalled();
+	});
+});
+
+describe('load', () => {
+	beforeEach(() => vi.stubGlobal('localStorage', storage()));
+	afterEach(() => vi.unstubAllGlobals());
+
+	const kept = { cfi: 'here', percent: 0.3, updatedAt: Date.parse('2026-10-11T10:00:00Z') };
+	const older = { cfi: 'old', percent: 0.1, updated_at: '2026-10-10T10:00:00Z' };
+
+	it('brings the server up to date with a newer position of this device', async () => {
+		localStorage.setItem(KEY, JSON.stringify(kept));
+		const fetch = vi.fn(async (_url: string, _init?: RequestInit) => answer(older));
+		vi.stubGlobal('fetch', fetch);
+		expect((await createProgressStore(4).load())?.cfi).toBe('here');
+		expect(fetch.mock.calls[1][1]?.method).toBe('PUT');
+	});
+
+	it('writes nothing over the server on the word of the device\'s own cache', async () => {
+		localStorage.setItem(KEY, JSON.stringify(kept));
+		const fetch = vi.fn(async () => answer(older, { headers: { [CACHED_HEADER]: '1' } }));
+		vi.stubGlobal('fetch', fetch);
+		expect((await createProgressStore(4).load())?.cfi).toBe('here');
+		expect(fetch).toHaveBeenCalledTimes(1);
 	});
 });

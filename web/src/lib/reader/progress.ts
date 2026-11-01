@@ -155,8 +155,11 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 		async load() {
 			const local = readLocal();
 			let server: RemoteProgress | null = null;
+			// An answer out of the device's own cache may be older than the server.
+			let cached = false;
 			try {
 				const res = await fetch(url);
+				cached = res.headers.get(CACHED_HEADER) !== null;
 				if (res.ok) server = await res.json();
 				else if (res.status === 404) remote = false;
 			} catch {
@@ -177,7 +180,7 @@ export function createProgressStore(bookId: number | string): ProgressStore {
 			}
 			if (local) {
 				// The local copy is newer, or the server has none yet: bring it up to date.
-				if (server) send(local, false);
+				if (server && !cached) send(local, false);
 				return { cfi: local.cfi, percent: local.percent };
 			}
 			return null;

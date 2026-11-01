@@ -3,9 +3,10 @@
 //! answer, with headers and bodies, numbered so that they can be paired.
 //!
 //! What can open an account stays out of the log: the sync token, wherever it
-//! is written, and the values the device or Kobo keeps as keys. What a person
-//! reads stays in, since that is what is looked for here: titles, places and
-//! the text of highlights.
+//! is written, and the values the device or Kobo keeps as keys. So do the
+//! reader's address and what the device reports of its use: searches, words
+//! looked up, the account's profile. What sync carries stays in, since that is
+//! what is looked for here: titles, places and the text of highlights.
 
 use crate::kobo;
 use crate::AppState;
@@ -21,6 +22,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const READ_AT_MOST: u64 = 16 * 1024 * 1024;
 /// How much of a body reaches the log.
 const SHOWN: usize = 64 * 1024;
+
+/// Headers that say where the reader is.
+const ADDRESS_HEADERS: [&str; 5] = ["cf-connecting-ip", "cf-ipcountry", "x-forwarded-for", "x-real-ip", "forwarded"];
+
+/// Paths whose bodies are about the person and not about sync.
+const PRIVATE_PATHS: [&str; 3] = ["/v1/analytics/", "/v1/user/", "/checkforchanges"];
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -81,7 +88,9 @@ fn headers_text(headers: &HeaderMap, token: &str) -> String {
         .map(|(name, value)| {
             let name = name.as_str();
             let text = value.to_str().unwrap_or("<binary>");
-            if kobo::SECRET_HEADERS.contains(&name) || name == "set-cookie" {
+            if ADDRESS_HEADERS.contains(&name) {
+                format!("{name}=<hidden>")
+            } else if kobo::SECRET_HEADERS.contains(&name) || name == "set-cookie" {
                 format!("{name}=<{} bytes>", value.len())
             } else if name == "x-kobo-synctoken" {
                 format!("{name}={}", kobo::sync_token_shown(text))
@@ -104,7 +113,10 @@ fn is_text(headers: &HeaderMap) -> bool {
 
 /// The body for the log, and the body to pass on. Nothing that is long, or
 /// comes as a stream, is held back.
-async fn read(headers: &HeaderMap, body: Body, token: &str) -> (String, Body) {
+async fn read(headers: &HeaderMap, body: Body, token: &str, private: bool) -> (String, Body) {
+    if private {
+        return ("<not logged>".into(), body);
+    }
     let size = body.size_hint().upper();
     if !is_text(headers) || !size.is_some_and(|size| size <= READ_AT_MOST) {
         let kind = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("unknown type");
@@ -124,9 +136,10 @@ pub async fn trace(State(state): State<AppState>, original: OriginalUri, request
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
     let token = original.0.path().strip_prefix("/api/kobo/").and_then(|rest| rest.split('/').next()).unwrap_or("").to_string();
     let path = cleaned(&original.0.to_string(), &token);
+    let private = PRIVATE_PATHS.iter().any(|part| original.0.path().contains(part));
     let user = kobo::user_label(&state, &token, request.headers()).await;
     let (parts, body) = request.into_parts();
-    let (shown, body) = read(&parts.headers, body, &token).await;
+    let (shown, body) = read(&parts.headers, body, &token, private).await;
     tracing::info!(
         target: "legejo::kobo_trace",
         "kobo #{n} {user} {} {path} headers=[{}] body={shown}",
@@ -138,7 +151,7 @@ pub async fn trace(State(state): State<AppState>, original: OriginalUri, request
     let response = next.run(Request::from_parts(parts, body)).await;
 
     let (parts, body) = response.into_parts();
-    let (shown, body) = read(&parts.headers, body, &token).await;
+    let (shown, body) = read(&parts.headers, body, &token, private).await;
     tracing::info!(
         target: "legejo::kobo_trace",
         "kobo #{n} answer {} in {} ms headers=[{}] body={shown}",
@@ -184,6 +197,14 @@ mod tests {
             assert!(!text.contains(secret), "{secret} in {text}");
         }
         assert!(text.contains("x-kobo-deviceid=d9f26b84"));
+    }
+
+    #[test]
+    fn the_readers_address_stays_out_of_the_log() {
+        let mut headers = HeaderMap::new();
+        headers.insert("cf-connecting-ip", "192.0.2.7".parse().unwrap());
+        headers.insert("x-forwarded-for", "192.0.2.7".parse().unwrap());
+        assert!(!headers_text(&headers, "").contains("192.0.2.7"));
     }
 
     #[test]

@@ -4,6 +4,18 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.39.1 (2026-11-01)
+
+- **Highlights and places reach the right chapter on a Kobo.** Some books get
+  a blank title page in the copy made for the Kobo, and a place in the browser
+  was then counted one chapter wrong.
+- **A slow connection no longer costs a place read elsewhere.** With a book
+  saved on the device, a position kept on the device could be sent to the
+  server over a newer one from another device.
+- **The Kobo log says less about the reader.** `LEGEJO_KOBO_TRACE` leaves out
+  addresses, searches, words looked up and the account's profile, and a failed
+  sync reported by a Kobo logs only that event.
+
 ## 1.39.0 (2026-11-01)
 
 - **A PDF with your highlights and notes in it.** The page of a PDF book now

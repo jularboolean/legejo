@@ -1940,7 +1940,12 @@ pub async fn analytics_event(State(state): State<AppState>, request: axum::extra
     let bytes = axum::body::to_bytes(body, 1024 * 1024).await.unwrap_or_default();
     let text = String::from_utf8_lossy(&bytes);
     if text.contains("FailedSync") {
-        tracing::warn!("kobo: the device reports a failed sync: {}", text.chars().take(600).collect::<String>());
+        // Only that event: the others say what the reader searched and looked up.
+        let events: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        let failed: Vec<&Value> = events["Events"].as_array().into_iter().flatten().filter(|e| e["EventType"] == "FailedSync").collect();
+        for event in failed {
+            tracing::warn!("kobo: the device reports a failed sync at {}: {}", event["Timestamp"], event["Attributes"]);
+        }
     }
     crate::kobostore::fallback(State(state), axum::extract::Request::from_parts(parts, axum::body::Body::from(bytes))).await
 }

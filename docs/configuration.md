@@ -112,7 +112,7 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_ADMIN_PASSWORD` | | Its password. Unset, the first visitor creates the admin in the browser |
 | `LEGEJO_MAX_UPLOAD_MB` | `200` | Largest accepted upload |
 | `LEGEJO_LOG_FORMAT` | `text` | `json` for one JSON object per line. The level is set with `RUST_LOG` |
-| `LEGEJO_KOBO_TRACE` | `false` | `true` logs all that is said with a Kobo, headers and bodies, for finding out why a sync went wrong. Tokens and keys are left out, but titles, places and highlights are not: turn it off when done |
+| `LEGEJO_KOBO_TRACE` | `false` | `true` logs what is said with a Kobo, headers and bodies, for finding out why a sync went wrong. Tokens, keys, addresses and what the device reports of its use are left out; titles, places and highlights are not, so turn it off when done |
 | `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |
 | `LEGEJO_FULLTEXT` | | Searching inside the books, also a switch on the Admin page. `true` or `false` here wins over the switch. While on, the text of the EPUBs is kept in the database, once per text; switched off, the text is dropped |
 | `LEGEJO_AI_API_KEY` | | Turns on the librarian. The key of the account that pays |
