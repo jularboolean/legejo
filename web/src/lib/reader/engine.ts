@@ -18,6 +18,7 @@ import {
 	type SpeechText,
 	type TocItem
 } from './types';
+import { reachPlace } from './placing';
 import { wordSpan } from './words';
 
 /**
@@ -42,6 +43,8 @@ const EXCERPT_CHARS = 160;
 const OPEN_TIMEOUT_MS = 30_000;
 const DISPLAY_TIMEOUT_MS = 20_000;
 const SETTLE_TIMEOUT_MS = 2_500;
+/** How long a chapter gets to be laid out before a place is shown anew. */
+const PLACE_RETRY_MS = 200;
 /** Empty space after the last line of a chapter in scrolled flow, in px. */
 const SCROLL_END_PAD = 96;
 /** An element positioned this far from where it stands is meant to be out of sight, in px. */
@@ -1045,9 +1048,17 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 	 */
 	async function correctPage(r: InternalRendition, target: string) {
 		if (!paginated || !target.startsWith('epubcfi(')) return;
-		const shown = r.currentLocation() as unknown as Location | undefined;
-		if (!shown?.end?.cfi || shown.end.index !== spine.get(target)?.index) return;
-		if (r.epubcfi.compare(target, shown.end.cfi) > 0) await r.next();
+		const chapter = spine.get(target)?.index;
+		await reachPlace({
+			beyond() {
+				if (r !== rendition) return false;
+				const shown = r.currentLocation() as unknown as Location | undefined;
+				return !!shown?.end?.cfi && shown.end.index === chapter && r.epubcfi.compare(target, shown.end.cfi) > 0;
+			},
+			next: () => r.next(),
+			again: () => timeout(r.display(target), DISPLAY_TIMEOUT_MS),
+			wait: () => new Promise((resolve) => setTimeout(resolve, PLACE_RETRY_MS))
+		});
 	}
 
 	const watched = new WeakSet<HTMLElement>();

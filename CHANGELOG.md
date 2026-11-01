@@ -4,6 +4,12 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.39.2 (2026-11-01)
+
+- **A book opens where you left it on a slower device.** The reader could open
+  a book at the start of the chapter when the page was not laid out in time.
+  It now checks that the place is on screen, and tries again if it is not.
+
 ## 1.39.1 (2026-11-01)
 
 - **Highlights and places reach the right chapter on a Kobo.** Some books get
