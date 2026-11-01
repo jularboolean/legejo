@@ -1046,9 +1046,9 @@ async fn stored_reading_state(state: &AppState, user_id: i64, book_id: i64) -> R
 
 /// The reading state the device gets for a book: its own last word, unless
 /// the book was read further in the web since, in which case the device is
-/// pointed to that place in its KEPUB. Without such a place (no text, or
-/// text the KEPUB does not have), the device's own state stands, or a fresh
-/// one for a book it has not opened.
+/// pointed to that place in its KEPUB, or at the least to that chapter when
+/// the words are not to be found. Without a chapter, the device's own state
+/// stands, or a fresh one for a book it has not opened.
 async fn reading_state_for(state: &AppState, user_id: i64, book: &Book) -> Result<Value, Response> {
     let stored = stored_reading_state(state, user_id, book.id).await?;
     let web: Option<(String, Option<String>, f64, String, Option<String>)> = sqlx::query_as(
@@ -1059,11 +1059,15 @@ async fn reading_state_for(state: &AppState, user_id: i64, book: &Book) -> Resul
     .fetch_optional(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    if let Some((cfi, Some(text), percent, at, placed)) = web {
-        let newer = stored.as_ref().map_or(true, |(_, device)| at.as_str() > device.as_str());
-        if newer && book.format == "epub" {
-            if let Some(bookmark) = web_bookmark(state, user_id, book, &cfi, &text, percent, &at, placed).await {
+    if let Some((cfi, text, percent, at, placed)) = web {
+        let device_at = stored.as_ref().map(|(_, device)| device.as_str());
+        let newer = device_at.map_or(true, |device| at.as_str() > device);
+        if !newer {
+            tracing::info!("kobo: for \"{}\" the device's place (from {}) stands over the web's ({at})", book.title, device_at.unwrap_or(""));
+        } else if book.format == "epub" {
+            if let Some(bookmark) = web_bookmark(state, user_id, book, &cfi, text.as_deref().unwrap_or(""), percent, &at, placed).await {
                 let base = stored.map(|(s, _)| s).unwrap_or_else(|| default_reading_state(book));
+                tracing::info!("kobo: \"{}\" sent at the web's place from {at}: {}", book.title, bookmark["Location"]);
                 return Ok(reading_state_read_in_web(base, &at, bookmark));
             }
         }
@@ -1091,11 +1095,15 @@ async fn web_bookmark(
     let kepub = ensure_kepub(state, &book.uuid).await?;
     let bytes = std::sync::Arc::new(tokio::fs::read(&kepub).await.ok()?);
     let (cfi, text) = (cfi.to_string(), text.to_string());
-    let found = tokio::task::spawn_blocking(move || crate::kobospan::place(&bytes, &cfi, &text)).await;
-    let found = match found {
+    let found = tokio::task::spawn_blocking(move || match crate::kobospan::place(&bytes, &cfi, &text) {
+        Ok(None) => crate::kobospan::chapter_start(&bytes, &cfi).map(|start| start.map(|start| (start, false))),
+        other => other.map(|found| found.map(|found| (found, true))),
+    })
+    .await;
+    let (found, exact) = match found {
         Ok(Ok(Some(found))) => found,
         Ok(Ok(None)) => {
-            tracing::debug!("kobo: the web's place in \"{}\" is not in its kepub", book.title);
+            tracing::warn!("kobo: the web's place in \"{}\" is not in its kepub, nor its chapter", book.title);
             return None;
         }
         Ok(Err(e)) => {
@@ -1117,7 +1125,8 @@ async fn web_bookmark(
         .bind(at)
         .execute(&state.db)
         .await;
-    tracing::info!("kobo: the web's place in \"{}\" is {} in {} for the device", book.title, found.start_id, found.chapter);
+    let how = if exact { "" } else { " (the chapter's start: the words were not found)" };
+    tracing::info!("kobo: the web's place in \"{}\" is {} in {} for the device{how}", book.title, found.start_id, found.chapter);
     Some(bookmark)
 }
 
@@ -1360,7 +1369,7 @@ async fn sync_round(state: &AppState, token: &str, headers: &HeaderMap) -> Resul
         let read_in_web: Vec<(i64, String)> = sqlx::query_as(
             "SELECT rp.book_id, rp.updated_at FROM reading_progress rp
              JOIN books b ON b.id = rp.book_id
-             WHERE rp.user_id = $1 AND rp.updated_at > $2 AND rp.text IS NOT NULL
+             WHERE rp.user_id = $1 AND rp.updated_at > $2
                AND b.kobo_removed_at IS NULL AND b.format = 'epub'
              ORDER BY rp.updated_at
              LIMIT 200",

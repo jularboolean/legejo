@@ -300,13 +300,14 @@ async fn a_place_read_in_the_web_points_the_device_to_the_same_sentence() {
     assert_eq!(changed[0]["ChangedReadingState"]["ReadingState"]["CurrentBookmark"]["ProgressPercent"], 95);
 
     // Read again in the web, but words the KEPUB does not have: the device
-    // keeps its own place, what it counted stays, and the catalog still
-    // shows the web's newer position.
+    // goes to the start of that chapter rather than stay behind, what it
+    // counted stays, and the catalog shows the web's newer position.
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     let web = json!({ "cfi": "epubcfi(/6/4[ch1]!/4/6/1:0)", "percent": 0.5, "text": "words that are not in the book" });
     send(&app, Method::PUT, &progress_url, Some(&a), Some(web)).await;
     let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
-    assert_eq!(v[0]["CurrentBookmark"]["ProgressPercent"], 95, "{v}");
+    assert_eq!(v[0]["CurrentBookmark"]["ProgressPercent"], 50, "{v}");
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Source"], "OEBPS/xhtml/ch1.xhtml");
     assert_eq!(v[0]["Statistics"]["SpentReadingMinutes"], 7);
     let (_, b) = send(&app, Method::GET, &format!("/api/books/{book}"), Some(&a), None).await;
     assert_eq!(b["progress_percent"], 0.5);
@@ -329,10 +330,11 @@ async fn a_place_read_in_the_web_points_the_device_to_the_same_sentence() {
     assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
     assert!(v[0]["CurrentBookmark"].get("Location").is_none());
 
-    // A position without text, as an older web reader sends it, points nowhere.
+    // A position without text, as an older web reader sends it, gets the chapter.
     send(&app, Method::PUT, &progress_url, Some(&a), Some(json!({ "cfi": "epubcfi(/6/4[ch1]!/4/2/1:0)", "percent": 0.2 }))).await;
     let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
-    assert_eq!(v[0]["StatusInfo"]["Status"], "ReadyToRead");
+    assert_eq!(v[0]["StatusInfo"]["Status"], "Reading");
+    assert_eq!(v[0]["CurrentBookmark"]["Location"]["Source"], "OEBPS/xhtml/ch1.xhtml");
 }
 
 #[tokio::test]
@@ -465,4 +467,35 @@ async fn a_device_that_only_opened_a_book_does_not_outvote_the_web() {
     send(&app, Method::PUT, &state_url, None, Some(place("kobo.1.3", 6))).await;
     let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
     assert_eq!(v[0]["CurrentBookmark"]["Location"]["Value"], "kobo.1.3", "{v}");
+}
+
+#[tokio::test]
+async fn a_place_whose_words_are_not_found_still_moves_the_device_to_the_chapter() {
+    let (app, db, state) = test_app().await;
+    let (alice, a) = add_user(&db, "alice").await;
+    let uuid = "5f1c2a9d3b4e4c6f8a7b9c0d1e2f3a4e";
+    let book: i64 = sqlx::query_scalar("INSERT INTO books (uuid, owner_id, title, file_size) VALUES (?, ?, 'Alice', 1) RETURNING id")
+        .bind(uuid)
+        .bind(alice)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let dir = state.data_dir.join("kepub");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join(format!("{uuid}.kepub.epub")), crate::kobospan::sample_kepub()).await.unwrap();
+    let token = kobo_token(&app, &a).await;
+    let dashed = format!("{}-{}-{}-{}-{}", &uuid[0..8], &uuid[8..12], &uuid[12..16], &uuid[16..20], &uuid[20..32]);
+    let state_url = format!("/api/kobo/{token}/v1/library/{dashed}/state");
+
+    for web in [
+        json!({ "cfi": "epubcfi(/6/4[ch1]!/4/4/1:0)", "percent": 0.5, "text": "words that are in no chapter of this book" }),
+        json!({ "cfi": "epubcfi(/6/4[ch1]!/4/6/1:0)", "percent": 0.6 }),
+    ] {
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        send(&app, Method::PUT, &format!("/api/books/{book}/progress"), Some(&a), Some(web)).await;
+        let (_, v) = send(&app, Method::GET, &state_url, None, None).await;
+        let bookmark = &v[0]["CurrentBookmark"];
+        assert_eq!(bookmark["Location"]["Source"], "OEBPS/xhtml/ch1.xhtml", "{v}");
+        assert!(bookmark["Location"]["Value"].as_str().unwrap().starts_with("kobo."), "{v}");
+    }
 }

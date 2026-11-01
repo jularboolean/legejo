@@ -61,14 +61,7 @@ pub fn spine_item_of(cfi: &str) -> Option<(Option<String>, Option<usize>)> {
 /// Where `text` is in the chapter the CFI names, in this KEPUB. None when
 /// the chapter or the text is not there.
 pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Placed>> {
-    let Some((idref, index)) = spine_item_of(cfi) else { return Ok(None) };
-    let mut doc = EpubDoc::from_reader(Cursor::new(kepub)).map_err(|e| anyhow::anyhow!("could not read the kepub: {e}"))?;
-    let item = idref
-        .and_then(|id| doc.spine.iter().find(|s| s.idref == id).cloned())
-        .or_else(|| index.and_then(|i| doc.spine.get(i).cloned()));
-    let Some(item) = item else { return Ok(None) };
-    let Some(path) = doc.resources.get(&item.idref).map(|r| r.path.to_string_lossy().replace('\\', "/")) else { return Ok(None) };
-    let Some((html, _)) = doc.get_resource_str(&item.idref) else { return Ok(None) };
+    let Some((path, html)) = chapter_of(kepub, cfi)? else { return Ok(None) };
     Ok(find_in_chapter(&html, text).map(|found| Placed {
         chapter: path,
         title: title_of(&html),
@@ -79,6 +72,36 @@ pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Place
         end_char: found.end_char,
         progress: found.progress,
         text: found.text,
+    }))
+}
+
+/// The file and text of the chapter the CFI names, in this KEPUB.
+fn chapter_of(kepub: &[u8], cfi: &str) -> anyhow::Result<Option<(String, String)>> {
+    let Some((idref, index)) = spine_item_of(cfi) else { return Ok(None) };
+    let mut doc = EpubDoc::from_reader(Cursor::new(kepub)).map_err(|e| anyhow::anyhow!("could not read the kepub: {e}"))?;
+    let item = idref
+        .and_then(|id| doc.spine.iter().find(|s| s.idref == id).cloned())
+        .or_else(|| index.and_then(|i| doc.spine.get(i).cloned()));
+    let Some(item) = item else { return Ok(None) };
+    let Some(path) = doc.resources.get(&item.idref).map(|r| r.path.to_string_lossy().replace('\\', "/")) else { return Ok(None) };
+    let Some((html, _)) = doc.get_resource_str(&item.idref) else { return Ok(None) };
+    Ok(Some((path, html)))
+}
+
+/// The first span of the chapter the CFI names: the right chapter at least,
+/// for a place whose words cannot be found.
+pub fn chapter_start(kepub: &[u8], cfi: &str) -> anyhow::Result<Option<Placed>> {
+    let Some((path, html)) = chapter_of(kepub, cfi)? else { return Ok(None) };
+    Ok(spans_of(&html).into_iter().next().map(|first| Placed {
+        chapter: path,
+        title: title_of(&html),
+        start_id: first.id,
+        start_path: String::new(),
+        start_char: 0,
+        end_path: String::new(),
+        end_char: 0,
+        progress: 0.0,
+        text: first.text,
     }))
 }
 
