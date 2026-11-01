@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.4 (2026-11-01)
+
+- **A Kobo no longer stays behind when a place cannot be found.** When the
+  words at a place read in the browser were not found in the Kobo's copy of
+  the book, the Kobo stayed where it was. It now goes to the start of that
+  chapter. What is decided about a book's place is written to the log.
+
 ## 1.37.3 (2026-11-01)
 
 - **A Kobo takes the place you read to on another device.** A Kobo reports
