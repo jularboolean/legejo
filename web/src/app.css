@@ -122,6 +122,70 @@
 	vertical-align: -0.2em;
 }
 
+/* The binding: a green cloth spine with its titles stamped in gold, beside
+   dotted paper. The sidebar's own colours do the work, for all it holds. */
+:root[data-design='zamenhof'] body {
+	background-image: radial-gradient(rgba(74, 49, 20, 0.13) 1px, transparent 1.2px);
+	background-size: 22px 22px;
+}
+:root[data-design='zamenhof'] #sidebar {
+	--bg: #24482f;
+	--fg: #f3e7c9;
+	--muted: #c2b58c;
+	--accent: #e6c97f;
+	--gold: #d9b25c;
+	--card: #2f5a3b;
+	--border: #4b7354;
+	color: var(--fg);
+	background-color: var(--bg);
+	background-image:
+		repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
+		repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 3px);
+	padding: 0.5rem 1.5rem 0.75rem 1.1rem;
+	margin: -0.5rem -1rem -0.5rem -1.1rem;
+	max-height: calc(100vh - 1.5rem);
+	max-height: calc(100dvh - 1.5rem);
+	border-radius: 3px;
+	box-shadow:
+		inset -5px 0 0 #b98a38,
+		inset -9px 0 0 #24482f,
+		inset -11px 0 0 #b98a38,
+		5px 5px 0 rgba(59, 42, 26, 0.8);
+}
+:root[data-design='zamenhof'] .tabbar {
+	--fg: #f3e7c9;
+	--muted: #c2b58c;
+	--accent: #e6c97f;
+	--border: #4b7354;
+	background: #24482f;
+	border-top: 3px solid #b98a38;
+}
+
+/* Things to press, and books, stand off the page with a hard printed edge. */
+:root[data-design='zamenhof'] main :is(button:not(:disabled, .rating *), a.button) {
+	border-color: var(--fg);
+	box-shadow: 2px 2px 0 var(--fg);
+}
+:root[data-design='zamenhof'] main :is(button:not(:disabled, .rating *), a.button):active {
+	transform: translate(2px, 2px);
+	box-shadow: none;
+}
+:root[data-design='zamenhof'] main :is(input:not([type='checkbox'], [type='radio']), select, textarea) {
+	border-color: #8a6d45;
+}
+:root[data-design='zamenhof'] .cover:has(img) {
+	border-radius: 3px;
+	box-shadow: 4px 4px 0 rgba(59, 42, 26, 0.8);
+}
+
+/* Headings as in a textbook: spaced small capitals over a double rule. */
+:root[data-design='zamenhof'] main h2 {
+	font-variant: small-caps;
+	letter-spacing: 0.06em;
+	padding-bottom: 0.25em;
+	border-bottom: 3px double var(--border);
+}
+
 * {
 	box-sizing: border-box;
 }
