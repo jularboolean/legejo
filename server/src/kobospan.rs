@@ -61,8 +61,18 @@ pub fn spine_item_of(cfi: &str) -> Option<(Option<String>, Option<usize>)> {
 /// Where `text` is in the chapter the CFI names, in this KEPUB. None when
 /// the chapter or the text is not there.
 pub fn place(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Placed>> {
+    placed(kepub, cfi, text, false)
+}
+
+/// As `place`, for a reader's place rather than a passage: where the words
+/// do not all agree, a stretch of them that does will do.
+pub fn place_near(kepub: &[u8], cfi: &str, text: &str) -> anyhow::Result<Option<Placed>> {
+    placed(kepub, cfi, text, true)
+}
+
+fn placed(kepub: &[u8], cfi: &str, text: &str, loose: bool) -> anyhow::Result<Option<Placed>> {
     let Some((path, html)) = chapter_of(kepub, cfi)? else { return Ok(None) };
-    Ok(find_in_chapter(&html, text).map(|found| Placed {
+    Ok(find_in_chapter(&html, text, loose).map(|found| Placed {
         chapter: path,
         title: title_of(&html),
         start_id: found.start_id,
@@ -265,11 +275,39 @@ fn find_chars(hay: &[char], needle: &[char], fold: bool) -> Option<usize> {
     (0..=hay.len() - needle.len()).find(|&i| hay[i..i + needle.len()].iter().zip(needle).all(|(a, b)| same(a, b)))
 }
 
+/// How many letters and digits of the words make a place, when they do not
+/// all agree: enough not to be found by chance in one chapter.
+const LOOSE_WINDOW: usize = 30;
+
+/// Where the needle's letters and digits run in the chapter's, whatever lies
+/// between them; or, failing that, the first stretch of them that does. The
+/// web reader's text can run on past what the KEPUB holds, so a few words
+/// that agree beat a place not found. A start and a length in `solid`.
+fn find_loose(solid: &[char], needle: &[char]) -> Option<(usize, usize)> {
+    let squeezed = |text: &[char]| -> Vec<(usize, String)> {
+        text.iter().enumerate().filter(|(_, c)| c.is_alphanumeric()).map(|(i, c)| (i, c.to_lowercase().collect())).collect()
+    };
+    let hay = squeezed(solid);
+    let wanted = squeezed(needle);
+    let at = |from: usize, len: usize| -> Option<(usize, usize)> {
+        let part = &wanted[from..from + len];
+        let hit = (0..=hay.len().checked_sub(len)?).find(|&i| hay[i..i + len].iter().zip(part).all(|(a, b)| a.1 == b.1))?;
+        Some((hay[hit].0, hay[hit + len - 1].0 + 1 - hay[hit].0))
+    };
+    if wanted.is_empty() {
+        return None;
+    }
+    at(0, wanted.len()).or_else(|| {
+        (0..wanted.len().saturating_sub(LOOSE_WINDOW - 1)).step_by(LOOSE_WINDOW / 2).find_map(|from| at(from, LOOSE_WINDOW))
+    })
+}
+
 /// `needle` among the chapter's spans, both read without their whitespace:
 /// kepubify breaks lines where the web reader's copy has none (after a
 /// `<br/>`, between the cells of a table), and the web reader squeezes
-/// what it sends. Exact first, then regardless of case.
-fn find_in_chapter(html: &str, needle: &str) -> Option<Found> {
+/// what it sends. Exact first, then regardless of case, then by letters and
+/// digits alone.
+fn find_in_chapter(html: &str, needle: &str, loose: bool) -> Option<Found> {
     let spans = spans_of(html);
     // Every character of the solid text knows its span and where it is in
     // it, counted the way the device counts (UTF-16 units).
@@ -291,9 +329,10 @@ fn find_in_chapter(html: &str, needle: &str) -> Option<Found> {
         total += at;
     }
     let needle: Vec<char> = needle.chars().filter(|c| !c.is_whitespace()).collect();
-    let start = find_chars(&solid, &needle, false).or_else(|| find_chars(&solid, &needle, true))?;
+    let exact = find_chars(&solid, &needle, false).or_else(|| find_chars(&solid, &needle, true));
+    let (start, length) = exact.map(|start| (start, needle.len())).or_else(|| find_loose(&solid, &needle).filter(|_| loose))?;
     let (first_span, first_at, _) = origin[start];
-    let (last_span, _, last_end) = origin[start + needle.len() - 1];
+    let (last_span, _, last_end) = origin[start + length - 1];
     let progress = if total == 0 { 0.0 } else { (span_starts[first_span] + first_at) as f64 / total as f64 };
     Some(Found {
         start_id: spans[first_span].id.clone(),
@@ -374,6 +413,21 @@ mod tests {
         // Unknown spans and chapters.
         assert_eq!(text_at(&kepub, "OEBPS/xhtml/ch1.xhtml", "kobo.99.1").unwrap(), None);
         assert_eq!(text_at(&kepub, "OEBPS/xhtml/nope.xhtml", "kobo.4.1").unwrap(), None);
+    }
+
+    #[test]
+    fn a_place_is_found_by_its_letters_when_the_rest_does_not_agree() {
+        let kepub = sample_kepub();
+        let cfi = "epubcfi(/6/4[ch1]!/4/4/1:0)";
+        // Other punctuation than the chapter's.
+        let found = place_near(&kepub, cfi, "Why, said the Gryphon: you first form into a line along the sea shore").unwrap().unwrap();
+        assert_eq!(found.start_id, "kobo.5.1");
+        // Words the chapter does not have before the ones it has.
+        let found = place_near(&kepub, cfi, "something quite else that no chapter holds at all, You’re wrong about the crumbs, said the Mock Turtle: crumbs would all wash off in the sea").unwrap().unwrap();
+        assert_eq!(found.start_id, "kobo.31.1");
+        // A passage to mark is exact, or not placed; nor is anything found in nothing like it.
+        assert!(place(&kepub, cfi, "Why, said the Gryphon: you first form").unwrap().is_none());
+        assert!(place_near(&kepub, cfi, "words that are in no chapter of this book whatsoever, none of them").unwrap().is_none());
     }
 
     #[test]

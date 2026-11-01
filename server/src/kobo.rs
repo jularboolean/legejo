@@ -1095,7 +1095,7 @@ async fn web_bookmark(
     let kepub = ensure_kepub(state, &book.uuid).await?;
     let bytes = std::sync::Arc::new(tokio::fs::read(&kepub).await.ok()?);
     let (cfi, text) = (cfi.to_string(), text.to_string());
-    let found = tokio::task::spawn_blocking(move || match crate::kobospan::place(&bytes, &cfi, &text) {
+    let found = tokio::task::spawn_blocking(move || match crate::kobospan::place_near(&bytes, &cfi, &text) {
         Ok(None) => crate::kobospan::chapter_start(&bytes, &cfi).map(|start| start.map(|start| (start, false))),
         other => other.map(|found| found.map(|found| (found, true))),
     })
