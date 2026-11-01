@@ -137,7 +137,7 @@
 		--c: #94b0b8;
 	}
 	.swatch.zamenhof {
-		--a: #e8dabd;
+		--a: #d9c7a2;
 		--b: #806a4f;
 		--c: #1e8a3e;
 	}
