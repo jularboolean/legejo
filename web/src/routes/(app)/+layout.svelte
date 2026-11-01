@@ -24,6 +24,7 @@
 	} from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
+	import { design } from '#lib/design.svelte';
 	import WhatsNew from '#lib/WhatsNew.svelte';
 	import { newBookCount, refreshFollowNews } from '#lib/follows.svelte';
 	import { t } from '#lib/i18n';
@@ -195,6 +196,15 @@
 		e.preventDefault();
 		goto('/search');
 	}
+
+	// In the Zamenhof design, the medallion holds its secret: a click on it
+	// shows the doctor instead of the pigeons, and the next one brings them back.
+	let doctor = $state(false);
+	function doctorOrHome(e: MouseEvent) {
+		if (design() !== 'zamenhof' || !(e.target as Element).closest('.logo')) return;
+		e.preventDefault();
+		doctor = !doctor;
+	}
 </script>
 
 <svelte:window {onkeydown} />
@@ -327,8 +337,9 @@
 {#if data.user}
 	<div class="shell">
 		<aside id="sidebar">
-			<a class="sidebrand" href="/" aria-label={t('app.name')}>
-				<Logo size={124} variant="pair" />
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<a class="sidebrand" href="/" aria-label={t('app.name')} onclick={doctorOrHome}>
+				<Logo size={124} variant="pair" portrait={doctor && design() === 'zamenhof'} />
 				<span class="wordmark">{t('app.name')} <span class="version">{__APP_VERSION__}</span></span>
 			</a>
 

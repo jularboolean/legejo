@@ -105,6 +105,17 @@
 	transform: translate(4%, -2%) scale(0.87);
 }
 
+/* Who made the language, for anyone who clicks on the pigeons. */
+:root[data-design='zamenhof'] .sidebrand .portrait {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 8.6rem;
+	height: 8.6rem;
+	transform: translate(-50%, -50%);
+	border-radius: 50%;
+}
+
 /* La verda stelo: beside the name, and before the heading of every page. */
 :root[data-design='zamenhof'] :is(.wordmark, main h1)::before {
 	content: '';

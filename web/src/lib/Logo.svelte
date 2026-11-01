@@ -2,8 +2,13 @@
 	// Full-colour marks, so they keep their own palette (works on light and dark).
 	import single from './assets/duva.svg?raw';
 	import pair from './assets/legejo.svg?raw';
+	import doctor from './assets/zamenhof.jpg?url';
 
-	let { size = 40, variant = 'single' }: { size?: number; variant?: 'single' | 'pair' } = $props();
+	let {
+		size = 40,
+		variant = 'single',
+		portrait = false
+	}: { size?: number; variant?: 'single' | 'pair'; portrait?: boolean } = $props();
 
 	// Width over height, from each file's viewBox.
 	const MARKS = {
@@ -14,7 +19,11 @@
 </script>
 
 <span class="logo" style:width={`${size * mark.ratio}px`} style:height={`${size}px`}>
-	{@html mark.svg}
+	{#if portrait}
+		<img class="portrait" src={doctor} alt="" />
+	{:else}
+		{@html mark.svg}
+	{/if}
 </span>
 
 <style>
