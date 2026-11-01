@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.38.0 (2026-11-01)
+
+- **Better support for Esperanto: a new Zamenhof design.** The design for
+  esperantists now looks like an old textbook bound in green cloth: the
+  sidebar is the spine, with its titles stamped in gold and three bands down
+  its edge, on darker dotted paper, and covers and buttons stand off the page
+  with a hard printed edge.
+- **Someone is hiding behind the pigeons.** In the Zamenhof design, try
+  clicking the medallion in the sidebar.
+
 ## 1.37.5 (2026-11-01)
 
 - **A Kobo lands nearer the place you read to.** A place read in the browser
