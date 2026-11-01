@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.5 (2026-11-01)
+
+- **A Kobo lands nearer the place you read to.** A place read in the browser
+  had to match the Kobo's copy of the book word for word and mark for mark.
+  Now the letters are enough, or a stretch of them, so the Kobo should come
+  to the right sentence more often and to the chapter's start less often.
+
 ## 1.37.4 (2026-11-01)
 
 - **A Kobo no longer stays behind when a place cannot be found.** When the
