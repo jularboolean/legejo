@@ -4,6 +4,18 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.37.3 (2026-11-01)
+
+- **A Kobo takes the place you read to on another device.** A Kobo reports
+  its place whenever a book is opened or closed, read or not, and that report
+  counted as the latest word, so it could stop the device from ever taking
+  a place read in the browser. Only a place the device has moved from counts
+  now.
+- **A Kobo moved to another instance gets its whole library.** It kept its
+  place in the sync from the old server, so books older than that never
+  arrived. Sync now belongs to one library. Every Kobo does one full sync
+  after this upgrade, and nothing should be downloaded again.
+
 ## 1.37.2 (2026-10-31)
 
 - **Accounts made through single sign-on can be changed and deleted.** They
