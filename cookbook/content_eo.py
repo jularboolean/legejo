@@ -581,7 +581,10 @@ biblioteko ne foliumeblas. <strong>Reprovi</strong> denove demandas la servilon.
   "<p>Malgranda sciigo diras <em>Nova versio de Legejo pretas</em>.</p>",
   "<p>Premu <strong>Reŝargi</strong>. Jen ĉio.</p>",
   """<p>Aplikaĵo sur la hejmekrano ne havas propran reŝargan butonon, tial Legejo proponas unu.
-La sciigo aperas, kiam la servilo estis ĝisdatigita dum vi havis la aplikaĵon malfermita.</p>"""),
+La sciigo aperas, kiam la servilo estis ĝisdatigita dum vi havis la aplikaĵon malfermita.</p>
+<p>Se la aplikaĵo blokiĝas aŭ restas ĉe malnova versio, premu <strong>Reŝargi la aplikaĵon</strong>
+sub <strong>Aparatoj kaj aplikaĵoj</strong> en la paĝo <strong>Konto</strong>. Ĝi prenas la aplikaĵon denove de la
+servilo. Vi restas ensalutinta, kaj konservitaj libroj kaj legolokoj restas.</p>"""),
  ]),
 
 ("Legiloj kaj legaplikaĵoj",

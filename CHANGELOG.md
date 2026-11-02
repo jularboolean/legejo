@@ -4,6 +4,20 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.41.0 (2026-11-02)
+
+- **Books without a cover get one with the pigeons.** PDFs and other books with
+  no picture of their own now have a cover with their title and author on a
+  coloured band, and the format at the top. It shows everywhere a cover does,
+  also in lists that used to leave an empty box.
+- **Reload the app on a device.** If the app gets stuck or stays on an old
+  version, a button under Devices and apps on the Account page takes it anew from the
+  server. You stay logged in, and saved books and reading places are kept. It
+  is meant for an app on the home screen above all, which has no reload of its
+  own.
+- **A PDF search that fails says so.** It used to stand at 0 % for as long as
+  the page was open.
+
 ## 1.40.0 (2026-11-02)
 
 - **Search finds words in PDF files.** With searching inside the books turned

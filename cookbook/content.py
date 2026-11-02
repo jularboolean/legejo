@@ -576,7 +576,10 @@ of the library cannot be browsed. <strong>Try again</strong> asks the server onc
   "<p>A small note says <em>A new version of Legejo is ready</em>.</p>",
   "<p>Press <strong>Reload</strong>. That is all.</p>",
   """<p>An app on the home screen has no reload button of its own, which is why Legejo offers
-one. The note appears when the server has been upgraded while you had the app open.</p>"""),
+one. The note appears when the server has been upgraded while you had the app open.</p>
+<p>If the app gets stuck or stays on an old version, press <strong>Reload the app</strong> under
+<strong>Devices and apps</strong> on the <strong>Account</strong> page. It takes the app anew from the
+server. You stay logged in, and saved books and reading places are kept.</p>"""),
  ]),
 
 ("E-readers and Reading Apps",
