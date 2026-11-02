@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { ArrowLeft, Layers } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 	import type { PageData } from './$types';
@@ -28,7 +29,7 @@
 					{#if book.has_cover}
 						<img src={`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`} alt={book.title} loading="lazy" />
 					{:else}
-						<span class="placeholder">{book.title}</span>
+						<BookCover title={book.title} author={book.author} format={book.format} />
 					{/if}
 					{#if indexLabel(book.series_index)}
 						<span class="index">{indexLabel(book.series_index)}</span>
@@ -104,13 +105,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.75rem;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted);
 	}
 	.index {
 		position: absolute;

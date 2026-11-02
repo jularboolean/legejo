@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { navigating } from '$app/state';
 	import { ArrowLeft, Check, ChevronRight, Download, Plus, Search, X } from '@lucide/svelte';
@@ -328,7 +329,7 @@
 												onerror={() => (brokenCovers = new Set([...brokenCovers, entry.cover ?? '']))}
 											/>
 										{:else}
-											<span class="placeholder">{entry.title}</span>
+											<BookCover title={entry.title} author={entry.authors.join(', ')} />
 										{/if}
 									</div>
 									<div class="info">
@@ -623,15 +624,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.2rem;
-		text-align: center;
-		font-size: 0.55rem;
-		line-height: 1.2;
-		color: var(--muted);
-		overflow: hidden;
 	}
 	.info {
 		display: flex;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import { ArrowLeft, Bell, BellOff, Check, Download, Rss } from '@lucide/svelte';
@@ -209,7 +210,7 @@
 					{#if book.has_cover}
 						<img use:cover src={bookCover(book)} alt={book.title} loading="lazy" />
 					{:else}
-						<span class="placeholder">{book.title}</span>
+						<BookCover title={book.title} author={book.author} format={book.format} />
 					{/if}
 				</a>
 				<div class="meta-col">
@@ -353,13 +354,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.75rem;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted);
 	}
 	.meta-col {
 		display: flex;

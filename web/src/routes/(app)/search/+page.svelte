@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import Elsewhere from './Elsewhere.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { BookOpen, Check, Download, Headphones, Search } from '@lucide/svelte';
@@ -223,6 +224,8 @@
 									alt=""
 									loading="lazy"
 								/>
+							{:else}
+								<BookCover title={hit.book.title} author={hit.book.author} format={hit.book.format} />
 							{/if}
 						</a>
 						<div class="textbody">
@@ -248,6 +251,8 @@
 						<a class="textcover" href={publicBookPath(hit.book)}>
 							{#if hit.book.has_cover}
 								<img src={publicCover(hit.book)} alt="" loading="lazy" />
+							{:else}
+								<BookCover title={hit.book.title} author={hit.book.author} format={hit.book.format} />
 							{/if}
 						</a>
 						<div class="textbody">
@@ -354,7 +359,7 @@
 							{#if hit.has_cover}
 								<img src={publicCover(hit)} alt={hit.title} loading="lazy" />
 							{:else}
-								<span class="placeholder">{hit.title}</span>
+								<BookCover title={hit.title} author={hit.author} format={hit.format} />
 							{/if}
 						</a>
 						<a class="title" href={publicBookPath(hit)} title={hit.title}>{hit.title}</a>
@@ -559,13 +564,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.75rem;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted);
 	}
 	.title {
 		font-size: 0.9rem;

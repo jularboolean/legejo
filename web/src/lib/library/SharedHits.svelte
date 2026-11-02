@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { Check, Download } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
@@ -92,7 +93,7 @@
 					{#if hit.has_cover}
 						<img src={publicCover(hit)} alt={hit.title} loading="lazy" />
 					{:else}
-						<span class="placeholder">{hit.title}</span>
+						<BookCover title={hit.title} author={hit.author} format={hit.format} />
 					{/if}
 				</a>
 				<a class="title" href={publicBookPath(hit)} title={hit.title}>{hit.title}</a>
@@ -132,13 +133,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.75rem;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted);
 	}
 	.title {
 		font-size: 0.9rem;

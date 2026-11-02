@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { formatPublished } from '#lib/pubdate';
 	import { invalidateAll } from '$app/navigation';
 	import { Check, ChevronRight, Download, Globe } from '@lucide/svelte';
@@ -77,7 +78,7 @@
 			{#if book.has_cover}
 				<img src={`/api/public/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? book.created_at)}`} alt={book.title} />
 			{:else}
-				<span class="placeholder">{book.title}</span>
+				<BookCover title={book.title} author={book.author} format={book.format} />
 			{/if}
 		</div>
 		{#if book.owned || imported}
@@ -238,12 +239,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 1rem;
-		text-align: center;
-		color: var(--muted);
 	}
 	.import {
 		justify-content: center;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { cover } from '#lib/cover';
 	import { t } from '#lib/i18n';
 	import type { Book } from '#lib/types';
@@ -37,7 +38,7 @@
 								loading="lazy"
 							/>
 						{:else}
-							<span class="placeholder">{book.title}</span>
+							<BookCover title={book.title} author={book.author} format={book.format} />
 						{/if}
 						{#if book.progress_percent != null}
 							{@const percent = Math.round(book.progress_percent * 100)}
@@ -127,15 +128,6 @@
 	}
 	a:hover .cover {
 		border-color: var(--accent);
-	}
-	.placeholder {
-		display: grid;
-		place-items: center;
-		height: 100%;
-		padding: 0.4rem;
-		font-size: 0.7rem;
-		text-align: center;
-		color: var(--muted);
 	}
 	.bar {
 		position: absolute;

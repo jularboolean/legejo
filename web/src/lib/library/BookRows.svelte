@@ -1,4 +1,5 @@
 <script lang="ts" generics="T extends Book & { shelf_ids?: number[] }">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { BookMarked, Check, Download, Layers } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
@@ -85,6 +86,8 @@
 						referrerpolicy="no-referrer"
 						onerror={() => oncoverfail?.(book)}
 					/>
+				{:else}
+					<BookCover title={book.title} author={book.author} format={book.format} />
 				{/if}
 			</a>
 

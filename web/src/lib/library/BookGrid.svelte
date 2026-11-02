@@ -1,4 +1,5 @@
 <script lang="ts" generics="T extends Book">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { Check } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
@@ -66,9 +67,9 @@
 						onerror={() => oncoverfail?.(book)}
 					/>
 				{:else}
-					<span class="placeholder">{book.title}</span>
+					<BookCover title={book.title} author={book.author} format={book.format} />
 				{/if}
-				{#if book.format && book.format !== 'epub'}<span class="format">{book.format.toUpperCase()}</span>{/if}
+				{#if book.has_cover && book.format && book.format !== 'epub'}<span class="format">{book.format.toUpperCase()}</span>{/if}
 				{#if book.progress_percent != null}
 					{@const percent = Math.round(book.progress_percent * 100)}
 					<span class="read-progress" title={t('book.progress', { percent })}>
@@ -174,13 +175,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 0.75rem;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted);
 	}
 	.meta {
 		display: flex;

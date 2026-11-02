@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The books saved on this device. Also where the app lands when the
 	// server cannot be reached: these are the books that can be read then.
+	import BookCover from '#lib/library/BookCover.svelte';
 	import { goto } from '$app/navigation';
 	import { BookOpen, RefreshCw, Trash2, WifiOff } from '@lucide/svelte';
 	import { formatBytes } from '#lib/audio';
@@ -76,7 +77,7 @@
 						{#if saved.book.has_cover}
 							<img src={`/api/books/${saved.book.id}/cover`} alt="" loading="lazy" />
 						{:else}
-							<span>{saved.book.title}</span>
+							<BookCover title={saved.book.title} author={saved.book.author} format={saved.book.format} />
 						{/if}
 					</a>
 					<div class="what">
@@ -167,13 +168,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.cover span {
-		font-size: 0.5rem;
-		padding: 0.2rem;
-		text-align: center;
-		color: var(--muted);
-		overflow: hidden;
 	}
 	.what {
 		flex: 1;

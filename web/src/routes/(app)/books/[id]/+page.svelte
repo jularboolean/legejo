@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookCover from '#lib/library/BookCover.svelte';
 	import openLibraryIcon from '#lib/assets/openlibrary.svg?raw';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
@@ -224,7 +225,7 @@
 			{#if book.has_cover}
 				<img src={`/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at ?? book.created_at)}`} alt={book.title} />
 			{:else}
-				<span class="placeholder">{book.title}</span>
+				<BookCover title={book.title} author={book.author} format={book.format} />
 			{/if}
 		</div>
 		{#if progress !== null}
@@ -606,12 +607,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-	}
-	.placeholder {
-		margin: auto;
-		padding: 1rem;
-		text-align: center;
-		color: var(--muted);
 	}
 	.progress {
 		height: 3px;
