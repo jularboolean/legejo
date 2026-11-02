@@ -13,7 +13,7 @@ const KEY = 'legejo.design';
 export const PAGE_COLOR: Record<Exclude<Design, 'auto'>, string> = {
 	light: '#f3f5f5',
 	dark: '#15181a',
-	zamenhof: '#d9c7a2'
+	zamenhof: '#efe7d5'
 };
 
 function load(): Design {

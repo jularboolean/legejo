@@ -1,5 +1,6 @@
-<script lang="ts">
+<script lang="ts" generics="T extends Book">
 	import { Check } from '@lucide/svelte';
+	import type { Snippet } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { cover } from '#lib/cover';
 	import { languageName } from '#lib/library';
@@ -8,16 +9,36 @@
 	let {
 		books,
 		showLanguage = false,
+		href = (book: T) => `/books/${book.id}`,
+		coverSrc = (book: T) =>
+			`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`,
+		onopen,
+		oncoverfail,
+		action,
 		selected = null,
 		ontoggle
 	}: {
-		books: Book[];
+		books: T[];
 		/** Name each book's language under its author. */
 		showLanguage?: boolean;
+		href?: (book: T) => string;
+		coverSrc?: (book: T) => string;
+		/** Opening a book shows this instead of following `href`. */
+		onopen?: (book: T) => void;
+		/** A cover could not be fetched, as from another instance. */
+		oncoverfail?: (book: T) => void;
+		/** Shown under the book, e.g. an import button. */
+		action?: Snippet<[T]>;
 		/** Selection mode when set: a tap selects instead of opening the book. */
 		selected?: Set<number> | null;
 		ontoggle?: (id: number) => void;
 	} = $props();
+
+	function open(event: MouseEvent, book: T) {
+		if (!onopen) return;
+		event.preventDefault();
+		onopen(book);
+	}
 </script>
 
 <div class="grid">
@@ -34,13 +55,15 @@
 					<span class="tick">{#if selected.has(book.id)}<Check size={14} strokeWidth={3} />{/if}</span>
 				</button>
 			{/if}
-			<a class="cover turning" style:--turn="5" href={`/books/${book.id}`}>
+			<a class="cover turning" style:--turn="5" href={href(book)} onclick={(e) => open(e, book)}>
 				{#if book.has_cover}
 					<img
 						use:cover
-						src={`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`}
+						src={coverSrc(book)}
 						alt={book.title}
 						loading="lazy"
+						referrerpolicy="no-referrer"
+						onerror={() => oncoverfail?.(book)}
 					/>
 				{:else}
 					<span class="placeholder">{book.title}</span>
@@ -60,6 +83,7 @@
 					<span class="author">{languageName(book.language, getLocale())}</span>
 				{/if}
 			</div>
+			{#if action}{@render action(book)}{/if}
 		</div>
 	{/each}
 </div>

@@ -17,7 +17,7 @@
 	{#if data.book.format === 'pdf'}
 		<!-- pdf.js comes with it, only for a PDF. -->
 		{#await import('#lib/reader/pdf/PdfReader.svelte') then { default: PdfReader }}
-			<PdfReader book={data.book} {at} {back} />
+			<PdfReader book={data.book} {at} {back} {find} />
 		{/await}
 	{:else if data.book.format === 'cbz'}
 		{#await import('#lib/reader/cbz/CbzReader.svelte') then { default: CbzReader }}

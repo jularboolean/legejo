@@ -23,9 +23,16 @@
 	import type { ReaderTheme } from '../types';
 	import '../reader.css';
 	import { decodePassage, encodePage, encodePassage, mergeLines, pageOf, type PdfPassage, type PdfRect } from './anchor';
+	import { findInPage, type PageMatch, type Piece } from './find';
 
-	type Props = { book: BookDetail; at: number | null; back: string | null };
-	let { book, at, back }: Props = $props();
+	type Props = {
+		book: BookDetail;
+		at: number | null;
+		back: string | null;
+		/** Words to search the book for once it is open. */
+		find?: string | null;
+	};
+	let { book, at, back, find = null }: Props = $props();
 
 	// The route starts a new reader for another book (it is keyed on the book).
 	// svelte-ignore state_referenced_locally
@@ -162,6 +169,7 @@
 			end.className = 'endOfContent';
 			layer.append(end);
 			endOfContent.set(layer, end);
+			markFound(n);
 		}
 	}
 
@@ -467,37 +475,93 @@
 		return found?.title;
 	}
 
+	type Hit = { page: number; order: number; down: number; before: string; match: string; after: string };
+
 	let query = $state('');
 	let searching = $state<number | null>(null);
-	let hits = $state.raw<{ page: number; before: string; match: string; after: string }[]>([]);
+	let hits = $state.raw<Hit[]>([]);
 	let searched = $state('');
+	/** The hit last gone to, marked more strongly. */
+	let chosen = $state.raw<Hit | null>(null);
+	/** Where the words searched for are on the pages drawn, a list for each match. */
+	let found = $state.raw<Map<number, PdfRect[][]>>(new Map());
 	const HIT_LIMIT = 200;
-	const fold = (s: string) => s.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+	let searchRun = 0;
 
-	async function search(event: SubmitEvent) {
+	function onSearch(event: SubmitEvent) {
 		event.preventDefault();
+		void search();
+	}
+
+	function clearSearch() {
+		searchRun++;
+		searching = null;
+		searched = '';
+		hits = [];
+		chosen = null;
+		found = new Map();
+	}
+
+	async function search() {
 		const words = query.trim();
-		if (!pdf || !words) return;
+		if (!pdf || !words) return clearSearch();
 		const doc = pdf;
-		const needle = fold(words);
-		const found: typeof hits = [];
+		const run = ++searchRun;
+		const all: Hit[] = [];
 		searched = words;
-		for (let n = 1; n <= total && found.length < HIT_LIMIT; n++) {
+		hits = [];
+		chosen = null;
+		found = new Map();
+		for (const n of drawn.keys()) markFound(n);
+		for (let n = 1; n <= total && all.length < HIT_LIMIT; n++) {
 			searching = n;
-			const content = await (await doc.getPage(n)).getTextContent();
-			const text = content.items.map((i) => ('str' in i ? i.str : '')).join(' ').replace(/\s+/g, ' ');
-			const folded = fold(text);
-			for (let at = folded.indexOf(needle); at >= 0 && found.length < HIT_LIMIT; at = folded.indexOf(needle, at + needle.length)) {
-				found.push({
-					page: n,
-					before: text.slice(Math.max(0, at - 40), at),
-					match: text.slice(at, at + words.length),
-					after: text.slice(at + words.length, at + words.length + 60)
+			const page = await doc.getPage(n);
+			const content = await page.getTextContent();
+			if (run !== searchRun) return;
+			const items = content.items.filter((i) => 'str' in i);
+			const viewport = page.getViewport({ scale: 1 });
+			findInPage(items.map((i) => ({ str: i.str, eol: i.hasEOL })), words)
+				.slice(0, HIT_LIMIT - all.length)
+				.forEach((match, order) => {
+					const [, top] = viewport.convertToViewportPoint(...(items[match.from.piece].transform.slice(4, 6) as [number, number]));
+					all.push({ page: n, order, down: top / viewport.height, before: match.before, match: match.match, after: match.after });
 				});
-			}
-			hits = [...found];
+			hits = [...all];
 		}
 		searching = null;
+	}
+
+	/** Mark the words searched for on a page, in the text laid over it. */
+	function markFound(n: number) {
+		const page = pageEls.get(n);
+		const layer = page?.querySelector<HTMLElement>('.textLayer');
+		const next = new Map(found);
+		next.delete(n);
+		if (page && layer && searched) {
+			const spans = [...layer.querySelectorAll<HTMLElement>('span:not(.markedContent)')].filter((s) => s.firstChild);
+			const pieces: Piece[] = spans.map((s) => ({ str: s.textContent ?? '', eol: s.nextSibling?.nodeName === 'BR' }));
+			const box = page.getBoundingClientRect();
+			const rects = (match: PageMatch): PdfRect[] => {
+				const range = document.createRange();
+				range.setStart(spans[match.from.piece].firstChild!, match.from.offset);
+				range.setEnd(spans[match.to.piece].firstChild!, match.to.offset);
+				return [...range.getClientRects()].map((r) => ({
+					top: (r.top - box.top) / box.height,
+					left: (r.left - box.left) / box.width,
+					height: r.height / box.height,
+					width: r.width / box.width
+				}));
+			};
+			const marks = findInPage(pieces, searched).map(rects);
+			if (marks.length) next.set(n, marks);
+		}
+		found = next;
+	}
+
+	function goToHit(hit: Hit) {
+		panel = null;
+		chosen = hit;
+		go(hit.page, hit.down);
 	}
 
 	// ---- Highlights -------------------------------------------------------------
@@ -741,6 +805,11 @@
 					const page = pageOf(saved.cfi) ?? Math.floor((saved.percent ?? 0) * total) + 1;
 					show(page);
 				}
+				if (find) {
+					query = find;
+					panel = 'search';
+					void search();
+				}
 			} catch (e) {
 				status = 'error';
 				const name = (e as { name?: string })?.name;
@@ -864,6 +933,19 @@
 									></span>
 								{/each}
 							{/each}
+							{#each found.get(n) ?? [] as match, order (order)}
+								{@const now = chosen?.page === n && chosen.order === order}
+								{#each match as rect, i (i)}
+									<span
+										class="find"
+										class:now
+										style:top={`${rect.top * 100}%`}
+										style:left={`${rect.left * 100}%`}
+										style:height={`${rect.height * 100}%`}
+										style:width={`${rect.width * 100}%`}
+									></span>
+								{/each}
+							{/each}
 						</div>
 						<div class="textLayer"></div>
 					</div>
@@ -947,9 +1029,16 @@
 	</Sheet>
 
 	<Sheet open={panel === 'search'} title={t('reader.search')} side="right" onclose={() => (panel = null)}>
-		<form class="search" onsubmit={search}>
+		<form class="search" onsubmit={onSearch}>
 			<!-- svelte-ignore a11y_autofocus -->
-			<input type="search" bind:value={query} placeholder={t('reader.search.placeholder')} aria-label={t('reader.search.placeholder')} autofocus />
+			<input
+				type="search"
+				bind:value={query}
+				oninput={() => !query.trim() && clearSearch()}
+				placeholder={t('reader.search.placeholder')}
+				aria-label={t('reader.search.placeholder')}
+				autofocus
+			/>
 		</form>
 		{#if searching !== null}
 			<p class="empty">{t('reader.search.searching', { percent: Math.round((searching / Math.max(1, total)) * 100) })}</p>
@@ -963,12 +1052,7 @@
 			<ol class="hits">
 				{#each hits as hit, i (i)}
 					<li>
-						<button
-							onclick={() => {
-								panel = null;
-								go(hit.page);
-							}}
-						>
+						<button onclick={() => goToHit(hit)}>
 							<span class="page-no">{hit.page}</span>
 							<span>…{hit.before}<mark>{hit.match}</mark>{hit.after}…</span>
 						</button>
@@ -1146,6 +1230,20 @@
 	}
 	.mark.open {
 		opacity: 0.7;
+	}
+	/* The words searched for. */
+	.find {
+		position: absolute;
+		background: #f2994a;
+		opacity: 0.4;
+		mix-blend-mode: multiply;
+		border-radius: 2px;
+	}
+	.find.now {
+		outline: 2px solid #d9730d;
+	}
+	[data-theme='dark'] .find {
+		mix-blend-mode: screen;
 	}
 	/* What is about to be highlighted, still there once the selection is gone. */
 	.mark.held {

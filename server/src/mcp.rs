@@ -583,12 +583,15 @@ async fn reading_overview(state: &AppState, user: &UserInfo) -> ToolResult {
 /// The book's text, with its title and the user's reading position (0–1).
 async fn book_text(state: &AppState, user: &UserInfo, id: i64) -> Result<(String, Option<f64>, Vec<booktext::Section>), String> {
     let Json(detail) = books::get_one(State(state.clone()), as_user(user), Path(id)).await.map_err(handler_error)?;
-    if detail.book.format != "epub" {
-        return Err(format!("the text of a {} file cannot be read here, only that of EPUB books", detail.book.format.to_uppercase()));
+    let format = crate::formats::Format::parse(&detail.book.format);
+    if format == crate::formats::Format::Cbz {
+        return Err("the text of a CBZ file cannot be read here, only that of EPUB and PDF books".to_string());
     }
-    let path = crate::books::book_on_disk(state, &detail.book.uuid, crate::formats::Format::Epub).await;
-    let bytes = tokio::fs::read(&path).await.map_err(|_| "the book's file is missing".to_string())?;
-    let sections = tokio::task::spawn_blocking(move || booktext::sections(bytes))
+    let path = crate::books::book_on_disk(state, &detail.book.uuid, format).await;
+    if tokio::fs::metadata(&path).await.is_err() {
+        return Err("the book's file is missing".to_string());
+    }
+    let sections = tokio::task::spawn_blocking(move || booktext::read_sections(format, &path))
         .await
         .map_err(|_| "the book could not be read".to_string())?
         .map_err(|e| format!("the book could not be read: {e}"))?;

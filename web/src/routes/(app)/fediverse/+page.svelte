@@ -5,9 +5,25 @@
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { fedHost, formatSize } from '#lib/fed';
 	import { getLocale, t } from '#lib/i18n';
-	import { languageLabel } from '#lib/library';
+	import {
+		SHARED_SORT_KEYS,
+		languageLabel,
+		loadSharedSort,
+		loadView,
+		saveSharedSort,
+		saveView,
+		sortShared,
+		type SortDir,
+		type SortKey,
+		type ViewMode
+	} from '#lib/library';
+	import BookGrid from '#lib/library/BookGrid.svelte';
+	import BookRows from '#lib/library/BookRows.svelte';
+	import SortControl from '#lib/library/SortControl.svelte';
+	import ViewSwitch from '#lib/library/ViewSwitch.svelte';
 	import { licenseName, reasonText } from '#lib/license';
-	import type { FedBook, FedFollow, FollowState } from '#lib/types';
+	import { defaultShelfCover } from '#lib/shelfCovers';
+	import type { Book, FedBook, FedFollow, FollowState } from '#lib/types';
 	import type { FedConnected } from './+page';
 	import type { PageData } from './$types';
 
@@ -61,6 +77,69 @@
 	// Covers are loaded from the remote instance; one that fails falls back
 	// to the title placeholder.
 	let brokenCovers = $state<Set<string>>(new Set());
+
+	/** A remote book as the lists of the own books take it. */
+	type Row = Book & { fed: FedBook };
+
+	function row(book: FedBook, index: number): Row {
+		return {
+			fed: book,
+			id: index + 1,
+			uuid: book.object_iri,
+			title: book.title,
+			author: book.author,
+			language: book.language,
+			description: book.description ?? book.summary,
+			publisher: book.publisher ?? null,
+			published: book.edition_date ?? null,
+			first_published: book.first_published ?? null,
+			category: book.category ?? null,
+			identifier: null,
+			isbn: book.isbn,
+			libris_id: null,
+			format: 'epub',
+			file_size: book.epub_size ?? 0,
+			health_issues: 0,
+			has_cover: !!book.cover_url && !brokenCovers.has(book.object_iri),
+			created_at: book.published ?? '',
+			updated_at: null,
+			series: book.series ?? null,
+			series_index: book.series_index ? Number(book.series_index) : null,
+			rating: null,
+			want_to_read: false,
+			wanted_at: null,
+			license: book.license,
+			license_source_url: book.license_source_url,
+			author_death_year: book.author_death_year,
+			cover_is_free: false
+		};
+	}
+
+	// As on the own shelves: the same view, and the same remembered order.
+	let view = $state<ViewMode>(loadView());
+	let order = $state(loadSharedSort());
+	const rows = $derived(sortShared((data.books ?? []).map(row), order.sort, order.dir, getLocale()));
+
+	function setView(next: ViewMode) {
+		view = next;
+		saveView(next);
+	}
+
+	function setOrder(sort: SortKey, dir: SortDir) {
+		order = { sort, dir };
+		saveSharedSort(sort, dir);
+	}
+
+	const rowHref = (r: Row) => r.fed.page_url ?? '#';
+	const rowCover = (r: Row) => r.fed.cover_url ?? '';
+	const breakCover = (r: Row) => (brokenCovers = new Set([...brokenCovers, r.fed.object_iri]));
+
+	/** A stable number for a shelf that has no picture of its own. */
+	function coverNumber(actor: string): number {
+		let n = 0;
+		for (const c of actor) n = (n * 31 + c.charCodeAt(0)) % 9973;
+		return n;
+	}
 
 	// Opening a shelf makes the server check that its instance still answers.
 	// Reload once shortly after, so an unreachable instance shows up.
@@ -180,7 +259,7 @@
 	}
 </script>
 
-<h1>{t('fed.heading')}</h1>
+{#if data.actor == null}<h1>{t('fed.heading')}</h1>{/if}
 
 {#if !data.fed.available}
 	<p class="muted">{t('fed.unavailable')}</p>
@@ -290,93 +369,118 @@
 			{:else}
 				<a class="back" href="/fediverse"><ArrowLeft size={13} /> {t('fed.backToList')}</a>
 				{#if selected}
-					<header class="shelf-head">
-						<h2>{selected.name}</h2>
-						<p class="follow-handle">{selected.handle}</p>
-						{#if plain(selected.summary)}
-							<p class="summary">{plain(selected.summary)}</p>
-						{/if}
-						{#if selected.awaiting_approval}
-							<p class="hint">{t('fed.awaitingHint', { domain: fedHost(selected.actor) })}</p>
-						{:else if selected.unreachable_since && selected.state !== 'gone' && selected.state !== 'rejected'}
-							<p class="hint warn">
-								{t('fed.unreachableHint', {
-									domain: fedHost(selected.actor),
-									date: selected.unreachable_since.slice(0, 10)
-								})}
+					<header class="hero">
+						<img class="hero-image" src={defaultShelfCover(coverNumber(selected.actor))} alt="" />
+						<div class="hero-shade"></div>
+						<div class="hero-content">
+							<h1>{selected.name}</h1>
+							<p class="meta">
+								{data.books
+									? data.books.length === 1
+										? t('shelf.book')
+										: t('shelf.books', { count: data.books.length })
+									: ''}
+								<span class="handle">{selected.handle}</span>
 							</p>
-						{:else if selected.state === 'pending'}
-							<p class="hint">{t('fed.pendingHint')}</p>
-						{:else if selected.state === 'rejected'}
-							<p class="hint">{t('fed.rejectedHint')}</p>
-						{:else if selected.state === 'gone'}
-							<p class="hint">{t('fed.goneHint')}</p>
-						{/if}
+						</div>
 					</header>
+					{#if selected.awaiting_approval}
+						<p class="hint state-note">{t('fed.awaitingHint', { domain: fedHost(selected.actor) })}</p>
+					{:else if selected.unreachable_since && selected.state !== 'gone' && selected.state !== 'rejected'}
+						<p class="hint warn state-note">
+							{t('fed.unreachableHint', {
+								domain: fedHost(selected.actor),
+								date: selected.unreachable_since.slice(0, 10)
+							})}
+						</p>
+					{:else if selected.state === 'pending'}
+						<p class="hint state-note">{t('fed.pendingHint')}</p>
+					{:else if selected.state === 'rejected'}
+						<p class="hint state-note">{t('fed.rejectedHint')}</p>
+					{:else if selected.state === 'gone'}
+						<p class="hint state-note">{t('fed.goneHint')}</p>
+					{/if}
 				{/if}
+
+				<div class="intro">
+					{#if selected && plain(selected.summary)}
+						<p class="summary">{plain(selected.summary)}</p>
+					{/if}
+					{#if rows.length > 0}
+						<div class="switch">
+							{#if rows.length > 1}
+								<SortControl keys={SHARED_SORT_KEYS} sort={order.sort} dir={order.dir} onchange={setOrder} />
+							{/if}
+							<ViewSwitch {view} onchange={setView} />
+						</div>
+					{/if}
+				</div>
+
+				{#snippet facts(r: Row)}
+					{@const book = r.fed}
+					<span class="facts">
+						{#if book.license}<span>{licenseName(book.license)}</span>{/if}
+						{#if book.epub_size != null}<span>{formatSize(book.epub_size)}</span>{/if}
+						{#if book.license_source_url}
+							<a href={book.license_source_url} target="_blank" rel="noreferrer">
+								{fedHost(book.license_source_url)}
+							</a>
+						{/if}
+					</span>
+					{#if importErrors[book.object_iri]}
+						<span class="error small">{importErrors[book.object_iri]}</span>
+					{/if}
+				{/snippet}
+
+				{#snippet importAction(r: Row)}
+					{@const book = r.fed}
+					{@const localId = imported[book.object_iri] ?? book.imported_book_id}
+					{#if localId != null}
+						<a class="done" href={`/books/${localId}`}>
+							<Check size={13} />
+							{imported[book.object_iri] != null ? t('fed.import.done') : t('fed.import.owned')}
+						</a>
+					{:else}
+						<button
+							type="button"
+							class="ghost import"
+							disabled={importing.has(book.object_iri)}
+							onclick={() => importBook(book.object_iri)}
+						>
+							<Download size={13} />
+							{importing.has(book.object_iri) ? t('fed.import.importing') : t('fed.import.button')}
+						</button>
+					{/if}
+				{/snippet}
 
 				{#if data.booksFailed}
 					<p class="error">{t('fed.booksFailed')}</p>
-				{:else if !data.books || data.books.length === 0}
+				{:else if rows.length === 0}
 					<p class="muted">{t('fed.noBooks')}</p>
 				{:else}
-					<p class="hint">{t('fed.import.hint')}</p>
-					<ul class="book-list">
-						{#each data.books as book (book.object_iri)}
-							{@const localId = imported[book.object_iri] ?? book.imported_book_id}
-							<li class="book">
-								<button type="button" class="cover" onclick={() => (peek = book)} aria-label={t('bookPeek.open', { title: book.title })}>
-									{#if book.cover_url && !brokenCovers.has(book.object_iri)}
-										<img
-											src={book.cover_url}
-											alt=""
-											loading="lazy"
-											referrerpolicy="no-referrer"
-											onerror={() => (brokenCovers = new Set([...brokenCovers, book.object_iri]))}
-										/>
-									{:else}
-										<span class="placeholder">{book.title}</span>
-									{/if}
-								</button>
-								<div class="info">
-									<button type="button" class="title" onclick={() => (peek = book)}>{book.title}</button>
-									{#if book.author}<span class="author">{book.author}</span>{/if}
-									<span class="facts">
-										{#if book.license}<span>{licenseName(book.license)}</span>{/if}
-										{#if book.first_published ?? book.edition_date}<span>{book.first_published ?? book.edition_date?.slice(0, 4)}</span>{/if}
-										{#if book.language}<span>{book.language}</span>{/if}
-										{#if book.epub_size != null}<span>{formatSize(book.epub_size)}</span>{/if}
-										{#if book.license_source_url}
-											<a href={book.license_source_url} target="_blank" rel="noreferrer">
-												{fedHost(book.license_source_url)}
-											</a>
-										{/if}
-									</span>
-									{#if importErrors[book.object_iri]}
-										<span class="error small">{importErrors[book.object_iri]}</span>
-									{/if}
-								</div>
-								<div class="action">
-									{#if localId != null}
-										<a class="done" href={`/books/${localId}`}>
-											<Check size={13} />
-											{imported[book.object_iri] != null ? t('fed.import.done') : t('fed.import.owned')}
-										</a>
-									{:else}
-										<button
-											type="button"
-											class="ghost"
-											disabled={importing.has(book.object_iri)}
-											onclick={() => importBook(book.object_iri)}
-										>
-											<Download size={13} />
-											{importing.has(book.object_iri) ? t('fed.import.importing') : t('fed.import.button')}
-										</button>
-									{/if}
-								</div>
-							</li>
-						{/each}
-					</ul>
+					<p class="hint import-hint">{t('fed.import.hint')}</p>
+					{#if view === 'list'}
+						<BookRows
+							books={rows}
+							href={rowHref}
+							cover={rowCover}
+							onopen={(r) => (peek = r.fed)}
+							oncoverfail={breakCover}
+							own={false}
+							showLanguage
+							context={facts}
+							action={importAction}
+						/>
+					{:else}
+						<BookGrid
+							books={rows}
+							href={rowHref}
+							coverSrc={rowCover}
+							onopen={(r) => (peek = r.fed)}
+							oncoverfail={breakCover}
+							action={importAction}
+						/>
+					{/if}
 				{/if}
 			{/if}
 		</section>
@@ -588,7 +692,7 @@
 		background: var(--bg);
 	}
 	.back {
-		display: none;
+		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
 		margin-bottom: 1rem;
@@ -597,128 +701,118 @@
 	.pick {
 		margin-top: 2.2rem;
 	}
-	.shelf-head {
-		margin-bottom: 1rem;
-	}
-	.shelf-head h2 {
-		margin: 0;
-		font-size: 1.3rem;
-	}
-	.summary {
-		margin: 0.6rem 0 0;
-		padding-left: 1rem;
-		border-left: 3px solid var(--gold);
-		color: var(--muted);
-		font-size: 0.92rem;
-		max-width: 42rem;
-	}
-	.book-list {
-		list-style: none;
-		margin: 1rem 0 0;
-		padding: 0;
+	.hero {
+		position: relative;
 		display: flex;
-		flex-direction: column;
-	}
-	.book {
-		display: grid;
-		grid-template-columns: 3.4rem minmax(0, 1fr) auto;
-		gap: 0.9rem;
-		align-items: center;
-		padding: 0.7rem 0;
-		border-top: 1px solid var(--border);
-	}
-	.book:last-child {
-		border-bottom: 1px solid var(--border);
-	}
-	.cover {
-		padding: 0;
-		cursor: pointer;
-		aspect-ratio: 2 / 3;
-		border-radius: 2px 4px 4px 2px;
+		align-items: flex-end;
+		min-height: 9rem;
+		border-radius: 12px;
 		overflow: hidden;
-		background: var(--card);
-		border: 1px solid var(--border);
-		display: flex;
-		box-shadow: var(--shadow);
+		margin-bottom: 1.5rem;
 	}
-	.cover img {
+	.hero-image {
+		position: absolute;
+		inset: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 	}
-	.placeholder {
-		margin: auto;
-		padding: 0.2rem;
-		text-align: center;
-		font-size: 0.55rem;
-		line-height: 1.2;
-		color: var(--muted);
-		overflow: hidden;
+	.hero-shade {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.1) 55%, transparent);
 	}
-	.info {
-		display: flex;
-		flex-direction: column;
+	.hero-content {
+		position: relative;
+		width: 100%;
 		min-width: 0;
+		padding: 0.9rem 1.25rem;
+		color: #fff;
 	}
-	.title {
-		align-self: flex-start;
-		padding: 0;
-		border: none;
-		background: none;
-		color: var(--fg);
-		font: inherit;
-		font-weight: 600;
-		font-size: 0.95rem;
-		text-align: left;
-		cursor: pointer;
+	.hero h1 {
+		margin: 0;
+		font-size: 1.8rem;
+		overflow-wrap: anywhere;
+		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 	}
-	.title:hover {
-		text-decoration: underline;
+	.meta {
+		margin: 0.25rem 0 0;
+		color: rgba(255, 255, 255, 0.85);
+		font-size: 0.9rem;
 	}
-	.author {
-		font-size: 0.85rem;
-		color: var(--muted);
+	.handle {
+		margin-left: 0.35rem;
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 0.8rem;
+		overflow-wrap: anywhere;
 	}
-	.facts {
+	.state-note {
+		margin: -0.75rem 0 1.25rem;
+	}
+	/* On a narrow screen the sort and view buttons wrap below the description. */
+	.intro {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 1rem 1.5rem;
+		margin: 0.25rem 0 1.25rem;
+	}
+	.switch {
+		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.summary {
+		flex: 1 1 20rem;
+		min-width: 0;
+		max-width: 42rem;
+		margin: 0;
+		padding-left: 1rem;
+		border-left: 3px solid var(--gold);
+		color: var(--muted);
+		font-size: 0.95rem;
+		line-height: 1.6;
+		overflow-wrap: anywhere;
+	}
+	.import-hint {
+		margin: 0 0 0.75rem;
+	}
+	.facts {
+		display: inline-flex;
+		flex-wrap: wrap;
 		gap: 0.2rem 0.75rem;
-		margin-top: 0.2rem;
-		font-size: 0.78rem;
 		color: var(--muted);
 	}
 	.done {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.3rem;
+		padding: 0.3rem 0;
 		font-size: 0.8rem;
 		white-space: nowrap;
 	}
-	.action button {
-		white-space: nowrap;
+	.import {
+		justify-content: center;
+	}
+	.import :global(svg) {
+		flex-shrink: 0;
+	}
+	/* A shelf has the page to itself, as an own shelf has. */
+	.layout.has-selection {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.layout.has-selection .follows {
+		display: none;
 	}
 	@media (max-width: 60rem) {
 		.layout {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 1.5rem;
 		}
-		/* One pane at a time on narrow screens: the list, or one shelf. */
-		.layout.has-selection .follows {
-			display: none;
-		}
 		.layout:not(.has-selection) .books {
 			display: none;
-		}
-		.back {
-			display: inline-flex;
-		}
-	}
-	@media (max-width: 30rem) {
-		.book {
-			grid-template-columns: 3rem minmax(0, 1fr);
-		}
-		.action {
-			grid-column: 2;
 		}
 	}
 	.hint.warn {

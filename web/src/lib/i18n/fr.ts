@@ -218,7 +218,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.fromKobo': "Kobo",
 	'admin.mail': 'E-mail',
 	'admin.fulltextToggle': "Rechercher dans le texte des livres",
-	'admin.fulltextHint': "Recherche de mots dans le texte des livres, pas seulement dans les titres et les auteurs. Tant qu’elle est activée, le texte de chaque EPUB est conservé dans la base de données, une seule fois quel que soit le nombre d’exemplaires. Désactivée, le texte est supprimé ; réactivée, les livres sont relus.",
+	'admin.fulltextHint': "Recherche de mots dans le texte des livres, pas seulement dans les titres et les auteurs. Tant qu’elle est activée, le texte de chaque EPUB, et de chaque PDF qui en contient, est conservé dans la base de données, une seule fois quel que soit le nombre d’exemplaires. Désactivée, le texte est supprimé ; réactivée, les livres sont relus.",
 	'admin.fulltextProgress': "{books} livres lus, {pending} restants ; {size} Mo de texte.",
 	'admin.fulltextIsOn': "activée.",
 	'admin.fulltextOff': "désactivée.",

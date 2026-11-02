@@ -1219,7 +1219,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'admin.shelfLinksHint': "Låter användare ge en hylla till någon utanför instansen med en länk som inte kräver inloggning, och följa sådana länkar från andra instanser. När det är på lämnar servern ut böckerna på en hylla till den som har en länk till den, och hämtar hyllor från de adresser användarna anger.",
 	'admin.authorFactsToggle': "Författare från Wikidata",
 	'admin.fulltextToggle': 'Sök i böckernas text',
-	'admin.fulltextHint': "Sökning efter ord i böckernas text, inte bara i titlar och författare. När den är på sparas texten i varje EPUB i databasen, en gång oavsett hur många exemplar som finns. Stängs den av tas texten bort igen, och slås den på läses böckerna in på nytt.",
+	'admin.fulltextHint': "Sökning efter ord i böckernas text, inte bara i titlar och författare. När den är på sparas texten i varje EPUB, och i de PDF:er som har text, i databasen, en gång oavsett hur många exemplar som finns. Stängs den av tas texten bort igen, och slås den på läses böckerna in på nytt.",
 	'admin.fulltextProgress': "{books} böcker inlästa, {pending} kvar; {size} MB text.",
 	'admin.fulltextIsOn': "på.",
 	'admin.fulltextOff': 'av.',

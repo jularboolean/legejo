@@ -217,7 +217,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'admin.koboStoreHint': "Kobo sinkronigita kun Legejo konservas sian Kobo-konton: la vendejon, aĉetitajn librojn kaj iliajn markojn. Legejo plusendas al Kobo la petojn de la aparato pri ili, per la propra Kobo-ensaluto de la aparato. Malŝaltita: la vendejo kaj aĉetitaj libroj ne funkcias sur aparato sinkronigita kun Legejo.",
 	'reader.notes.fromKobo': "Kobo",
 	'admin.mail': 'Retpoŝto',
-	'admin.fulltextHint': "Serĉo de vortoj en la teksto de la libroj, ne nur en titoloj kaj aŭtoroj. Dum ĝi funkcias, la teksto de ĉiu EPUB estas tenata en la datumbazo, unufoje kiom ajn da ekzempleroj ekzistas. Malŝaltite la teksto estas forigita; ŝaltite la libroj estas legataj denove.",
+	'admin.fulltextHint': "Serĉo de vortoj en la teksto de la libroj, ne nur en titoloj kaj aŭtoroj. Dum ĝi funkcias, la teksto de ĉiu EPUB, kaj de ĉiu PDF kiu havas tekston, estas tenata en la datumbazo, unufoje kiom ajn da ekzempleroj ekzistas. Malŝaltite la teksto estas forigita; ŝaltite la libroj estas legataj denove.",
 	'admin.fulltextProgress': "{books} libroj legitaj, {pending} restas; {size} MB da teksto.",
 	'admin.fulltextIsOn': "ŝaltita.",
 	'conn.publicUrl': "Publika adreso",

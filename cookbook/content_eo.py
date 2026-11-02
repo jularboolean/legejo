@@ -298,7 +298,7 @@ librojn sur bretoj, kiujn aliaj kunhavigas kun vi, kaj, sub <strong>Ĉe aliaj in
 librojn sur la bretoj el aliaj Legejo-instancoj, kiujn vi sekvas, ĉiu kun butono por aldoni ĝin al
 via biblioteko.</p>
 <p>Kie la administranto ŝaltis <strong>Serĉi en la teksto de la libroj</strong> en la paĝo
-Administrado, marku <strong>Serĉi en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj. Ĉiu libro venas kun
+Administrado, marku <strong>Serĉi en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj kaj PDF-oj. Skanita PDF bezonas OCR por havi tekston. Ĉiu libro venas kun
 la trafaj fragmentoj; elektu unu por malfermi la libron kun la serĉo en ĝi. Ĉiu vorto devas aperi,
 vorto trovas ankaŭ pli longajn vortojn, kiujn ĝi komencas, kaj vortoj inter citiloj devas stari unu
 post la alia. Ankaŭ libroj sur kunhavigitaj bretoj estas traserĉataj kaj citataj, sed legeblaj nur
@@ -838,7 +838,7 @@ la aplikaĵan pasvorton en kapo <code>X-Api-Key</code>.</p>"""),
   "<p>La grizoj ne plaĉas al vi, aŭ vi volas malhelon en taglumo, aŭ iom da movo sur la paĝo.</p>",
   """<p>En la paĝo <strong>Konto</strong>, malfermu <strong>Aspekto</strong> kaj elektu unu:
 <strong>Aŭtomata</strong> (hela aŭ malhela, laŭ la agordo de via sistemo), <strong>Hela</strong>,
-<strong>Malhela</strong>, aŭ <strong>Zamenhof</strong>, en la brunoj de malnova lernolibro, kun la
+<strong>Malhela</strong>, aŭ <strong>Zamenhof</strong>, en la papernuancoj de malnova lernolibro, kun la
 verda stelo de Esperanto kaj libra tiparo. Sube, <strong>Montri animaciojn</strong> lasas
 menuojn, dialogojn, kovrilojn kaj paĝojn aperi milde anstataŭ ĉio tuj.</p>""",
   """<p>Ambaŭ elektoj estas konservataj en la aparato, do telefono kaj komputilo povas malsami.

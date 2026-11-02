@@ -1,13 +1,18 @@
-//! Plain text out of an EPUB: its sections in reading order, with titles from
-//! the table of contents, for the tools that let an assistant read and search
-//! a book (mcp.rs).
+//! Plain text out of a book: an EPUB's sections in reading order, with titles
+//! from the table of contents, or a PDF's pages, for the search inside the
+//! books (fulltext.rs) and the tools that let an assistant read and search a
+//! book (mcp.rs).
 
+use crate::formats::Format;
 use epub::doc::{EpubDoc, NavPoint};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
-/// One spine item with text, in reading order.
+/// The largest PDF whose text is read: all of it is held in memory meanwhile.
+const PDF_MAX_BYTES: u64 = 512 * 1024 * 1024;
+
+/// One spine item or PDF page with text, in reading order.
 pub struct Section {
     /// The title from the table of contents, when an entry points here.
     pub title: Option<String>,
@@ -38,14 +43,83 @@ pub fn sections(bytes: Vec<u8>) -> anyhow::Result<Vec<Section>> {
         }
         out.push(Section { title: titles.get(&path).cloned(), text, start: 0.0, end: 0.0 });
     }
-    let total: usize = out.iter().map(|s| s.text.len()).sum();
+    place_sections(&mut out);
+    Ok(out)
+}
+
+/// The text of the file of a book, as far as its format has any.
+pub fn read_sections(format: Format, path: &Path) -> anyhow::Result<Vec<Section>> {
+    if format == Format::Pdf {
+        let size = std::fs::metadata(path)?.len();
+        anyhow::ensure!(size <= PDF_MAX_BYTES, "a PDF of {size} bytes is too large to read the text of");
+    }
+    let bytes = std::fs::read(path)?;
+    match format {
+        Format::Pdf => pdf_sections(&bytes),
+        _ => sections(bytes),
+    }
+}
+
+/// A PDF's text layer, page by page: what the file was set in, or what OCR
+/// laid over a scan. Pages without one are left out, so a scan with no OCR
+/// has no sections.
+pub fn pdf_sections(bytes: &[u8]) -> anyhow::Result<Vec<Section>> {
+    let pages = pdf_extract::extract_text_from_mem_by_pages(bytes).map_err(|e| anyhow::anyhow!("could not read the pdf: {e}"))?;
+    let mut out: Vec<Section> = pages
+        .iter()
+        .map(|page| pdf_page_text(page))
+        .filter(|text| text.chars().count() >= 2)
+        .map(|text| Section { title: None, text, start: 0.0, end: 0.0 })
+        .collect();
+    place_sections(&mut out);
+    Ok(out)
+}
+
+/// A page as it comes out of a PDF to text to search in: no control
+/// characters (which Postgres refuses, and scanned books hold), no
+/// ligatures, and the words a line end split whole again.
+fn pdf_page_text(page: &str) -> String {
+    const LIGATURES: [(char, &str); 7] =
+        [('\u{FB00}', "ff"), ('\u{FB01}', "fi"), ('\u{FB02}', "fl"), ('\u{FB03}', "ffi"), ('\u{FB04}', "ffl"), ('\u{FB05}', "st"), ('\u{FB06}', "st")];
+    let mut text = String::with_capacity(page.len());
+    for c in page.chars() {
+        match LIGATURES.iter().find(|(ligature, _)| *ligature == c) {
+            Some((_, letters)) => text.push_str(letters),
+            None if c == '\n' => text.push(c),
+            None if c.is_control() => text.push(' '),
+            None => text.push(c),
+        }
+    }
+    let mut out = String::with_capacity(text.len());
+    for line in text.lines() {
+        let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        if line.is_empty() {
+            continue;
+        }
+        let soft = out.ends_with('\u{AD}');
+        let hard = out.ends_with('-') && out.chars().rev().nth(1).is_some_and(char::is_alphabetic);
+        if (soft || hard) && line.starts_with(char::is_lowercase) {
+            out.pop();
+            out.push_str(&line);
+        } else {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&line);
+        }
+    }
+    out.replace('\u{AD}', "")
+}
+
+/// Where each section starts and ends in the book, by text length.
+fn place_sections(sections: &mut [Section]) {
+    let total: usize = sections.iter().map(|s| s.text.len()).sum();
     let mut seen = 0usize;
-    for section in &mut out {
+    for section in sections {
         section.start = if total == 0 { 0.0 } else { seen as f64 / total as f64 };
         seen += section.text.len();
         section.end = if total == 0 { 1.0 } else { seen as f64 / total as f64 };
     }
-    Ok(out)
 }
 
 /// The first table-of-contents label for each document (fragments dropped).
@@ -261,9 +335,79 @@ pub fn find_all(text: &str, needle: &str, limit: usize) -> Vec<usize> {
     hay.match_indices(needle.as_str()).map(|(i, _)| i).take(limit).collect()
 }
 
+/// A PDF as OCR leaves it: on each page, invisible text in a font without
+/// glyphs, whose codes only a ToUnicode map explains.
+#[cfg(test)]
+pub(crate) fn ocr_pdf(pages: &[&str]) -> Vec<u8> {
+    use lopdf::{dictionary, Document, Object, Stream};
+    let mut doc = Document::with_version("1.5");
+    let pages_id = doc.new_object_id();
+    let to_unicode = doc.add_object(Stream::new(
+        dictionary! {},
+        b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+          1 begincodespacerange <0000> <FFFF> endcodespacerange\n\
+          1 beginbfrange <0000> <FFFF> <0000> endbfrange\n\
+          endcmap end end"
+            .to_vec(),
+    ));
+    let descriptor = doc.add_object(dictionary! {
+        "Type" => "FontDescriptor", "FontName" => "GlyphLessFont", "Flags" => 5,
+        "FontBBox" => vec![0.into(), 0.into(), 500.into(), 1000.into()],
+        "ItalicAngle" => 0, "Ascent" => 1000, "Descent" => 0, "CapHeight" => 1000, "StemV" => 80,
+    });
+    let cid_font = doc.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "CIDFontType2", "BaseFont" => "GlyphLessFont",
+        "CIDSystemInfo" => dictionary! {
+            "Registry" => Object::string_literal("Adobe"),
+            "Ordering" => Object::string_literal("Identity"),
+            "Supplement" => 0,
+        },
+        "CIDToGIDMap" => "Identity", "DW" => 500, "FontDescriptor" => descriptor,
+    });
+    let font = doc.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type0", "BaseFont" => "GlyphLessFont", "Encoding" => "Identity-H",
+        "DescendantFonts" => vec![cid_font.into()], "ToUnicode" => to_unicode,
+    });
+    let mut kids: Vec<Object> = Vec::new();
+    for text in pages {
+        let hex: String = text.encode_utf16().map(|unit| format!("{unit:04X}")).collect();
+        let content = format!("BT 3 Tr /F1 12 Tf 72 720 Td <{hex}> Tj ET");
+        let content = doc.add_object(Stream::new(dictionary! {}, content.into_bytes()));
+        let page = doc.add_object(dictionary! {
+            "Type" => "Page", "Parent" => pages_id, "Contents" => content,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+        });
+        kids.push(page.into());
+    }
+    let count = kids.len() as i64;
+    doc.objects.insert(pages_id, Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => kids, "Count" => count }));
+    let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+    doc.trailer.set("Root", catalog);
+    let mut out = Vec::new();
+    doc.save_to(&mut out).unwrap();
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_text_ocr_laid_over_a_scan_is_found_page_by_page() {
+        let found = pdf_sections(&ocr_pdf(&["Första sidans åäö", "", "Tredje sidan"])).unwrap();
+        let texts: Vec<&str> = found.iter().map(|s| s.text.trim()).collect();
+        assert_eq!(texts, ["Första sidans åäö", "Tredje sidan"], "the empty page is left out");
+        assert_eq!(found[0].start, 0.0);
+        assert_eq!(found[1].end, 1.0);
+    }
+
+    #[test]
+    fn a_pdf_page_becomes_text_to_search_in() {
+        assert_eq!(pdf_page_text("  en me\u{AD} \ndelålders man \n\n  med ord-\nning\n"), "en medelålders man\nmed ordning");
+        assert_eq!(pdf_page_text("Nord-\nSverige\n1914-\n1918"), "Nord-\nSverige\n1914-\n1918");
+        assert_eq!(pdf_page_text("en \u{FB01}n \u{0}bok\tsida"), "en fin bok sida");
+    }
 
     #[test]
     fn html_becomes_readable_text() {

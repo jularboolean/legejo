@@ -1,5 +1,5 @@
-//! Search inside the books: the text of each EPUB in `book_text`, indexed
-//! by the database (FTS5 or a GIN index on a tsvector), when the operator
+//! Search inside the books: the text of each EPUB and PDF in `book_text`,
+//! indexed by the database (FTS5 or a GIN index on a tsvector), when the operator
 //! has set LEGEJO_FULLTEXT=true. A worker reads the books in the
 //! background; started without the variable, it drops the text again.
 
@@ -30,6 +30,9 @@ const PASSAGES: usize = 3;
 const IDLE: Duration = Duration::from_secs(10);
 /// How often texts no book points to are looked for.
 const SWEEP: Duration = Duration::from_secs(300);
+/// The books that have text to read. A PDF without any, a scan with no OCR
+/// layer, is looked at once and has none.
+const HAS_TEXT: &str = "format IN ('epub', 'pdf')";
 /// The marks around a matched word in a passage (private use characters,
 /// which the indexed text never holds).
 const MARK_START: char = '\u{E000}';
@@ -49,9 +52,9 @@ pub fn enabled(state: &AppState) -> bool {
 /// How far the index has come, for the admin page.
 #[derive(Serialize)]
 pub struct Status {
-    /// EPUBs whose text is in the index, or found to have none.
+    /// Books whose text is in the index, or found to have none.
     pub books: i64,
-    /// EPUBs not read yet.
+    /// Books not read yet.
     pub pending: i64,
     /// Distinct texts kept, and their size in bytes (without the index).
     pub texts: i64,
@@ -59,13 +62,13 @@ pub struct Status {
 }
 
 pub async fn status(state: &AppState) -> anyhow::Result<Status> {
-    let (books, pending): (i64, i64) = sqlx::query_as(
+    let (books, pending): (i64, i64) = sqlx::query_as(&format!(
         // Postgres sums to NUMERIC, which the Any driver cannot read: cast.
         "SELECT
              CAST(COALESCE(SUM(CASE WHEN text_sha256 = COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0) AS BIGINT),
              CAST(COALESCE(SUM(CASE WHEN text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, '') THEN 1 ELSE 0 END), 0) AS BIGINT)
-         FROM books WHERE format = 'epub'",
-    )
+         FROM books WHERE {HAS_TEXT}",
+    ))
     .fetch_one(&state.db)
     .await?;
     let octets = match state.backend {
@@ -167,7 +170,7 @@ pub(crate) enum Indexed {
 /// another book has (an imported copy) gets that book's text without the
 /// file being read, and a file read again (its metadata rewritten) whose
 /// text is unchanged writes nothing.
-async fn index_book(state: &AppState, id: i64, uuid: &str, sha: &str) -> anyhow::Result<Indexed> {
+async fn index_book(state: &AppState, id: i64, uuid: &str, format: Format, sha: &str) -> anyhow::Result<Indexed> {
     if !sha.is_empty() {
         let known: Option<String> = sqlx::query_scalar(
             "SELECT text_hash FROM books
@@ -184,16 +187,16 @@ async fn index_book(state: &AppState, id: i64, uuid: &str, sha: &str) -> anyhow:
         }
     }
 
-    let path = book_path(state, uuid, Format::Epub);
+    let path = book_path(state, uuid, format);
     state.storage.fetch(&path).await;
     let found = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<Part>> {
-        let bytes = std::fs::read(path)?;
-        Ok(parts(&booktext::sections(bytes)?))
+        Ok(parts(&booktext::read_sections(format, &path)?))
     })
-    .await?;
+    .await;
     // A file that cannot be read is marked as looked at all the same, with
-    // no text, so that it is not tried again until the file changes.
-    let found = found.unwrap_or_else(|e| {
+    // no text, so that it is not tried again until the file changes. That
+    // goes for one that takes the reader down, too.
+    let found = found.map_err(anyhow::Error::from).and_then(|read| read).unwrap_or_else(|e| {
         tracing::warn!("full-text index: book {id} could not be read: {e:#}");
         Vec::new()
     });
@@ -228,17 +231,17 @@ async fn index_book(state: &AppState, id: i64, uuid: &str, sha: &str) -> anyhow:
 /// Give the books whose text is missing or older than their file theirs,
 /// one at a time. Returns how each went, by book id.
 pub(crate) async fn index_pending(state: &AppState, limit: i64) -> anyhow::Result<Vec<(i64, Indexed)>> {
-    let rows: Vec<(i64, String, String)> = sqlx::query_as(
-        "SELECT id, uuid, COALESCE(file_sha256, '') FROM books
-         WHERE format = 'epub' AND (text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, ''))
+    let rows: Vec<(i64, String, String, String)> = sqlx::query_as(&format!(
+        "SELECT id, uuid, format, COALESCE(file_sha256, '') FROM books
+         WHERE {HAS_TEXT} AND (text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, ''))
          ORDER BY id LIMIT $1",
-    )
+    ))
     .bind(limit)
     .fetch_all(&state.db)
     .await?;
     let mut done = Vec::new();
-    for (id, uuid, sha) in rows {
-        match index_book(state, id, &uuid, &sha).await {
+    for (id, uuid, format, sha) in rows {
+        match index_book(state, id, &uuid, Format::parse(&format), &sha).await {
             Ok(how) => done.push((id, how)),
             Err(e) => tracing::debug!("full-text index: book {id} skipped: {e:#}"),
         }
@@ -555,26 +558,26 @@ pub async fn search(
     let id = user.0.id;
     // The caller's books whose file another book has had read (a copy just
     // imported) get that text now rather than when the worker comes by.
-    sqlx::query(
+    sqlx::query(&format!(
         "UPDATE books SET
              text_hash = (SELECT o.text_hash FROM books o
                           WHERE o.file_sha256 = books.file_sha256 AND o.text_sha256 = o.file_sha256
                             AND o.text_hash IS NOT NULL LIMIT 1),
              text_sha256 = file_sha256
-         WHERE owner_id = $1 AND format = 'epub' AND file_sha256 IS NOT NULL
+         WHERE owner_id = $1 AND {HAS_TEXT} AND file_sha256 IS NOT NULL
            AND (text_sha256 IS NULL OR text_sha256 != file_sha256)
            AND EXISTS (SELECT 1 FROM books o
                        WHERE o.file_sha256 = books.file_sha256 AND o.text_sha256 = o.file_sha256
                          AND o.text_hash IS NOT NULL)",
-    )
+    ))
     .bind(id)
     .execute(&state.db)
     .await
     .map_err(internal)?;
-    let pending: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM books WHERE owner_id = $1 AND format = 'epub'
+    let pending: i64 = sqlx::query_scalar(&format!(
+        "SELECT COUNT(*) FROM books WHERE owner_id = $1 AND {HAS_TEXT}
          AND (text_sha256 IS NULL OR text_sha256 != COALESCE(file_sha256, ''))",
-    )
+    ))
     .bind(id)
     .fetch_one(&state.db)
     .await

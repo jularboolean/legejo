@@ -1217,7 +1217,7 @@ export const en = {
 	'admin.shelfLinksHint': "Lets users give a shelf to someone outside the instance with a link that needs no login, and follow such links from other instances. With it on, this server hands out the books on a shelf to whoever holds a link to it, and fetches shelves from the addresses its users give.",
 	'admin.authorFactsToggle': "Authors from Wikidata",
 	'admin.fulltextToggle': 'Search inside the books',
-	'admin.fulltextHint': "Searching for words in the text of the books, not only in their titles and authors. While it is on, the text of every EPUB is kept in the database, once however many copies there are. Switched off, the text is dropped again; switched on, the books are read anew.",
+	'admin.fulltextHint': "Searching for words in the text of the books, not only in their titles and authors. While it is on, the text of every EPUB, and of every PDF that has any, is kept in the database, once however many copies there are. Switched off, the text is dropped again; switched on, the books are read anew.",
 	'admin.fulltextProgress': "{books} books read, {pending} to go; {size} MB of text.",
 	'admin.fulltextIsOn': "on.",
 	'admin.fulltextOff': 'off.',

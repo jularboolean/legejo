@@ -218,7 +218,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'reader.notes.fromKobo': "Kobo",
 	'admin.mail': 'Sähköposti',
 	'admin.fulltextToggle': "Haku kirjojen tekstistä",
-	'admin.fulltextHint': "Sanojen haku kirjojen tekstistä, ei vain nimistä ja tekijöistä. Kun se on käytössä, jokaisen EPUBin teksti tallennetaan tietokantaan, kerran riippumatta kopioiden määrästä. Pois kytkettynä teksti poistetaan; uudelleen kytkettynä kirjat luetaan uudestaan.",
+	'admin.fulltextHint': "Sanojen haku kirjojen tekstistä, ei vain nimistä ja tekijöistä. Kun se on käytössä, jokaisen EPUBin ja tekstiä sisältävän PDF:n teksti tallennetaan tietokantaan, kerran riippumatta kopioiden määrästä. Pois kytkettynä teksti poistetaan; uudelleen kytkettynä kirjat luetaan uudestaan.",
 	'admin.fulltextProgress': "{books} kirjaa luettu, {pending} jäljellä; {size} Mt tekstiä.",
 	'admin.fulltextIsOn': "käytössä.",
 	'admin.fulltextOff': "pois käytöstä.",

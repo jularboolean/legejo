@@ -14,6 +14,8 @@
 		href = (book: T) => `/books/${book.id}`,
 		cover = (book: T) =>
 			`/api/books/${book.id}/cover?size=thumb&v=${encodeURIComponent(book.updated_at ?? book.created_at)}`,
+		onopen,
+		oncoverfail,
 		own = true,
 		context,
 		action,
@@ -27,6 +29,10 @@
 		shelves?: Shelf[];
 		href?: (book: T) => string;
 		cover?: (book: T) => string;
+		/** Opening a book shows this instead of following `href`. */
+		onopen?: (book: T) => void;
+		/** A cover could not be fetched, as from another instance. */
+		oncoverfail?: (book: T) => void;
 		/** The caller's own books: download link and a link to the series page. */
 		own?: boolean;
 		/** An extra line under the byline, e.g. where a public book was found. */
@@ -39,6 +45,12 @@
 	} = $props();
 
 	const shelfNames = $derived(new Map(shelves.map((s) => [s.id, s.name])));
+
+	function open(event: MouseEvent, book: T) {
+		if (!onopen) return;
+		event.preventDefault();
+		onopen(book);
+	}
 
 	function seriesLabel(book: T): string {
 		if (book.series_index == null) return book.series ?? '';
@@ -63,14 +75,21 @@
 					<span class="tick">{#if selected.has(book.id)}<Check size={14} strokeWidth={3} />{/if}</span>
 				</button>
 			{/if}
-			<a class="cover" href={href(book)} tabindex="-1" aria-hidden="true">
+			<a class="cover" href={href(book)} tabindex="-1" aria-hidden="true" onclick={(e) => open(e, book)}>
 				{#if book.has_cover}
-					<img use:arriving src={cover(book)} alt="" loading="lazy" />
+					<img
+						use:arriving
+						src={cover(book)}
+						alt=""
+						loading="lazy"
+						referrerpolicy="no-referrer"
+						onerror={() => oncoverfail?.(book)}
+					/>
 				{/if}
 			</a>
 
 			<div class="main">
-				<a class="title" href={href(book)}>{book.title}</a>
+				<a class="title" href={href(book)} onclick={(e) => open(e, book)}>{book.title}</a>
 				<p class="byline">
 					{#if book.author}<span>{book.author}</span>{/if}
 					{#if year}<span>{year}</span>{/if}

@@ -294,7 +294,7 @@ on shelves that others share with you, and, under <strong>On other instances</st
 the shelves from other Legejo instances that you follow, each with a button to add it to your
 library.</p>
 <p>Where the admin has switched on <strong>Search inside the books</strong> on the Admin page,
-tick <strong>Search inside the books</strong> to look for words in the text of your EPUBs instead. Each book comes with
+tick <strong>Search inside the books</strong> to look for words in the text of your EPUBs and PDFs instead. A scanned PDF needs OCR to have any text. Each book comes with
 the passages that match; choose one to open the book with the search in it. Every word must occur, a
 word also finds longer words it begins, and words in double quotes must stand in a row. Books on
 shared shelves are searched too, and quoted, but are read only once you take them.</p>
@@ -828,7 +828,7 @@ password in an <code>X-Api-Key</code> header instead.</p>"""),
   "<p>The greys are not for you, or you want dark in daylight, or a little movement on the page.</p>",
   """<p>On the <strong>Account</strong> page, open <strong>Design</strong> and pick one:
 <strong>Automatic</strong> (light or dark, as your system is set), <strong>Light</strong>,
-<strong>Dark</strong>, or <strong>Zamenhof</strong>, in the browns of an old textbook with the
+<strong>Dark</strong>, or <strong>Zamenhof</strong>, in the paper tones of an old textbook with the
 green star of Esperanto and a book typeface. Below it, <strong>Show animations</strong> lets
 menus, dialogs, covers and pages come in softly instead of all at once.</p>""",
   """<p>Both choices are kept on the device, so a phone and a computer can differ. Animations

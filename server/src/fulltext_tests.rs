@@ -89,6 +89,26 @@ async fn finds_words_inside_the_books_with_where_they_are() {
     assert_eq!(status, StatusCode::OK);
 }
 
+#[tokio::test]
+async fn a_pdf_is_found_by_its_ocr_text_and_a_scan_without_any_is_left_alone() {
+    let (app, db, state) = test_app_on().await;
+    let (_, a) = add_user(&db, "alice").await;
+    let with_ocr = crate::booktext::ocr_pdf(&["Stormen drar in over havet"]);
+    let without = crate::booktext::ocr_pdf(&[""]);
+    upload(&app, &a, &[("skannad.pdf", with_ocr), ("bilder.pdf", without)], "").await;
+
+    let done = fulltext::index_pending(&state, 10).await.unwrap();
+    assert_eq!(done.len(), 2);
+    assert_eq!(done[0].1, fulltext::Indexed::Stored);
+    assert_eq!(done[1].1, fulltext::Indexed::Empty);
+    assert!(fulltext::index_pending(&state, 10).await.unwrap().is_empty(), "each is looked at once");
+
+    let (_, v) = send(&app, Method::GET, "/api/search/text?q=stormen", Some(&a), None).await;
+    assert_eq!(v["books"].as_array().unwrap().len(), 1, "{v}");
+    assert_eq!(v["books"][0]["book"]["format"], "pdf", "{v}");
+    assert_eq!(v["pending"], 0, "{v}");
+}
+
 async fn parts(db: &sqlx::AnyPool) -> (i64, i64) {
     sqlx::query_as("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM book_text").fetch_one(db).await.unwrap()
 }

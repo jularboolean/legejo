@@ -57,17 +57,17 @@
    flag, set in a book face. */
 :root[data-design='zamenhof'] {
 	color-scheme: light;
-	--bg: #d9c7a2;
+	--bg: #efe7d5;
 	--fg: #3b2a1a;
-	--muted: #735e44;
+	--muted: #6a563e;
 	--accent: #2f6b3c;
-	--gold: #a3742a;
-	--card: #f1e6cc;
-	--border: #bda67a;
+	--gold: #8d6420;
+	--card: #f8f3e7;
+	--border: #d6c7a8;
 	--danger: #a23a22;
 	--shadow: 0 1px 2px rgba(74, 49, 20, 0.16), 0 4px 14px rgba(74, 49, 20, 0.1);
 	--star: #1e8a3e;
-	--select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23735e44' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	--select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a563e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 	font-family: 'Literata Variable', Georgia, serif;
 }
 /* Whatever names the sans face for itself is set in the book face here. */
@@ -105,6 +105,23 @@
 	transform: translate(4%, -2%) scale(0.87);
 }
 
+/* The pigeons in the green of the flag, the wing in the gold of the beak. */
+:root[data-design='zamenhof'] .logo svg :is([fill='#48585C' i], [fill='#4E6469' i]) {
+	fill: #1f5a2e;
+}
+:root[data-design='zamenhof'] .logo svg [fill='#5A7075' i] {
+	fill: #2f7a41;
+}
+:root[data-design='zamenhof'] .logo svg [fill='#8BA7B0' i] {
+	fill: #d8b95f;
+}
+:root[data-design='zamenhof'] .logo svg [fill='#85597B' i] {
+	fill: #3f9a58;
+}
+:root[data-design='zamenhof'] .logo svg [fill='#9E528E' i] {
+	fill: #a9d6a6;
+}
+
 /* Who made the language, for anyone who clicks on the pigeons. */
 :root[data-design='zamenhof'] .sidebrand .portrait {
 	position: absolute;
@@ -120,12 +137,15 @@
 :root[data-design='zamenhof'] :is(.wordmark, main h1)::before {
 	content: '';
 	display: inline-block;
-	width: 0.95em;
-	height: 0.95em;
+	width: 0.72em;
+	height: 0.72em;
 	margin-right: 0.4em;
-	vertical-align: -0.08em;
+	vertical-align: 0;
 	background: var(--star);
 	clip-path: polygon(50% 0, 61.8% 34.5%, 97.6% 34.5%, 68.5% 56%, 79.4% 90.5%, 50% 69%, 20.6% 90.5%, 31.5% 56%, 2.4% 34.5%, 38.2% 34.5%);
+}
+:root[data-design='zamenhof'] .hero-content h1::before {
+	background: #f3e7c9;
 }
 :root[data-design='zamenhof'] .wordmark::before {
 	width: 1.25em;
@@ -133,73 +153,28 @@
 	vertical-align: -0.2em;
 }
 
-/* The binding: a green cloth spine with its titles stamped in gold, beside
-   dotted paper. The sidebar's own colours do the work, for all it holds. */
-:root[data-design='zamenhof'] body {
-	background-image: radial-gradient(rgba(74, 49, 20, 0.13) 1px, transparent 1.2px);
-	background-size: 22px 22px;
-}
+/* The sidebar is a sheet of lighter paper with a green rule across its head,
+   in the same place and of the same size as in the other designs. */
 :root[data-design='zamenhof'] #sidebar {
-	--bg: #24482f;
-	--fg: #f3e7c9;
-	--muted: #c2b58c;
-	--accent: #e6c97f;
-	--gold: #d9b25c;
-	--card: #2f5a3b;
-	--border: #4b7354;
-	color: var(--fg);
-	background-color: var(--bg);
-	background-image:
-		repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
-		repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 3px);
-	padding: 0.5rem 1.5rem 0.75rem 1.1rem;
-	margin: -0.5rem -1rem -0.5rem -1.1rem;
-	max-height: calc(100vh - 1.5rem);
-	max-height: calc(100dvh - 1.5rem);
-	border-radius: 3px;
-	/* The three bands of an old series, down the spine's edge. */
-	box-shadow:
-		inset -4px 0 0 #2a8c80,
-		inset -8px 0 0 #e2a52a,
-		inset -12px 0 0 #e0622a,
-		5px 5px 0 rgba(59, 42, 26, 0.8);
+	--card: #e9dfc8;
+	background: #f7f1e3;
+	border: 1px solid var(--border);
+	border-top: 3px solid var(--accent);
+	border-radius: 4px;
+	padding: 0.5rem 1rem 0.75rem;
+	margin-inline: -1rem;
 }
 :root[data-design='zamenhof'] .tabbar {
-	--fg: #f3e7c9;
-	--muted: #c2b58c;
-	--accent: #e6c97f;
-	--border: #4b7354;
-	background: #24482f;
-	border-top: 0;
-	box-shadow:
-		0 -3px 0 #e0622a,
-		0 -6px 0 #e2a52a,
-		0 -9px 0 #2a8c80;
+	background: #f7f1e3;
+	border-top: 2px solid var(--accent);
 }
 
-/* Things to press, and books, stand off the page with a hard printed edge. */
-:root[data-design='zamenhof'] main :is(button:not(:disabled, .rating *), a.button) {
-	border-color: var(--fg);
-	box-shadow: 2px 2px 0 var(--fg);
-}
-:root[data-design='zamenhof'] main :is(button:not(:disabled, .rating *), a.button):active {
-	transform: translate(2px, 2px);
-	box-shadow: none;
-}
-:root[data-design='zamenhof'] main :is(input:not([type='checkbox'], [type='radio']), select, textarea) {
-	border-color: #8a6d45;
-}
-:root[data-design='zamenhof'] .cover:has(img) {
-	border-radius: 3px;
-	box-shadow: 4px 4px 0 rgba(59, 42, 26, 0.8);
-}
-
-/* Headings as in a textbook: spaced small capitals over a double rule. */
+/* Headings as in a textbook: spaced small capitals over a rule. */
 :root[data-design='zamenhof'] main h2 {
 	font-variant: small-caps;
 	letter-spacing: 0.06em;
 	padding-bottom: 0.25em;
-	border-bottom: 3px double var(--border);
+	border-bottom: 1px solid var(--border);
 }
 
 * {

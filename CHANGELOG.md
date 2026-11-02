@@ -4,6 +4,23 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.40.0 (2026-11-02)
+
+- **Search finds words in PDF files.** With searching inside the books turned
+  on, PDFs are read as well, both those with text of their own and scans with
+  an OCR layer. A scan without one has no text to find. A hit opens the PDF
+  with the search in it, and an assistant connected over MCP can read PDFs too.
+- **Search in a PDF marks what it finds.** The words are marked on the page, and
+  choosing a hit goes to its line. Words broken up inside the file, or split
+  over a line end, are found now.
+- **A shelf from another instance looks like one of your own.** It has the
+  whole page, a picture at the top, the same order and the same choice of grid
+  or list, and long titles no longer upset the list.
+- **A calmer Zamenhof design.** Lighter paper, a sidebar of paper instead of
+  green cloth, and plain buttons and covers without hard edges. The sidebar
+  stays put when the page scrolls, as in the other designs, and small buttons
+  that look like links no longer get a frame. The pigeons are green.
+
 ## 1.39.2 (2026-11-01)
 
 - **A book opens where you left it on a slower device.** The reader could open
