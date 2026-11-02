@@ -104,12 +104,21 @@
 				autocomplete="off"
 			/>
 			<button type="submit" disabled={asking || question.trim() === ''}>
-				{asking ? t('librarian.asking') : t('librarian.ask')}
+				{t('librarian.ask')}
 			</button>
 		</form>
 		<p class="privacy">{t('librarian.privacy')}</p>
 	</div>
-	<img class="portrait" src={portrait} alt="" />
+	<img class="portrait" class:looking={asking} src={portrait} alt="" />
+</div>
+
+<div role="status">
+	{#if asking}
+		<div class="asking">
+			<span class="line"></span>
+			<p>{t('librarian.asking')}</p>
+		</div>
+	{/if}
 </div>
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
@@ -160,10 +169,62 @@
 	}
 	/* The head stands free on the page, without a frame. */
 	.portrait {
-		width: 15rem;
-		height: 15rem;
+		width: 12.5rem;
+		height: 12.5rem;
 		flex-shrink: 0;
 		object-fit: contain;
+	}
+	/* She looks along the shelves while she is asked. Like the other things
+	   that show work going on, this does not depend on the setting for
+	   animations (see app.css). */
+	.portrait.looking {
+		transform-origin: 50% 85%;
+		animation: looking 3.6s ease-in-out infinite;
+	}
+	@keyframes looking {
+		0%,
+		100% {
+			transform: rotate(0);
+		}
+		25% {
+			transform: rotate(-3.5deg);
+		}
+		75% {
+			transform: rotate(3.5deg);
+		}
+	}
+	.asking {
+		padding-top: 1rem;
+		position: relative;
+		color: var(--muted);
+	}
+	.asking p {
+		margin: 0;
+	}
+	.line {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 2px;
+		overflow: hidden;
+		background: var(--border);
+	}
+	.line::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		width: 40%;
+		background: var(--accent);
+		animation: passing 1.4s ease-in-out infinite;
+	}
+	@keyframes passing {
+		from {
+			transform: translateX(-100%);
+		}
+		to {
+			transform: translateX(250%);
+		}
 	}
 	h1 {
 		font-size: 1.4rem;
@@ -225,8 +286,13 @@
 			gap: 0.75rem;
 		}
 		.portrait {
-			width: 9.5rem;
-			height: 9.5rem;
+			width: 8rem;
+			height: 8rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.portrait.looking {
+			animation: none;
 		}
 	}
 	@media (max-width: 40rem) {

@@ -4,6 +4,14 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.41.1 (2026-11-02)
+
+- **Searching a PDF works in Safari.** The search stopped with an error, or stayed
+  at 0 %, in Safari on the Mac and in the app added to the Dock.
+- **The librarian has moved down the menu**, to just under Authors.
+- **You can see the librarian working.** While she looks for books she turns her
+  head a little and a line runs across the page, and she is a little smaller.
+
 ## 1.41.0 (2026-11-02)
 
 - **Books without a cover get one with the pigeons.** PDFs and other books with

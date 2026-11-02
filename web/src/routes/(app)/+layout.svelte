@@ -345,9 +345,9 @@
 
 			<nav>
 				{@render search()}
-				{@render librarian()}
 				{@render library()}
 				{@render mine()}
+				{@render librarian()}
 				{@render shelves()}
 				{@render elsewhere()}
 				{@render audiobooks()}

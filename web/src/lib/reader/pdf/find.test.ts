@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findInPage, type Piece } from './find';
+import { findInPage, readItems, type Piece } from './find';
 
 const line = (str: string): Piece => ({ str, eol: true });
 
@@ -33,5 +33,15 @@ describe('finding words in a PDF page', () => {
 		expect(findInPage([{ str: 'ord och ord och ord' }], 'ord')).toHaveLength(3);
 		expect(findInPage([{ str: 'ord' }], '  ')).toEqual([]);
 		expect(findInPage([], 'ord')).toEqual([]);
+	});
+});
+
+describe('reading the text of a PDF page', () => {
+	it('puts the parts of the stream together, without looping over it', async () => {
+		const parts = [{ items: ['ett', 'två'] }, { items: [] }, { items: ['tre'] }];
+		const stream = {
+			getReader: () => ({ read: async () => (parts.length ? { done: false, value: parts.shift() } : { done: true }) })
+		} as unknown as ReadableStream<{ items: string[] }>;
+		expect(await readItems(stream)).toEqual(['ett', 'två', 'tre']);
 	});
 });

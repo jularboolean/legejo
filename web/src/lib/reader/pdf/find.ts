@@ -18,6 +18,18 @@ export type PageMatch = {
 	after: string;
 };
 
+/**
+ * All the items of a page's text as pdf.js streams them. The stream is read by
+ * hand, and not with `page.getTextContent()`: that loops over it with
+ * `for await`, which Safari cannot do.
+ */
+export async function readItems<T>(stream: ReadableStream<{ items: T[] }>): Promise<T[]> {
+	const reader = stream.getReader();
+	const items: T[] = [];
+	for (let part = await reader.read(); !part.done; part = await reader.read()) items.push(...part.value.items);
+	return items;
+}
+
 /** Without case and accents, as the search compares. */
 export function foldText(text: string): string {
 	return text.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '');

@@ -10,6 +10,7 @@
 	import { ArrowLeft, Highlighter, List, Minus, Moon, Plus, Search, Sun, SunMoon } from '@lucide/svelte';
 	import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 	import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+	import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 	import { t } from '#lib/i18n';
 	import type { Annotation, BookDetail } from '#lib/types';
 	import { savedVersion } from '#lib/offline/store';
@@ -23,7 +24,7 @@
 	import type { ReaderTheme } from '../types';
 	import '../reader.css';
 	import { decodePassage, encodePage, encodePassage, mergeLines, pageOf, type PdfPassage, type PdfRect } from './anchor';
-	import { findInPage, type PageMatch, type Piece } from './find';
+	import { findInPage, readItems, type PageMatch, type Piece } from './find';
 
 	type Props = {
 		book: BookDetail;
@@ -520,9 +521,9 @@
 			for (let n = 1; n <= total && all.length < HIT_LIMIT; n++) {
 				searching = n;
 				const page = await doc.getPage(n);
-				const content = await page.getTextContent();
+				const pieces: (TextItem | TextMarkedContent)[] = await readItems(page.streamTextContent());
 				if (run !== searchRun) return;
-				const items = content.items.filter((i) => 'str' in i);
+				const items = pieces.filter((i) => 'str' in i);
 				const viewport = page.getViewport({ scale: 1 });
 				findInPage(items.map((i) => ({ str: i.str, eol: i.hasEOL })), words)
 					.slice(0, HIT_LIMIT - all.length)
