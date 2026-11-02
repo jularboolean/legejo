@@ -10,6 +10,8 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import DesignPicker from '#lib/DesignPicker.svelte';
 	import Tabs from '#lib/Tabs.svelte';
+	import { startOver } from '#lib/offline/newVersion';
+	import { availability } from '#lib/offline/store';
 	import { LANGUAGES, getLocale, setLocale, t } from '#lib/i18n';
 	import type { Account, KoboDevices } from '#lib/types';
 	import type { PageData } from './$types';
@@ -30,6 +32,16 @@
 		...(hasOptions ? [{ href: '/account?tab=options', label: t('tabs.options'), active: tab === 'options' }] : []),
 		{ href: '/account?tab=design', label: t('tabs.design'), active: tab === 'design' }
 	]);
+	let startingOver = $state(false);
+	let startOverFailed = $state(false);
+	async function reloadApp() {
+		startingOver = true;
+		startOverFailed = false;
+		const started = await startOver().catch(() => false);
+		startingOver = started;
+		startOverFailed = !started;
+	}
+
 	let form = $state({
 		username: data.account.username,
 		email: data.account.pending_email ?? data.account.email ?? '',
@@ -544,6 +556,18 @@
 			</button>
 		</form>
 		{#if kindleErrorMsg}<p class="error">{kindleErrorMsg}</p>{/if}
+	</section>
+{/if}
+
+{#if availability() !== 'unsupported'}
+	<section class="kobo">
+		<h3>{t('device.reload.title')}</h3>
+		<p class="intro">{t('device.reload.intro')}</p>
+		<button type="button" onclick={reloadApp} disabled={startingOver}>
+			<RefreshCw size={14} />
+			{startingOver ? t('device.reload.busy') : t('device.reload.button')}
+		</button>
+		{#if startOverFailed}<p class="error">{t('device.reload.failed')}</p>{/if}
 	</section>
 {/if}
 

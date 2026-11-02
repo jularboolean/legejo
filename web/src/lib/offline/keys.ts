@@ -1,6 +1,10 @@
 // Names shared by the service worker and the page: which caches there are,
 // and which requests belong to a book saved on the device.
 
+/** The app's own files, one cache per version: this and a fingerprint of them. */
+export const SHELL_PREFIX = 'legejo-shell-';
+/** The page's request to the service worker to take the app's files anew. */
+export const REFILL_SHELL = 'legejo-refill-shell';
 /** The books saved on the device: file, cover and what the reader asks for. */
 export const BOOKS_CACHE = 'legejo-books-v1';
 /** Who is logged in and what the menus need, as last seen. */

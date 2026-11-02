@@ -481,6 +481,7 @@
 	let searching = $state<number | null>(null);
 	let hits = $state.raw<Hit[]>([]);
 	let searched = $state('');
+	let searchFailed = $state(false);
 	/** The hit last gone to, marked more strongly. */
 	let chosen = $state.raw<Hit | null>(null);
 	/** Where the words searched for are on the pages drawn, a list for each match. */
@@ -496,6 +497,7 @@
 	function clearSearch() {
 		searchRun++;
 		searching = null;
+		searchFailed = false;
 		searched = '';
 		hits = [];
 		chosen = null;
@@ -509,24 +511,31 @@
 		const run = ++searchRun;
 		const all: Hit[] = [];
 		searched = words;
+		searchFailed = false;
 		hits = [];
 		chosen = null;
 		found = new Map();
 		for (const n of drawn.keys()) markFound(n);
-		for (let n = 1; n <= total && all.length < HIT_LIMIT; n++) {
-			searching = n;
-			const page = await doc.getPage(n);
-			const content = await page.getTextContent();
+		try {
+			for (let n = 1; n <= total && all.length < HIT_LIMIT; n++) {
+				searching = n;
+				const page = await doc.getPage(n);
+				const content = await page.getTextContent();
+				if (run !== searchRun) return;
+				const items = content.items.filter((i) => 'str' in i);
+				const viewport = page.getViewport({ scale: 1 });
+				findInPage(items.map((i) => ({ str: i.str, eol: i.hasEOL })), words)
+					.slice(0, HIT_LIMIT - all.length)
+					.forEach((match, order) => {
+						const [, top] = viewport.convertToViewportPoint(...(items[match.from.piece].transform.slice(4, 6) as [number, number]));
+						all.push({ page: n, order, down: top / viewport.height, before: match.before, match: match.match, after: match.after });
+					});
+				hits = [...all];
+			}
+		} catch (e) {
 			if (run !== searchRun) return;
-			const items = content.items.filter((i) => 'str' in i);
-			const viewport = page.getViewport({ scale: 1 });
-			findInPage(items.map((i) => ({ str: i.str, eol: i.hasEOL })), words)
-				.slice(0, HIT_LIMIT - all.length)
-				.forEach((match, order) => {
-					const [, top] = viewport.convertToViewportPoint(...(items[match.from.piece].transform.slice(4, 6) as [number, number]));
-					all.push({ page: n, order, down: top / viewport.height, before: match.before, match: match.match, after: match.after });
-				});
-			hits = [...all];
+			console.error('pdf search failed', e);
+			searchFailed = true;
 		}
 		searching = null;
 	}
@@ -1043,7 +1052,10 @@
 		{#if searching !== null}
 			<p class="empty">{t('reader.search.searching', { percent: Math.round((searching / Math.max(1, total)) * 100) })}</p>
 		{/if}
-		{#if searched && searching === null && hits.length === 0}
+		{#if searchFailed}
+			<p class="empty">{t('reader.search.failed')}</p>
+		{/if}
+		{#if searched && searching === null && hits.length === 0 && !searchFailed}
 			<p class="empty">{t('reader.search.none', { query: searched })}</p>
 		{:else if hits.length > 0}
 			<p class="empty">

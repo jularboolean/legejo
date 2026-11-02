@@ -18,7 +18,7 @@
 // a server that is down does) counts as not answering.
 
 import { assets, immutable } from '$app/manifest';
-import { BOOKS_CACHE, CACHED_HEADER, DATA_CACHE, PICTURES_CACHE, PICTURES_KEPT, SESSION_PATHS, bookKey, isPicture } from '../lib/offline/keys';
+import { BOOKS_CACHE, CACHED_HEADER, DATA_CACHE, PICTURES_CACHE, PICTURES_KEPT, REFILL_SHELL, SESSION_PATHS, SHELL_PREFIX, bookKey, isPicture } from '../lib/offline/keys';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
@@ -31,7 +31,6 @@ const ASSETS = new Set([...immutable, ...assets].map(rooted).filter((path) => pa
 
 // One cache per version of the app. The built files carry a hash of their
 // content in their names, so the list of them tells one version from another.
-const SHELL_PREFIX = 'legejo-shell-';
 const SHELL_CACHE = `${SHELL_PREFIX}${fingerprint([...ASSETS].sort().join('\n'))}`;
 
 function fingerprint(text: string): string {
@@ -48,23 +47,32 @@ const PATIENCE_MS = 4000;
  */
 const GIVE_UP_MS = 30000;
 
+/** Take the app's own files and the page into the shell. */
+async function fillShell(): Promise<void> {
+	const cache = await caches.open(SHELL_CACHE);
+	await cache.addAll([...ASSETS]);
+	// The page itself. During a rolling deploy it can come from another
+	// version than this worker: then its files are not the ones just
+	// cached, and installing waits for the next try.
+	const page = await fetch('/', { cache: 'no-store' });
+	if (!page.ok) throw new Error(`the app page answered ${page.status}`);
+	const html = await page.clone().text();
+	const wanted = html.match(/\/_app\/immutable\/[^"'\s)]+/g) ?? [];
+	if (wanted.some((path) => !ASSETS.has(path))) throw new Error('the app page is of another version');
+	await cache.put('/', page);
+}
+
 sw.addEventListener('install', (event) => {
-	event.waitUntil(
-		(async () => {
-			const cache = await caches.open(SHELL_CACHE);
-			await cache.addAll([...ASSETS]);
-			// The page itself. During a rolling deploy it can come from another
-			// version than this worker: then its files are not the ones just
-			// cached, and installing waits for the next try.
-			const page = await fetch('/', { cache: 'no-store' });
-			if (!page.ok) throw new Error(`the app page answered ${page.status}`);
-			const html = await page.clone().text();
-			const wanted = html.match(/\/_app\/immutable\/[^"'\s)]+/g) ?? [];
-			if (wanted.some((path) => !ASSETS.has(path))) throw new Error('the app page is of another version');
-			await cache.put('/', page);
-			await sw.skipWaiting();
-		})()
-	);
+	event.waitUntil(fillShell().then(() => sw.skipWaiting()));
+});
+
+// The page has emptied the shell to start over (lib/offline/newVersion.ts).
+// A worker that cannot fill it again leaves it empty: its version is behind
+// the server's, and the page then comes from the network.
+sw.addEventListener('message', (event) => {
+	if (event.data !== REFILL_SHELL) return;
+	const reply = () => event.ports[0]?.postMessage(null);
+	event.waitUntil(fillShell().then(reply, reply));
 });
 
 sw.addEventListener('activate', (event) => {
