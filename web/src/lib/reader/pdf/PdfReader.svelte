@@ -16,6 +16,7 @@
 	import { t } from '#lib/i18n';
 	import type { Annotation, BookDetail } from '#lib/types';
 	import { savedVersion } from '#lib/offline/store';
+	import ShareQuote from '#lib/ShareQuote.svelte';
 	import AnnotateBar from '../AnnotateBar.svelte';
 	import NotesPanel from '../NotesPanel.svelte';
 	import Sheet from '../Sheet.svelte';
@@ -198,12 +199,45 @@
 		lastRange = null;
 	}
 
+	// A drag out of the window lets WebKit put the moving end of a selection
+	// somewhere far from the pointer, as at the start of an earlier page, and
+	// the selection then takes in everything between. The end is kept to
+	// text on screen: elsewhere, it goes back to where it was.
+	let lastGood: { anchor: Node; anchorOffset: number; focus: Node; focusOffset: number } | null = null;
+
+	function onScreen(node: Node | null): boolean {
+		const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element | null);
+		if (!el?.closest('.textLayer') || !scroller) return false;
+		const box = el.getBoundingClientRect();
+		const view = scroller.getBoundingClientRect();
+		return box.bottom > view.top && box.top < view.bottom;
+	}
+
+	/** False when the selection was put back, and another change is on its way. */
+	function keepNear(selection: Selection): boolean {
+		const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+		if (selection.isCollapsed || !anchorNode || !focusNode || !scroller?.contains(anchorNode)) {
+			lastGood = null;
+			return true;
+		}
+		if (onScreen(focusNode)) {
+			lastGood = { anchor: anchorNode, anchorOffset, focus: focusNode, focusOffset };
+			return true;
+		}
+		if (lastGood && lastGood.anchor === anchorNode && lastGood.anchorOffset === anchorOffset && lastGood.focus.isConnected) {
+			selection.setBaseAndExtent(anchorNode, anchorOffset, lastGood.focus, lastGood.focusOffset);
+			return false;
+		}
+		return true;
+	}
+
 	function followSelection() {
 		const selection = document.getSelection();
 		if (!selection || selection.rangeCount === 0) {
 			putBackAll();
 			return;
 		}
+		if (!keepNear(selection)) return;
 		const range = selection.getRangeAt(0);
 		for (const [layer, end] of endOfContent) {
 			if (!layer.isConnected) endOfContent.delete(layer);
@@ -260,6 +294,19 @@
 		}, 80);
 		return () => clearTimeout(timer);
 	});
+
+	// Safari before 26 draws the masks pdf.js builds on an OffscreenCanvas as
+	// solid black, so a scanned page (one picture used as a mask) comes out a
+	// black page. There pdf.js builds them without one.
+	// Every browser on an iPhone or iPad is Safari's engine, of the system's
+	// version.
+	const oldSafari = (() => {
+		const agent = navigator.userAgent;
+		const ios = /\b(?:iPhone|iPad|iPod)\b.* OS (\d+)_/.exec(agent);
+		if (ios) return Number(ios[1]) < 26;
+		const safari = /Version\/(\d+)[\d.]* Safari\//.exec(agent);
+		return !!safari && !/Chrome|Chromium|Edg/.test(agent) && Number(safari[1]) < 26;
+	})();
 
 	let pdfjsModule: Promise<typeof import('pdfjs-dist')> | null = null;
 	function pdfjs() {
@@ -410,7 +457,7 @@
 	function onKey(event: KeyboardEvent) {
 		const el = event.target as HTMLElement | null;
 		if (el?.closest('input, textarea, select, dialog')) return;
-		if (panel) return;
+		if (panel || sharing) return;
 		clock.touch();
 		if (event.key === 'ArrowRight' && !event.metaKey) {
 			event.preventDefault();
@@ -584,6 +631,7 @@
 	let pending = $state.raw<{ passage: PdfPassage; text: string } | null>(null);
 	let editing = $state.raw<Annotation | null>(null);
 	let saving = $state(false);
+	let sharing = $state.raw<Annotation | null>(null);
 	let annotateError = $state<string | null>(null);
 	/** The bar goes where the passage is not. */
 	let barAtTop = $state(false);
@@ -626,7 +674,7 @@
 		if (!text) return null;
 		const byPage = new Map<number, PdfRect[]>();
 		const boxes = [...pageEls].map(([n, el]) => [n, el.getBoundingClientRect()] as const);
-		for (const r of range.getClientRects()) {
+		for (const r of textRects(range)) {
 			if (r.width < 1 || r.height < 1) continue;
 			const cx = r.left + r.width / 2;
 			const cy = r.top + r.height / 2;
@@ -639,6 +687,25 @@
 		}
 		const passage = [...byPage].sort((a, b) => a[0] - b[0]).map(([page, rects]) => ({ page, rects: mergeLines(rects) }));
 		return passage.length ? { passage, text } : null;
+	}
+
+	/** The boxes of the selected text alone. A range's own boxes also take in
+	 * the elements it holds whole, among them the block that catches a drag
+	 * (the size of the page) and the line breaks. */
+	function textRects(range: Range): DOMRect[] {
+		const root = range.commonAncestorContainer;
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		const rects: DOMRect[] = [];
+		const part = document.createRange();
+		for (let node: Node | null = root.nodeType === Node.TEXT_NODE ? root : walker.nextNode(); node; node = walker.nextNode()) {
+			if (!range.intersectsNode(node) || !node.textContent?.trim()) continue;
+			part.selectNodeContents(node);
+			if (node === range.startContainer) part.setStart(node, range.startOffset);
+			if (node === range.endContainer) part.setEnd(node, range.endOffset);
+			if (part.collapsed) continue;
+			rects.push(...part.getClientRects());
+		}
+		return rects;
 	}
 
 	let selectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -677,6 +744,12 @@
 		editing = a;
 		annotateError = null;
 		placeBar();
+	}
+
+	function shareAnnotation() {
+		const target = editing;
+		dismissAnnotate();
+		sharing = target;
 	}
 
 	function dismissAnnotate() {
@@ -792,7 +865,16 @@
 				// A book saved on the device is answered whole by the service
 				// worker, never in parts: it is read whole there too.
 				const whole = (await savedVersion(bookId).catch(() => null)) !== null || !navigator.onLine;
-				const task = getDocument({ url: fileUrl, disableRange: whole, disableAutoFetch: true });
+				const task = getDocument({
+					url: fileUrl,
+					disableRange: whole,
+					disableAutoFetch: true,
+					cMapUrl: `${__PDFJS_RESOURCES__}cmaps/`,
+					standardFontDataUrl: `${__PDFJS_RESOURCES__}standard_fonts/`,
+					wasmUrl: `${__PDFJS_RESOURCES__}wasm/`,
+					iccUrl: `${__PDFJS_RESOURCES__}iccs/`,
+					isOffscreenCanvasSupported: !oldSafari
+				});
 				task.onProgress = ({ loaded, total: size }: { loaded: number; total: number }) => {
 					if (size) downloaded = loaded / size;
 				};
@@ -1014,6 +1096,7 @@
 			onhighlight={saveHighlight}
 			onsave={saveNote}
 			ondelete={deleteAnnotation}
+			onshare={editing ? shareAnnotation : null}
 			oncancel={dismissAnnotate}
 		/>
 	{/if}
@@ -1092,6 +1175,18 @@
 	/>
 </div>
 
+<!-- Outside the reader, so that it has the catalog's own look. -->
+<ShareQuote
+	open={sharing !== null}
+	quote={sharing?.text ?? ''}
+	note={sharing?.note ?? null}
+	title={book.title}
+	author={book.author}
+	coverUrl={book.has_cover ? `/api/books/${bookId}/cover?v=${encodeURIComponent(book.updated_at ?? book.created_at)}` : null}
+	color={sharing?.color}
+	onclose={() => (sharing = null)}
+/>
+
 <style>
 	.reader.pdf {
 		position: fixed;
@@ -1113,6 +1208,10 @@
 		-webkit-backdrop-filter: blur(12px);
 		backdrop-filter: blur(12px);
 		transition: transform 0.2s ease;
+		/* A drag out of the pages would otherwise end in a bar, and the
+		   selection then take in every page between it and the start. */
+		-webkit-user-select: none;
+		user-select: none;
 	}
 	.bar.top {
 		top: 0;
@@ -1204,6 +1303,10 @@
 		background: #fff;
 		box-shadow: 0 1px 6px rgb(0 0 0 / 0.18);
 		overflow: hidden;
+		/* Only the text layer can be selected: a selection that takes in a
+		   page whole would hold its picture and its box, the size of the page. */
+		-webkit-user-select: none;
+		user-select: none;
 	}
 	.canvas,
 	.canvas :global(canvas) {
@@ -1307,6 +1410,10 @@
 		background: color-mix(in srgb, #2f6fd6 35%, transparent);
 		color: transparent;
 	}
+	/* Only the text shows as selected: WebKit otherwise also fills the
+	   layer and the block that catches a drag, the whole page. */
+	.page :global(.textLayer::selection),
+	.page :global(.textLayer .endOfContent::selection),
 	.page :global(.textLayer br::selection) {
 		background: transparent;
 	}

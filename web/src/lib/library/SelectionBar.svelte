@@ -229,13 +229,18 @@
 <style>
 	.bar {
 		position: sticky;
-		bottom: 0;
+		/* Above the tabs at the foot of a phone's screen (--tabbar in app.css). */
+		bottom: var(--tabbar, 0px);
 		z-index: 30;
 		margin: 1.5rem -1rem 0;
 		padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
 		background: var(--card);
 		border-top: 1px solid var(--border);
 		box-shadow: 0 -0.4rem 1.2rem rgb(0 0 0 / 0.08);
+	}
+	/* The tabs keep clear of the home indicator already. */
+	:global(html.has-tabbar) .bar {
+		padding-bottom: 0.6rem;
 	}
 	.inner {
 		display: flex;

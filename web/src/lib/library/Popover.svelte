@@ -24,6 +24,8 @@
 	let root = $state<HTMLElement>();
 	/** The room the panel has on screen, so a long one scrolls inside itself. */
 	let room = $state<number | null>(null);
+	/** How far the panel is moved sideways to stay on a narrow screen. */
+	let shift = $state(0);
 
 	function fit(panel: HTMLElement) {
 		const measure = () => {
@@ -33,6 +35,10 @@
 			const floor = tabbar && tabbar.height > 0 ? Math.min(tabbar.top, window.innerHeight) : window.innerHeight;
 			const space = up ? box.bottom : floor - box.top;
 			room = Math.max(160, Math.floor(space - 12));
+			const margin = 8;
+			const left = box.left - shift;
+			const right = box.right - shift;
+			shift = left < margin ? margin - left : right > window.innerWidth - margin ? Math.max(margin - left, window.innerWidth - margin - right) : 0;
 		};
 		measure();
 		window.addEventListener('resize', measure);
@@ -68,7 +74,7 @@
 		<ChevronDown size={13} />
 	</button>
 	{#if open}
-		<div class="panel" class:right={align === 'right'} class:up use:fit style:max-height={room ? `${room}px` : null} in:rise={{ y: up ? 10 : -10, duration: 180 }} out:fade={{ duration: 110 }}>
+		<div class="panel" class:right={align === 'right'} class:up use:fit style:max-height={room ? `${room}px` : null} style:translate={shift ? `${shift}px 0` : null} in:rise={{ y: up ? 10 : -10, duration: 180 }} out:fade={{ duration: 110 }}>
 			{@render children(close)}
 		</div>
 	{/if}

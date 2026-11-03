@@ -4,6 +4,22 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.41.3 (2026-11-03)
+
+- **PDFs with pictures in JPEG 2000 or JBIG2, and with text in Chinese, Japanese
+  or Korean, come out whole.** Such pages, common in scanned books, lacked their
+  pictures or their text: the reader did not have the decoders, character maps
+  and standard fonts these PDFs need.
+- **Scanned PDFs are no longer black in Safari before version 26.** Pages that
+  are one scanned picture came out as black pages there.
+- **A highlight in a PDF can be shared as a picture**, from the bar that opens
+  on it, as in EPUB books.
+- **Selecting text in a PDF no longer takes in whole pages.** A drag that went
+  past the text, toward the bars or out of the window, could select every page
+  before it, and the highlight then covered the whole page.
+- **The bar for selecting several books stands above the tabs on a phone**,
+  and its menus stay on the screen.
+
 ## 1.41.2 (2026-11-03)
 
 - **Searching the text of the books is fast again with many shared books.**
