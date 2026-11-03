@@ -81,6 +81,7 @@
 	let elsewhere = $state(0);
 	const nothing = $derived(
 		data.q !== '' &&
+			!data.failed &&
 			elsewhere === 0 &&
 			(text?.books.length ?? 0) === 0 &&
 			(text?.shared.length ?? 0) === 0 &&
@@ -200,6 +201,7 @@
 {#if data.fulltext && data.inText}<p class="note phrases">{t('search.textPhrases')}</p>{/if}
 
 {#if errorMsg}<p class="error">{errorMsg}</p>{/if}
+{#if data.failed}<p class="error">{t('search.failed')}</p>{/if}
 
 {#if nothing}
 	<p class="empty">{t('search.none')}</p>

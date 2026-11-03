@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.41.2 (2026-11-03)
+
+- **Searching the text of the books is fast again with many shared books.**
+  With Postgres, a search could take half a minute when many books were
+  shared with you, and the page then gave up. The words of each part of a
+  book are now kept with it. After the update they are filled in for the
+  books already read, which takes a minute or two on a large library;
+  until then a search is as slow as before.
+- **PDFs open in older browsers.** In Safari before version 26, and other browsers
+  more than a year or so old, a PDF did not open at all.
+- **A search that gets no answer says so.** If the server takes too long or the
+  connection breaks, the search page shows a message instead of an error page.
+
 ## 1.41.1 (2026-11-02)
 
 - **Searching a PDF works in Safari.** The search stopped with an error, or stayed

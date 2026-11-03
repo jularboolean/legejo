@@ -594,6 +594,7 @@ export const en = {
 	'search.publicShelves': 'Shelves',
 	'search.inShelf': 'in {shelf} {by}',
 	'search.none': 'No results.',
+	'search.failed': "The search did not answer. Try again in a moment.",
 	'search.inText': 'Search inside the books',
 	'search.textPlaceholder': 'Words in the text of your books…',
 	'search.textHits': 'Matches: {count}',

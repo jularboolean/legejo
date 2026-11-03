@@ -211,9 +211,16 @@ async fn index_book(state: &AppState, id: i64, uuid: &str, format: Format, sha: 
     // In one transaction, so that two processes storing the same text
     // cannot leave it half done: the second to commit fails on the unique
     // key, and the next round links the book to what the first stored.
+    let insert = match state.backend {
+        Backend::Sqlite => "INSERT INTO book_text (text_hash, section, pos, place, title, body) VALUES ($1, $2, $3, $4, $5, $6)",
+        Backend::Postgres => {
+            "INSERT INTO book_text (text_hash, section, pos, place, title, body, tsv)
+             VALUES ($1, $2, $3, $4, $5, $6, to_tsvector('simple', $6))"
+        }
+    };
     let mut tx = state.db.begin().await?;
     for part in found {
-        sqlx::query("INSERT INTO book_text (text_hash, section, pos, place, title, body) VALUES ($1, $2, $3, $4, $5, $6)")
+        sqlx::query(insert)
             .bind(&hash)
             .bind(part.section as i64)
             .bind(part.pos as i64)
@@ -249,6 +256,22 @@ pub(crate) async fn index_pending(state: &AppState, limit: i64) -> anyhow::Resul
     Ok(done)
 }
 
+/// Work out the words of parts stored without them (by a version before
+/// they were kept, or one still running while an update rolls out), a few
+/// at a time. Returns how many were done. Only Postgres keeps them.
+pub(crate) async fn fill_words(state: &AppState) -> anyhow::Result<u64> {
+    if state.backend != Backend::Postgres {
+        return Ok(0);
+    }
+    let done = sqlx::query(
+        "UPDATE book_text SET tsv = to_tsvector('simple', body)
+         WHERE id IN (SELECT id FROM book_text WHERE tsv IS NULL LIMIT 50)",
+    )
+    .execute(&state.db)
+    .await?;
+    Ok(done.rows_affected())
+}
+
 /// Drop the texts no book points to any more (their books deleted, or
 /// their files changed). Returns how many parts went.
 pub(crate) async fn drop_orphans(state: &AppState) -> anyhow::Result<u64> {
@@ -282,13 +305,21 @@ pub async fn worker(state: AppState) {
     let mut last_sweep: Option<std::time::Instant> = None;
     loop {
         let busy = if enabled(&state) {
-            match index_pending(&state, 20).await {
+            let indexed = match index_pending(&state, 20).await {
                 Ok(done) => !done.is_empty(),
                 Err(e) => {
                     tracing::warn!("full-text index: {e:#}");
                     false
                 }
-            }
+            };
+            let filled = match fill_words(&state).await {
+                Ok(n) => n > 0,
+                Err(e) => {
+                    tracing::warn!("full-text index: {e:#}");
+                    false
+                }
+            };
+            indexed || filled
         } else {
             if let Err(e) = clear(&state).await {
                 tracing::warn!("full-text index: {e:#}");
@@ -474,7 +505,9 @@ async fn matching(state: &AppState, user: i64, expr: &str, scope: Scope) -> Resu
         Backend::Postgres => format!(
             "SELECT t.id, b.id FROM book_text t
              JOIN books b ON b.text_hash = t.text_hash
-             WHERE to_tsvector('simple', t.body) @@ to_tsquery('simple', $2) AND {condition}
+             WHERE (t.tsv @@ to_tsquery('simple', $2)
+                    OR (t.tsv IS NULL AND to_tsvector('simple', t.body) @@ to_tsquery('simple', $2)))
+               AND {condition}
              ORDER BY b.id, t.section, t.pos LIMIT $3",
             condition = scope_condition(scope),
         ),

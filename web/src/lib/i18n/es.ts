@@ -601,6 +601,7 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'search.publicShelves': 'Estanterías',
 	'search.inShelf': 'en {shelf} {by}',
 	'search.none': 'Sin resultados.',
+	'search.failed': "La búsqueda no respondió. Inténtalo de nuevo en un momento.",
 	'search.inText': "Buscar en el texto de los libros",
 	'search.textPlaceholder': "Palabras en el texto de tus libros…",
 	'search.textHits': "Resultados: {count}",

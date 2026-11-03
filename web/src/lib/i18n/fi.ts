@@ -601,6 +601,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'search.publicShelves': 'Hyllyt',
 	'search.inShelf': 'hyllyllä {shelf} {by}',
 	'search.none': 'Ei tuloksia.',
+	'search.failed': "Haku ei vastannut. Yritä hetken päästä uudelleen.",
 	'search.inText': "Hae kirjojen tekstistä",
 	'search.textPlaceholder': "Sanoja kirjojesi tekstissä…",
 	'search.textHits': "Osumia: {count}",

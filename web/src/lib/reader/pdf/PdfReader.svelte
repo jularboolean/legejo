@@ -8,7 +8,9 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { ArrowLeft, Highlighter, List, Minus, Moon, Plus, Search, Sun, SunMoon } from '@lucide/svelte';
-	import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+	// pdf.js's legacy build: the modern one needs a browser of the last year
+	// or so (Safari 26), and fails to open a book in older ones.
+	import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 	import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 	import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 	import { t } from '#lib/i18n';
@@ -261,7 +263,7 @@
 
 	let pdfjsModule: Promise<typeof import('pdfjs-dist')> | null = null;
 	function pdfjs() {
-		pdfjsModule ??= import('pdfjs-dist').then((m) => {
+		pdfjsModule ??= import('pdfjs-dist/legacy/build/pdf.mjs').then((m) => {
 			m.GlobalWorkerOptions.workerSrc = workerUrl;
 			return m;
 		});

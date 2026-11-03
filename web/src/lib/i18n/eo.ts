@@ -598,6 +598,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'search.publicShelves': 'Bretoj',
 	'search.inShelf': 'en {shelf} {by}',
 	'search.none': 'Neniu rezulto.',
+	'search.failed': "La serĉo ne respondis. Reprovu post momento.",
 
 	'book.back': 'Reen al la katalogo',
 	'book.notFound': 'La libro ne troviĝis.',

@@ -596,6 +596,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'search.publicShelves': 'Hyllor',
 	'search.inShelf': 'i {shelf} {by}',
 	'search.none': 'Inga träffar.',
+	'search.failed': "Sökningen svarade inte. Försök igen om en stund.",
 	'search.inText': 'Sök i böckernas text',
 	'search.textPlaceholder': 'Ord i texten i dina böcker…',
 	'search.textHits': 'Träffar: {count}',
