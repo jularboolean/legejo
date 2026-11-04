@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.42.0 (2026-11-04)
+
+- **Looking something up no longer moves your place in the book.** Opened from
+  a search, from a highlight, or in a book you have finished, the reader is
+  only visiting: a bar under the toolbar says so, your place stays where it
+  was, and the book does not turn up among the ones you are reading, nor does
+  a Kobo move to the passage. Press **Read from here** to read on from there,
+  or **To your place** to go back. Ten pages forward in a row, or reading
+  aloud, count as reading too.
+- **A finished book offers Read again and Browse.** Read again starts from the
+  beginning; Browse opens the book as a visit, at the beginning rather than at
+  its last page.
+
 ## 1.41.3 (2026-11-03)
 
 - **PDFs with pictures in JPEG 2000 or JBIG2, and with text in Chinese, Japanese

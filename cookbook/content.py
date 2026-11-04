@@ -437,7 +437,12 @@ Space and Page Down.</p>""",
   """<p>Your place is saved as you read and sent to the server, so the book opens where you left
 it on any device. If you last read it on a Kobo or in KOReader, the reader starts at about the
 same place: those devices report a percentage, not a line. The other way is exact: a Kobo opens
-the book at the sentence you reached in the browser, after its next sync (Recipe 8.2).</p>"""),
+the book at the sentence you reached in the browser, after its next sync (Recipe 8.2).</p>
+<p>Opened from a search, from a highlight, or in a book you have finished, the reader is only
+visiting: a bar under the toolbar says so, and your place stays where it was. Press
+<strong>Read from here</strong> to read on from there, or <strong>To your place</strong> to go
+back. Ten pages forward in a row count as reading too. The page of a finished book offers
+<strong>Read again</strong>, from the start, and <strong>Browse</strong>, a visit.</p>"""),
 
  ("Making the Page Yours",
   "<p>The text is too small, the lines too tight, or the white too bright.</p>",

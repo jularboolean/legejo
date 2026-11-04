@@ -1376,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "legejo"
-version = "1.41.3"
+version = "1.42.0"
 dependencies = [
  "anyhow",
  "argon2",

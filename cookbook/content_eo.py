@@ -442,7 +442,12 @@ kiel la sagoklavoj, la spacoklavo kaj Page Down.</p>""",
 tie, kie vi haltis, en ĉiu aparato. Se vi laste legis ĝin sur Kobo aŭ en KOReader, la retlegilo
 komencas proksimume ĉe la sama loko: tiuj aparatoj raportas procenton, ne linion. La alia direkto
 estas preciza: Kobo malfermas la libron ĉe la frazo, ĝis kiu vi venis en la retumilo, post sia
-sekva sinkronigo (Recepto 8.2).</p>"""),
+sekva sinkronigo (Recepto 8.2).</p>
+<p>Malfermita el serĉo, el markaĵo, aŭ en libro, kiun vi jam finlegis, la legilo nur vizitas:
+strio sub la ilobreto diras tion, kaj via loko restas, kie ĝi estis. Premu
+<strong>Legi de ĉi tie</strong> por legi plu de tie, aŭ <strong>Al via loko</strong> por
+reiri. Dek paĝoj antaŭen sinsekve ankaŭ kalkuliĝas kiel legado. La paĝo de finlegita libro
+proponas <strong>Relegi</strong>, de la komenco, kaj <strong>Foliumi</strong>, viziton.</p>"""),
 
  ("Adapti la paĝon al vi",
   "<p>La teksto estas tro malgranda, la linioj tro densaj, aŭ la blanko tro hela.</p>",
