@@ -22,6 +22,8 @@
 	import Sheet from '../Sheet.svelte';
 	import { createProgressStore } from '../progress';
 	import { startReadingClock } from '../readingClock';
+	import VisitBar from '../VisitBar.svelte';
+	import { isFinished, opensAsVisit, opensAtStart, visitCounter } from '../visit';
 	import { loadSettings, saveSettings, THEMES } from '../settings';
 	import { palettes } from '../themes';
 	import type { ReaderTheme } from '../types';
@@ -35,8 +37,10 @@
 		back: string | null;
 		/** Words to search the book for once it is open. */
 		find?: string | null;
+		/** Read the book again: from the start, and never as a visit. */
+		reread?: boolean;
 	};
-	let { book, at, back, find = null }: Props = $props();
+	let { book, at, back, find = null, reread = false }: Props = $props();
 
 	// The route starts a new reader for another book (it is keyed on the book).
 	// svelte-ignore state_referenced_locally
@@ -320,7 +324,13 @@
 	// ---- Position ---------------------------------------------------------------
 
 	const progress = createProgressStore(bookId);
-	const clock = startReadingClock(bookId, () => (status === 'ready' ? 'reading' : 'away'));
+	const clock = startReadingClock(bookId, () => (status === 'ready' && !visiting ? 'reading' : 'away'));
+	// A visit leaves the reading position and the reading time alone (visit.ts).
+	// svelte-ignore state_referenced_locally
+	let visiting = $state(opensAsVisit(book, { at, find, reread }));
+	const visitTurns = visitCounter();
+	/** The reading position the visit leaves alone, to go back to. */
+	let kept = $state.raw<{ page: number; percent: number } | null>(null);
 	/** The page at the middle of the screen. */
 	let current = $state(1);
 	/** Saved only once the reader has moved: the page it opened at may come from another device. */
@@ -347,7 +357,9 @@
 			const middle = scroller.scrollTop + scroller.clientHeight / 2;
 			const page = pageAt(middle);
 			if (page !== current) {
+				const forward = page > current;
 				current = page;
+				if (visiting && moved && visitTurns.turned(forward)) endVisit();
 				if (moved) savePosition();
 			}
 			placeBar();
@@ -355,7 +367,7 @@
 	}
 
 	function savePosition() {
-		if (!total) return;
+		if (!total || visiting) return;
 		const box = layout[current - 1];
 		const into = scroller && box ? Math.min(1, Math.max(0, (scroller.scrollTop + scroller.clientHeight / 2 - box.top) / box.height)) : 0;
 		progress.save({ cfi: encodePage(current), percent: (current - 1 + into) / total });
@@ -368,8 +380,24 @@
 		scroller.scrollTo({ top: Math.max(0, box.top + box.height * down - 72) });
 	}
 
+	/** Read on from here: the page shown is the reading position from now on. */
+	function endVisit() {
+		if (!visiting) return;
+		visiting = false;
+		moved = true;
+		savePosition();
+	}
+
+	/** Back to the reading position, to read on there. */
+	function toKept() {
+		if (!kept) return;
+		visiting = false;
+		go(kept.page);
+	}
+
 	function go(page: number, down = 0) {
 		moved = true;
+		visitTurns.reset();
 		show(page, down);
 		current = Math.min(Math.max(page, 1), total);
 		savePosition();
@@ -895,9 +923,12 @@
 				const mark = at ? annotations.find((a) => a.id === at) : null;
 				const passage = mark ? decodePassage(mark.cfi) : null;
 				if (passage) show(passage[0].page, passage[0].rects[0]?.top ?? 0);
-				else if (saved) {
+				else if (saved && !opensAtStart(book, { at, find, reread })) {
 					const page = pageOf(saved.cfi) ?? Math.floor((saved.percent ?? 0) * total) + 1;
 					show(page);
+				}
+				if (saved && visiting && !isFinished(book)) {
+					kept = { page: pageOf(saved.cfi) ?? Math.floor((saved.percent ?? 0) * total) + 1, percent: saved.percent };
 				}
 				if (find) {
 					query = find;
@@ -1083,6 +1114,15 @@
 			<span class="where">{t('reader.pdf.pageOf', { page: current, total })}</span>
 		</footer>
 	{/if}
+
+	<VisitBar
+		{visiting}
+		visible={chrome && status === 'ready'}
+		top={`${headHeight}px`}
+		kept={kept?.percent ?? null}
+		onread={endVisit}
+		onplace={kept ? toKept : null}
+	/>
 
 	{#if (pending || editing) && status === 'ready'}
 		<AnnotateBar

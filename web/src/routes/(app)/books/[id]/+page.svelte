@@ -253,7 +253,17 @@
 			<p class="elsewhere">{t('book.koboTime', { time: formatLength((book.kobo_minutes ?? 0) * 60) })}</p>
 		{/if}
 		{#if !readHere(book)}<p class="elsewhere">{t('book.readElsewhere', { format: book.format.toUpperCase() })}</p>{/if}
-		{#if readHere(book)}
+		{#if readHere(book) && finished}
+			<!-- A finished book opens as a visit, leaving it finished; reading it again starts over. -->
+			<a class="read" href={`/books/${book.id}/read?reread=1`}>
+				<RotateCcw size={15} />
+				{t('book.reread')}
+			</a>
+			<a class="download" href={`/books/${book.id}/read`}>
+				<BookOpen size={14} />
+				{t('book.browse')}
+			</a>
+		{:else if readHere(book)}
 			<a class="read" href={`/books/${book.id}/read`}>
 				<BookOpen size={15} />
 				{progress !== null ? t('book.continue') : t('book.read')}

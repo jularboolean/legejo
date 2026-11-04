@@ -16,6 +16,7 @@
 	} from './gestures';
 	import { createProgressStore } from './progress';
 	import { startReadingClock } from './readingClock';
+	import { isFinished, opensAsVisit, opensAtStart, visitCounter } from './visit';
 	import { LIMITS, loadSettings, saveSettings } from './settings';
 	import { palettes } from './themes';
 	import {
@@ -46,6 +47,7 @@
 	import HelpPanel from './HelpPanel.svelte';
 	import NotesPanel from './NotesPanel.svelte';
 	import SpeechBar from './SpeechBar.svelte';
+	import VisitBar from './VisitBar.svelte';
 	import ProgressBar from './ProgressBar.svelte';
 	import ReaderToolbar from './ReaderToolbar.svelte';
 	import SearchPanel from './SearchPanel.svelte';
@@ -57,7 +59,8 @@
 		book,
 		at = null,
 		back = null,
-		find = null
+		find = null,
+		reread = false
 	}: {
 		book: BookDetail;
 		/** A highlight to open the book at, by its id, instead of the reading position. */
@@ -66,6 +69,8 @@
 		back?: string | null;
 		/** Words to search the book for once it is open. */
 		find?: string | null;
+		/** Read the book again: from the start, and never as a visit. */
+		reread?: boolean;
 	} = $props();
 	// svelte-ignore state_referenced_locally
 	const bookId = book.id;
@@ -154,8 +159,39 @@
 	const progress = createProgressStore(bookId);
 	/** Time spent reading, counted while the page is in view and the reader active. */
 	const clock = startReadingClock(bookId, () =>
-		status !== 'ready' ? 'away' : speechState === 'playing' ? 'listening' : 'reading'
+		status !== 'ready' || visiting ? 'away' : speechState === 'playing' ? 'listening' : 'reading'
 	);
+	// A visit (from a search, a highlight, or in a finished book) leaves the
+	// reading position as it is, and counts no reading time, until the reader
+	// reads on from there or turns enough pages in a row (visit.ts).
+	// svelte-ignore state_referenced_locally
+	let visiting = $state(opensAsVisit(book, { at, find, reread }));
+	const visitTurns = visitCounter();
+	/** The reading position the visit leaves alone, to go back to. */
+	let kept = $state.raw<{ cfi: string | null; percent: number } | null>(null);
+
+	/** Read on from here: the place shown is the reading position from now on. */
+	function endVisit() {
+		if (!visiting) return;
+		visiting = false;
+		moved = true;
+		if (!location) return;
+		savedCfi = location.cfi;
+		savedExact = location.exact;
+		progress.save({ cfi: location.cfi, percent: location.percent, text: location.excerpt });
+	}
+
+	/** Back to the reading position, to read on there. */
+	function toKept() {
+		const target = kept;
+		if (!target) return;
+		visiting = false;
+		moved = true;
+		forgetReturn();
+		clearHighlight();
+		(target.cfi ? engine?.goTo(target.cfi) : engine?.goToPercent(target.percent))?.catch(() => {});
+		stage.focus({ preventScroll: true });
+	}
 	// Positions are only saved once the reader has moved: the position a book
 	// opens at may come from another device and must not be written back.
 	let moved = false;
@@ -169,7 +205,7 @@
 		placeEndsSoon();
 		// The reader turned the page or jumped: reading aloud goes on from there.
 		speech?.resync();
-		if (!moved) return;
+		if (!moved || visiting) return;
 		// The same place is saved again once its percentage is exact: until the
 		// positions are worked out it is an estimate, and the catalog shows it.
 		if (next.cfi === savedCfi && (savedExact || !next.exact)) return;
@@ -205,6 +241,7 @@
 	/** Call before leaving the current page for somewhere else in the book. */
 	function leaving() {
 		moved = true;
+		visitTurns.reset();
 		const from = location?.cfi;
 		if (!from) return;
 		returnTo = from;
@@ -231,8 +268,9 @@
 	}
 
 	/** What a page turn leaves behind it, before the page moves. */
-	function beforeTurn() {
+	function beforeTurn(forward: boolean) {
 		moved = true;
+		if (visiting && visitTurns.turned(forward)) endVisit();
 		hideChrome();
 		clearHighlight();
 		hoverNote = null;
@@ -247,7 +285,7 @@
 			showToast(t('reader.endOfBook'));
 			return;
 		}
-		beforeTurn();
+		beforeTurn(forward);
 		const go = () => (forward ? engine!.next() : engine!.prev()).catch(() => {});
 		if (!turnLeaf(forward, go)) go().then(() => slide(forward));
 	}
@@ -285,6 +323,7 @@
 		});
 		// Listening is reading: the position is saved as it moves on.
 		moved = true;
+		endVisit();
 		hideChrome();
 		speech.toggle();
 	}
@@ -411,7 +450,7 @@
 			// Seen from the reader: pulling to the left turns forward, in a right-to-left book back.
 			const forward = (p.dx < 0) !== rtl;
 			if (forward ? location?.atEnd : location?.atStart) return false;
-			beforeTurn();
+			beforeTurn(forward);
 			let turned: Promise<unknown> = Promise.resolve();
 			const go = () => (turned = (forward ? engine!.next() : engine!.prev()).catch(() => {}));
 			if (!turnLeaf(forward, go, true) || !leaf) return false;
@@ -1172,9 +1211,11 @@
 			const saved = await progress.load();
 			if (closed) return;
 			savedCfi = saved?.cfi ?? null;
+			kept = visiting && saved && !isFinished(book) ? { cfi: saved.cfi, percent: saved.percent } : null;
 			// Opened at a highlight (from the list of notes): there, not at the
 			// reading position, which is left as it is until the reader moves on.
 			const visit = at == null ? null : await highlightAt(at);
+			const fromStart = opensAtStart(book, { at, find, reread });
 			if (closed) return;
 			const opened = await openReader({
 				host,
@@ -1182,8 +1223,8 @@
 				cacheKey: String(bookId),
 				cacheVersion: `${book.file_size}:${book.updated_at ?? book.created_at}`,
 				settings,
-				initialCfi: visit ?? saved?.cfi,
-				initialPercent: saved?.percent,
+				initialCfi: fromStart ? null : (visit ?? saved?.cfi),
+				initialPercent: fromStart ? null : saved?.percent,
 				onDownload: (fraction) => (downloaded = fraction),
 				onRelocated,
 				onLocationsReady: () => (locationsReady = true),
@@ -1213,7 +1254,7 @@
 			// Last read on a Kobo: opened at its percentage, then moved to the
 			// line the device was on, found by its words. Not saved back: the
 			// reader has not moved yet.
-			if (!visit && !saved?.cfi && saved?.koboText) {
+			if (!fromStart && !visit && !saved?.cfi && saved?.koboText) {
 				const line = await opened.locate(saved.koboText, saved.koboChapter ?? null).catch(() => null);
 				if (line && !closed && engine === opened && !moved) await opened.goTo(line).catch(() => {});
 			}
@@ -1500,6 +1541,15 @@
 			<div>{t('reader.hint.next')}<ChevronRight size={26} /></div>
 		</div>
 	{/if}
+
+	<VisitBar
+		{visiting}
+		visible={chromeVisible && status === 'ready'}
+		top="calc(3.2rem + env(safe-area-inset-top))"
+		kept={kept?.percent ?? null}
+		onread={endVisit}
+		onplace={kept ? toKept : null}
+	/>
 
 	<ProgressBar
 		{location}
