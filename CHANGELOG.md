@@ -4,6 +4,17 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.43.0 (2026-11-04)
+
+- **The librarian translates a passage.** Select a sentence in a book in
+  another language and choose **Translate**, or tap a highlight you have
+  already made: the librarian's model puts it into the language you use
+  Legejo in. The translation is kept with the highlight, so it is asked for
+  once, and stands under it in the reader, on the My notes page and in the
+  Markdown export. It needs the librarian, set up by the operator and turned
+  on in your account; translations have a limit per hour of their own, and
+  the Admin page counts them apart from questions.
+
 ## 1.42.0 (2026-11-04)
 
 - **Looking something up no longer moves your place in the book.** Opened from
