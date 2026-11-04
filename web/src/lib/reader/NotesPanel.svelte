@@ -34,6 +34,7 @@
 				<li>
 					<button class="passage" onclick={() => onselect(a)} disabled={!a.cfi}>
 						<q>{a.text}</q>
+						{#if a.translation}<span class="translation" lang={a.translation_language ?? undefined}>{a.translation}</span>{/if}
 						{#if a.note}<span class="note">{a.note}</span>{/if}
 						{#if a.source === 'kobo'}<span class="from">{t('reader.notes.fromKobo')}</span>{/if}
 					</button>
@@ -90,6 +91,10 @@
 		overflow: hidden;
 		border-left: 3px solid #f2c94c;
 		padding-left: 0.6rem;
+	}
+	.translation {
+		color: var(--r-muted);
+		font-style: italic;
 	}
 	.note {
 		color: var(--r-muted);

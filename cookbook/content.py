@@ -540,6 +540,19 @@ article.</p>""",
   """<p>A word is looked up as the dictionary has it: <em>ĉambrojn</em> as <em>ĉambro</em>,
 <em>legis</em> as <em>legi</em>. The server asks the dictionary for you, so the words you look up
 leave the instance, but not who you are.</p>"""),
+
+ ("Translating a Passage",
+  "<p>A whole sentence stops you, not just a word: an idiom, an old turn of phrase, a line of verse.</p>",
+  """<p><em>Optional: the librarian is set up on the instance and you have turned it on under
+<strong>Account</strong>.</em></p>
+<p>Select the passage and choose <strong>Translate</strong>. It is highlighted, and the librarian
+puts it into the language you have chosen for Legejo; the translation stands under the passage, in
+the list of highlights and on the <strong>My notes</strong> page. An existing highlight has
+<strong>Translate</strong> too: tap it in the text.</p>""",
+  """<p>The translation is kept with the highlight, so it is made once. The passage, the book's title
+and author and its language are sent to the librarian's model; nothing else of the book. A language
+model translates well, but not without fault: when a line matters, compare it with the original.
+In a book in your own language there is nothing to translate, and the button is not there.</p>"""),
  ]),
 
 ("Legejo as an App",

@@ -17,6 +17,7 @@
 	import { createProgressStore } from './progress';
 	import { startReadingClock } from './readingClock';
 	import { isFinished, opensAsVisit, opensAtStart, visitCounter } from './visit';
+	import { canTranslate, translateAnnotation } from './translate';
 	import { LIMITS, loadSettings, saveSettings } from './settings';
 	import { palettes } from './themes';
 	import {
@@ -791,25 +792,62 @@
 		engine?.clearSelection();
 	}
 
+	/** The pending passage as a highlight. */
+	async function createHighlight(passage: Passage, note: string | null): Promise<Annotation> {
+		const res = await fetch(`/api/books/${bookId}/annotations`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ cfi: passage.cfi, text: passage.text, note, place: await placeOf(passage.cfi) })
+		});
+		if (!res.ok) throw new Error(String(res.status));
+		const made: Annotation = await res.json();
+		annotations = [...annotations, made];
+		return made;
+	}
+
 	async function saveHighlight(note: string | null) {
 		if (!pending || annotating) return;
 		annotating = true;
 		annotateError = null;
 		try {
-			const res = await fetch(`/api/books/${bookId}/annotations`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cfi: pending.cfi, text: pending.text, note, place: await placeOf(pending.cfi) })
-			});
-			if (!res.ok) throw new Error(String(res.status));
-			const made: Annotation = await res.json();
-			annotations = [...annotations, made];
+			await createHighlight(pending, note);
 			dismissAnnotate();
 			showToast(t('reader.notes.saved'));
 		} catch {
 			annotateError = t('edit.saveFailed');
 		} finally {
 			annotating = false;
+		}
+	}
+
+	let translating = $state(false);
+	const translatable = $derived(!!page.data.librarian && !page.data.offline && canTranslate(book.language, getLocale()));
+
+	/** The passage in the reader's language: a new passage is highlighted first, to keep the translation with. */
+	async function translate() {
+		if (annotating || translating || (!editing && !pending)) return;
+		translating = true;
+		annotateError = null;
+		try {
+			let target = editing;
+			if (!target && pending) {
+				try {
+					target = await createHighlight(pending, null);
+				} catch {
+					annotateError = t('edit.saveFailed');
+					return;
+				}
+				dismissAnnotate();
+				editing = target;
+			}
+			if (!target) return;
+			const done = await translateAnnotation(target.id);
+			annotations = annotations.map((a) => (a.id === done.id ? done : a));
+			if (editing?.id === done.id) editing = done;
+		} catch (e) {
+			annotateError = e instanceof Error ? e.message : t('reader.translate.failed');
+		} finally {
+			translating = false;
 		}
 	}
 
@@ -1489,6 +1527,10 @@
 			onsave={saveNote}
 			ondelete={deleteAnnotation}
 			onshare={editing ? shareAnnotation : null}
+			translation={editing?.translation ?? null}
+			translationLanguage={editing?.translation_language ?? null}
+			{translating}
+			ontranslate={translatable ? translate : null}
 			oncancel={dismissAnnotate}
 		/>
 	{/if}

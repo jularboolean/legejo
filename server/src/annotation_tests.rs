@@ -113,10 +113,12 @@ fn a_passage_of_several_lines_is_quoted_line_by_line() {
         color: None,
         location: None,
         place: None,
+        translation: Some(" A line.\n Another. ".into()),
+        translation_language: Some("en".into()),
         created_at: String::new(),
         updated_at: String::new(),
     };
-    assert_eq!(markdown("Bok", None, &[a]), "# Bok\n\n> En rad.\n> En till.\n\nok\n");
+    assert_eq!(markdown("Bok", None, &[a]), "# Bok\n\n> En rad.\n> En till.\n\n*A line. Another.*\n\nok\n");
 }
 
 #[tokio::test]

@@ -220,17 +220,31 @@ struct Reply {
 /// A list of books and the question, to the model: a part of the catalogue
 /// to pick candidates from, or the candidates for a second look.
 async fn ask_model(state: &AppState, ai: &Ai, instructions: &str, catalogue: &str, question: &str) -> Result<Reply, String> {
-    let mut request = json!({
-        "model": ai.model,
-        "messages": [
-            // The catalogue comes first and is the same from question to
-            // question, which lets a provider that keeps what it has read
-            // charge less for it.
-            { "role": "system", "content": format!("{instructions}\n\n{catalogue}") },
-            { "role": "user", "content": question },
-        ],
-        "response_format": { "type": "json_object" },
-    });
+    let messages = json!([
+        // The catalogue comes first and is the same from question to
+        // question, which lets a provider that keeps what it has read
+        // charge less for it.
+        { "role": "system", "content": format!("{instructions}\n\n{catalogue}") },
+        { "role": "user", "content": question },
+    ]);
+    let said = chat(state, ai, messages, true).await?;
+    Ok(Reply { ids: ids_in(&said.text), prompt_tokens: said.prompt_tokens, completion_tokens: said.completion_tokens })
+}
+
+/// What the model answered, and what the request took.
+pub(crate) struct Said {
+    pub text: String,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
+}
+
+/// Messages to the model's chat completions. Asked for JSON, a provider that
+/// does not know the JSON mode is asked once more without it.
+pub(crate) async fn chat(state: &AppState, ai: &Ai, messages: Value, json_mode: bool) -> Result<Said, String> {
+    let mut request = json!({ "model": ai.model, "messages": messages });
+    if json_mode {
+        request["response_format"] = json!({ "type": "json_object" });
+    }
     let send = |request: Value| async move {
         let response = state
             .http
@@ -248,18 +262,43 @@ async fn ask_model(state: &AppState, ai: &Ai, instructions: &str, catalogue: &st
     let (mut status, mut body) = send(request.clone()).await?;
     // Not every provider knows the JSON mode; the instructions ask for JSON
     // as well, so the request is worth one more try without it.
-    if status == reqwest::StatusCode::BAD_REQUEST || status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+    if json_mode && (status == reqwest::StatusCode::BAD_REQUEST || status == reqwest::StatusCode::UNPROCESSABLE_ENTITY) {
         request.as_object_mut().map(|r| r.remove("response_format"));
         (status, body) = send(request).await?;
     }
     if !status.is_success() {
         return Err(format!("HTTP {status}: {}", body["error"]["message"].as_str().unwrap_or("no reason given")));
     }
-    Ok(Reply {
-        ids: ids_in(body["choices"][0]["message"]["content"].as_str().unwrap_or("")),
+    Ok(Said {
+        text: body["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string(),
         prompt_tokens: body["usage"]["prompt_tokens"].as_i64().unwrap_or(0),
         completion_tokens: body["usage"]["completion_tokens"].as_i64().unwrap_or(0),
     })
+}
+
+/// Requests of a kind ("question" or "translation") the user has made in the last hour.
+pub(crate) async fn used_this_hour(state: &AppState, user_id: i64, kind: &str) -> anyhow::Result<i64> {
+    Ok(sqlx::query_scalar("SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND at > $2 AND kind = $3")
+        .bind(user_id)
+        .bind(crate::db::ts_in_hours(-1))
+        .bind(kind)
+        .fetch_one(&state.db)
+        .await?)
+}
+
+/// A request to the model, for the limit and the operator's view of the use.
+pub(crate) async fn record(state: &AppState, user_id: i64, kind: &str, model: &str, prompt_tokens: i64, completion_tokens: i64) {
+    let _ = sqlx::query(
+        "INSERT INTO ai_usage (user_id, at, model, prompt_tokens, completion_tokens, kind) VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(user_id)
+    .bind(now_ts())
+    .bind(model)
+    .bind(prompt_tokens)
+    .bind(completion_tokens)
+    .bind(kind)
+    .execute(&state.db)
+    .await;
 }
 
 /// Whether the user has turned the librarian on for themselves.
@@ -309,12 +348,7 @@ pub async fn ask(
     if !turned_on(&state, id).await {
         return Err(fail(StatusCode::FORBIDDEN, "not-turned-on"));
     }
-    let recent: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND at > $2")
-        .bind(id)
-        .bind(crate::db::ts_in_hours(-1))
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| internal(e.into()))?;
+    let recent = used_this_hour(&state, id, "question").await.map_err(internal)?;
     if recent >= PER_HOUR {
         return Err(fail(StatusCode::TOO_MANY_REQUESTS, "too-many"));
     }
@@ -414,16 +448,7 @@ pub async fn ask(
     }
     picked.truncate(MAX_ANSWER);
     // What was answered is paid for, whatever became of the rest.
-    {
-        let _ = sqlx::query("INSERT INTO ai_usage (user_id, at, model, prompt_tokens, completion_tokens) VALUES ($1, $2, $3, $4, $5)")
-            .bind(id)
-            .bind(now_ts())
-            .bind(&ai.model)
-            .bind(prompt_tokens)
-            .bind(completion_tokens)
-            .execute(&state.db)
-            .await;
-    }
+    record(&state, id, "question", &ai.model, prompt_tokens, completion_tokens).await;
     let (mut chosen, mut borrowed) = (Vec::new(), Vec::new());
     for id in picked {
         if let Some(i) = books.iter().position(|b| b.id == id) {
@@ -449,23 +474,27 @@ pub struct Summary {
     pub endpoint: String,
     pub model: String,
     pub questions: i64,
+    /// Highlights translated.
+    pub translations: i64,
     pub prompt_tokens: i64,
     pub completion_tokens: i64,
 }
 
 pub async fn summary(state: &AppState) -> Option<Summary> {
     let ai = state.live.ai()?;
-    let (questions, prompt_tokens, completion_tokens): (i64, i64, i64) = sqlx::query_as(
-        "SELECT COUNT(*), CAST(COALESCE(SUM(prompt_tokens), 0) AS BIGINT), CAST(COALESCE(SUM(completion_tokens), 0) AS BIGINT)
+    let (questions, translations, prompt_tokens, completion_tokens): (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT CAST(COALESCE(SUM(CASE WHEN kind = 'translation' THEN 0 ELSE 1 END), 0) AS BIGINT),
+                CAST(COALESCE(SUM(CASE WHEN kind = 'translation' THEN 1 ELSE 0 END), 0) AS BIGINT),
+                CAST(COALESCE(SUM(prompt_tokens), 0) AS BIGINT), CAST(COALESCE(SUM(completion_tokens), 0) AS BIGINT)
          FROM ai_usage WHERE at > $1",
     )
     .bind(crate::db::ts_in_days(-30))
     .fetch_one(&state.db)
     .await
-    .unwrap_or((0, 0, 0));
+    .unwrap_or((0, 0, 0, 0));
     let endpoint =
         reqwest::Url::parse(&ai.base_url).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_else(|| ai.base_url.clone());
-    Some(Summary { endpoint, model: ai.model.clone(), questions, prompt_tokens, completion_tokens })
+    Some(Summary { endpoint, model: ai.model.clone(), questions, translations, prompt_tokens, completion_tokens })
 }
 
 #[cfg(test)]

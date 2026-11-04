@@ -30,7 +30,7 @@
 	}: {
 		connections: ConnectionsData;
 		/** The librarian's use over the last 30 days, when it is set up. */
-		usage: { questions: number; prompt_tokens: number; completion_tokens: number } | null;
+		usage: { questions: number; translations?: number; prompt_tokens: number; completion_tokens: number } | null;
 	} = $props();
 
 	// svelte-ignore state_referenced_locally
@@ -299,7 +299,7 @@
 	{#if aiOutcome}<p class={aiOutcome.ok ? 'ok' : 'error'}>{aiOutcome.text}</p>{/if}
 	{#if usage && c.librarian.source !== 'none'}
 		<p class="hint">
-			{t('admin.librarianUse', { questions: usage.questions, input: usage.prompt_tokens, output: usage.completion_tokens })}
+			{t('admin.librarianUse', { questions: usage.questions, translations: usage.translations ?? 0, input: usage.prompt_tokens, output: usage.completion_tokens })}
 		</p>
 	{/if}
 </section>

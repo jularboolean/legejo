@@ -4,7 +4,7 @@
 	// page, where the reading-aloud controls sit otherwise, or at its top
 	// when the passage is low on the page, so that it never covers it.
 	import { tick } from 'svelte';
-	import { BookA, Highlighter, MessageSquarePlus, Share2, TextSelect, Trash2, X } from '@lucide/svelte';
+	import { BookA, Highlighter, Languages, MessageSquarePlus, Share2, TextSelect, Trash2, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
 
@@ -34,9 +34,38 @@
 		ondelete: () => void;
 		/** Share an existing highlight as a picture; null where it cannot be. */
 		onshare?: (() => void) | null;
+		/** The passage in the reader's language, once translated. */
+		translation?: string | null;
+		/** The language of the translation. */
+		translationLanguage?: string | null;
+		/** Waiting for the translation. */
+		translating?: boolean;
+		/** Translate the passage, highlighting it first when it is new; null
+		 * when the librarian is off or the book is in the reader's language. */
+		ontranslate?: (() => void) | null;
 		oncancel: () => void;
 	};
-	let { text, note, editing, saving, error, raised, top = false, faded = false, lookupLanguage = null, onsentence = null, onhighlight, onsave, ondelete, onshare = null, oncancel }: Props = $props();
+	let {
+		text,
+		note,
+		editing,
+		saving,
+		error,
+		raised,
+		top = false,
+		faded = false,
+		lookupLanguage = null,
+		onsentence = null,
+		onhighlight,
+		onsave,
+		ondelete,
+		onshare = null,
+		translation = null,
+		translationLanguage = null,
+		translating = false,
+		ontranslate = null,
+		oncancel
+	}: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
 	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
@@ -105,6 +134,14 @@
 			<X size={18} />
 		</button>
 	</div>
+	{#if translation}
+		<div class="translation" aria-live="polite">
+			<p lang={translationLanguage ?? undefined}>{translation}</p>
+			<p class="source">{t('reader.translate.by')}</p>
+		</div>
+	{:else if translating}
+		<p class="source" aria-live="polite">{t('reader.translate.working')}</p>
+	{/if}
 	{#if writing}
 		<textarea
 			bind:this={field}
@@ -151,6 +188,12 @@
 					{t('share.button')}
 				</button>
 			{/if}
+			{#if ontranslate && !translation}
+				<button type="button" class="act" onclick={ontranslate} disabled={saving || translating} title={t('reader.translate.title')}>
+					<Languages size={15} />
+					{t('reader.translate')}
+				</button>
+			{/if}
 			{#if !writing}
 				<button type="button" class="act" onclick={startNote} disabled={saving}>
 					<MessageSquarePlus size={15} />
@@ -183,6 +226,12 @@
 				<button type="button" class="act" onclick={lookUp} disabled={looking} title={t('reader.lookup.title', { word })}>
 					<BookA size={15} />
 					{t('reader.lookup.button')}
+				</button>
+			{/if}
+			{#if ontranslate && !translation}
+				<button type="button" class="act" onclick={ontranslate} disabled={saving || translating} title={t('reader.translate.title')}>
+					<Languages size={15} />
+					{t('reader.translate')}
 				</button>
 			{/if}
 		{/if}
@@ -289,6 +338,23 @@
 		gap: 0.5rem;
 		font-size: 0.9rem;
 		line-height: 1.4;
+	}
+	.translation {
+		max-height: 30vh;
+		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		padding-left: 0.6rem;
+		border-left: 2px solid var(--r-border);
+		font-size: 0.92rem;
+		line-height: 1.45;
+	}
+	.translation p {
+		margin: 0;
+	}
+	.annotate > .source {
+		margin: 0;
 	}
 	.entry p,
 	.lookup p {

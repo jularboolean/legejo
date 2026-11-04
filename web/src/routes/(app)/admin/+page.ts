@@ -32,7 +32,7 @@ export const load: PageLoad = async ({ fetch }) => {
 		fulltext_env?: boolean;
 		registration_enabled: boolean;
 		mail_configured: boolean;
-		librarian?: { endpoint: string; model: string; questions: number; prompt_tokens: number; completion_tokens: number };
+		librarian?: { endpoint: string; model: string; questions: number; translations?: number; prompt_tokens: number; completion_tokens: number };
 	} = settingsRes.ok
 		? await settingsRes.json()
 		: { libris_enabled: true, registration_enabled: false, mail_configured: false };

@@ -545,6 +545,19 @@ tuta artikolo.</p>""",
   """<p>Vorto estas serĉata tiel, kiel la vortaro havas ĝin: <em>ĉambrojn</em> kiel <em>ĉambro</em>,
 <em>legis</em> kiel <em>legi</em>. La servilo demandas la vortaron anstataŭ vi, do la vortoj, kiujn vi
 serĉas, forlasas la instancon, sed ne kiu vi estas.</p>"""),
+
+ ("Traduki eron",
+  "<p>Tuta frazo haltigas vin, ne nur vorto: idiotismo, malnova esprimo, verso.</p>",
+  """<p><em>Laŭvole: la bibliotekisto estas agordita en la instanco, kaj vi ŝaltis ĝin en
+<strong>Konto</strong>.</em></p>
+<p>Elektu la eron kaj premu <strong>Traduki</strong>. Ĝi estas markata, kaj la bibliotekisto
+tradukas ĝin al la lingvo, kiun vi elektis por Legejo; la traduko staras sub la ero, en la listo de
+markoj kaj en la paĝo <strong>Miaj notoj</strong>. Ankaŭ ekzistanta marko havas <strong>Traduki</strong>: tuŝetu ĝin
+en la teksto.</p>""",
+  """<p>La traduko estas konservata kun la marko, do ĝi estas farata unufoje. La ero, la titolo, la
+aŭtoro kaj la lingvo de la libro estas sendataj al la modelo de la bibliotekisto; nenio alia el la
+libro. Lingvomodelo tradukas bone, sed ne senerare: kiam linio gravas, komparu ĝin kun la originalo.
+En libro en via propra lingvo estas nenio por traduki, kaj la butono ne estas tie.</p>"""),
  ]),
 
 ("Legejo kiel aplikaĵo",

@@ -281,6 +281,7 @@ fn router(state: AppState) -> Router {
         .route("/annotations", get(annotations::all))
         .route("/annotations/export", get(annotations::export_all))
         .route("/annotations/{id}", axum::routing::put(annotations::update).delete(annotations::delete))
+        .route("/annotations/{id}/translate", post(annotations::translate))
         .route("/search", get(search::search))
         .route("/search/text", get(fulltext::search))
         .route("/librarian", post(librarian::ask))

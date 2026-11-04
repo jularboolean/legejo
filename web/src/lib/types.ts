@@ -122,6 +122,10 @@ export type Annotation = {
 	location: string | null;
 	/** Chapter, share of the book and printed page, as the reader found them. */
 	place?: Place | null;
+	/** The passage in the reader's language, from the librarian's model. */
+	translation?: string | null;
+	/** The language it was translated into. */
+	translation_language?: string | null;
 	created_at: string;
 	updated_at: string;
 };

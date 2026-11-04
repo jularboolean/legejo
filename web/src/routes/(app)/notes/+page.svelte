@@ -116,6 +116,7 @@
 						<!-- The book's words, as a quotation; the reader's own below, set apart. -->
 						<figure class="passage">
 							<blockquote>{n.text}</blockquote>
+							{#if n.translation}<p class="translation" lang={n.translation_language ?? undefined}>{n.translation}</p>{/if}
 							{#if where}<figcaption class="where">{where}</figcaption>{/if}
 						</figure>
 						{#if editing === n.id}
@@ -317,6 +318,13 @@
 		font-family: Georgia, 'Iowan Old Style', serif;
 		font-size: 1.02rem;
 		line-height: 1.5;
+	}
+	.translation {
+		margin: 0.3rem 0 0;
+		font-size: 0.92rem;
+		line-height: 1.45;
+		font-style: italic;
+		color: var(--muted);
 	}
 	.where {
 		margin-top: 0.25rem;

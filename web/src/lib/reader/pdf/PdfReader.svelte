@@ -13,7 +13,9 @@
 	import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 	import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 	import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
-	import { t } from '#lib/i18n';
+	import { page as pageState } from '$app/state';
+	import { getLocale, t } from '#lib/i18n';
+	import { canTranslate, translateAnnotation } from '../translate';
 	import type { Annotation, BookDetail } from '#lib/types';
 	import { savedVersion } from '#lib/offline/store';
 	import ShareQuote from '#lib/ShareQuote.svelte';
@@ -787,25 +789,63 @@
 		document.getSelection()?.removeAllRanges();
 	}
 
+	/** The pending passage as a highlight. */
+	async function createHighlight(chosen: { passage: PdfPassage; text: string }, note: string | null): Promise<Annotation> {
+		const { passage, text } = chosen;
+		const page = passage[0].page;
+		const res = await fetch(`/api/books/${bookId}/annotations`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ cfi: encodePassage(passage), text, note, place: { chapter: chapterOf(page, passage[0].rects[0]?.top ?? 0), percent: (page - 1) / Math.max(1, total), page: String(page) } })
+		});
+		if (!res.ok) throw new Error(String(res.status));
+		const made: Annotation = await res.json();
+		annotations = [...annotations, made];
+		return made;
+	}
+
 	async function saveHighlight(note: string | null) {
 		if (!pending || saving) return;
 		saving = true;
 		annotateError = null;
-		const { passage, text } = pending;
-		const page = passage[0].page;
 		try {
-			const res = await fetch(`/api/books/${bookId}/annotations`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cfi: encodePassage(passage), text, note, place: { chapter: chapterOf(page, passage[0].rects[0]?.top ?? 0), percent: (page - 1) / Math.max(1, total), page: String(page) } })
-			});
-			if (!res.ok) throw new Error(String(res.status));
-			annotations = [...annotations, await res.json()];
+			await createHighlight(pending, note);
 			dismissAnnotate();
 		} catch {
 			annotateError = t('edit.saveFailed');
 		} finally {
 			saving = false;
+		}
+	}
+
+	let translating = $state(false);
+	const translatable = $derived(!!pageState.data.librarian && !pageState.data.offline && canTranslate(book.language, getLocale()));
+
+	/** The passage in the reader's language: a new passage is highlighted first, to keep the translation with. */
+	async function translate() {
+		if (saving || translating || (!editing && !pending)) return;
+		translating = true;
+		annotateError = null;
+		try {
+			let target = editing;
+			if (!target && pending) {
+				try {
+					target = await createHighlight(pending, null);
+				} catch {
+					annotateError = t('edit.saveFailed');
+					return;
+				}
+				dismissAnnotate();
+				editing = target;
+			}
+			if (!target) return;
+			const done = await translateAnnotation(target.id);
+			annotations = annotations.map((a) => (a.id === done.id ? done : a));
+			if (editing?.id === done.id) editing = done;
+		} catch (e) {
+			annotateError = e instanceof Error ? e.message : t('reader.translate.failed');
+		} finally {
+			translating = false;
 		}
 	}
 
@@ -1137,6 +1177,10 @@
 			onsave={saveNote}
 			ondelete={deleteAnnotation}
 			onshare={editing ? shareAnnotation : null}
+			translation={editing?.translation ?? null}
+			translationLanguage={editing?.translation_language ?? null}
+			{translating}
+			ontranslate={translatable ? translate : null}
 			oncancel={dismissAnnotate}
 		/>
 	{/if}

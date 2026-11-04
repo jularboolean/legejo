@@ -14,6 +14,8 @@ export type Note = {
 	/** As a device said it, for a highlight from a Kobo. */
 	location?: { span?: { chapterTitle?: string } } | null;
 	place?: import('./types').Place | null;
+	translation?: string | null;
+	translation_language?: string | null;
 	created_at: string;
 	updated_at: string;
 	book_title: string;

@@ -149,7 +149,7 @@ async fn the_librarian_picks_from_the_users_own_books() {
     let (_, settings) = send(&app, Method::GET, "/api/admin/settings", Some(&a), None).await;
     assert_eq!(
         settings["librarian"],
-        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 3, "prompt_tokens": 4000, "completion_tokens": 40 })
+        json!({ "endpoint": "127.0.0.1", "model": "test-model", "questions": 3, "translations": 0, "prompt_tokens": 4000, "completion_tokens": 40 })
     );
     assert!(!settings.to_string().contains("secret-key"));
 
@@ -178,4 +178,107 @@ async fn without_a_model_there_is_no_librarian() {
     assert_eq!((status, v["error"].as_str()), (StatusCode::NOT_FOUND, Some("off")));
     let (_, account) = send(&app, Method::GET, "/api/account", Some(&a), None).await;
     assert_eq!(account["librarian_available"], false);
+}
+
+/// A chat-completions endpoint that translates by putting the passage in
+/// quotation marks after "SV:", and keeps what it was sent.
+async fn translator() -> (String, Arc<Mutex<Vec<Value>>>) {
+    let seen: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let log = seen.clone();
+    let app = Router::new().route(
+        "/v1/chat/completions",
+        post(move |Json(body): Json<Value>| {
+            let log = log.clone();
+            async move {
+                let passage = body["messages"][1]["content"].as_str().unwrap_or("").to_string();
+                log.lock().unwrap().push(body);
+                Json(json!({
+                    "choices": [{ "message": { "role": "assistant", "content": format!("“SV: {passage}”") } }],
+                    "usage": { "prompt_tokens": 200, "completion_tokens": 30 },
+                }))
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/v1", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (url, seen)
+}
+
+#[tokio::test]
+async fn a_highlight_is_translated_into_the_readers_language_once() {
+    let (_, db, state) = test_app().await;
+    let (url, seen) = translator().await;
+    state.live.set_ai(Some(crate::settings::Ai { base_url: url, key: "secret-key".into(), model: "test-model".into() }));
+    let app = crate::router(state.clone());
+    let (alice, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    let (book, _) = crate::testutil::add_book(&db, alice, "Madame Bovary").await;
+    sqlx::query("UPDATE books SET language = 'fr', author = 'Gustave Flaubert' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+    sqlx::query("UPDATE users SET locale = 'sv' WHERE id = ?").bind(alice).execute(&db).await.unwrap();
+    let passage = "Nous étions à l'Étude, quand le Proviseur entra.";
+    let (_, h) = send(
+        &app,
+        Method::POST,
+        &format!("/api/books/{book}/annotations"),
+        Some(&a),
+        Some(json!({ "cfi": "epubcfi(/6/4!/4/2,/1:0,/1:9)", "text": passage })),
+    )
+    .await;
+    assert!(h["translation"].is_null());
+    let translate = format!("/api/annotations/{}/translate", h["id"]);
+
+    // Not before she has turned the librarian on, and never someone else's.
+    let (status, v) = send(&app, Method::POST, &translate, Some(&a), None).await;
+    assert_eq!((status, v["error"].as_str()), (StatusCode::FORBIDDEN, Some("not-turned-on")));
+    send(&app, Method::PUT, "/api/account/librarian", Some(&a), Some(json!({ "enabled": true }))).await;
+    send(&app, Method::PUT, "/api/account/librarian", Some(&b), Some(json!({ "enabled": true }))).await;
+    let (status, _) = send(&app, Method::POST, &translate, Some(&b), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(seen.lock().unwrap().len(), 0);
+
+    let (status, t) = send(&app, Method::POST, &translate, Some(&a), None).await;
+    assert_eq!(status, StatusCode::OK, "{t}");
+    // Without the quotation marks the model put around it.
+    assert_eq!(t["translation"].as_str(), Some(format!("SV: {passage}").as_str()));
+    assert_eq!(t["translation_language"], "sv");
+    assert_eq!(t["updated_at"], h["updated_at"], "a device does not take a translation for a change");
+    {
+        let seen = seen.lock().unwrap();
+        let system = seen[0]["messages"][0]["content"].as_str().unwrap();
+        assert!(system.contains("into Swedish") && system.contains("\"Madame Bovary\" by Gustave Flaubert, written in French"), "{system}");
+        assert_eq!(seen[0]["messages"][1]["content"], passage);
+        assert!(seen[0].get("response_format").is_none());
+    }
+    // Asked again, it is the one kept; nothing more is sent or paid for.
+    let (_, again) = send(&app, Method::POST, &translate, Some(&a), None).await;
+    assert_eq!(again["translation"], t["translation"]);
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    let (_, list) = send(&app, Method::GET, "/api/annotations", Some(&a), None).await;
+    assert_eq!(list[0]["translation"], t["translation"]);
+
+    // The operator sees translations apart from questions.
+    sqlx::query("UPDATE users SET is_admin = 1 WHERE id = ?").bind(alice).execute(&db).await.unwrap();
+    let (_, settings) = send(&app, Method::GET, "/api/admin/settings", Some(&a), None).await;
+    assert_eq!((settings["librarian"]["questions"].as_i64(), settings["librarian"]["translations"].as_i64()), (Some(0), Some(1)));
+
+    // A book in the reader's own language needs none.
+    sqlx::query("UPDATE books SET language = 'sv-SE' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+    sqlx::query("UPDATE annotations SET translation = NULL").execute(&db).await.unwrap();
+    let (status, v) = send(&app, Method::POST, &translate, Some(&a), None).await;
+    assert_eq!((status, v["error"].as_str()), (StatusCode::UNPROCESSABLE_ENTITY, Some("same-language")));
+
+    // Translations have a limit of their own, and do not use up the questions'.
+    sqlx::query("UPDATE books SET language = 'fr' WHERE id = ?").bind(book).execute(&db).await.unwrap();
+    for _ in 0..120 {
+        sqlx::query("INSERT INTO ai_usage (user_id, at, model, kind) VALUES (?, ?, 'test-model', 'translation')")
+            .bind(alice)
+            .bind(crate::db::now_ts())
+            .execute(&db)
+            .await
+            .unwrap();
+    }
+    let (status, v) = send(&app, Method::POST, &translate, Some(&a), None).await;
+    assert_eq!((status, v["error"].as_str()), (StatusCode::TOO_MANY_REQUESTS, Some("too-many")));
+    assert_eq!(crate::librarian::used_this_hour(&state, alice, "question").await.unwrap(), 0);
 }
