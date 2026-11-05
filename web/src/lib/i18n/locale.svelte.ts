@@ -9,7 +9,7 @@ import { es } from './es';
 // Translations are keyed by locale (Partial<typeof en> — missing keys fall
 // back to English). To add a language: create the file, register it here and
 // in LANGUAGES below.
-export const locales: Record<string, Partial<Record<MessageKey, string>>> = { en, sv, fi, eo, fr, de, es };
+export const locales: Record<string, Partial<Record<MessageKey, string>>> = { en, sv, fi, eo, fr, de, es, nb };
 
 /// Shown in the account page's language picker, in each language's own name.
 export const LANGUAGES: { code: string; label: string }[] = [
@@ -19,7 +19,8 @@ export const LANGUAGES: { code: string; label: string }[] = [
 	{ code: 'eo', label: 'Esperanto' },
 	{ code: 'fr', label: 'Français' },
 	{ code: 'de', label: 'Deutsch' },
-	{ code: 'es', label: 'Español' }
+	{ code: 'es', label: 'Español' },
+	{ code: 'nb', label: 'Norsk Bokmål' }
 ];
 
 // A rune, so every t() call in a template re-renders when the locale changes.
