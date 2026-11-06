@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BookCover from '#lib/library/BookCover.svelte';
+	import Vocabulary from '#lib/library/Vocabulary.svelte';
 	import openLibraryIcon from '#lib/assets/openlibrary.svg?raw';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, BookMarked, BookOpen, Bookmark, BookmarkCheck, Check, ChevronLeft, ChevronRight, CircleCheck, Download, HardDriveDownload, RotateCcw, FileWarning, Highlighter, Layers, Pencil, Send, TabletSmartphone, Tag, Wrench } from '@lucide/svelte';
@@ -450,6 +451,8 @@
 			</div>
 		{/if}
 
+		<Vocabulary bookId={book.id} part="study" />
+
 		{#if descriptionHtml}
 			<div class="description">{@html descriptionHtml}</div>
 		{:else}
@@ -518,6 +521,8 @@
 			{/if}
 			<dt>{t('book.added')}</dt><dd>{book.created_at.slice(0, 10)}</dd>
 		</dl>
+
+		<Vocabulary bookId={book.id} part="stats" />
 
 		{#if details.length > 0}
 			<details class="file-details">

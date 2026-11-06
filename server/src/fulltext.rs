@@ -394,6 +394,27 @@ fn esperanto_term(term: &Term) -> Option<Term> {
 
 /// The terms as the backend's full-text query; every term must match.
 pub(crate) fn text_expr(backend: Backend, input: &str) -> Option<String> {
+    text_expr_in(backend, input, &[])
+}
+
+/// The stems of a word in these languages, where they differ from the word
+/// and are long enough to search by ("hundarna" in Swedish: "hund").
+fn stems_of(word: &str, languages: &[String]) -> Vec<String> {
+    let lower = word.to_lowercase();
+    let mut out: Vec<String> = Vec::new();
+    for language in languages {
+        let Some(stemmer) = crate::vocabulary::Stemmer::for_language(language) else { continue };
+        let stem = stemmer.stem(&lower);
+        if stem != lower && stem.chars().count() >= 3 && lower.starts_with(&stem) && !out.contains(&stem) {
+            out.push(stem);
+        }
+    }
+    out
+}
+
+/// As `text_expr`, a word also found in its other forms: by its stem in
+/// each of these languages, as a prefix.
+pub(crate) fn text_expr_in(backend: Backend, input: &str, languages: &[String]) -> Option<String> {
     let terms = terms(input);
     if terms.is_empty() {
         return None;
@@ -408,13 +429,30 @@ pub(crate) fn text_expr(backend: Backend, input: &str) -> Option<String> {
                 (Backend::Postgres, Term::Phrase(p)) => format!("({})", p.join(" <-> ")),
             };
             // Typed in Esperanto's x-system ("cxambro"), the term also
-            // finds the words as printed ("ĉambro").
-            match esperanto_term(&term) {
-                Some(alt) => match backend {
-                    Backend::Sqlite => format!("({} OR {})", one(&term), one(&alt)),
-                    Backend::Postgres => format!("({} | {})", one(&term), one(&alt)),
-                },
-                None => one(&term),
+            // finds the words as printed ("ĉambro"); a word also finds its
+            // other forms by its stem.
+            let mut alts: Vec<String> = vec![one(&term)];
+            let written = esperanto_term(&term);
+            if let Some(alt) = &written {
+                alts.push(one(alt));
+            }
+            for word in [Some(&term), written.as_ref()].into_iter().flatten() {
+                if let Term::Word(w) = word {
+                    for stem in stems_of(w, languages) {
+                        let alt = one(&Term::Word(stem));
+                        if !alts.contains(&alt) {
+                            alts.push(alt);
+                        }
+                    }
+                }
+            }
+            if alts.len() == 1 {
+                alts.remove(0)
+            } else {
+                match backend {
+                    Backend::Sqlite => format!("({})", alts.join(" OR ")),
+                    Backend::Postgres => format!("({})", alts.join(" | ")),
+                }
             }
         })
         .collect();
@@ -616,7 +654,18 @@ pub async fn search(
     .await
     .map_err(internal)?;
     let raw = params.q.as_deref().unwrap_or("").trim();
-    let Some(expr) = text_expr(state.backend, raw) else {
+    // The languages of the caller's books, the commonest first: a word is
+    // also looked for in its other forms in them.
+    let languages: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT language, COUNT(*) FROM books WHERE owner_id = $1 AND language IS NOT NULL
+         GROUP BY language ORDER BY COUNT(*) DESC LIMIT 4",
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    let languages: Vec<String> = languages.into_iter().map(|(l, _)| l).collect();
+    let Some(expr) = text_expr_in(state.backend, raw, &languages) else {
         return Ok(Json(TextResult { books: Vec::new(), shared: Vec::new(), pending, truncated: false }));
     };
 
@@ -718,6 +767,16 @@ mod tests {
         assert_eq!(text_expr(Backend::Sqlite, "röd \"lilla stugan\"").unwrap(), "\"röd\"* AND \"lilla stugan\"");
         assert_eq!(text_expr(Backend::Postgres, "röd \"lilla stugan\"").unwrap(), "röd:* & (lilla <-> stugan)");
         assert!(text_expr(Backend::Sqlite, "\"\"").is_none());
+        // In a Swedish library a word also finds its other forms; a phrase stays as it is.
+        let sv = vec!["sv".to_string()];
+        assert_eq!(
+            text_expr_in(Backend::Sqlite, "hundarna \"lilla stugan\"", &sv).unwrap(),
+            "(\"hundarna\"* OR \"hund\"*) AND \"lilla stugan\""
+        );
+        assert_eq!(text_expr_in(Backend::Postgres, "hundarna", &sv).unwrap(), "(hundarna:* | hund:*)");
+        assert_eq!(text_expr_in(Backend::Sqlite, "hund", &sv).unwrap(), "\"hund\"*");
+        let eo = vec!["eo".to_string()];
+        assert_eq!(text_expr_in(Backend::Sqlite, "domojn", &eo).unwrap(), "(\"domojn\"* OR \"dom\"*)");
     }
 
     #[test]

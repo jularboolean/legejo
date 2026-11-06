@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { BOOK_LANGUAGES } from '#lib/library/languages';
+	import { languageLabel } from '#lib/library';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { ArrowLeft, ImagePlus, Plus, Search, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
 	import OpenLibraryLookup from '#lib/OpenLibraryLookup.svelte';
 	import EditionDate from '#lib/EditionDate.svelte';
 	import { normalizePublished, parseYear } from '#lib/pubdate';
@@ -308,6 +310,13 @@
 			saving = false;
 		}
 	}
+
+	// The fixed list, by name in the reader's language.
+	const languageOptions = $derived(
+		BOOK_LANGUAGES.map((code) => ({ code, name: languageLabel(code, getLocale()) })).sort((a, b) =>
+			a.name.localeCompare(b.name, getLocale())
+		)
+	);
 </script>
 
 <a class="back" href={`/books/${data.book.id}`}><ArrowLeft size={13} /> {data.book.title}</a>
@@ -359,7 +368,15 @@
 	<div class="row">
 		<label>
 			{t('edit.language')}
-			<input bind:value={form.language} placeholder="en" />
+			<select bind:value={form.language}>
+				<option value="">{t('edit.languageChoose')}</option>
+				{#if form.language && !BOOK_LANGUAGES.includes(form.language as (typeof BOOK_LANGUAGES)[number])}
+					<option value={form.language}>{t('edit.languageKept', { code: form.language })}</option>
+				{/if}
+				{#each languageOptions as o (o.code)}
+					<option value={o.code}>{o.name}</option>
+				{/each}
+			</select>
 		</label>
 		<label>
 			{t('edit.firstPublished')}

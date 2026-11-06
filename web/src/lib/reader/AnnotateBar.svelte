@@ -68,7 +68,7 @@
 	}: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
-	type Looked = { word: string; source: 'revo' | 'wiktionary' | null; entries: Entry[] };
+	type Looked = { word: string; source: 'revo' | 'espdic' | 'wiktionary' | null; entries: Entry[] };
 
 	/** One word, as a selection of one word comes: a dictionary can take it. */
 	const word = $derived.by(() => {
@@ -170,7 +170,7 @@
 						{/if}
 					</div>
 				{/each}
-				<p class="source">{looked.source === 'revo' ? t('reader.lookup.revo') : t('reader.lookup.wiktionary')}</p>
+				<p class="source">{looked.source === 'revo' ? t('reader.lookup.revo') : looked.source === 'espdic' ? t('reader.lookup.espdic') : t('reader.lookup.wiktionary')}</p>
 			{/if}
 		</div>
 	{/if}

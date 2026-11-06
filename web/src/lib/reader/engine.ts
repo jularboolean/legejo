@@ -20,6 +20,7 @@ import {
 } from './types';
 import { reachPlace } from './placing';
 import { wordSpan } from './words';
+import { createTurnGate } from './turns';
 
 /**
  * Width of the text column in em of the reader's text size. Lines are never
@@ -1123,6 +1124,11 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		return run;
 	}
 
+	// Page turns go through the same queue; at most one waits behind the one
+	// in progress (turns.ts). A turn that never settles is given up after the
+	// display timeout, so the queue cannot stay blocked.
+	const turnGate = createTurnGate(enqueue);
+
 	/** Relocations reported for a short while after a layout are not the reader's doing. */
 	function endLayoutPass() {
 		if (layoutTimer) clearTimeout(layoutTimer);
@@ -1379,24 +1385,24 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		},
 
 		next() {
-			return enqueue(async () => {
+			return turnGate(true, async () => {
 				if (!rendition || scrollScreen(1)) return;
-				await rendition.next();
+				await timeout(rendition.next(), DISPLAY_TIMEOUT_MS);
 			});
 		},
 		prev() {
-			return enqueue(async () => {
+			return turnGate(false, async () => {
 				if (!rendition || scrollScreen(-1)) return;
-				if (paginated) await rendition.prev();
-				else await prevChapter(true);
+				if (paginated) await timeout(rendition.prev(), DISPLAY_TIMEOUT_MS);
+				else await timeout(prevChapter(true), DISPLAY_TIMEOUT_MS);
 			});
 		},
 		nextChapter() {
 			return enqueue(async () => {
 				if (!rendition) return;
-				if (!paginated) return rendition.next();
+				if (!paginated) return timeout(rendition.next(), DISPLAY_TIMEOUT_MS);
 				const target = sections.find((s) => s.index > currentIndex());
-				if (target) await rendition.display(target.href);
+				if (target) await timeout(rendition.display(target.href), DISPLAY_TIMEOUT_MS);
 			});
 		},
 		prevChapter() {

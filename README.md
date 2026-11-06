@@ -39,6 +39,10 @@ with SQLite built in.
 - **Reading:** a web reader with themes, highlights, notes and reading aloud.
   It also reads PDF files and comics, and works offline when installed on a
   phone or tablet.
+- **Vocabulary:** for each book, how many of its commonest words cover most
+  of the text, its names and characteristic words, and a difficulty compared
+  with the other books in the language. Esperanto books get a study list in
+  order of frequency, with English meanings and an export to Anki.
 - **E-readers:** Kobo sync (books, collections, progress and highlights),
   a KOReader sync server, OPDS 1.2 and Send to Kindle.
 - **Shelves to share:** with users on your instance, with someone on another
@@ -52,7 +56,7 @@ with SQLite built in.
   assistant, and a librarian that suggests books from your shelves using a
   model the operator chooses.
 - **Accounts:** several users, invitations, OpenID Connect sign-in, a full
-  export, and an interface in English, Swedish, Finnish, German, French,
+  export, and an interface in English, Swedish, Norwegian Bokmål, Finnish, German, French,
   Spanish and Esperanto.
 
 *The Legejo Cookbook*, the user manual, comes with every new instance and
@@ -102,7 +106,10 @@ in `PATH` enables KEPUB conversion for Kobo devices.
 [Axum](https://github.com/tokio-rs/axum), [SQLx](https://github.com/launchbadge/sqlx),
 [SvelteKit](https://svelte.dev), [epub.js](https://github.com/futurepress/epub.js),
 [kepubify](https://github.com/pgaskin/kepubify), [Lucide](https://lucide.dev),
-[Inter](https://rsms.me/inter/) and [Fraunces](https://fonts.google.com/specimen/Fraunces).
+[Inter](https://rsms.me/inter/), [Fraunces](https://fonts.google.com/specimen/Fraunces)
+and the [Snowball](https://snowballstem.org) stemmers ([rust-stemmers](https://github.com/CurrySoftware/rust-stemmers)).
+Esperanto meanings come from [ESPDIC](http://www.denisowski.org/Esperanto/ESPDIC/espdic_readme.htm)
+by Paul Denisowski (CC BY 3.0), built in.
 
 ## License
 

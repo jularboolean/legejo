@@ -32,13 +32,20 @@ async fn start_dictionaries() -> (Arc<Mutex<Vec<String>>>, String) {
                         ["cxambr.0o", "ĉambro", "", null, null],
                         ["cxambr.0eto", "ĉambreto", "en", "closet", ""]
                     ], "trd": [] }),
+                    "zzkiam" => json!({ "eo": [["zzkiam.0", "zzkiam", "", null, null]], "trd": [] }),
+                    "zznenie" => json!({ "eo": [["zznenie.0", "zznenie", "", null, null]], "trd": [] }),
+                    "diri" => json!({ "eo": [["dir.0i", "diri", "en", "say", ""], ["dir.0i", "diri", "", null, null]], "trd": [] }),
                     _ => json!({ "eo": [], "trd": [] }),
                 },
                 "/api/rest_v1/page/definition/lighthouse" => json!({ "en": [{
                     "partOfSpeech": "Noun", "language": "English",
                     "definitions": [{ "definition": "A <a href=\"/wiki/tower\">tower</a> with a light &amp; a keeper." }]
                 }]}),
-                "/api/rest_v1/page/definition/%C5%9Dipeto" => json!({ "eo": [{
+                "/api/rest_v1/page/definition/zzkiam" => json!({ "eo": [{
+                    "partOfSpeech": "Conjunction", "language": "Esperanto",
+                    "definitions": [{ "definition": "when" }]
+                }]}),
+                "/api/rest_v1/page/definition/zzboato" => json!({ "eo": [{
                     "partOfSpeech": "Noun", "language": "Esperanto",
                     "definitions": [{ "definition": "boat" }]
                 }]}),
@@ -129,7 +136,7 @@ async fn other_languages_and_unknown_esperanto_come_from_wiktionary() {
     assert_eq!(v["entries"][0]["link"], "https://en.wiktionary.org/wiki/lighthouse#English");
 
     // Not in Reta Vortaro: Wiktionary's Esperanto.
-    let (_, v) = send(&app, Method::GET, "/api/dictionary?word=%C5%9Dipeton&language=eo", Some(&cookie), None).await;
+    let (_, v) = send(&app, Method::GET, "/api/dictionary?word=zzboaton&language=eo", Some(&cookie), None).await;
     assert_eq!(v["source"], "wiktionary", "{v}");
     assert_eq!(v["entries"][0]["definitions"], json!(["boat"]));
 
@@ -152,4 +159,36 @@ async fn a_dictionary_out_of_reach_is_an_error() {
     let (status, _) = send(&app, Method::GET, "/api/dictionary?word=harbourmaster&language=en", Some(&cookie), None).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
     let _: Value = Value::Null;
+}
+
+#[tokio::test]
+async fn an_article_without_translations_gives_way_to_wiktionary() {
+    let (_, base) = start_dictionaries().await;
+    let (app, cookie) = setup(&base, true).await;
+    // Reta Vortaro has the word (as "kiam"), but nothing in Swedish or English: Wiktionary's meaning.
+    let (status, v) = send(&app, Method::GET, "/api/dictionary?word=zzkiam&language=eo", Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(v["source"], "wiktionary", "{v}");
+    assert_eq!(v["entries"][0]["definitions"], json!(["when"]));
+
+    // Not in Wiktionary either: the article, for its link.
+    let (_, v) = send(&app, Method::GET, "/api/dictionary?word=zznenie&language=eo", Some(&cookie), None).await;
+    assert_eq!(v["source"], "revo", "{v}");
+    assert_eq!(v["entries"][0]["link"], "https://reta-vortaro.de/revo/art/zznenie.html#zznenie.0");
+    assert_eq!(v["entries"][0]["translations"], json!([]));
+}
+
+#[tokio::test]
+async fn without_the_readers_language_in_reta_vortaro_espdic_answers() {
+    let (seen, base) = start_dictionaries().await;
+    let (app, cookie) = setup(&base, true).await;
+    // Reta Vortaro has "diri" in English only; Alice reads Swedish: ESPDIC's
+    // fuller English, linked to Reta Vortaro's article.
+    let (status, v) = send(&app, Method::GET, "/api/dictionary?word=diris&language=eo", Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(v["source"], "espdic", "{v}");
+    assert_eq!(v["entries"][0]["headword"], "diri");
+    assert_eq!(v["entries"][0]["translations"], json!([{ "language": "en", "words": ["to say, tell, state"] }]));
+    assert_eq!(v["entries"][0]["link"], "https://reta-vortaro.de/revo/art/dir.html#dir.0i");
+    assert!(!seen.lock().unwrap().iter().any(|r| r.contains("rest_v1")), "Wiktionary not asked");
 }

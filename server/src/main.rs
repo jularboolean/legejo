@@ -85,12 +85,17 @@ mod kobotrace;
 mod connections_tests;
 mod esperanto;
 mod dictionary;
+mod espdic;
+mod language;
+mod vocabulary;
 #[cfg(test)]
 mod email_change_tests;
 #[cfg(test)]
 mod readingtime_tests;
 #[cfg(test)]
 mod dictionary_tests;
+#[cfg(test)]
+mod vocabulary_tests;
 mod kobostore;
 #[cfg(test)]
 mod kobo_store_tests;
@@ -226,6 +231,8 @@ fn router(state: AppState) -> Router {
         .route("/account/manual", post(welcome::add_manual))
         .route("/account/email/confirm", post(account::confirm_email))
         .route("/dictionary", get(dictionary::lookup))
+        .route("/books/{id}/vocabulary", get(vocabulary::for_book))
+        .route("/vocabulary/known", get(vocabulary::known_list).put(vocabulary::known_set))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
@@ -564,6 +571,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
     tokio::spawn(fulltext::worker(state.clone()));
+    tokio::spawn(vocabulary::worker(state.clone()));
     tokio::spawn(readingtime::worker(state.clone()));
     // A new instance: its library begins with the manual.
     if let Some(admin) = first_admin {

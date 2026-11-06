@@ -15,6 +15,7 @@
 		type GestureHandlers
 	} from './gestures';
 	import { createProgressStore } from './progress';
+	import { isWebKit } from './turns';
 	import { startReadingClock } from './readingClock';
 	import { isFinished, opensAsVisit, opensAtStart, visitCounter } from './visit';
 	import { canTranslate, translateAnnotation } from './translate';
@@ -288,7 +289,10 @@
 		}
 		beforeTurn(forward);
 		const go = () => (forward ? engine!.next() : engine!.prev()).catch(() => {});
-		if (!turnLeaf(forward, go)) go().then(() => slide(forward));
+		if (turnLeaf(forward, go)) return;
+		// A backward turn in WebKit is a plain one (see turnLeaf).
+		if (webKit && forward === rtl) void go();
+		else go().then(() => slide(forward));
 	}
 
 	// ---- Reading aloud -----------------------------------------------------------
@@ -365,17 +369,23 @@
 		);
 	}
 
+	const webKit = typeof navigator !== 'undefined' && isWebKit(navigator.userAgent);
+
 	/** How long a page coming back waits outside for the book to lay it out. */
 	const BACK_WAITS_MS = 1200;
 
 	/** `held`: a finger moves the sheet, not the clock. */
 	function turnLeaf(forward: boolean, go: () => Promise<unknown>, held = false): boolean {
 		if (!canTurnLeaf() || !engine) return false;
+		// Seen from the reader: a next page in a right-to-left book turns the other way.
+		const back = forward === rtl;
+		// WebKit renders the backward leaf (the live new page held outside and
+		// brought in) at a low frame rate in wide chapters, long enough for
+		// further turns to queue up behind it: the page turns there without it.
+		if (back && webKit) return false;
 		leaf?.skipTransition();
 		const html = document.documentElement;
 		const surface = engine.surface;
-		// Seen from the reader: a next page in a right-to-left book turns the other way.
-		const back = forward === rtl;
 		html.dataset.turn = `${engine.spread ? 'spread' : 'single'}-${back ? 'back' : 'forward'}`;
 		surface.style.setProperty('view-transition-name', 'legejo-leaf');
 		// The browser draws nothing while it waits for the new page, and

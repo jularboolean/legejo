@@ -52,6 +52,7 @@ xml = "1"
 unicode-normalization = "0.1"
 # Markdown descriptions on the public shelf pages, as the web app shows them.
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+rust-stemmers = "1.2"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

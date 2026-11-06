@@ -57,7 +57,7 @@ pub struct Translation {
 #[derive(Serialize, Clone)]
 pub struct Answer {
     pub word: String,
-    /// "revo" or "wiktionary"; absent when nothing was found.
+    /// "revo", "espdic" or "wiktionary"; absent when nothing was found.
     pub source: Option<&'static str>,
     pub entries: Vec<Entry>,
 }
@@ -137,10 +137,34 @@ async fn look_up(state: &AppState, word: &str, language: &str, reader: &str) -> 
             anyhow::Ok(Vec::new())
         }
         .await;
+        // Reta Vortaro first when it has the word in the reader's own
+        // language. Otherwise the built-in ESPDIC, which has English for
+        // nearly every word, with Reta Vortaro's article as the link.
+        let mut bare = Vec::new();
         match revo {
-            Ok(entries) if !entries.is_empty() => return Ok(Answer { word, source: Some("revo"), entries }),
-            Ok(_) => {}
-            Err(e) => tracing::warn!("dictionary: Reta Vortaro did not answer for \"{word}\": {e:#}; Wiktionary instead"),
+            Ok(entries) if entries.iter().any(|e| e.translations.iter().any(|t| t.language == reader)) => {
+                return Ok(Answer { word, source: Some("revo"), entries });
+            }
+            Ok(entries) => bare = entries,
+            Err(e) => tracing::warn!("dictionary: Reta Vortaro did not answer for \"{word}\": {e:#}; ESPDIC instead"),
+        }
+        if let Some(found) = crate::espdic::lookup(&word) {
+            let link = bare
+                .first()
+                .map(|e| e.link.clone())
+                .unwrap_or_else(|| format!("https://en.wiktionary.org/wiki/{}#Esperanto", found.headword));
+            let entry = Entry {
+                headword: found.headword,
+                definitions: Vec::new(),
+                translations: vec![Translation { language: "en".into(), words: vec![found.english] }],
+                link,
+            };
+            return Ok(Answer { word, source: Some("espdic"), entries: vec![entry] });
+        }
+        // An article with translations only under phrases (a correlative
+        // like "kiam") is kept for its link while Wiktionary is asked.
+        if bare.iter().any(|e| !e.translations.is_empty() || !e.definitions.is_empty()) {
+            return Ok(Answer { word, source: Some("revo"), entries: bare });
         }
         for candidate in esperanto_forms(&word) {
             let entries = wiktionary(state, &candidate, "eo").await?;
@@ -148,7 +172,8 @@ async fn look_up(state: &AppState, word: &str, language: &str, reader: &str) -> 
                 return Ok(Answer { word, source: Some("wiktionary"), entries });
             }
         }
-        return Ok(Answer { word, source: None, entries: Vec::new() });
+        let source = (!bare.is_empty()).then_some("revo");
+        return Ok(Answer { word, source, entries: bare });
     }
     let mut entries = wiktionary(state, word, language).await?;
     if entries.is_empty() && word.chars().any(char::is_uppercase) {
@@ -351,3 +376,4 @@ mod tests {
         assert_eq!(plain(r#"A <a href="/wiki/room">room</a>, a &amp; b"#), "A room, a & b");
     }
 }
+
