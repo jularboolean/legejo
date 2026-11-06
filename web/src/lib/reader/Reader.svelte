@@ -1361,6 +1361,17 @@
 		const onFocusIn = (event: FocusEvent) => {
 			if (shield && event.target instanceof HTMLIFrameElement) stage.focus({ preventScroll: true });
 		};
+		// WebKit sends no focusin to this document when focus moves into a
+		// frame (Tab does that, for one); this window only loses focus. Once the
+		// move is done, the frame is the active element.
+		const onWindowBlur = () => {
+			setTimeout(() => {
+				const active = document.activeElement;
+				if (shield && !closed && active instanceof HTMLIFrameElement && stage?.contains(active)) {
+					stage.focus({ preventScroll: true });
+				}
+			}, 0);
+		};
 		document.addEventListener('fullscreenchange', onFullscreen);
 		document.addEventListener('visibilitychange', onVisibility);
 		if (canSpeak) speechSynthesis.addEventListener('voiceschanged', onVoices);
@@ -1368,6 +1379,7 @@
 		for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) window.addEventListener(type, onInput, { capture: true, passive: true });
 		host.addEventListener('pointerdown', onPointerDown);
 		stage.addEventListener('focusin', onFocusIn);
+		window.addEventListener('blur', onWindowBlur);
 
 		open();
 
@@ -1379,6 +1391,7 @@
 			for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) window.removeEventListener(type, onInput, { capture: true });
 			host?.removeEventListener('pointerdown', onPointerDown);
 			stage?.removeEventListener('focusin', onFocusIn);
+			window.removeEventListener('blur', onWindowBlur);
 			for (const timer of [chromeTimer, returnTimer, toastTimer]) if (timer) clearTimeout(timer);
 			if (pointerFrame) cancelAnimationFrame(pointerFrame);
 			searchAbort?.abort();
