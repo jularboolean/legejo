@@ -1401,4 +1401,9 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'words.ankiAboutText': "Anglaj signifoj el {source}. Vortlisto el Legejo.",
 	'edit.languageChoose': "Elekti lingvon",
 	'edit.languageKept': "{code} (ne en la listo)",
+	'vocab.common': "Plej oftaj",
+	'vocab.commonNote': "La plej oftaj vortoj de la libro, sen etaj vortoj kiel «kaj» kaj «la».",
+	'vocab.namesNote': "La nomoj, kiujn la libro plej ofte nomas.",
+	'vocab.characteristicNote': "Vortoj oftaj en ĉi tiu libro sed maloftaj en la aliaj libroj en {language} en la instanco.",
+	'vocab.characteristicLater': "Vortoj, kiuj distingas la libron, aperas kiam estas almenaŭ {min} libroj en {language} en la instanco (nun {count}).",
 };

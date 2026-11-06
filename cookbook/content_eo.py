@@ -568,8 +568,9 @@ En libro en via propra lingvo estas nenio por traduki, kaj la butono ne estas ti
   """<p>Malfermu la libron kaj malfaldu <strong>Vortprovizo</strong> malsupre de ĝia paĝo. Ĝi diras,
 kiom da vortoj la libro havas kaj kiom da malsamaj, kaj kiom el ĝiaj plej oftaj vortoj necesas por
 kovri duonon, 80, 90 kaj 95 % de la teksto, kun kurbo, kiu montras tion. Sube estas la personoj
-kaj lokoj, kiujn la libro plej ofte nomas, kaj la vortoj, kiuj distingas ĝin de la aliaj libroj en
-ĝia lingvo.</p>""",
+kaj lokoj, kiujn la libro plej ofte nomas, ĝiaj plej oftaj vortoj (sen etaj vortoj kiel <em>kaj</em>
+kaj <em>la</em>), kaj, kiam en la instanco estas kvin libroj en ĝia lingvo, la vortoj, kiuj
+distingas ĝin de la aliaj.</p>""",
   """<p>Malmultaj vortoj konsistigas la plej grandan parton de ĉiu teksto: en romano proksimume cent
 kovras duonon, dum duono de ĉiuj ĝiaj malsamaj vortoj aperas nur unufoje. Ju malpli da vortoj libro
 bezonas por 90 %, des pli facile ĝi legiĝas. Kiam en la instanco estas dek libroj en lingvo, la

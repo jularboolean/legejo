@@ -112,6 +112,12 @@ async fn a_book_in_another_language_has_statistics_but_no_study_list() {
     assert!(v["study"].is_null());
     assert!(v["known_share"].is_null());
     assert_eq!(v["names"], json!(["Måns"]));
+    // One book in Swedish: its commonest words, without "och" or "en";
+    // nothing to set characteristic words against yet.
+    let common: Vec<&str> = v["common"].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+    assert!(common.contains(&"katt") || common.contains(&"katten"), "{common:?}");
+    assert!(!common.contains(&"och") && !common.contains(&"en") && !common.contains(&"som"), "{common:?}");
+    assert_eq!(v["characteristic"], json!([]));
     assert!(v["coverage"]["90"].as_i64().unwrap() > 0);
 }
 

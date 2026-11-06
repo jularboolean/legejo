@@ -24,6 +24,8 @@ export type Vocab = {
 	difficulty: { level: number; compared_with: number } | null;
 	short: boolean;
 	characteristic: string[];
+	common: string[];
+	distinctive_from: number;
 	names: string[];
 	study: StudyRow[] | null;
 	known_share: number | null;

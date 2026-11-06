@@ -1399,6 +1399,11 @@ export const en = {
 	'words.ankiAboutText': "English meanings from {source}. Word list from Legejo.",
 	'edit.languageChoose': "Choose a language",
 	'edit.languageKept': "{code} (not on the list)",
+	'vocab.common': "Most frequent",
+	'vocab.commonNote': "The book's commonest words, leaving out little words such as “and” and “the”.",
+	'vocab.namesNote': "The names the book mentions most.",
+	'vocab.characteristicNote': "Words common in this book but rare in the other books in {language} on this instance.",
+	'vocab.characteristicLater': "Words that set the book apart are shown once there are at least {min} books in {language} on this instance (now {count}).",
 };
 
 export type MessageKey = keyof typeof en;

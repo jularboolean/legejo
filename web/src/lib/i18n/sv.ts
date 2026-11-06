@@ -1401,4 +1401,9 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'words.ankiAboutText': "Engelska betydelser ur {source}. Ordlistan från Legejo.",
 	'edit.languageChoose': "Välj språk",
 	'edit.languageKept': "{code} (finns inte i listan)",
+	'vocab.common': "Vanligast förekommande",
+	'vocab.commonNote': "Bokens vanligaste ord, utan småord som ”och” och ”att”.",
+	'vocab.namesNote': "Namnen som boken nämner oftast.",
+	'vocab.characteristicNote': "Ord som är vanliga i den här boken men ovanliga i instansens andra böcker på {language}.",
+	'vocab.characteristicLater': "Ord som utmärker boken visas när det finns minst {min} böcker på {language} på instansen (nu {count}).",
 };

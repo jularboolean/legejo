@@ -1,6 +1,6 @@
 [package]
 name = "legejo"
-version = "1.45.0"
+version = "1.45.1"
 edition = "2021"
 description = "A self-hosted EPUB library with OPDS, Kobo sync and KOReader sync"
 license = "AGPL-3.0-or-later"
@@ -54,6 +54,7 @@ unicode-normalization = "0.1"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 rust-stemmers = "1.2"
 libc = "0.2"
+stop-words = "0.10"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

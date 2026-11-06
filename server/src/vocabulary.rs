@@ -28,6 +28,8 @@ const VERSION: i64 = 4;
 const SAMPLE: usize = 20_000;
 /// Books in a language before a book's difficulty among them is shown.
 pub const RATED_FROM: i64 = 10;
+/// Books in a language before its characteristic words can be told.
+const DISTINCTIVE_FROM: i64 = 5;
 /// Stems kept as candidates for "characteristic": at least this often.
 const CANDIDATE_MIN: u32 = 5;
 const CANDIDATES: usize = 2000;
@@ -565,6 +567,43 @@ pub async fn worker(state: AppState) {
 
 // ----------------------------------------------------------------- asking
 
+/// A language's stopwords (stopwords-iso), as words and as stems, so that
+/// a stem or a label can be looked up.
+fn stopwords(language: &str) -> std::collections::HashSet<String> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Arc<std::collections::HashSet<String>>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(set) = cache.lock().unwrap().get(language) {
+        return (**set).clone();
+    }
+    let iso = match language {
+        "nb" | "nn" => "no",
+        other => other,
+    };
+    let mut set = std::collections::HashSet::new();
+    if let Some(words) = stop_words::lookup(iso) {
+        let stemmer = Stemmer::for_language(language);
+        for w in words {
+            let w = w.to_lowercase();
+            if let Some(s) = &stemmer {
+                set.insert(s.stem(&w));
+            }
+            set.insert(w);
+        }
+    }
+    // stopwords-iso's Esperanto list is short: the words without endings,
+    // the pronouns and the correlatives are little words too.
+    if language == "eo" {
+        set.extend(EO_FIXED.iter().chain(EO_PRONOUNS.iter()).map(|w| w.to_string()));
+        for prefix in ["neni", "ĉi", "ki", "ti", "i"] {
+            for end in ["u", "o", "a", "e", "am", "al", "el", "om", "es"] {
+                set.insert(format!("{prefix}{end}"));
+            }
+        }
+    }
+    cache.lock().unwrap().insert(language.to_string(), Arc::new(set.clone()));
+    set
+}
+
 /// How many texts in a language each candidate stem appears in, and how
 /// many texts there are; kept until a text in the language is added or
 /// counted again.
@@ -640,6 +679,10 @@ pub struct Vocabulary {
     pub difficulty: Option<Difficulty>,
     pub short: bool,
     pub characteristic: Vec<String>,
+    /// The book's commonest words, without the language's stopwords.
+    pub common: Vec<String>,
+    /// Books in a language before characteristic words are given.
+    pub distinctive_from: i64,
     pub names: Vec<String>,
     /// Esperanto: the words in order of frequency, and how much of the text
     /// (names left out) the reader's known words cover.
@@ -738,24 +781,38 @@ async fn answer(
         None
     };
 
-    // Characteristic: common here, rare in the language's other books. With
-    // fewer than three books there is nothing to set it against.
+    // The book's own words, without the language's stopwords. With enough
+    // books in the language: the characteristic ones, common here and rare
+    // in the others; with fewer, simply the commonest.
+    let stop = stopwords(&language);
+    let content = |c: &&Candidate| {
+        c.label.chars().count() > 2 && !c.label.contains(['\'', '’']) && !stop.contains(&c.stem) && !stop.contains(&c.label.to_lowercase())
+    };
+    let mut common: Vec<&Candidate> = candidates.iter().filter(|c| !c.name).filter(content).collect();
+    common.sort_by(|a, b| b.count.cmp(&a.count));
+    let common: Vec<String> = common.into_iter().take(12).map(|c| c.label.clone()).collect();
+    // Characteristic: common here, rare in the language's other books; none
+    // until there are enough books to set them against. The common ones
+    // are not repeated.
+    let distinctive = books >= DISTINCTIVE_FROM;
     let mut characteristic = Vec::new();
-    if books >= 3 {
+    if distinctive {
         let mut scored: Vec<(f64, &Candidate)> = candidates
             .iter()
-            .filter(|c| !c.name && c.label.chars().count() > 1 && !c.label.contains(['\'', '’']))
+            .filter(|c| !c.name)
+            .filter(content)
+            .filter(|c| !common.contains(&c.label))
             .filter(|c| df.get(&c.stem).copied().unwrap_or(1) as i64 * 2 <= books)
             .map(|c| (c.count as f64 * ((books as f64 + 1.0) / (df.get(&c.stem).copied().unwrap_or(1) as f64 + 0.5)).ln(), c))
             .collect();
         scored.sort_by(|a, b| b.0.total_cmp(&a.0));
         characteristic = scored.into_iter().take(12).map(|(_, c)| c.label.clone()).collect();
     }
-    // A name is the book's own: one found in most books of the language is a
-    // word that is always capitalised ("I", "Mr") instead.
+    // A name is the book's own: a stopword ("I") or one found in most books
+    // of the language ("Mr") is a word that is always capitalised instead.
     let names: Vec<String> = candidates
         .iter()
-        .filter(|c| c.name && c.label.chars().count() > 1)
+        .filter(|c| c.name && c.label.chars().count() > 1 && !stop.contains(&c.stem) && !stop.contains(&c.label.to_lowercase()))
         .filter(|c| books < 3 || df.get(&c.stem).copied().unwrap_or(1) as i64 * 2 <= books)
         .take(8)
         .map(|c| c.label.clone())
@@ -813,6 +870,8 @@ async fn answer(
         difficulty,
         short: need == 0,
         characteristic,
+        common,
+        distinctive_from: DISTINCTIVE_FROM,
         names,
         study,
         known_share,

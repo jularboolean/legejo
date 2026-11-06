@@ -563,8 +563,9 @@ In a book in your own language there is nothing to translate, and the button is 
   """<p>Open the book and fold out <strong>Vocabulary</strong> at the bottom of its page. It says
 how many words the book has and how many different ones, and how many of its commonest words it
 takes to cover half, 80, 90 and 95 % of the text, with a curve that shows it. Below are the
-people and places the book names most, and the words that set it apart from the other books in
-its language.</p>""",
+people and places the book names most, its most frequent words (little words such as
+<em>and</em> and <em>the</em> left out), and, once there are five books in its language on the
+instance, the words that set it apart from the others.</p>""",
   """<p>A few words make up most of any text: in a novel a hundred or so cover half of it, while
 half of all its different words occur only once. The fewer words a book needs for 90 %, the
 easier it reads. Once there are ten books in a language on the instance, the panel also says how

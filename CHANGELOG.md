@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.45.1 (2026-11-06)
+
+- **A book's most frequent words, without the little ones.** The
+  Vocabulary panel now has three rows, each saying what it holds: the people
+  and places the book names most, its **most frequent** words (leaving out
+  words such as *and* and *the*, from a stopword list for each language),
+  and the **characteristic** words that set it apart from the other books in
+  its language. The last needs five books in the language on the instance,
+  and says so until then; before, the row was simply missing.
+
 ## 1.45.0 (2026-11-06)
 
 - **What a book's words say about it.** Fold out **Vocabulary** at the bottom

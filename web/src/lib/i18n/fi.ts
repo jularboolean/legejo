@@ -1401,4 +1401,9 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'words.ankiAboutText': "Englanninkieliset merkitykset: {source}. Sanaluettelo Legejosta.",
 	'edit.languageChoose': "Valitse kieli",
 	'edit.languageKept': "{code} (ei luettelossa)",
+	'vocab.common': "Yleisimmät",
+	'vocab.commonNote': "Kirjan yleisimmät sanat ilman pikkusanoja kuten ”ja” ja ”on”.",
+	'vocab.namesNote': "Nimet, jotka kirja mainitsee useimmin.",
+	'vocab.characteristicNote': "Sanoja, jotka ovat yleisiä tässä kirjassa mutta harvinaisia instanssin muissa kirjoissa kielellä {language}.",
+	'vocab.characteristicLater': "Kirjaa erottavat sanat näytetään, kun instanssissa on vähintään {min} kirjaa kielellä {language} (nyt {count}).",
 };

@@ -1401,4 +1401,9 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'words.ankiAboutText': "Englische Bedeutungen aus {source}. Wortliste aus Legejo.",
 	'edit.languageChoose': "Sprache wählen",
 	'edit.languageKept': "{code} (nicht in der Liste)",
+	'vocab.common': "Am häufigsten",
+	'vocab.commonNote': "Die häufigsten Wörter des Buches, ohne kleine Wörter wie „und“ und „der“.",
+	'vocab.namesNote': "Die Namen, die das Buch am häufigsten nennt.",
+	'vocab.characteristicNote': "Wörter, die in diesem Buch häufig, in den anderen Büchern auf {language} dieser Instanz aber selten sind.",
+	'vocab.characteristicLater': "Wörter, die das Buch auszeichnen, erscheinen, sobald es mindestens {min} Bücher auf {language} auf dieser Instanz gibt (jetzt {count}).",
 };
