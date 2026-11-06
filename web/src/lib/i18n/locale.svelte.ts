@@ -5,6 +5,7 @@ import { eo } from './eo';
 import { fr } from './fr';
 import { de } from './de';
 import { es } from './es';
+import { nb } from './nb';
 
 // Translations are keyed by locale (Partial<typeof en> — missing keys fall
 // back to English). To add a language: create the file, register it here and
@@ -20,7 +21,7 @@ export const LANGUAGES: { code: string; label: string }[] = [
 	{ code: 'fr', label: 'Français' },
 	{ code: 'de', label: 'Deutsch' },
 	{ code: 'es', label: 'Español' },
-	{ code: 'nb', label: 'Norsk Bokmål' }
+	{ code: 'nb', label: 'Norsk bokmål' }
 ];
 
 // A rune, so every t() call in a template re-renders when the locale changes.
