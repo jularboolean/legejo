@@ -510,7 +510,9 @@ pub async fn avatar(
     Ok((crate::images::headers(&mime), [(header::CACHE_CONTROL, "private, no-cache")], data).into_response())
 }
 
-pub(crate) const LOCALES: [&str; 7] = ["en", "sv", "fi", "eo", "fr", "de", "es"];
+/// The interface's languages; the same codes as LANGUAGES in the web app
+/// (web/src/lib/i18n/locale.svelte.ts).
+pub(crate) const LOCALES: [&str; 8] = ["en", "sv", "fi", "eo", "fr", "de", "es", "nb"];
 
 #[derive(Deserialize)]
 pub struct UpdateLocale {
@@ -695,6 +697,28 @@ mod tests {
         // The wrong password changes nothing.
         let (status, _) = send(&app, Method::PUT, "/api/account", Some(&cookie), Some(json!({ "current_password": "fel", "username": "x" }))).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn the_languages_are_those_the_web_app_offers() {
+        let web = include_str!("../../web/src/lib/i18n/locale.svelte.ts");
+        let mut offered: Vec<&str> = web.split("code: '").skip(1).filter_map(|rest| rest.split('\'').next()).collect();
+        let mut accepted = super::LOCALES.to_vec();
+        offered.sort_unstable();
+        accepted.sort_unstable();
+        assert_eq!(offered, accepted);
+    }
+
+    #[tokio::test]
+    async fn every_offered_language_can_be_chosen() {
+        let (app, db, _) = test_app().await;
+        let (_, cookie) = add_user(&db, "ada").await;
+        for code in super::LOCALES {
+            let (status, _) = send(&app, Method::PUT, "/api/account/locale", Some(&cookie), Some(json!({ "locale": code }))).await;
+            assert_eq!(status, StatusCode::NO_CONTENT, "{code}");
+        }
+        let (status, _) = send(&app, Method::PUT, "/api/account/locale", Some(&cookie), Some(json!({ "locale": "xx" }))).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     }
 }
 

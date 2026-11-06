@@ -256,6 +256,7 @@ fn language_name(code: &str) -> &str {
         "de" => "German",
         "fr" => "French",
         "fi" => "Finnish",
+        "nb" => "Norwegian Bokmål",
         other => other,
     }
 }
