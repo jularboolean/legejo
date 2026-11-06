@@ -234,7 +234,10 @@ and OPDS&#160;2, are not read.</p>"""),
 <strong>Author</strong>, <strong>Language</strong>, <strong>Publisher</strong>,
 <strong>Category</strong>, <strong>ISBN</strong> or the <strong>Description</strong>, and press
 <strong>Save</strong>.</p>""",
-  """<p>For an EPUB, the corrections are written back into the file: title, authors, language,
+  """<p>The <strong>Language</strong> is chosen from a list. EPUBs name their language in many
+ways, <code>swe</code>, <code>sv-SE</code> or <code>Swedish</code>; Legejo keeps one code for each,
+so that books in the same language are found together.</p>
+<p>For an EPUB, the corrections are written back into the file: title, authors, language,
 series and cover. The book is then right on the e-reader and in any export, not just on this
 screen. The description takes Markdown.</p>"""),
 
@@ -296,7 +299,8 @@ library.</p>
 <p>Where the admin has switched on <strong>Search inside the books</strong> on the Admin page,
 tick <strong>Search inside the books</strong> to look for words in the text of your EPUBs and PDFs instead. A scanned PDF needs OCR to have any text. Each book comes with
 the passages that match; choose one to open the book with the search in it. Every word must occur, a
-word also finds longer words it begins, and words in double quotes must stand in a row. Books on
+word also finds longer words it begins and its other forms in the languages of your books
+(<em>dogs</em> finds <em>dog</em>), and words in double quotes must stand in a row. Books on
 shared shelves are searched too, and quoted, but are read only once you take them.</p>
 <p>Esperanto can be typed in the x-system: <code>cxambro</code> finds <em>ĉambro</em>, in the
 catalogue and in the text alike.</p>"""),
@@ -534,8 +538,9 @@ gives the passage as text, to add to the picture as its description for those wh
   """<p><em>Optional: an admin turns on <strong>Look words up while reading</strong> on the Admin
 page.</em></p>
 <p>Select the word and choose <strong>Look up</strong>. In a book in Esperanto the word comes from
-Reta Vortaro, the open Esperanto dictionary, with what it is in your own language and in English;
-in other languages it comes from Wiktionary, with what it means. The headword links to the whole
+Reta Vortaro, the open Esperanto dictionary, with what it is in your own language and in English,
+or, where Reta Vortaro has nothing in your language, from ESPDIC, the Esperanto–English dictionary
+built into Legejo; in other languages it comes from Wiktionary, with what it means. The headword links to the whole
 article.</p>""",
   """<p>A word is looked up as the dictionary has it: <em>ĉambrojn</em> as <em>ĉambro</em>,
 <em>legis</em> as <em>legi</em>. The server asks the dictionary for you, so the words you look up
@@ -553,6 +558,42 @@ the list of highlights and on the <strong>My notes</strong> page. An existing hi
 and author and its language are sent to the librarian's model; nothing else of the book. A language
 model translates well, but not without fault: when a line matters, compare it with the original.
 In a book in your own language there is nothing to translate, and the button is not there.</p>"""),
+ ("Getting to Know a Book's Words",
+  "<p>You wonder how hard a book will be before you begin it, or what it is about.</p>",
+  """<p>Open the book and fold out <strong>Vocabulary</strong> at the bottom of its page. It says
+how many words the book has and how many different ones, and how many of its commonest words it
+takes to cover half, 80, 90 and 95 % of the text, with a curve that shows it. Below are the
+people and places the book names most, and the words that set it apart from the other books in
+its language.</p>""",
+  """<p>A few words make up most of any text: in a novel a hundred or so cover half of it, while
+half of all its different words occur only once. The fewer words a book needs for 90 %, the
+easier it reads. Once there are ten books in a language on the instance, the panel also says how
+hard the book is compared with them, measured on a stretch of the same length from each book so
+that a long one does not look hard for its length alone; a short book is not compared.</p>
+<p>Words are counted by their stem, so <em>dogs</em> and <em>dog</em> are one word. This works for
+the languages Snowball has stemmers for, among them all the languages Legejo speaks; a book in
+another language, or with no language set, has no panel. Legejo counts each book once, in the
+background, the first time it is asked for its words at the latest.</p>"""),
+
+ ("Learning the Words of a Book in Esperanto",
+  "<p>You are learning Esperanto and want to know the words of a book before you read it.</p>",
+  """<p>A book in Esperanto has a card <strong>Before you read</strong> on its page. It leads to
+the book's words in order of frequency, each in its dictionary form, with the forms it takes in
+the book and what it means in English. Choose how much of the text you want to understand,
+<strong>80 %</strong>, <strong>90 %</strong> or <strong>95 %</strong>, and tick the words you
+already know: the bar at the top shows how much of the book you understand. Press a word to look
+it up in your own language.</p>
+<p>To learn them elsewhere, export the list as a <strong>text file</strong>, or for
+<strong>Anki</strong>: in Anki choose <strong>File → Import</strong> and the file, and the words
+become a deck of cards with the word on the front and its meaning on the back.</p>""",
+  """<p>The words you tick are yours and are shared by every book in Esperanto: a word known from
+one book is known in the next. Names are listed apart; there is nothing to learn in them, and
+they are left out of the count. The words you know are hidden from the list until you untick
+<strong>Hide words I know</strong>.</p>
+<p>The English meanings come from ESPDIC, Paul Denisowski's Esperanto–English dictionary (CC BY
+3.0), which is built into Legejo; nothing is asked of any other server for them. A word not in it
+as it stands is found by its root: <em>hundetegojn</em> as <em>hundeto</em>, a little dog.</p>"""),
+
  ]),
 
 ("Legejo as an App",

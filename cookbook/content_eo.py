@@ -238,7 +238,10 @@ kaj OPDS&#160;2 ne estas legataj.</p>"""),
 <strong>Aŭtoro</strong>, <strong>Lingvo</strong>, <strong>Eldonejo</strong>,
 <strong>Kategorio</strong>, <strong>ISBN</strong> aŭ <strong>Priskribo</strong>, kaj premu
 <strong>Konservi</strong>.</p>""",
-  """<p>Ĉe EPUB la korektoj estas skribataj reen en la dosieron: titolo, aŭtoroj, lingvo,
+  """<p>La <strong>Lingvo</strong> estas elektata el listo. EPUB-oj nomas sian lingvon multmaniere,
+<code>swe</code>, <code>sv-SE</code> aŭ <code>Swedish</code>; Legejo tenas unu kodon por ĉiu, por ke
+libroj en la sama lingvo troviĝu kune.</p>
+<p>Ĉe EPUB la korektoj estas skribataj reen en la dosieron: titolo, aŭtoroj, lingvo,
 serio kaj kovrilo. Tiam la libro estas ĝusta ankaŭ en la legilo kaj en ĉiu eksporto, ne nur sur ĉi tiu
 ekrano. La priskribo akceptas Markdown.</p>"""),
 
@@ -300,7 +303,8 @@ via biblioteko.</p>
 <p>Kie la administranto ŝaltis <strong>Serĉi en la teksto de la libroj</strong> en la paĝo
 Administrado, marku <strong>Serĉi en la teksto de la libroj</strong> por anstataŭe serĉi vortojn en la teksto de viaj EPUB-oj kaj PDF-oj. Skanita PDF bezonas OCR por havi tekston. Ĉiu libro venas kun
 la trafaj fragmentoj; elektu unu por malfermi la libron kun la serĉo en ĝi. Ĉiu vorto devas aperi,
-vorto trovas ankaŭ pli longajn vortojn, kiujn ĝi komencas, kaj vortoj inter citiloj devas stari unu
+vorto trovas ankaŭ pli longajn vortojn, kiujn ĝi komencas, kaj siajn aliajn formojn en la lingvoj de
+viaj libroj (<em>hundojn</em> trovas <em>hundo</em>), kaj vortoj inter citiloj devas stari unu
 post la alia. Ankaŭ libroj sur kunhavigitaj bretoj estas traserĉataj kaj citataj, sed legeblaj nur
 post kiam vi prenis ilin.</p>
 <p>Esperanton vi povas tajpi per la x-sistemo: <code>cxambro</code> trovas <em>ĉambro</em>, en la
@@ -540,7 +544,8 @@ priskribon por tiuj, kiuj ne povas vidi ĝin.</p>""",
 Administrado.</em></p>
 <p>Elektu la vorton kaj premu <strong>Serĉi en vortaro</strong>. En libro en Esperanto la vorto venas
 el Reta Vortaro, la libera vortaro de Esperanto, kun tio, kio ĝi estas en via propra lingvo kaj en la
-angla; en aliaj lingvoj ĝi venas el Vikivortaro, kun tio, kion ĝi signifas. La kapvorto ligas al la
+angla, aŭ, kie Reta Vortaro havas nenion en via lingvo, el ESPDIC, la Esperanto–angla vortaro
+enkonstruita en Legejo; en aliaj lingvoj ĝi venas el Vikivortaro, kun tio, kion ĝi signifas. La kapvorto ligas al la
 tuta artikolo.</p>""",
   """<p>Vorto estas serĉata tiel, kiel la vortaro havas ĝin: <em>ĉambrojn</em> kiel <em>ĉambro</em>,
 <em>legis</em> kiel <em>legi</em>. La servilo demandas la vortaron anstataŭ vi, do la vortoj, kiujn vi
@@ -558,6 +563,43 @@ en la teksto.</p>""",
 aŭtoro kaj la lingvo de la libro estas sendataj al la modelo de la bibliotekisto; nenio alia el la
 libro. Lingvomodelo tradukas bone, sed ne senerare: kiam linio gravas, komparu ĝin kun la originalo.
 En libro en via propra lingvo estas nenio por traduki, kaj la butono ne estas tie.</p>"""),
+ ("Koni la vortojn de libro",
+  "<p>Vi scivolas, kiel malfacila libro estos antaŭ ol komenci ĝin, aŭ pri kio ĝi temas.</p>",
+  """<p>Malfermu la libron kaj malfaldu <strong>Vortprovizo</strong> malsupre de ĝia paĝo. Ĝi diras,
+kiom da vortoj la libro havas kaj kiom da malsamaj, kaj kiom el ĝiaj plej oftaj vortoj necesas por
+kovri duonon, 80, 90 kaj 95 % de la teksto, kun kurbo, kiu montras tion. Sube estas la personoj
+kaj lokoj, kiujn la libro plej ofte nomas, kaj la vortoj, kiuj distingas ĝin de la aliaj libroj en
+ĝia lingvo.</p>""",
+  """<p>Malmultaj vortoj konsistigas la plej grandan parton de ĉiu teksto: en romano proksimume cent
+kovras duonon, dum duono de ĉiuj ĝiaj malsamaj vortoj aperas nur unufoje. Ju malpli da vortoj libro
+bezonas por 90 %, des pli facile ĝi legiĝas. Kiam en la instanco estas dek libroj en lingvo, la
+panelo ankaŭ diras, kiel malfacila la libro estas kompare kun ili, mezurite sur same longa peco el
+ĉiu libro, por ke longa libro ne ŝajnu malfacila nur pro sia longo; mallonga libro ne estas
+komparata.</p>
+<p>Vortoj estas kalkulataj laŭ sia radiko, do <em>hundoj</em> kaj <em>hundo</em> estas unu vorto.
+Tio funkcias por la lingvoj, por kiuj Snowball havas radikigilojn, inter ili ĉiuj lingvoj, kiujn
+Legejo parolas; libro en alia lingvo, aŭ sen lingvo, ne havas panelon. Legejo kalkulas ĉiun libron
+unufoje, fone, plej malfrue la unuan fojon, kiam iu demandas pri ĝiaj vortoj.</p>"""),
+
+ ("Lerni la vortojn de libro en Esperanto",
+  "<p>Vi lernas Esperanton kaj volas koni la vortojn de libro antaŭ ol legi ĝin.</p>",
+  """<p>Libro en Esperanto havas karton <strong>Antaŭ la legado</strong> sur sia paĝo. Ĝi kondukas al
+la vortoj de la libro laŭ ofteco, ĉiu en sia vortara formo, kun la formoj, kiujn ĝi havas en la
+libro, kaj kion ĝi signifas en la angla. Elektu, kiom de la teksto vi volas kompreni,
+<strong>80 %</strong>, <strong>90 %</strong> aŭ <strong>95 %</strong>, kaj marku la vortojn, kiujn
+vi jam scias: la strio supre montras, kiom de la libro vi komprenas. Premu vorton por serĉi ĝin en
+via propra lingvo.</p>
+<p>Por lerni ilin aliloke, eksportu la liston kiel <strong>tekstodosieron</strong> aŭ por
+<strong>Anki</strong>: en Anki elektu <strong>File → Import</strong> kaj la dosieron, kaj la vortoj
+fariĝas kartaro kun la vorto antaŭe kaj ĝia signifo malantaŭe.</p>""",
+  """<p>La vortoj, kiujn vi markas, estas viaj kaj validas por ĉiu libro en Esperanto: vorto konata
+el unu libro estas konata en la sekva. Nomoj estas listigitaj aparte; estas nenio por lerni en ili,
+kaj ili ne estas kalkulataj. La vortoj, kiujn vi scias, estas kaŝitaj de la listo, ĝis vi malmarkas
+<strong>Kaŝi vortojn, kiujn mi scias</strong>.</p>
+<p>La anglaj signifoj venas el ESPDIC, la Esperanto–angla vortaro de Paul Denisowski (CC BY 3.0),
+enkonstruita en Legejo; neniu alia servilo estas demandata pri ili. Vorto, kiu ne estas en ĝi tia,
+kia ĝi staras, estas trovata per sia radiko: <em>hundetegojn</em> kiel <em>hundeto</em>.</p>"""),
+
  ]),
 
 ("Legejo kiel aplikaĵo",

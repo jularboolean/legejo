@@ -4,6 +4,33 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.45.0 (2026-11-06)
+
+- **What a book's words say about it.** Fold out **Vocabulary** at the bottom
+  of a book's page: how many words the book has and how many different ones,
+  how many of its commonest words cover half, 80, 90 and 95 % of the text, the
+  people and places it names most, and the words that set it apart. Once
+  there are ten books in a language on the instance, it also says how hard
+  the book is compared with them. Every EPUB is counted once, in the
+  background, and a new one when you first open it.
+- **Learn the words of a book in Esperanto before you read it.** A card
+  **Before you read** leads to the book's words in order of frequency, with
+  their English meanings from ESPDIC, Paul Denisowski's Esperanto–English
+  dictionary, now built in. Tick the words you know (they count for all your
+  books in Esperanto) and see how much of the book you understand; export
+  the list as a text file or for Anki.
+- **Languages from a list.** The edit page offers a list of languages by
+  name, and the many ways EPUBs write a language (`swe`, `sv-SE`, `Swedish`)
+  become one code, also for the books already in your library.
+- **Search inside the books finds other forms of a word.** A search for
+  *dogs* also finds *dog*, in the languages of your books.
+- **Better Esperanto lookups.** Where Reta Vortaro has nothing in your
+  language, ESPDIC answers in English; a Reta Vortaro article without
+  translations, such as *kiam*, gives way to Wiktionary.
+- **Turning pages no longer runs away.** Taps during a slow page turn no
+  longer pile up: at most one waits, a turn the other way cancels it, and in
+  Safari pages turn back without the animation that made them slow.
+
 ## 1.44.0 (2026-11-06)
 
 - **Legejo speaks Norwegian Bokmål.** Choose **Norsk bokmål** under Language
