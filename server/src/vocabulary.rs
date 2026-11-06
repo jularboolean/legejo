@@ -255,10 +255,10 @@ pub struct Computed {
 }
 
 /// How many of the commonest stems it takes to cover 90 % of these.
-fn need_for_90(stems: &[String]) -> u64 {
-    let mut counts: HashMap<&str, u32> = HashMap::new();
+fn need_for_90(stems: &[u32]) -> u64 {
+    let mut counts: HashMap<u32, u32> = HashMap::new();
     for s in stems {
-        *counts.entry(s.as_str()).or_default() += 1;
+        *counts.entry(*s).or_default() += 1;
     }
     let mut sorted: Vec<u32> = counts.into_values().collect();
     sorted.sort_unstable_by(|a, b| b.cmp(a));
@@ -280,41 +280,74 @@ pub fn compute(text: &str, language: &str) -> Option<Computed> {
     if tokens.is_empty() {
         return None;
     }
-    let mut stems: Vec<String> = Vec::with_capacity(tokens.len());
-    let mut counts: HashMap<String, u32> = HashMap::new();
-    let mut forms: HashMap<String, HashMap<String, u32>> = HashMap::new();
-    // Names: capitalised where a sentence does not begin (mid-sentence
-    // occurrences only, since every word is capitalised first in a sentence).
-    let mut inside: HashMap<String, u32> = HashMap::new();
-    let mut capitals: HashMap<String, u32> = HashMap::new();
-    let mut cache: HashMap<String, String> = HashMap::new();
+    // Each distinct word and stem is kept once; the running text as stem
+    // numbers. A book of 200 000 words then makes a few thousand
+    // allocations, not a few per word.
+    let mut word_ids: HashMap<String, u32> = HashMap::new();
+    let mut word_stem: Vec<u32> = Vec::new();
+    let mut word_count: Vec<u32> = Vec::new();
+    let mut stem_ids: HashMap<String, u32> = HashMap::new();
+    let mut stem_names: Vec<String> = Vec::new();
+    let mut stem_inside: Vec<u32> = Vec::new();
+    let mut stem_capitals: Vec<u32> = Vec::new();
+    let mut stems: Vec<u32> = Vec::with_capacity(tokens.len());
+    let mut lower = String::new();
     let base = text.as_ptr() as usize;
     for token in &tokens {
         let at = token.as_ptr() as usize - base;
+        // Names: capitalised where a sentence does not begin (mid-sentence
+        // occurrences only, since every word is capitalised first in a sentence).
         let mid_sentence = text[..at]
             .trim_end_matches(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '“' | '”' | '‘' | '’' | '«' | '»' | '(' | '—' | '–' | '-'))
             .chars()
             .next_back()
             .is_some_and(|c| !matches!(c, '.' | '!' | '?' | ':' | '…'));
-        let lower = token.to_lowercase();
-        let stem = match cache.get(&lower) {
-            Some(s) => s.clone(),
+        lower.clear();
+        lower.extend(token.chars().flat_map(char::to_lowercase));
+        let word = match word_ids.get(lower.as_str()) {
+            Some(&w) => w,
             None => {
-                let s = stemmer.stem(&lower);
-                cache.insert(lower.clone(), s.clone());
-                s
+                let stem = stemmer.stem(&lower);
+                let s = match stem_ids.get(&stem) {
+                    Some(&s) => s,
+                    None => {
+                        let s = stem_names.len() as u32;
+                        stem_ids.insert(stem.clone(), s);
+                        stem_names.push(stem);
+                        stem_inside.push(0);
+                        stem_capitals.push(0);
+                        s
+                    }
+                };
+                let w = word_stem.len() as u32;
+                word_ids.insert(lower.clone(), w);
+                word_stem.push(s);
+                word_count.push(0);
+                w
             }
         };
-        *counts.entry(stem.clone()).or_default() += 1;
-        *forms.entry(stem.clone()).or_default().entry(lower).or_default() += 1;
+        word_count[word as usize] += 1;
+        let s = word_stem[word as usize];
         if mid_sentence {
-            *inside.entry(stem.clone()).or_default() += 1;
+            stem_inside[s as usize] += 1;
             if token.chars().next().is_some_and(char::is_uppercase) {
-                *capitals.entry(stem.clone()).or_default() += 1;
+                stem_capitals[s as usize] += 1;
             }
         }
-        stems.push(stem);
+        stems.push(s);
     }
+    drop(tokens);
+    // Per distinct stem: its count and the forms it was written in.
+    let mut counts: HashMap<String, u32> = HashMap::with_capacity(stem_names.len());
+    let mut forms: HashMap<String, HashMap<String, u32>> = HashMap::with_capacity(stem_names.len());
+    for (word, w) in word_ids {
+        let s = word_stem[w as usize] as usize;
+        let n = word_count[w as usize];
+        *counts.entry(stem_names[s].clone()).or_default() += n;
+        forms.entry(stem_names[s].clone()).or_default().insert(word, n);
+    }
+    let inside: HashMap<&str, u32> = stem_names.iter().map(String::as_str).zip(stem_inside.iter().copied()).collect();
+    let capitals: HashMap<&str, u32> = stem_names.iter().map(String::as_str).zip(stem_capitals.iter().copied()).collect();
     let total = stems.len() as u64;
     let mut ranked: Vec<(&String, &u32)> = counts.iter().collect();
     ranked.sort_unstable_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
@@ -458,22 +491,40 @@ pub(crate) async fn count_pending(state: &AppState, limit: i64) -> anyhow::Resul
     .await?;
     let done = rows.len();
     for (uuid, sha, language) in rows {
-        let path = crate::books::book_path(state, &uuid, Format::Epub);
-        state.storage.fetch(&path).await;
-        let lang = language.clone();
-        let computed = tokio::task::spawn_blocking(move || -> Option<Computed> {
-            let sections = booktext::read_sections(Format::Epub, &path).ok()?;
-            let text: String = sections.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
-            compute(&text, &lang)
-        })
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!("vocabulary: book {uuid} could not be counted: {e}");
-            None
-        });
-        store(state, &sha, &language, computed).await?;
+        count_one(state, &uuid, &sha, &language).await?;
     }
     Ok(done)
+}
+
+/// Count one book's words and keep them.
+async fn count_one(state: &AppState, uuid: &str, sha: &str, language: &str) -> anyhow::Result<()> {
+    let path = crate::books::book_path(state, uuid, Format::Epub);
+    state.storage.fetch(&path).await;
+    let lang = language.to_string();
+    let computed = tokio::task::spawn_blocking(move || -> Option<Computed> {
+        let sections = booktext::read_sections(Format::Epub, &path).ok()?;
+        let text: String = sections.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
+        compute(&text, &lang)
+    })
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!("vocabulary: book {uuid} could not be counted: {e}");
+        None
+    });
+    let stored = store(state, sha, language, computed).await;
+    give_memory_back();
+    stored
+}
+
+/// Hand the memory freed after counting back to the system. glibc keeps
+/// what a blocking thread's arena held, so a long count would otherwise
+/// leave the process at its peak.
+fn give_memory_back() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: malloc_trim only releases free memory held by the allocator.
+    unsafe {
+        libc::malloc_trim(0);
+    }
 }
 
 /// Drop what no book's file and language point to any more.
@@ -591,7 +642,7 @@ pub struct Vocabulary {
     pub characteristic: Vec<String>,
     pub names: Vec<String>,
     /// Esperanto: the words in order of frequency, and how much of the text
-    /// the reader's known words (and the names) cover.
+    /// (names left out) the reader's known words cover.
     pub study: Option<Vec<StudyRow>>,
     pub known_share: Option<f64>,
     pub study_source: Option<&'static str>,
@@ -600,8 +651,8 @@ pub struct Vocabulary {
 type Row = (String, i64, i64, i64, i64, String, String, String, Option<String>);
 
 pub async fn for_book(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Response {
-    let book: Option<(Option<String>, Option<String>)> =
-        match sqlx::query_as("SELECT file_sha256, language FROM books WHERE id = $1 AND owner_id = $2")
+    let book: Option<(String, String, Option<String>, Option<String>)> =
+        match sqlx::query_as("SELECT uuid, format, file_sha256, language FROM books WHERE id = $1 AND owner_id = $2")
             .bind(id)
             .bind(user.0.id)
             .fetch_optional(&state.db)
@@ -610,9 +661,26 @@ pub async fn for_book(State(state): State<AppState>, user: AuthUser, Path(id): P
             Ok(b) => b,
             Err(e) => return internal(e),
         };
-    let Some((Some(sha), Some(language))) = book else {
+    let Some((uuid, format, Some(sha), Some(language))) = book else {
         return (StatusCode::NOT_FOUND, Json(json!({ "error": "no vocabulary" }))).into_response();
     };
+    // A book not counted yet (just added, or counted by an older version) is
+    // counted now rather than when the worker comes by.
+    let counted: Option<(i64,)> =
+        match sqlx::query_as("SELECT version FROM vocabulary WHERE file_sha256 = $1 AND language = $2")
+            .bind(&sha)
+            .bind(&language)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(c) => c,
+            Err(e) => return internal(e),
+        };
+    if format == "epub" && counted.is_none_or(|(v,)| v != VERSION) {
+        if let Err(e) = count_one(&state, &uuid, &sha, &language).await {
+            return internal(e);
+        }
+    }
     let row: Option<Row> = match sqlx::query_as(
         "SELECT language, words, stems, hapax, sample_need, coverage, curve, candidates, study
          FROM vocabulary WHERE file_sha256 = $1 AND language = $2 AND words > 0",
@@ -702,12 +770,17 @@ async fn answer(
                 .fetch_all(&state.db)
                 .await?;
             let known: std::collections::HashSet<String> = known.into_iter().map(|(s,)| s).collect();
+            // Share of the words there are to learn: names are left out of
+            // both sides, so a reader who has ticked nothing starts at 0 %.
             let mut covered = 0u64;
+            let mut names_count = 0u64;
             let rows: Vec<StudyRow> = list
                 .into_iter()
                 .map(|w| {
                     let is_known = known.contains(&w.stem);
-                    if is_known || w.name {
+                    if w.name {
+                        names_count += w.count as u64;
+                    } else if is_known {
                         covered += w.count as u64;
                     }
                     let found = if w.name { None } else { crate::espdic::lookup(&w.word) };
@@ -723,7 +796,8 @@ async fn answer(
                     }
                 })
                 .collect();
-            (Some(rows), Some(covered as f64 / words.max(1) as f64), Some(crate::espdic::ATTRIBUTION))
+            let learnable = (words as u64).saturating_sub(names_count).max(1);
+            (Some(rows), Some(covered as f64 / learnable as f64), Some(crate::espdic::ATTRIBUTION))
         }
         None => (None, None, None),
     };

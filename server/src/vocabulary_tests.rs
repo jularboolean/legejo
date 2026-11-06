@@ -56,10 +56,9 @@ async fn an_esperanto_book_gets_its_study_list_and_the_readers_known_words_count
     // Bob has the same file: it is counted once.
     upload(&app, &bob, &[("hundo.epub", book("Hundo", "epo", &esperanto()))], "").await;
 
-    // Not counted yet.
+    // Asked before the worker came by: counted there and then, once for both copies.
     let (status, _) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary"), Some(&alice), None).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-    assert_eq!(vocabulary::count_pending(&state, 10).await.unwrap(), 1);
+    assert_eq!(status, StatusCode::OK);
     assert_eq!(vocabulary::count_pending(&state, 10).await.unwrap(), 0);
 
     let (status, v) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary"), Some(&alice), None).await;
@@ -77,7 +76,7 @@ async fn an_esperanto_book_gets_its_study_list_and_the_readers_known_words_count
     let diri = study.iter().find(|w| w["word"] == "diri").unwrap();
     assert!(diri["english"].as_str().unwrap().contains("say"));
     let before = v["known_share"].as_f64().unwrap();
-    assert!(before > 0.0, "the name counts as known: {before}");
+    assert_eq!(before, 0.0, "nothing ticked yet: 0 %, names aside");
 
     // Alice knows "la" and "hundo": they cover more of the book now; Bob's list is his own.
     for stem in ["la", "hund"] {

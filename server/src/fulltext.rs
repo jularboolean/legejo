@@ -393,6 +393,7 @@ fn esperanto_term(term: &Term) -> Option<Term> {
 }
 
 /// The terms as the backend's full-text query; every term must match.
+#[cfg(test)]
 pub(crate) fn text_expr(backend: Backend, input: &str) -> Option<String> {
     text_expr_in(backend, input, &[])
 }

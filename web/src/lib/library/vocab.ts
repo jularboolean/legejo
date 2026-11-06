@@ -53,12 +53,16 @@ export async function setKnown(language: string, stem: string, known: boolean): 
 	}
 }
 
-/** Share of the book's running words covered by the known words; names count as known. */
+/** Share of the book's words there are to learn (names left out) that the known words cover. */
 export function knownCover(v: Vocab, known: Set<string>): number {
 	if (!v.study) return 0;
-	let n = 0;
-	for (const w of v.study) if (w.name || known.has(w.stem)) n += w.count;
-	return n / v.words;
+	let covered = 0;
+	let names = 0;
+	for (const w of v.study) {
+		if (w.name) names += w.count;
+		else if (known.has(w.stem)) covered += w.count;
+	}
+	return covered / Math.max(1, v.words - names);
 }
 
 /** The language's name as it stands inside a sentence ("svenska", "Swedish"). */

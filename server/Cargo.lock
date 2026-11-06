@@ -1389,6 +1389,7 @@ dependencies = [
  "httpdate",
  "image",
  "lettre",
+ "libc",
  "lofty",
  "lopdf 0.45.0",
  "md-5 0.10.6",
