@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.44.0 (2026-11-06)
+
+- **Legejo speaks Norwegian Bokmål.** Choose **Norsk bokmål** under Language
+  on your Account page. The librarian translates passages into it too, and
+  the manual lists it among the languages.
+- **The keys keep turning pages in Safari.** Pressing Tab while reading put
+  the keyboard focus inside the page, after which the arrow keys, Space and
+  Page Down did nothing until you clicked the book. Focus now stays with the
+  reader.
+
 ## 1.43.0 (2026-11-04)
 
 - **The librarian translates a passage.** Select a sentence in a book in

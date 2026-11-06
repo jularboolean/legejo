@@ -24,8 +24,8 @@ pro kiu vi venis.</p>
 <h2>Konvencioj uzataj en ĉi tiu libro</h2>
 <p><strong>Grasa teksto</strong> estas io, sur kio vi klakas aŭ tuŝetas, laŭ la nomo, kiun ĝi havas sur la ekrano.
 <code>Egallarĝa teksto</code> estas io, kion vi tajpas, la nomo de agordo aŭ adreso. Nomoj de
-butonoj estas donitaj tiel, kiel la Esperanta interfaco montras ilin; Legejo ankaŭ parolas la anglan, la svedan, la finnan, la germanan, la francan
-kaj la hispanan, kaj Recepto 11.1 diras, kiel ŝanĝi la lingvon.</p>
+butonoj estas donitaj tiel, kiel la Esperanta interfaco montras ilin; Legejo ankaŭ parolas la anglan, la svedan, la finnan, la germanan, la francan,
+la hispanan kaj la norvegan (bokmål), kaj Recepto 11.1 diras, kiel ŝanĝi la lingvon.</p>
 <p class="note"><strong>Nedevigaj funkcioj.</strong> Pluraj partoj de Legejo estas malŝaltitaj, ĝis
 iu ŝaltas ilin: la serĉoj en Open Library kaj Libris, aŭdlibroj, katalogoj de aliaj bibliotekoj, la bibliotekisto, federacio,
 bretoj per privata ligilo, markoj el Kobo, la Kobo-vendejo apud Legejo. Recepto diras tion, kiam ĝi temas pri unu el ili. Se butono priskribita ĉi tie
@@ -826,7 +826,7 @@ funkcii, kaj nenies alia estas tuŝita.</p>"""),
   """<p>Tajpu novan pasvorton ĉe <strong>Nova pasvorto</strong> (almenaŭ 8 signoj); via
 <strong>Nuna pasvorto</strong> estas bezonata por konservi. Donu adreson ĉe <strong>Retpoŝto</strong>,
 por restarigi la pasvorton. Elektu bildon ĉe <strong>Profilbildo</strong>.
-Elektu lingvon ĉe <strong>Lingvo</strong>: la angla, sveda, finna, germana, franca, hispana aŭ
+Elektu lingvon ĉe <strong>Lingvo</strong>: la angla, sveda, finna, germana, franca, hispana, norvega (bokmål) aŭ
 Esperanto.</p>""",
   "<p>Kie la instanco sendas retpoŝton, nova adreso estas uzata, kiam vi malfermas la ligilon senditan al ĝi; ĝis tiam la malnova restas, kaj ĝi estas informita pri la ŝanĝo. En la angla aŭ Esperanto, <strong>Aldoni la manlibron en ĉi tiu lingvo al mia biblioteko</strong> metas ĉi tiun libron en tiu lingvo en vian bibliotekon. La lingvo ekvalidas tuj, nur por via konto. Malgranda afero, kiun indas scii: ligilo al libro aŭ breto, kiu petas vin ensaluti, kondukas vin al tiu libro aŭ breto post la ensaluto, ne al la komenca paĝo.</p>"),
 

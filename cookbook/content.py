@@ -24,8 +24,8 @@ you came for.</p>
 <h2>Conventions used in this book</h2>
 <p><strong>Bold</strong> is something you click or tap, by the name it has on the screen.
 <code>Constant width</code> is something you type, the name of a setting, or an address. Names of
-buttons are given in English; Legejo itself also speaks Swedish, Finnish, German, French, Spanish
-and Esperanto, and Recipe 11.1 says how to change it.</p>
+buttons are given in English; Legejo itself also speaks Swedish, Finnish, German, French, Spanish,
+Norwegian Bokmål and Esperanto, and Recipe 11.1 says how to change it.</p>
 <p class="note"><strong>Optional features.</strong> Several parts of Legejo are off until
 someone turns them on: the Open Library and Libris lookups, audiobooks, catalogs of other libraries, the librarian, federation,
 shelves by private link, highlights from a Kobo, the Kobo store beside Legejo. A recipe says so when it concerns one of them. If a button described here
@@ -816,8 +816,8 @@ stops working, and nobody else's is affected.</p>"""),
   """<p>Set a <strong>New password</strong> (at least 8 characters); your
 <strong>Current password</strong> is needed to save. Give an <strong>Email</strong> address,
 for resetting your password. Choose a <strong>Profile picture</strong>.
-Choose a <strong>Language</strong>: English, Swedish, Finnish, German, French, Spanish or
-Esperanto.</p>""",
+Choose a <strong>Language</strong>: English, Swedish, Finnish, German, French, Spanish,
+Norwegian Bokmål or Esperanto.</p>""",
   "<p>Where the instance sends mail, a new email address is used once you open the link sent to it; until then the old one stays, and it is told of the change. In English or Esperanto, <strong>Add the manual in this language to my library</strong> puts this book in that language on your shelves. The language takes effect at once, for your account only. A small thing worth knowing: a link to a book or a shelf that asks you to log in takes you to that book or shelf once you have, not to the start page.</p>"),
 
  ("Giving Each App a Password of Its Own",
