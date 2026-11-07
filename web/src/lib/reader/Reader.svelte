@@ -1546,6 +1546,7 @@
 			faded={handleDrag !== null}
 			lookupLanguage={page.data.dictionary && !page.data.offline ? (speechLanguage ?? book.language ?? 'en') : null}
 			wordsBook={page.data.words && !page.data.offline ? book.id : null}
+			wordsLanguage={book.language}
 			onsentence={sentences ? widenToSentences : null}
 			onhighlight={saveHighlight}
 			onsave={saveNote}

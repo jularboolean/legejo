@@ -4,6 +4,7 @@
 	// From the share known in each band the server ticks that many of the
 	// band's commonest words, so a reader who already knows a lot does not
 	// have to tick hundreds of words one by one.
+	import { tick } from 'svelte';
 	import { Check, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { fmt, loadLevelTest, sendLevelTest } from './vocab';
@@ -19,19 +20,29 @@
 	let answers = $state<{ stem: string; known: boolean }[]>([]);
 	let result = $state<{ estimate: number; ticked: number } | null>(null);
 	const locale = $derived(getLocale());
+	/** The card: it takes the focus while the test runs, so that the keys answer it. */
+	let card = $state<HTMLElement | null>(null);
+
+	async function focusCard() {
+		await tick();
+		card?.focus();
+	}
 
 	async function start() {
 		step = 'loading';
 		const test = await loadLevelTest(language);
 		if (!test || test.bands.length === 0) {
 			step = 'failed';
+			focusCard();
 			return;
 		}
 		// Commonest band first, so the test starts with words most readers know.
 		queue = test.bands.flatMap((b) => b.words);
 		answers = [];
 		at = 0;
+		checking = false;
 		step = 'asking';
+		focusCard();
 	}
 
 	// A "yes" shows the meaning first; the answer counts once the reader has
@@ -51,10 +62,16 @@
 	}
 
 	async function finish() {
+		// Stopped before the first answer: nothing to send.
+		if (answers.length === 0) {
+			step = 'idle';
+			return;
+		}
 		step = 'sending';
 		result = await sendLevelTest(language, answers);
 		step = result ? 'done' : 'failed';
 		if (result) onDone();
+		focusCard();
 	}
 
 	function back() {
@@ -67,11 +84,13 @@
 		answers.pop();
 	}
 
+	// Keys answer while the card or something in it has the focus. Enter is
+	// left to the buttons, which answer on it themselves.
 	function onkey(e: KeyboardEvent) {
 		if (step !== 'asking' || e.metaKey || e.ctrlKey || e.altKey) return;
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-		if (e.key === 'ArrowRight' || e.key === 'j' || (checking && e.key === 'Enter')) answer(true);
+		if (e.key === 'ArrowRight' || e.key === 'j') answer(true);
 		else if (e.key === 'ArrowLeft' || e.key === 'n') answer(false);
 		else if (e.key === 'Backspace') back();
 		else return;
@@ -79,10 +98,10 @@
 	}
 </script>
 
-<svelte:window onkeydown={onkey} />
-
-<section class="level">
-	<h2>{t('words.level.test.title')}</h2>
+<!-- The keys are shortcuts for the buttons below, which do the same. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<section class="level" role="group" aria-labelledby="level-test-title" tabindex="-1" bind:this={card} onkeydown={onkey}>
+	<h2 id="level-test-title">{t('words.level.test.title')}</h2>
 	{#if step === 'idle' || step === 'loading'}
 		<p class="note">{t('words.level.test.intro')}</p>
 		<button class="primary" onclick={start} disabled={step === 'loading'}>{t('words.level.test.start')}</button>
@@ -117,11 +136,13 @@
 	{:else if step === 'sending'}
 		<p class="note">{t('words.level.test.sending')}</p>
 	{:else if step === 'done' && result}
-		<p>{t('words.level.test.result', { estimate: fmt(result.estimate, locale), ticked: fmt(result.ticked, locale) })}</p>
-		<p class="note">{t('words.level.test.after')}</p>
+		<div aria-live="polite">
+			<p>{t('words.level.test.result', { estimate: fmt(result.estimate, locale), ticked: fmt(result.ticked, locale) })}</p>
+			<p class="note">{t('words.level.test.after')}</p>
+		</div>
 		<button class="link" onclick={() => (step = 'idle')}>{t('words.level.test.close')}</button>
 	{:else}
-		<p class="note">{t('words.level.test.failed')}</p>
+		<p class="note" aria-live="polite">{t('words.level.test.failed')}</p>
 		<button class="link" onclick={() => (step = 'idle')}>{t('words.level.test.close')}</button>
 	{/if}
 </section>
@@ -134,6 +155,10 @@
 		border: 1px solid var(--border);
 		border-radius: 8px;
 		background: var(--card);
+	}
+	/* Focused by the test itself, not by tabbing: no ring then. */
+	.level:focus:not(:focus-visible) {
+		outline: none;
 	}
 	h2 {
 		font-size: 1.05rem;

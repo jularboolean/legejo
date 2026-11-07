@@ -5,7 +5,26 @@
 	import { ArrowLeft, ArrowUpToLine, BookOpen, Check, Download } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { getLocale, t } from '#lib/i18n';
-	import { css, fmt, knownCover, loadVocab, percent, readingLevel, setKnown, setKnownMany, WORD_CLASSES, type StudyRow, type Vocab, type WordClass } from '#lib/library/vocab';
+	import {
+		ankiDeck,
+		asAnki,
+		asText,
+		css,
+		download,
+		fmt,
+		knownCover,
+		loadVocab,
+		percent,
+		setKnown,
+		setKnownMany,
+		shownLevel,
+		unknownPrefix,
+		WORD_CLASSES,
+		type ExportRow,
+		type StudyRow,
+		type Vocab,
+		type WordClass
+	} from '#lib/library/vocab';
 	import type { MessageKey } from '#lib/i18n';
 	import WordsOption from '#lib/library/WordsOption.svelte';
 
@@ -79,20 +98,22 @@
 		}
 	}
 
-	// "I know all of these": every word of the list down to this one.
-	const aboveCount = (w: StudyRow) => {
-		const at = words.indexOf(w);
-		return words.slice(0, at + 1).filter((x) => !known.has(x.stem)).length;
-	};
+	// "I know all of these": every word of the list down to this one. How
+	// many that is for each row is counted once for the whole list.
+	const unknownUpTo = $derived.by(() => unknownPrefix(words, known));
 	async function tickUpTo(w: StudyRow) {
 		if (!vocab) return;
 		const at = words.indexOf(w);
 		const stems = words.slice(0, at + 1).filter((x) => !known.has(x.stem)).map((x) => x.stem);
 		if (stems.length === 0) return;
 		if (stems.length > 1 && !confirm(t('words.tickAllConfirm', { count: n(stems.length) }))) return;
-		const before = known;
 		known = new Set([...known, ...stems]);
-		if (!(await setKnownMany(vocab.language, stems, true))) known = before;
+		if (!(await setKnownMany(vocab.language, stems, true))) {
+			// Not taken: only these go back; ticks made meanwhile stay.
+			const back = new Set(known);
+			for (const s of stems) back.delete(s);
+			known = back;
+		}
 	}
 
 	const gloss = (w: StudyRow) => (w.english ? (w.found_as ? `≈ ${w.found_as}: ${w.english}` : w.english) : '');
@@ -126,45 +147,33 @@
 		const tr = [mine, 'en'].map((l) => e.translations.find((x) => x.language === l)).find(Boolean) ?? e.translations[0];
 		return tr ? (tr.language === mine ? tr.words.join(', ') : `${tr.words.slice(0, 4).join(', ')} (${tr.language})`) : '';
 	};
-	const sourceName = (s: string | undefined) => (s === 'revo' ? 'Reta Vortaro' : s === 'espdic' ? 'ESPDIC' : 'Wiktionary');
+	// The dictionary's own line about itself, under a meaning taken from it.
+	const sourceLine = (s: string | undefined) =>
+		s === 'revo' ? t('reader.lookup.revo') : s === 'espdic' ? t('reader.lookup.espdic') : t('reader.lookup.wiktionary');
 
 	// Export what the list shows: the goal's words, without the known ones when hidden.
-	function download(name: string, text: string) {
-		const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-		const a = Object.assign(document.createElement('a'), { href: url, download: name });
-		a.click();
-		setTimeout(() => URL.revokeObjectURL(url), 1000);
-	}
 	const fileBase = () => `${(title || t('words.fileName')).replace(/[\\/:*?"<>|]+/g, '').trim()} – ${t('words.fileName')} ${goal}`;
+	const exportRows = (): ExportRow[] => shown.map((w) => ({ word: w.word, forms: otherForms(w), english: gloss(w) || null }));
 	function exportText() {
-		const label = (w: StudyRow) => w.word + (otherForms(w).length ? ` (${otherForms(w).join(', ')})` : '');
-		const width = Math.max(0, ...shown.map((w) => label(w).length));
-		const lines = shown.map((w) => `${label(w).padEnd(width)}   ${gloss(w)}`.trimEnd());
 		const head = [t('words.fileTitle', { title, count: shown.length, percent: goal })];
 		if (vocab?.study_source) head.push(t('words.attribution', { source: vocab.study_source }));
-		download(`${fileBase()}.txt`, [...head, '', ...lines, ''].join('\n'));
+		download(`${fileBase()}.txt`, asText(head, exportRows()));
 	}
 	function exportAnki() {
-		// Anki's text import: tab-separated, with file headers Anki reads itself.
-		const esc = (x: string) => x.replace(/[\t\n]/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-		const deck = `Legejo::${(title || 'Legejo').replace(/::/g, ':')}`;
-		const rows = shown.map((w) => {
-			const forms = otherForms(w).length ? `<br><small>${esc(otherForms(w).join(' · '))}</small>` : '';
-			return [esc(w.word), esc(gloss(w)) + forms, `legejo ${vocab?.language ?? ''}`.trim()].join('\t');
-		});
-		if (vocab?.study_source) {
-			rows.push([esc(t('words.ankiAbout')), esc(t('words.ankiAboutText', { source: vocab.study_source })), 'legejo'].join('\t'));
-		}
-		const head = ['#separator:tab', '#html:true', '#notetype:Basic', `#deck:${deck}`, '#tags column:3'];
-		download(`${fileBase()} (Anki).txt`, [...head, ...rows, ''].join('\n'));
+		const about: [string, string] | undefined = vocab?.study_source
+			? [t('words.ankiAbout'), t('words.ankiAboutText', { source: vocab.study_source })]
+			: undefined;
+		download(`${fileBase()} (Anki).txt`, asAnki(ankiDeck(title || 'Legejo'), `legejo ${vocab?.language ?? ''}`.trim(), exportRows(), about));
 	}
 </script>
 
-<svelte:head><title>{t('vocab.study')} · {title}</title></svelte:head>
+<svelte:head><title>{title ? `${t('vocab.study')} · ${title}` : t('vocab.study')}</title></svelte:head>
 
-<a class="back" href={`/books/${id}`}><ArrowLeft size={15} /> {title}</a>
+<a class="back" href={`/books/${id}`}><ArrowLeft size={15} /> {title || t('vocab.study')}</a>
 
-{#if !data.words}
+{#if data.offline}
+	<p class="muted">{t('words.offline')}</p>
+{:else if !data.words}
 	<WordsOption />
 {:else if vocab?.study}
 	<header>
@@ -183,38 +192,41 @@
 			<span>{t('words.meter', { percent: percent(share) })}</span>
 			<span class="muted">{t('words.goal', { percent: goal })}</span>
 		</div>
-		<p class="level">{t(`words.level.${readingLevel(share)}` as MessageKey)}</p>
+		<p class="level">{t(`words.level.${shownLevel(share)}` as MessageKey)}</p>
 	</div>
 
 	<div class="controls">
-		<div class="seg" role="radiogroup" aria-label={t('words.goalLabel')}>
+		<div class="seg" role="group" aria-label={t('words.goalLabel')}>
 			{#each ['80', '90', '95', '98'] as const as g (g)}
-				<button role="radio" aria-checked={goal === g} class:on={goal === g} onclick={() => (goal = g)}>
-					{g} %<small>{t('vocab.words', { count: n(vocab.coverage[g] ?? 0) })}</small>
+				<button aria-pressed={goal === g} class:on={goal === g} onclick={() => (goal = g)}>
+					{g} %<small>{t('vocab.words', { count: n(vocab.coverage[g] ?? 0) })}</small>
 				</button>
 			{/each}
 		</div>
 		<label class="hide"><input type="checkbox" bind:checked={hideKnown} /> {t('words.hideKnown')}</label>
 	</div>
 	{#if hasClasses}
-		<div class="classes" role="radiogroup" aria-label={t('words.class.all')}>
+		<div class="classes" role="group" aria-label={t('words.class.all')}>
 			{#each ['all', ...WORD_CLASSES] as const as c (c)}
-				<button role="radio" aria-checked={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
+				<button aria-pressed={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
 					{t(`words.class.${c}` as MessageKey)}
 				</button>
 			{/each}
 		</div>
 	{/if}
 	<div class="status">
-		<p class="muted small">{t('words.ticked', { known: knownInList, count: words.length })}</p>
+		<p class="muted small">{t('words.ticked', { known: n(knownInList), count: n(words.length) })}</p>
 		<span class="export">
 			<Download size={14} />
-			{t('words.export', { count: shown.length })}
+			{t('words.export', { count: n(shown.length) })}
 			<button onclick={exportText}>{t('words.exportText')}</button> ·
 			<button onclick={exportAnki}>{t('words.exportAnki')}</button>
 		</span>
 	</div>
 
+	{#if hideKnown && words.length && shown.length === 0}
+		<p class="muted all-ticked">{t('words.allTicked', { count: n(words.length) })}</p>
+	{/if}
 	<ol class="list">
 		{#each shown as w (w.stem)}
 			<li class:known={known.has(w.stem)}>
@@ -230,8 +242,9 @@
 					{#if gloss(w)}<span class="gloss">{gloss(w)}</span>{/if}
 				</button>
 				<span class="rank">
-					{#if !known.has(w.stem) && aboveCount(w) > 1}
-						<button class="upto" title={t('words.tickAll', { count: n(aboveCount(w)) })} aria-label={t('words.tickAll', { count: n(aboveCount(w)) })} onclick={() => tickUpTo(w)}>
+					{#if !known.has(w.stem) && (unknownUpTo.get(w.stem) ?? 0) > 1}
+						{@const count = n(unknownUpTo.get(w.stem) ?? 0)}
+						<button class="upto" title={t('words.tickAll', { count })} aria-label={t('words.tickAll', { count })} onclick={() => tickUpTo(w)}>
 							<ArrowUpToLine size={14} />
 						</button>
 					{/if}
@@ -254,8 +267,8 @@
 								{#if e.link}
 									<p class="small">
 										<a href={e.link} target="_blank" rel="noreferrer">{t('words.openArticle')}</a>
-										<span class="muted">· {sourceName(sources[w.stem])}</span>
 									</p>
+									<p class="muted source">{sourceLine(sources[w.stem])}</p>
 								{/if}
 							{/each}
 						{/if}
@@ -454,6 +467,7 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.tick {
+		position: relative;
 		width: 30px;
 		height: 30px;
 		display: grid;
@@ -463,6 +477,12 @@
 		background: none;
 		color: transparent;
 		cursor: pointer;
+	}
+	/* A finger's target of 40 px around the circle. */
+	.tick::before {
+		content: '';
+		position: absolute;
+		inset: -5px;
 	}
 	.known .tick {
 		background: var(--accent);
@@ -545,6 +565,12 @@
 	.upto:focus-visible {
 		opacity: 1;
 	}
+	/* Nothing hovers on a touch screen: the arrow is there to be seen. */
+	@media (hover: none) {
+		.upto {
+			opacity: 0.6;
+		}
+	}
 	.upto:hover {
 		color: var(--accent);
 		background: var(--hover, rgba(127, 127, 127, 0.12));
@@ -556,6 +582,12 @@
 	}
 	.meaning p {
 		margin: 0 0 0.2rem;
+	}
+	.meaning .source {
+		font-size: 0.78rem;
+	}
+	.all-ticked {
+		margin: 0.8rem 0 0;
 	}
 	.names {
 		margin-top: 1.5rem;

@@ -31,6 +31,17 @@ describe('translations', () => {
 			}
 		}
 	});
+
+	it('use every placeholder the English text has', () => {
+		for (const [code, messages] of Object.entries(locales)) {
+			for (const [key, text] of Object.entries(messages)) {
+				const used = placeholders(text as string);
+				for (const name of placeholders(en[key as MessageKey])) {
+					expect(used, `${code}: ${key} lacks {${name}}`).toContain(name);
+				}
+			}
+		}
+	});
 });
 
 describe('t', () => {

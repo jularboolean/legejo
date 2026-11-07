@@ -114,18 +114,22 @@
 	// it would stand between the editor and the page.
 	let hasSaved = $state(false);
 	// The words page is in the menu once the reader has a book with a study
-	// list or words ticked as known.
+	// list or words ticked as known: asked when the option is on, and again
+	// on leaving a page where words are ticked.
 	let hasWords = $state(false);
-	$effect(() => {
-		if (!data.user || !data.words) {
-			hasWords = false;
-			return;
-		}
-		void page.url.pathname;
+	let wordsOn = false;
+	const TICK_PAGES = /^\/(words|books\/\d+\/(words|read))$/;
+	function checkWords() {
 		fetch('/api/vocabulary/languages')
 			.then((r) => (r.ok ? r.json() : []))
 			.then((l: unknown[]) => (hasWords = l.length > 0))
 			.catch(() => {});
+	}
+	$effect(() => {
+		const on = !!data.user && !!data.words;
+		if (!on) hasWords = false;
+		if (on && !wordsOn) checkWords();
+		wordsOn = on;
 	});
 
 	// After an upgrade, a note that says so, with what is new a click away.
@@ -185,10 +189,11 @@
 			window.removeEventListener(CHANGED_EVENT, recount);
 		};
 	});
-	afterNavigate(() => {
+	afterNavigate(({ from }) => {
 		if (data.user && availability() !== 'unsupported') savedBooks().then((list) => (hasSaved = list.length > 0)).catch(() => {});
 		// After opening a followed shelf, its books are no longer new.
 		if (data.user) refreshFollowNews();
+		if (wordsOn && from?.url && TICK_PAGES.test(from.url.pathname)) checkWords();
 	});
 
 	async function logout() {

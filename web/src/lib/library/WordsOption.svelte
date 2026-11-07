@@ -5,7 +5,9 @@
 	import { t } from '#lib/i18n';
 
 	let error = $state('');
-	async function turnOn() {
+	async function turnOn(e: Event & { currentTarget: HTMLInputElement }) {
+		// The box is not set until the server has taken it.
+		const box = e.currentTarget;
 		error = '';
 		try {
 			const res = await fetch('/api/account/words', {
@@ -13,11 +15,15 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ enabled: true })
 			});
-			if (res.ok) await invalidateAll();
-			else error = t('edit.saveFailed');
+			if (res.ok) {
+				await invalidateAll();
+				return;
+			}
+			error = t('edit.saveFailed');
 		} catch {
 			error = t('common.network');
 		}
+		box.checked = false;
 	}
 </script>
 

@@ -3,7 +3,7 @@
 	// a card leading to it, and for every counted book a panel to fold out.
 	import { GraduationCap, ChevronRight } from '@lucide/svelte';
 	import { getLocale, t, type MessageKey } from '#lib/i18n';
-	import { css, fmt, languageInSentence, loadVocab, percent, readingLevel, type Vocab } from './vocab';
+	import { css, fmt, languageInSentence, loadVocab, percent, shownLevel, type Vocab } from './vocab';
 
 	let { bookId, part }: { bookId: number; part: 'study' | 'stats' } = $props();
 
@@ -44,7 +44,7 @@
 				<span class="lead">
 					{#if known > 0.05}
 						{t('vocab.studyKnown', { percent: percent(known) })}
-						{t(`words.level.${readingLevel(known)}` as MessageKey)}
+						{t(`words.level.${shownLevel(known)}` as MessageKey)}
 					{:else}
 						{t('vocab.studyLead', { count: n(vocab.coverage['80'] ?? 0) })}
 					{/if}
@@ -61,7 +61,7 @@
 				{t('vocab.title')}
 				<span class="teaser">· {t('vocab.teaser', { count: n(vocab.coverage['90'] ?? 0) })}</span>
 				{#if vocab.difficulty}
-					<span class="dots" title={t('vocab.ratedTitle', { level, language })}>
+					<span class="dots" role="img" aria-label={level} title={t('vocab.ratedTitle', { level, language })}>
 						{#each [1, 2, 3, 4, 5] as i (i)}<i class:on={i <= (vocab.difficulty?.level ?? 0)}></i>{/each}
 					</span>
 				{/if}
@@ -114,21 +114,21 @@
 				<p class="charac-h">{t('vocab.names')}</p>
 				<p class="note">{t('vocab.namesNote')}</p>
 				<p class="charac">
-					{#each vocab.names as w (w)}<span class="chip">{w}</span>{/each}
+					{#each vocab.names as w, i (i)}<span class="chip">{w}</span>{/each}
 				</p>
 			{/if}
 			{#if vocab.common.length}
 				<p class="charac-h">{t('vocab.common')}</p>
 				<p class="note">{t('vocab.commonNote')}</p>
 				<p class="charac">
-					{#each vocab.common.slice(0, 10) as w (w)}<span class="chip">{w}</span>{/each}
+					{#each vocab.common.slice(0, 10) as w, i (i)}<span class="chip">{w}</span>{/each}
 				</p>
 			{/if}
 			<p class="charac-h">{t('vocab.characteristic')}</p>
 			{#if vocab.characteristic.length}
 				<p class="note">{t('vocab.characteristicNote', { language })}</p>
 				<p class="charac">
-					{#each vocab.characteristic.slice(0, 10) as w (w)}<span class="chip">{w}</span>{/each}
+					{#each vocab.characteristic.slice(0, 10) as w, i (i)}<span class="chip">{w}</span>{/each}
 				</p>
 			{:else}
 				<p class="note">

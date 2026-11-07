@@ -7,6 +7,7 @@
 	import { BookA, Highlighter, Languages, MessageSquarePlus, Share2, TextSelect, Trash2, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
+	import { loadWordInBook, setKnown, type WordInBook } from '#lib/library/vocab';
 
 	type Props = {
 		/** The passage: a selection waiting for an action, or a highlight being edited. */
@@ -28,6 +29,8 @@
 		/** The book, when the reader has vocabulary on: a selected word is
 		 * shown as its study list has it, to be added to My words. */
 		wordsBook?: number | null;
+		/** The book's language, which the known words are kept by. */
+		wordsLanguage?: string | null;
 		/** Widen the passage to the whole sentences it reaches into; null when it is that already. */
 		onsentence?: (() => void) | null;
 		/** A new highlight, with or without a note. */
@@ -59,6 +62,7 @@
 		faded = false,
 		lookupLanguage = null,
 		wordsBook = null,
+		wordsLanguage = null,
 		onsentence = null,
 		onhighlight,
 		onsave,
@@ -107,34 +111,21 @@
 
 	// The selected word in the book's study list (vocabulary.rs), at once:
 	// it is local, nothing is asked of a dictionary elsewhere.
-	type MyWord = { stem: string; word: string; english: string | null; known: boolean; count: number };
-	let myWord = $state<MyWord | null>(null);
-	let myWordLanguage = '';
+	let myWord = $state<WordInBook | null>(null);
 	$effect(() => {
 		const w = word;
 		const book = wordsBook;
 		myWord = null;
 		if (!w || !book) return;
-		fetch(`/api/books/${book}/vocabulary/word?w=${encodeURIComponent(w)}`)
-			.then((r) => (r.ok ? r.json() : null))
-			.then((found: MyWord | null) => {
-				if (word === w) myWord = found;
-			})
-			.catch(() => {});
-		fetch(`/api/books/${book}/vocabulary`)
-			.then((r) => (r.ok ? r.json() : null))
-			.then((v) => (myWordLanguage = v?.language ?? ''))
-			.catch(() => {});
+		loadWordInBook(book, w).then((found) => {
+			if (word === w && wordsBook === book) myWord = found;
+		});
 	});
 	async function toggleMyWord() {
-		if (!myWord || !myWordLanguage) return;
-		const want = !myWord.known;
-		const res = await fetch('/api/vocabulary/known', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ language: myWordLanguage, stem: myWord.stem, known: want })
-		}).catch(() => null);
-		if (res?.ok && myWord) myWord = { ...myWord, known: want };
+		if (!myWord || !wordsLanguage) return;
+		const { stem, known } = myWord;
+		const want = !known;
+		if ((await setKnown(wordsLanguage, stem, want)) && myWord?.stem === stem) myWord = { ...myWord, known: want };
 	}
 
 	let writing = $state(false);
@@ -196,7 +187,15 @@
 			</p>
 			<p class="mw-row">
 				{#if myWord.count}<span class="mw-count">{t('reader.words.count', { count: myWord.count })}</span>{/if}
-				<button type="button" class="act mw-know" class:on={myWord.known} onclick={toggleMyWord}>
+				<button
+					type="button"
+					class="act mw-know"
+					class:on={myWord.known}
+					aria-pressed={myWord.known}
+					aria-label={t('words.know', { word: myWord.word })}
+					disabled={!wordsLanguage}
+					onclick={toggleMyWord}
+				>
 					{myWord.known ? t('reader.words.known') : t('reader.words.know')}
 				</button>
 			</p>
@@ -460,7 +459,7 @@
 		margin: 0 0 0.25rem;
 	}
 	.mw-gloss {
-		color: var(--muted);
+		color: var(--r-muted);
 		margin-left: 0.4rem;
 	}
 	.mw-row {
@@ -471,9 +470,18 @@
 	}
 	.mw-count {
 		font-size: 0.8rem;
-		color: var(--muted);
+		color: var(--r-muted);
+	}
+	/* A finger's target, taller than the pill looks. */
+	.mw-know {
+		position: relative;
+	}
+	.mw-know::before {
+		content: '';
+		position: absolute;
+		inset: -6px 0;
 	}
 	.mw-know.on {
-		color: var(--accent);
+		color: var(--r-link);
 	}
 </style>
