@@ -59,6 +59,7 @@ async fn build(fed: std::sync::Arc<crate::fed::Fed>, settings: crate::settings::
         } else {
             crate::storage::Storage::local(data_dir.clone())
         }),
+        packs: std::sync::Arc::new(crate::langpack::Packs::new(data_dir.clone())),
         data_dir,
         kepubify: None,
         http: reqwest::Client::new(),

@@ -105,12 +105,22 @@ pub async fn connect(data_dir: &Path) -> anyhow::Result<(AnyPool, Backend)> {
         .max_connections(8)
         .after_connect(move |conn, _meta| {
             Box::pin(async move {
-                if backend == Backend::Sqlite {
-                    // WAL requires shared memory between processes, so it is
-                    // unsafe on network filesystems unless exactly one process
-                    // on one host opens the database. Use Postgres for
-                    // anything beyond that.
-                    conn.execute("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;").await?;
+                match backend {
+                    Backend::Sqlite => {
+                        // WAL requires shared memory between processes, so it is
+                        // unsafe on network filesystems unless exactly one process
+                        // on one host opens the database. Use Postgres for
+                        // anything beyond that.
+                        conn.execute("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;").await?;
+                    }
+                    Backend::Postgres => {
+                        // The pool keeps prepared statements, and after a few
+                        // runs Postgres would plan them without the bound
+                        // values: a plan that fits the reader with ten books is
+                        // a poor one for the reader with thousands. Plan each
+                        // run with its values instead.
+                        conn.execute("SET plan_cache_mode = force_custom_plan").await?;
+                    }
                 }
                 Ok(())
             })

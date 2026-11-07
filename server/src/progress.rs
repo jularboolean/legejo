@@ -348,6 +348,7 @@ mod tests {
             export_wake: std::sync::Arc::new(tokio::sync::Notify::new()),
             oidc: None,
             settings: std::sync::Arc::new(crate::settings::Settings::default()),
+            packs: std::sync::Arc::new(crate::langpack::Packs::new(std::env::temp_dir())),
         };
         (router(state), db)
     }

@@ -8,6 +8,8 @@
 	import WordsOption from '#lib/library/WordsOption.svelte';
 	import LevelTest from '#lib/library/LevelTest.svelte';
 	import {
+		ankiDeck,
+		appendUnique,
 		asAnki,
 		asText,
 		css,
@@ -19,6 +21,7 @@
 		loadBooks,
 		loadExamples,
 		loadOverview,
+		loadSearch,
 		percent,
 		setKnown,
 		WORD_CLASSES,
@@ -98,7 +101,7 @@
 		const page = await loadBooks(current, books.length, BOOK_PAGE);
 		loadingBooks = false;
 		if (page && language === current) {
-			books = [...books, ...page.books];
+			books = appendUnique(books, page.books, (b) => b.id);
 			booksTotal = page.total;
 		}
 	}
@@ -113,9 +116,10 @@
 		const name = languageInSentence(code, locale);
 		return name.charAt(0).toUpperCase() + name.slice(1);
 	};
-	const inBooks = (w: WordRow) => (w.books.length === 1 ? t('words.page.inBook') : t('words.page.inBooks', { count: w.books.length }));
-	const bookTitles = (w: WordRow) =>
-		w.books.map((id) => overview?.books.find((b) => b.id === id)?.title).filter(Boolean).join(' · ');
+	const inBooks = (w: WordRow) => (w.books === 1 ? t('words.page.inBook') : t('words.page.inBooks', { count: w.books }));
+	// The titles of the books shown so far, for a word's tooltip.
+	const titles = $derived(new Map(books.map((b) => [b.id, b.title])));
+	const bookTitles = (w: WordRow) => w.book_ids.map((id) => titles.get(id)).filter(Boolean).join(' · ');
 
 	// The words the reader knows: asked of the server a page at a time, in the
 	// chosen order, class and filter.
@@ -154,41 +158,46 @@
 		loadingKnown = false;
 		if (!page) return;
 		knownTotal = page.total;
-		knownWords = offset ? [...knownWords, ...page.words] : page.words;
+		knownWords = offset ? appendUnique(knownWords, page.words, (w) => w.stem) : page.words;
 	}
-	let knownTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
 		// Asked again when the language, order, class or filter changes.
 		const current = language;
 		void sort;
 		void wordClass;
 		const typed = filter.trim();
-		clearTimeout(knownTimer);
 		if (!current) return;
-		knownTimer = setTimeout(() => fetchKnown(0, FIRST), typed ? 250 : 0);
+		const timer = setTimeout(() => fetchKnown(0, FIRST), typed ? 250 : 0);
+		return () => clearTimeout(timer);
 	});
 	$effect(() => {
-		// A new language starts on all classes and no filter.
+		// A new language starts on all classes and no filter, with no words
+		// of the last one left under its heading.
 		void language;
 		wordClass = 'all';
 		filter = '';
+		knownWords = [];
+		knownTotal = 0;
 	});
 	const showMore = () => fetchKnown(knownWords.length, PAGE);
 	const filtered = $derived(!!filter.trim() || wordClass !== 'all');
 
 	// Example sentences, asked for only when the reader opens them: a
-	// sentence from later in a book can give away what happens.
+	// sentence from later in a book can give away what happens. Open per
+	// list, as a word can stand in more than one.
+	type Section = 'matches' | 'next' | 'known';
 	let examples = $state<Record<string, Example[] | 'loading' | 'failed'>>({});
-	async function toggleExamples(w: WordRow) {
-		if (examples[w.stem]) {
-			delete examples[w.stem];
+	async function toggleExamples(section: Section, w: WordRow) {
+		const key = `${section}:${w.stem}`;
+		if (examples[key]) {
+			delete examples[key];
 			return;
 		}
 		const current = language;
-		examples[w.stem] = 'loading';
+		examples[key] = 'loading';
 		const found = await loadExamples(current, w.stem);
-		if (language !== current || !examples[w.stem]) return;
-		examples[w.stem] = found ?? 'failed';
+		if (language !== current || !examples[key]) return;
+		examples[key] = found ?? 'failed';
 	}
 	$effect(() => {
 		void language;
@@ -198,20 +207,19 @@
 	// The search among all the words of the reader's books, asked as one types.
 	let search = $state('');
 	let matches = $state<WordRow[] | null>(null);
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
 		const q = search.trim();
 		const current = language;
-		clearTimeout(timer);
 		if (!q || !current) {
 			matches = null;
 			return;
 		}
-		timer = setTimeout(() => {
-			loadOverview(current, q).then((o) => {
-				if (search.trim() === q && language === current) matches = o?.matches ?? [];
+		const timer = setTimeout(() => {
+			loadSearch(current, q).then((found) => {
+				if (search.trim() === q && language === current) matches = found ?? [];
 			});
 		}, 250);
+		return () => clearTimeout(timer);
 	});
 
 	async function exportKnown(kind: 'text' | 'anki') {
@@ -229,16 +237,30 @@
 			const about: [string, string] | undefined = overview.source
 				? [t('words.ankiAbout'), t('words.ankiAboutText', { source: overview.source })]
 				: undefined;
-			download(`${title} (Anki).txt`, asAnki(`Legejo::${name}`, `legejo ${overview.language}`, rows, about));
+			download(`${title} (Anki).txt`, asAnki(ankiDeck(name), `legejo ${overview.language}`, rows, about));
 		}
 	}
 
 	// Ticking a word moves it between the lists; the counts and the books'
-	// shares follow from the server.
+	// shares follow from the server. A tick the server did not take is said
+	// so for a moment under the heading.
+	let saveError = $state('');
+	let errorTimer: ReturnType<typeof setTimeout> | undefined;
+	function sayFailed() {
+		saveError = t('edit.saveFailed');
+		clearTimeout(errorTimer);
+		errorTimer = setTimeout(() => (saveError = ''), 4000);
+	}
+	$effect(() => () => clearTimeout(errorTimer));
 	async function learn(w: WordRow, known: boolean) {
 		if (!overview) return;
 		const current = overview.language;
-		if (!(await setKnown(current, w.stem, known))) return;
+		const taken = await setKnown(current, w.stem, known);
+		if (language !== current) return;
+		if (!taken) {
+			sayFailed();
+			return;
+		}
 		if (matches) matches = matches.map((m) => (m.stem === w.stem ? { ...m, known } : m));
 		if (known) overview.next = overview.next.filter((x) => x.stem !== w.stem);
 		else knownWords = knownWords.filter((x) => x.stem !== w.stem);
@@ -246,23 +268,20 @@
 	}
 </script>
 
-{#snippet wordRow(w: WordRow, on: boolean)}
-	{@const open = examples[w.stem]}
+{#snippet wordRow(section: Section, w: WordRow, on: boolean)}
+	{@const open = examples[`${section}:${w.stem}`]}
 	<li class:known={on}>
-		<button
-			class="tick"
-			class:on
-			aria-label={on ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })}
-			onclick={() => learn(w, !on)}><Check size={15} /></button
-		>
+		<button class="tick" class:on aria-pressed={on} aria-label={t('words.know', { word: w.word })} onclick={() => learn(w, !on)}>
+			<Check size={15} />
+		</button>
 		<span class="word">
 			<span class="head">{w.word}</span>
 			{#if w.english}<span class="gloss">{w.english}</span>{/if}
 		</span>
 		<span class="side">
-			{#if w.books.length}
+			{#if w.books}
 				<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>
-				<button class="ex-toggle" aria-expanded={!!open} onclick={() => toggleExamples(w)}>
+				<button class="ex-toggle" aria-expanded={!!open} onclick={() => toggleExamples(section, w)}>
 					<Quote size={12} />
 					{open ? t('words.examples.hide') : t('words.examples.show')}
 				</button>
@@ -293,16 +312,19 @@
 
 <h1>{t('sidebar.words')}</h1>
 <p class="intro">{t('words.page.intro')}</p>
+{#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
 
-{#if !data.words}
+{#if data.offline}
+	<p class="empty"><GraduationCap size={18} /> {t('words.offline')}</p>
+{:else if !data.words}
 	<WordsOption />
 {:else if languages && languages.length === 0}
 	<p class="empty"><GraduationCap size={18} /> {t('words.page.none')}</p>
 {:else if languages}
 	{#if languages.length > 1}
-		<div class="tabs" role="tablist">
+		<div class="tabs">
 			{#each languages as l (l.language)}
-				<button role="tab" aria-selected={language === l.language} class:on={language === l.language} onclick={() => (language = l.language)}>
+				<button aria-pressed={language === l.language} class:on={language === l.language} onclick={() => (language = l.language)}>
 					{title(l.language)}
 				</button>
 			{/each}
@@ -319,7 +341,7 @@
 				{:else}
 					<ol class="words">
 						{#each matches as w (w.stem)}
-							{@render wordRow(w, w.known)}
+							{@render wordRow('matches', w, w.known)}
 						{/each}
 					</ol>
 				{/if}
@@ -344,7 +366,7 @@
 								</span>
 							</a>
 							<span class="bar" aria-hidden="true"><span style:width={css(b.share)}></span></span>
-							<span class="pct">{percent(b.share)} %</span>
+							<span class="pct">{percent(b.share)} %</span>
 						</li>
 					{/each}
 				</ul>
@@ -362,7 +384,7 @@
 				<p class="note">{t('words.page.nextNote')}</p>
 				<ol class="words">
 					{#each overview.next as w (w.stem)}
-						{@render wordRow(w, false)}
+						{@render wordRow('next', w, false)}
 					{/each}
 				</ol>
 			</section>
@@ -398,9 +420,9 @@
 						</select>
 					</label>
 				</div>
-				<div class="classes" role="radiogroup" aria-label={t('words.class.all')}>
+				<div class="classes" role="group" aria-label={t('words.class.all')}>
 					{#each ['all', ...WORD_CLASSES] as const as c (c)}
-						<button role="radio" aria-checked={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
+						<button aria-pressed={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
 							{t(`words.class.${c}` as MessageKey)}
 						</button>
 					{/each}
@@ -410,7 +432,7 @@
 				{/if}
 				<ol class="words" class:loading={loadingKnown}>
 					{#each knownWords as w (w.stem)}
-						{@render wordRow(w, true)}
+						{@render wordRow('known', w, true)}
 					{/each}
 				</ol>
 				{#if knownTotal > knownWords.length}
@@ -444,6 +466,11 @@
 		align-items: flex-start;
 		color: var(--muted);
 		max-width: 34rem;
+	}
+	.error {
+		margin: 0 0 0.8rem;
+		font-size: 0.9rem;
+		color: var(--danger, #c0392b);
 	}
 	.tabs {
 		display: flex;
@@ -553,6 +580,7 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.tick {
+		position: relative;
 		width: 28px;
 		height: 28px;
 		display: grid;
@@ -562,6 +590,12 @@
 		background: none;
 		color: transparent;
 		cursor: pointer;
+	}
+	/* A finger's target of 40 px around the circle. */
+	.tick::before {
+		content: '';
+		position: absolute;
+		inset: -6px;
 	}
 	.tick:hover {
 		color: var(--muted);

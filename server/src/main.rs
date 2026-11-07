@@ -145,6 +145,8 @@ pub struct AppState {
     pub oidc: Option<std::sync::Arc<oidc::Oidc>>,
     /// Operator settings from the environment (settings.rs).
     pub settings: std::sync::Arc<settings::Settings>,
+    /// The language packs, from the data directory or the binary (langpack.rs).
+    pub packs: std::sync::Arc<langpack::Packs>,
 }
 
 fn find_kepubify() -> Option<PathBuf> {
@@ -241,6 +243,7 @@ fn router(state: AppState) -> Router {
         .route("/vocabulary/examples", get(vocabulary::examples))
         .route("/vocabulary/languages", get(vocabulary::languages))
         .route("/vocabulary/overview", get(vocabulary::overview))
+        .route("/vocabulary/search", get(vocabulary::search))
         .route("/vocabulary/books", get(vocabulary::books))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
@@ -570,7 +573,8 @@ async fn main() -> anyhow::Result<()> {
             tracing::warn!("the database is SQLite in the data directory: keep that directory on a volume, or use PostgreSQL");
         }
     }
-    let state = AppState { db, backend, data_dir, storage, kepubify, http, live, thumb_gate, fed, export_wake, oidc, settings };
+    let packs = std::sync::Arc::new(langpack::Packs::new(data_dir.clone()));
+    let state = AppState { db, backend, data_dir, storage, kepubify, http, live, thumb_gate, fed, export_wake, oidc, settings, packs };
     tokio::spawn(books::backfill_thumbs(state.clone()));
     tokio::spawn(books::backfill_sha256(state.clone()));
     tokio::spawn(books::backfill_health(state.clone()));

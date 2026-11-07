@@ -36,9 +36,39 @@ export type Vocab = {
 	study_source: string | null;
 };
 
-export async function loadVocab(id: number, fetcher: typeof fetch = fetch): Promise<Vocab | null> {
+// A book's page asks for its vocabulary from more than one place at once;
+// requests in flight are shared, and nothing is kept once they settle.
+const inFlight = new Map<number, Promise<Vocab | null>>();
+
+export function loadVocab(id: number, fetcher: typeof fetch = fetch): Promise<Vocab | null> {
+	const pending = inFlight.get(id);
+	if (pending) return pending;
+	const request: Promise<Vocab | null> = (async () => {
+		try {
+			const res = await fetcher(`/api/books/${id}/vocabulary`);
+			return res.ok ? await res.json() : null;
+		} catch {
+			return null;
+		}
+	})().finally(() => inFlight.delete(id));
+	inFlight.set(id, request);
+	return request;
+}
+
+/** A selected word as a book's study list has it (GET /api/books/:id/vocabulary/word). */
+export type WordInBook = {
+	stem: string;
+	word: string;
+	english: string | null;
+	class: WordClass | null;
+	known: boolean;
+	count: number;
+};
+
+/** The word in the book's study list, or null when it is not there. */
+export async function loadWordInBook(bookId: number, word: string, fetcher: typeof fetch = fetch): Promise<WordInBook | null> {
 	try {
-		const res = await fetcher(`/api/books/${id}/vocabulary`);
+		const res = await fetcher(`/api/books/${bookId}/vocabulary/word?w=${encodeURIComponent(word)}`);
 		return res.ok ? await res.json() : null;
 	} catch {
 		return null;
@@ -99,6 +129,23 @@ export const percent = (x: number) => Math.round(x * 100);
 /** For CSS: no space before the sign. */
 export const css = (x: number) => `${(x * 100).toFixed(1)}%`;
 
+/** Rows added to a paged list, leaving out those it already has (a list can shift between pages). */
+export function appendUnique<T>(rows: T[], more: T[], key: (r: T) => string | number): T[] {
+	const seen = new Set(rows.map(key));
+	return [...rows, ...more.filter((r) => !seen.has(key(r)))];
+}
+
+/** For each word of a list, how many words from the top down to and including it are not known. */
+export function unknownPrefix(words: { stem: string }[], known: Set<string>): Map<string, number> {
+	const upTo = new Map<string, number>();
+	let unknown = 0;
+	for (const w of words) {
+		if (!known.has(w.stem)) unknown += 1;
+		upTo.set(w.stem, unknown);
+	}
+	return upTo;
+}
+
 // The words page (GET /api/vocabulary/languages and /overview).
 export type WordLanguage = { language: string; books: number; known: number };
 export type WordRow = {
@@ -107,7 +154,9 @@ export type WordRow = {
 	english: string | null;
 	class: WordClass | null;
 	known: boolean;
-	books: number[];
+	/** How many of the reader's books have the word, and up to twenty of them (those that use it most). */
+	books: number;
+	book_ids: number[];
 	count: number;
 };
 export type BookShare = { id: number; title: string; author: string | null; share: number; reading: boolean };
@@ -121,7 +170,6 @@ export type Overview = {
 	known: number;
 	/** How many of the commonest words in the reader's books they know. */
 	common: { known: number; of: number };
-	matches: WordRow[];
 	source: string | null;
 };
 
@@ -157,12 +205,20 @@ export async function loadLanguages(fetcher: typeof fetch = fetch): Promise<Word
 	}
 }
 
-export async function loadOverview(language: string, q = '', fetcher: typeof fetch = fetch): Promise<Overview | null> {
+export async function loadOverview(language: string, fetcher: typeof fetch = fetch): Promise<Overview | null> {
 	try {
-		const res = await fetcher(
-			`/api/vocabulary/overview?language=${encodeURIComponent(language)}${q ? `&q=${encodeURIComponent(q)}` : ''}`
-		);
+		const res = await fetcher(`/api/vocabulary/overview?${new URLSearchParams({ language })}`);
 		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}
+
+/** The words of the reader's books in a language that match what they typed. */
+export async function loadSearch(language: string, q: string, fetcher: typeof fetch = fetch): Promise<WordRow[] | null> {
+	try {
+		const res = await fetcher(`/api/vocabulary/search?${new URLSearchParams({ language, q })}`);
+		return res.ok ? (await res.json()).matches : null;
 	} catch {
 		return null;
 	}
@@ -186,6 +242,9 @@ export function asText(heading: string[], rows: ExportRow[]): string {
 	return [...heading, '', ...lines, ''].join('\n');
 }
 
+/** A deck under Legejo's: Anki nests decks on "::", so a name must not hold one. */
+export const ankiDeck = (name: string) => `Legejo::${name.replace(/::/g, ':')}`;
+
 export function asAnki(deck: string, tags: string, rows: ExportRow[], about?: [string, string]): string {
 	const esc = (x: string) => x.replace(/[\t\n]/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;');
 	const lines = rows.map((w) => {
@@ -193,7 +252,7 @@ export function asAnki(deck: string, tags: string, rows: ExportRow[], about?: [s
 		return [esc(w.word), esc(w.english ?? '') + forms, tags].join('\t');
 	});
 	if (about) lines.push([esc(about[0]), esc(about[1]), 'legejo'].join('\t'));
-	const head = ['#separator:tab', '#html:true', '#notetype:Basic', `#deck:${deck.replace(/::/g, ':')}`, '#tags column:3'];
+	const head = ['#separator:tab', '#html:true', '#notetype:Basic', `#deck:${deck}`, '#tags column:3'];
 	return [...head, ...lines, ''].join('\n');
 }
 
@@ -224,6 +283,11 @@ export function readingLevel(share: number): ReadingLevel {
 	if (share >= 0.9) return 'support';
 	if (share >= 0.8) return 'tough';
 	return 'hard';
+}
+
+/** The level that goes with the percentage shown, so that 94.9 % rounded to 95 reads as 95. */
+export function shownLevel(share: number): ReadingLevel {
+	return readingLevel(percent(share) / 100);
 }
 
 /** The reader's books in a language with how much of each they know, a page at a time. */
