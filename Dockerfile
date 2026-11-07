@@ -34,7 +34,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/server/target \
     cargo build --release --locked \
  && cp target/release/legejo /legejo \
- && cp target/release/import-sqlite /import-sqlite
+ && cp target/release/import-sqlite /import-sqlite \
+ && cp target/release/langpack /langpack
 
 FROM debian:bookworm-slim AS kepubify
 ARG TARGETARCH
@@ -55,6 +56,9 @@ RUN apt-get update \
 COPY --from=kepubify /kepubify /usr/local/bin/kepubify
 COPY --from=server /legejo /usr/local/bin/legejo
 COPY --from=server /import-sqlite /usr/local/bin/import-sqlite
+# Builds a language pack from a kaikki.org dump (tools/langpack/README.md):
+#   docker run --rm -v "$PWD:/work" slurvdjur/legejo langpack sw Kiswahili /work/<dump>.jsonl.gz /work/sw
+COPY --from=server /langpack /usr/local/bin/langpack
 COPY --from=web /web/build /app/web
 ENV LEGEJO_ADDR=0.0.0.0:3000 \
     LEGEJO_DATA_DIR=/data \

@@ -43,6 +43,7 @@ export const BOOK_LANGUAGES = [
 	'sl',
 	'sr',
 	'sv',
+	'sw',
 	'ta',
 	'tr',
 	'uk',

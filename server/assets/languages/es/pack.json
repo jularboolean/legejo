@@ -3,7 +3,8 @@
   "language": "es",
   "name": "Español",
   "version": "2026-11-07",
-  "source": "Wiktionary, extracted by kaikki.org",
+  "source": "kaikki.org (English Wiktionary)",
   "license": "CC BY-SA 4.0",
-  "attribution": "Wiktionary contributors (CC BY-SA 4.0), via kaikki.org"
+  "attribution": "Wiktionary contributors (CC BY-SA 4.0), via kaikki.org",
+  "also": ["spa", "spanish", "español", "castellano", "castilian"]
 }

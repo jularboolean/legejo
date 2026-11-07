@@ -56,6 +56,8 @@ rust-stemmers = "1.2"
 libc = "0.2"
 stop-words = "0.10"
 fst = "0.4"
+# Already in the tree through zip; here to read kaikki.org's gzipped dumps (bin/langpack.rs).
+flate2 = "1"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

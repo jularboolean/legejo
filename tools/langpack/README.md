@@ -1,52 +1,119 @@
 # Language packs
 
-A language pack gives books in a language a study list: their words in order
-of frequency, each taken to its dictionary form (*hizo* to *hacer*) with a
-short English meaning. Legejo has Spanish built in, and Esperanto through
-ESPDIC. A pack for any other language can be made from Wiktionary and put in
-the data directory; Legejo reads it the next time it starts.
+A language pack gives books in a language a study list: the words of a book
+in order of how often they occur, each taken to its dictionary form (*hizo*
+to *hacer*) with a short English meaning. Spanish, French and German are
+built into Legejo. Esperanto comes from ESPDIC and cannot be replaced. A pack
+for any other language is made from Wiktionary with one command and put in
+the data directory.
 
-## Making one
+## Build one
 
 [kaikki.org](https://kaikki.org/dictionary/) publishes the English
 Wiktionary's entries per language, with meanings in English and every
-inflected form. For Swahili:
+inflected form. Download the language's file and run the `langpack` program
+that ships in the Legejo image. For Swahili:
 
 ```sh
 curl -O https://kaikki.org/dictionary/Swahili/kaikki.org-dictionary-Swahili.jsonl.gz
-python3 tools/langpack/extract.py sw "Kiswahili" kaikki.org-dictionary-Swahili.jsonl.gz out/sw
-cd server && cargo run --release --bin langpack ../out/sw
+docker run --rm -v "$PWD:/work" slurvdjur/legejo langpack sw Kiswahili /work/kaikki.org-dictionary-Swahili.jsonl.gz /work/sw
 ```
 
-The first argument is the language's ISO 639-1 code, as Legejo catalogues
-books (see the language list in the edit form).
+The arguments: the language code Legejo files the books under (see
+[Codes](#codes)), the language's name as its speakers write it (shown in the
+app), the downloaded file, and the directory to write the pack into. On
+Linux add `--user "$(id -u):$(id -g)"` before `slurvdjur/legejo` so that the
+files are yours. From a source checkout the same is
 
-## Using one
+```sh
+cd server && cargo run --release --bin langpack -- sw Kiswahili ../kaikki.org-dictionary-Swahili.jsonl.gz ../sw
+```
 
-Copy the pack's directory into the data directory under `languages/`:
+It takes a few seconds and prints a summary: how many lemmas (dictionary
+words) and forms were found and how many forms can be more than one lemma;
+what was skipped; and the little words (prepositions, pronouns, adverbs) with
+most senses, each with its meaning as the pack has it. Those few lines are
+the quickest check that the glosses read well. `0 lemmas without a gloss`
+and `0 with wikitext left in it` are what you want to see.
+
+Wiktionary's content is licensed CC BY-SA 4.0, and so is a pack made from it.
+`pack.json` carries the attribution; keep it.
+
+## Install
+
+Copy the directory into the data directory under `languages/<code>/` (with
+Docker, `/data/languages/sw/`):
 
 ```
 /data/languages/sw/pack.json
-/data/languages/sw/forms.fst
-/data/languages/sw/ambiguous.tsv
 /data/languages/sw/lemmas.tsv
+/data/languages/sw/forms.tsv
 ```
 
-and restart Legejo. Books in Swahili are counted again with the pack and get
-a study list. A pack here wins over a built-in one for the same language, so
-an operator can also bring a newer Spanish pack.
+and restart Legejo. Books in that language are counted again in the
+background and get a study list. A pack here wins over a built-in one for
+the same language, so a newer Spanish pack can be brought the same way.
 
-## What is in a pack
+## Codes
 
-- `pack.json`: `format` (1), `language`, `name`, `version`, `source`,
-  `license` and `attribution`, shown with the meanings.
-- `lemmas.tsv`: one lemma per line, sorted by code point: the lemma, its parts
-  of speech (comma-separated, Wiktionary's names: `verb`, `noun`, `adj`,
-  `prep` …) and its meaning. Lines are numbered from 0.
-- `forms.fst`: an [fst](https://docs.rs/fst) map from every lower-case form
-  to a lemma's line number, or, with bit 40 set, to a line of
-  `ambiguous.tsv`.
-- `ambiguous.tsv`: per line, the line numbers of the lemmas a form can be.
+A code is two or three lower-case letters: the ISO 639-1 code when the
+language has one (`sw`), else the ISO 639-3 code (`yor`). Books name their
+language in their EPUB metadata in several ways (`sw`, `swa`, `Swahili`,
+`Kiswahili`); the `also` list in `pack.json` holds the other names that
+should reach the pack. The builder fills it in for the languages it knows,
+and always adds the dump's English name and the name you gave. Add more by
+hand if your books use another.
 
-Data from Wiktionary is under CC BY-SA 4.0, and so is a pack made from it;
-keep the attribution in `pack.json`.
+## Improve a pack by hand
+
+A pack is three text files, UTF-8, tab-separated, which any editor opens:
+
+- `pack.json`: the language, its name, version, source, licence and
+  attribution, and the `also` list.
+- `lemmas.tsv`: one lemma per line: the word in lower case (the key), its
+  parts of speech separated by commas (Wiktionary's names: `verb`, `noun`,
+  `adj`, `adv`, `prep`, `pron`, `det`, `article`, `conj`, `particle`, `num`,
+  `intj` …), its English, and, only when the word is written otherwise
+  than its key, the word as written (`haus … Haus` for German nouns). The
+  lines are sorted by key in byte order; Legejo sorts them itself when it
+  loads a text pack, so an edit out of order does no harm.
+- `forms.tsv`: one form per line: the form in lower case, then the key or
+  keys (comma-separated) of the lemmas it can be. The lemma itself is a form
+  too (`hacer hacer`). Any order; a repeated pair is harmless.
+
+Forms point at keys, not at line numbers, so lines in `lemmas.tsv` can be
+edited, added and removed freely. To fix a meaning, edit the third column.
+To add a word, add its line to `lemmas.tsv` and its forms to `forms.tsv`. To
+stop a form from going to the wrong lemma, change its line in `forms.tsv`.
+A form that is not in `forms.tsv` is not counted; a lemma that no form
+points at is never shown. Restart Legejo to pick the change up.
+
+## Limitations
+
+- Separable verbs are not joined: German *kommt an* is counted as *kommen*
+  and *an*; *ankommen* is found only when written in one word.
+- Wiktionary has no frequency data. The study list orders words by their
+  occurrences in the book, and the summary orders little words by their
+  number of senses.
+- Packs are read from the local data directory.
+- A form that can be several lemmas (*fue*: *ser* or *ir*) is listed with
+  all of them; Legejo picks when it counts.
+
+## For developers
+
+The three built-in packs are rebuilt the same way, with `--index`, which
+writes the pre-built look-up index `forms.fst` and `ambiguous.tsv` instead
+of `forms.tsv`, so that nothing is built when the server starts:
+
+```sh
+cd server
+cargo run --release --bin langpack -- es Español kaikki.org-dictionary-Spanish.jsonl.gz assets/languages/es --index
+cargo run --release --bin langpack -- fr Français kaikki.org-dictionary-French.jsonl.gz assets/languages/fr --index
+cargo run --release --bin langpack -- de Deutsch kaikki.org-dictionary-German.jsonl.gz assets/languages/de --index
+```
+
+`forms.fst` maps each form to a lemma's line number in `lemmas.tsv`, or,
+with bit 40 set, to a line of `ambiguous.tsv` listing several. The
+extraction rules live in `server/src/bin/langpack.rs`, each a small
+function with a test on the fixture at the end of the file
+(`cargo test --bin langpack`); `src/langpack.rs` reads the packs.

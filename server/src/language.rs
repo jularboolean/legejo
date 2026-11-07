@@ -1,7 +1,9 @@
 //! A book's language as one code from a fixed list. EPUBs name theirs in
 //! many ways ("swe", "sv-SE", "Svenska", "UND"); the catalog keeps the
 //! two-letter code (ISO 639-1) where there is one, so that books in the
-//! same language are found together, and the web offers the same list.
+//! same language are found together, and the web offers the same list. A
+//! language pack in the data directory (langpack.rs) adds its own code and
+//! the other names it gives for the language.
 
 use crate::AppState;
 
@@ -50,6 +52,7 @@ pub const LANGUAGES: &[(&str, &[&str])] = &[
     ("sl", &["slv", "slovenian"]),
     ("sr", &["srp", "serbian"]),
     ("sv", &["swe", "swedish", "svenska"]),
+    ("sw", &["swa", "swahili", "kiswahili"]),
     ("ta", &["tam", "tamil"]),
     ("tr", &["tur", "turkish"]),
     ("uk", &["ukr", "ukrainian"]),
@@ -57,38 +60,61 @@ pub const LANGUAGES: &[(&str, &[&str])] = &[
     ("zh", &["zho", "chi", "chinese"]),
 ];
 
-/// The catalog's code for a language as an EPUB or a person wrote it, or
-/// None when it names no language on the list ("und", "mul", empty).
-pub fn normalize(written: &str) -> Option<&'static str> {
+/// Whether a string is shaped like a language code here: two or three
+/// lower-case ASCII letters (ISO 639-1, or 639-3 for a language without a
+/// two-letter code).
+pub fn is_code(s: &str) -> bool {
+    (2..=3).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_lowercase())
+}
+
+/// The catalog's code for a language as an EPUB or a person wrote it: from
+/// the list, else from the installed packs' codes and other names (`packs`:
+/// (name, code) pairs, as `Packs::aliases` gives them); None when it names
+/// no language known here ("und", "mul", empty).
+pub fn normalize_with(written: &str, packs: &[(String, String)]) -> Option<String> {
     let lower = written.trim().to_lowercase();
     let primary = lower.split(['-', '_']).next().unwrap_or("").trim();
     if primary.is_empty() {
         return None;
     }
-    LANGUAGES
-        .iter()
-        .find(|(code, also)| *code == primary || also.contains(&primary) || also.contains(&lower.as_str()))
-        .map(|(code, _)| *code)
+    if let Some((code, _)) = LANGUAGES.iter().find(|(code, also)| *code == primary || also.contains(&primary) || also.contains(&lower.as_str())) {
+        return Some(code.to_string());
+    }
+    packs.iter().find(|(name, _)| name == primary || *name == lower).map(|(_, code)| code.clone())
 }
 
-/// What to store for a language given: the list's code, or the value as
-/// it was when it is not on the list (an operator's own choice is kept).
-pub fn catalog_value(written: Option<&str>) -> Option<String> {
+/// `normalize_with` for the list alone.
+#[cfg(test)]
+pub fn normalize(written: &str) -> Option<String> {
+    normalize_with(written, &[])
+}
+
+/// What to store for a language given: the list's or a pack's code, or the
+/// value as it was when it is not known (an operator's own choice is kept).
+pub fn catalog_value_with(written: Option<&str>, packs: &[(String, String)]) -> Option<String> {
     let written = written.map(str::trim).filter(|w| !w.is_empty())?;
     match written.to_lowercase().as_str() {
         "und" | "mul" | "zxx" => None,
-        _ => Some(normalize(written).map(str::to_string).unwrap_or_else(|| written.to_string())),
+        _ => Some(normalize_with(written, packs).unwrap_or_else(|| written.to_string())),
     }
 }
 
+/// `catalog_value_with` for the list alone; the sweep below brings what a
+/// pack's names would have caught to the pack's code later.
+pub fn catalog_value(written: Option<&str>) -> Option<String> {
+    catalog_value_with(written, &[])
+}
+
 /// Bring the languages already in the catalog to the list's codes, once at
-/// start. Values not on the list are left as they are.
+/// start and then now and then (a pack installed since adds its names).
+/// Values not known are left as they are.
 pub async fn normalize_catalog(state: &AppState) -> anyhow::Result<u64> {
     let rows: Vec<(i64, String)> =
         sqlx::query_as("SELECT id, language FROM books WHERE language IS NOT NULL").fetch_all(&state.db).await?;
+    let packs = state.packs.aliases();
     let mut changed = 0;
     for (id, written) in rows {
-        let value = catalog_value(Some(&written));
+        let value = catalog_value_with(Some(&written), &packs);
         if value.as_deref() != Some(written.as_str()) {
             sqlx::query("UPDATE books SET language = $1 WHERE id = $2").bind(value).bind(id).execute(&state.db).await?;
             changed += 1;
@@ -107,15 +133,28 @@ mod tests {
     #[test]
     fn the_ways_epubs_name_a_language_become_one_code() {
         for written in ["sv", "swe", "sv-SE", "SV_se", "Swedish", "svenska"] {
-            assert_eq!(normalize(written), Some("sv"), "{written}");
+            assert_eq!(normalize(written).as_deref(), Some("sv"), "{written}");
         }
-        assert_eq!(normalize("en-GB"), Some("en"));
-        assert_eq!(normalize("EN-US"), Some("en"));
-        assert_eq!(normalize("eng"), Some("en"));
-        assert_eq!(normalize("epo"), Some("eo"));
-        assert_eq!(normalize("no"), Some("nb"));
-        assert_eq!(normalize("nn-NO"), Some("nn"));
+        assert_eq!(normalize("en-GB").as_deref(), Some("en"));
+        assert_eq!(normalize("EN-US").as_deref(), Some("en"));
+        assert_eq!(normalize("eng").as_deref(), Some("en"));
+        assert_eq!(normalize("epo").as_deref(), Some("eo"));
+        assert_eq!(normalize("no").as_deref(), Some("nb"));
+        assert_eq!(normalize("nn-NO").as_deref(), Some("nn"));
+        assert_eq!(normalize("swa").as_deref(), Some("sw"));
+        assert_eq!(normalize("Kiswahili").as_deref(), Some("sw"));
         assert_eq!(normalize("klingon"), None);
+    }
+
+    #[test]
+    fn an_installed_packs_names_reach_its_code() {
+        let packs = vec![("yor".to_string(), "yor".to_string()), ("yoruba".to_string(), "yor".to_string()), ("èdè yorùbá".to_string(), "yor".to_string())];
+        assert_eq!(normalize_with("Yoruba", &packs).as_deref(), Some("yor"));
+        assert_eq!(normalize_with("yor-NG", &packs).as_deref(), Some("yor"));
+        assert_eq!(normalize_with("Èdè Yorùbá", &packs).as_deref(), Some("yor"));
+        assert_eq!(normalize_with("Yoruba", &[]), None);
+        assert_eq!(catalog_value_with(Some("yoruba"), &packs).as_deref(), Some("yor"));
+        assert_eq!(normalize_with("swe", &packs).as_deref(), Some("sv"), "the list first");
     }
 
     #[test]
@@ -125,6 +164,12 @@ mod tests {
         assert_eq!(catalog_value(None), None);
         assert_eq!(catalog_value(Some("sv-SE")).as_deref(), Some("sv"));
         assert_eq!(catalog_value(Some("tlh")).as_deref(), Some("tlh"));
+    }
+
+    #[test]
+    fn a_code_is_two_or_three_small_letters() {
+        assert!(is_code("sw") && is_code("yor"));
+        assert!(!is_code("s") && !is_code("Sw") && !is_code("sw-KE") && !is_code("swah") && !is_code(""));
     }
 }
 
