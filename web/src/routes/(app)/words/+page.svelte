@@ -2,9 +2,25 @@
 	// The words page: per language, the reader's books with how much of each
 	// they understand, the words worth learning next, and the words they know,
 	// each with the books it occurs in.
-	import { Check, GraduationCap } from '@lucide/svelte';
+	import { Check, Download, GraduationCap } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
-	import { css, languageInSentence, loadLanguages, loadOverview, percent, setKnown, type Overview, type WordLanguage, type WordRow } from '#lib/library/vocab';
+	import WordsOption from '#lib/library/WordsOption.svelte';
+	import {
+		asAnki,
+		asText,
+		css,
+		download,
+		languageInSentence,
+		loadLanguages,
+		loadOverview,
+		percent,
+		setKnown,
+		type Overview,
+		type WordLanguage,
+		type WordRow
+	} from '#lib/library/vocab';
+
+	let { data } = $props();
 
 	const locale = $derived(getLocale());
 	let languages = $state<WordLanguage[] | null>(null);
@@ -14,6 +30,7 @@
 	let showAll = $state(false);
 
 	$effect(() => {
+		if (!data.words) return;
 		loadLanguages().then((l) => {
 			languages = l;
 			if (!language && l.length) language = l[0].language;
@@ -44,13 +61,50 @@
 	});
 	const shownKnown = $derived(showAll || filter ? known : known.slice(0, 60));
 
+	// The search among all the words of the reader's books, asked as one types.
+	let search = $state('');
+	let matches = $state<WordRow[] | null>(null);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const q = search.trim();
+		const current = language;
+		clearTimeout(timer);
+		if (!q || !current) {
+			matches = null;
+			return;
+		}
+		timer = setTimeout(() => {
+			loadOverview(current, q).then((o) => {
+				if (search.trim() === q && language === current) matches = o?.matches ?? [];
+			});
+		}, 250);
+	});
+	const isKnown = (w: WordRow) => !!overview?.known.some((k) => k.stem === w.stem);
+
+	function exportKnown(kind: 'text' | 'anki') {
+		if (!overview) return;
+		const name = languageInSentence(overview.language, locale);
+		const title = t('words.page.fileTitle', { language: name, count: overview.known.length });
+		const rows = overview.known.map((w) => ({ word: w.word, english: w.english }));
+		if (kind === 'text') {
+			const head = [title];
+			if (overview.source) head.push(t('words.attribution', { source: overview.source }));
+			download(`${title}.txt`, asText(head, rows));
+		} else {
+			const about: [string, string] | undefined = overview.source
+				? [t('words.ankiAbout'), t('words.ankiAboutText', { source: overview.source })]
+				: undefined;
+			download(`${title} (Anki).txt`, asAnki(`Legejo::${name}`, `legejo ${overview.language}`, rows, about));
+		}
+	}
+
 	// Ticking moves a word between the lists; the books' shares follow on the next load.
 	async function learn(w: WordRow, isKnown: boolean) {
 		if (!overview) return;
 		if (!(await setKnown(overview.language, w.stem, isKnown))) return;
 		if (isKnown) {
 			overview.next = overview.next.filter((x) => x.stem !== w.stem);
-			overview.known = [w, ...overview.known];
+			overview.known = [w, ...overview.known.filter((x) => x.stem !== w.stem)];
 		} else {
 			overview.known = overview.known.filter((x) => x.stem !== w.stem);
 		}
@@ -64,7 +118,9 @@
 <h1>{t('sidebar.words')}</h1>
 <p class="intro">{t('words.page.intro')}</p>
 
-{#if languages && languages.length === 0}
+{#if !data.words}
+	<WordsOption />
+{:else if languages && languages.length === 0}
 	<p class="empty"><GraduationCap size={18} /> {t('words.page.none')}</p>
 {:else if languages}
 	{#if languages.length > 1}
@@ -78,6 +134,28 @@
 	{/if}
 
 	{#if overview}
+		<input class="search" type="search" placeholder={t('words.page.search')} bind:value={search} />
+		{#if matches}
+			<section>
+				<h2>{t('words.page.matches')}</h2>
+				{#if matches.length === 0}
+					<p class="note">{t('words.page.noMatch')}</p>
+				{:else}
+					<ol class="words">
+						{#each matches as w (w.stem)}
+							<li class:known={isKnown(w)}>
+								<button class="tick" class:on={isKnown(w)} aria-label={isKnown(w) ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })} onclick={() => learn(w, !isKnown(w))}><Check size={15} /></button>
+								<span class="word">
+									<span class="head">{w.word}</span>
+									{#if w.english}<span class="gloss">{w.english}</span>{/if}
+								</span>
+								<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>
+							</li>
+						{/each}
+					</ol>
+				{/if}
+			</section>
+		{/if}
 		{#if overview.books.length}
 			<section>
 				<h2>{t('words.page.books')}</h2>
@@ -118,6 +196,14 @@
 
 		<section>
 			<h2>{t('words.page.known', { count: overview.known.length })}</h2>
+			{#if overview.known.length}
+				<p class="export">
+					<Download size={14} />
+					{t('words.export', { count: overview.known.length })}
+					<button onclick={() => exportKnown('text')}>{t('words.exportText')}</button> ·
+					<button onclick={() => exportKnown('anki')}>{t('words.exportAnki')}</button>
+				</p>
+			{/if}
 			{#if overview.known.length > 8}
 				<input class="filter" type="search" placeholder={t('words.page.filter')} bind:value={filter} />
 			{/if}
@@ -297,6 +383,28 @@
 		font-size: 0.78rem;
 		color: var(--muted);
 		white-space: nowrap;
+	}
+	.search {
+		width: min(100%, 26rem);
+		margin: 0.4rem 0 0;
+	}
+	.export {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem;
+		margin: 0.1rem 0 0.6rem;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+	.export button {
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--accent);
+		font: inherit;
+		text-decoration: underline;
+		cursor: pointer;
 	}
 	.filter {
 		margin: 0.2rem 0 0.6rem;

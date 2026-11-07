@@ -21,7 +21,8 @@
 	let account = $state<Account>({ ...data.account });
 
 	// The page in parts, the part in the address: /account?tab=devices.
-	const hasOptions = $derived(account.librarian_available || account.fediverse_available || account.catalogs_available || data.mcpEnabled);
+	// Vocabulary and study lists are always on offer.
+	const hasOptions = true;
 	const wanted = $derived(page.url.searchParams.get('tab'));
 	const tab = $derived(
 		wanted === 'devices' || wanted === 'design' || (wanted === 'options' && hasOptions) ? wanted : 'profile'
@@ -229,6 +230,27 @@
 			}
 		} catch {
 			catalogsErrorMsg = t('common.network');
+		}
+	}
+
+	let wordsErrorMsg = $state('');
+	async function setWords(enabled: boolean) {
+		wordsErrorMsg = '';
+		try {
+			const res = await fetch('/api/account/words', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ enabled })
+			});
+			if (res.ok) {
+				account = await res.json();
+				// The panel, the card and My words follow.
+				await invalidateAll();
+			} else {
+				wordsErrorMsg = t('edit.saveFailed');
+			}
+		} catch {
+			wordsErrorMsg = t('common.network');
 		}
 	}
 
@@ -574,6 +596,16 @@
 <KosyncSetup username={account.username} />
 {:else}
 <div class="options">
+<section class="kobo">
+	<h3>{t('words.option.heading')}</h3>
+	<p class="intro">{t('words.option.intro')}</p>
+	<label class="choice">
+		<input type="checkbox" checked={account.words} onchange={(e) => setWords(e.currentTarget.checked)} />
+		{t('words.option.turnOn')}
+	</label>
+	{#if wordsErrorMsg}<p class="error">{wordsErrorMsg}</p>{/if}
+</section>
+
 {#if account.librarian_available}
 	<section class="kobo">
 		<h3>{t('librarian.heading')}</h3>

@@ -451,7 +451,7 @@
 			</div>
 		{/if}
 
-		<Vocabulary bookId={book.id} part="study" />
+		{#if data.words}<Vocabulary bookId={book.id} part="study" />{/if}
 
 		{#if descriptionHtml}
 			<div class="description">{@html descriptionHtml}</div>
@@ -522,7 +522,7 @@
 			<dt>{t('book.added')}</dt><dd>{book.created_at.slice(0, 10)}</dd>
 		</dl>
 
-		<Vocabulary bookId={book.id} part="stats" />
+		{#if data.words}<Vocabulary bookId={book.id} part="stats" />{/if}
 
 		{#if details.length > 0}
 			<details class="file-details">

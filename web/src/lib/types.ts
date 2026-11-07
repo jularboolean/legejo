@@ -297,6 +297,8 @@ export type Account = {
 	librarian: boolean;
 	/** Whether the server has a librarian to turn on. */
 	librarian_available: boolean;
+	/** Whether the user has turned vocabulary and study lists on. */
+	words: boolean;
 	/** Whether the user has turned the fediverse on. */
 	fediverse: boolean;
 	/** Whether the instance federates. */

@@ -7,7 +7,8 @@ forms.
     curl -O https://kaikki.org/dictionary/Spanish/kaikki.org-dictionary-Spanish.jsonl.gz
     python3 tools/langpack/extract.py es "Español" kaikki.org-dictionary-Spanish.jsonl.gz out/es
 
-writes out/es/lemmas.tsv (lemma, parts of speech, English), out/es/forms.tsv
+writes out/es/lemmas.tsv (lemma, parts of speech, English and, when it is
+written otherwise, the lemma as written), out/es/forms.tsv
 (form, lemmas) and out/es/pack.json. Then `cargo run --bin langpack out/es`
 turns forms.tsv into forms.fst and the pack is complete; see README.md.
 """
@@ -27,6 +28,7 @@ LITTLE = ['article', 'prep', 'conj', 'pron', 'det', 'adv', 'particle', 'contract
 
 forms = defaultdict(set)                     # form -> lemmas
 meanings = defaultdict(dict)                 # lemma -> pos -> [glosses]
+written = {}                                 # lemma -> as written (German nouns keep their capital)
 
 
 def short(g):
@@ -58,6 +60,12 @@ with gzip.open(src, 'rt', encoding='utf-8') as f:
         glosses = glosses or fallback
         if not glosses:
             continue
+        # Written with a capital only when the language always writes it so
+        # (German "Haus"); a lower-case entry of the same word wins ("a").
+        if word == lw:
+            written[lw] = lw
+        elif written.get(lw, word) != lw:
+            written[lw] = word
         meanings[lw].setdefault(pos, [])
         for g in glosses:
             if g not in meanings[lw][pos]:
@@ -75,7 +83,11 @@ with open(out / 'lemmas.tsv', 'w', encoding='utf-8') as w:
         given = list(meanings[l])
         poss = sorted(given, key=lambda p: LITTLE.index(p) if p in LITTLE else len(LITTLE) + given.index(p))
         parts = ['; '.join(meanings[l][p][:3]) for p in poss[:2]]
-        w.write(f"{l}\t{','.join(poss)}\t{' / '.join(parts)[:110]}\n")
+        line = f"{l}\t{','.join(poss)}\t{' / '.join(parts)[:110]}"
+        # A fourth column when the lemma is written otherwise than its key.
+        if written.get(l, l) != l:
+            line += '\t' + written[l]
+        w.write(line + '\n')
 kept = 0
 with open(out / 'forms.tsv', 'w', encoding='utf-8') as w:
     # Sorted by code point, which is the byte order of UTF-8 that an fst needs.

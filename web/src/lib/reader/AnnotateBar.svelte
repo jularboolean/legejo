@@ -25,6 +25,9 @@
 		/** The language the passage is in, for looking a word up; null when
 		 * the dictionary is off or out of reach. */
 		lookupLanguage?: string | null;
+		/** The book, when the reader has vocabulary on: a selected word is
+		 * shown as its study list has it, to be added to My words. */
+		wordsBook?: number | null;
 		/** Widen the passage to the whole sentences it reaches into; null when it is that already. */
 		onsentence?: (() => void) | null;
 		/** A new highlight, with or without a note. */
@@ -55,6 +58,7 @@
 		top = false,
 		faded = false,
 		lookupLanguage = null,
+		wordsBook = null,
 		onsentence = null,
 		onhighlight,
 		onsave,
@@ -99,6 +103,38 @@
 		} finally {
 			looking = false;
 		}
+	}
+
+	// The selected word in the book's study list (vocabulary.rs), at once:
+	// it is local, nothing is asked of a dictionary elsewhere.
+	type MyWord = { stem: string; word: string; english: string | null; known: boolean; count: number };
+	let myWord = $state<MyWord | null>(null);
+	let myWordLanguage = '';
+	$effect(() => {
+		const w = word;
+		const book = wordsBook;
+		myWord = null;
+		if (!w || !book) return;
+		fetch(`/api/books/${book}/vocabulary/word?w=${encodeURIComponent(w)}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((found: MyWord | null) => {
+				if (word === w) myWord = found;
+			})
+			.catch(() => {});
+		fetch(`/api/books/${book}/vocabulary`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((v) => (myWordLanguage = v?.language ?? ''))
+			.catch(() => {});
+	});
+	async function toggleMyWord() {
+		if (!myWord || !myWordLanguage) return;
+		const want = !myWord.known;
+		const res = await fetch('/api/vocabulary/known', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ language: myWordLanguage, stem: myWord.stem, known: want })
+		}).catch(() => null);
+		if (res?.ok && myWord) myWord = { ...myWord, known: want };
 	}
 
 	let writing = $state(false);
@@ -151,6 +187,20 @@
 			aria-label={t('reader.notes.note')}
 			disabled={saving}
 		></textarea>
+	{/if}
+	{#if myWord}
+		<div class="myword" aria-live="polite">
+			<p>
+				<b>{myWord.word}</b>
+				{#if myWord.english}<span class="mw-gloss">{myWord.english}</span>{/if}
+			</p>
+			<p class="mw-row">
+				{#if myWord.count}<span class="mw-count">{t('reader.words.count', { count: myWord.count })}</span>{/if}
+				<button type="button" class="act mw-know" class:on={myWord.known} onclick={toggleMyWord}>
+					{myWord.known ? t('reader.words.known') : t('reader.words.know')}
+				</button>
+			</p>
+		</div>
 	{/if}
 	{#if looked}
 		<div class="lookup" aria-live="polite">
@@ -401,5 +451,29 @@
 			animation: none;
 			transition: none;
 		}
+	}
+	.myword {
+		margin: 0.2rem 0 0.4rem;
+		font-size: 0.9rem;
+	}
+	.myword p {
+		margin: 0 0 0.25rem;
+	}
+	.mw-gloss {
+		color: var(--muted);
+		margin-left: 0.4rem;
+	}
+	.mw-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+	}
+	.mw-count {
+		font-size: 0.8rem;
+		color: var(--muted);
+	}
+	.mw-know.on {
+		color: var(--accent);
 	}
 </style>

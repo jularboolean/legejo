@@ -117,7 +117,10 @@
 	// list or words ticked as known.
 	let hasWords = $state(false);
 	$effect(() => {
-		if (!data.user) return;
+		if (!data.user || !data.words) {
+			hasWords = false;
+			return;
+		}
 		void page.url.pathname;
 		fetch('/api/vocabulary/languages')
 			.then((r) => (r.ok ? r.json() : []))

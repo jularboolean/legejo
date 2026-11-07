@@ -1,7 +1,7 @@
 //! Language packs: what it takes to give a book in a language a study list.
 //! A pack maps every inflected form of the language to its lemma ("hizo" to
-//! "hacer") and gives each lemma a short English meaning. Spanish is built
-//! in; a pack for any other language can be put in the data directory under
+//! "hacer") and gives each lemma a short English meaning. Spanish, French
+//! and German are built in; a pack for any other language can be put in the data directory under
 //! `languages/<code>/`, in the same form (tools/langpack/README.md).
 //!
 //! A pack is four files:
@@ -10,7 +10,8 @@
 //!   bit 40 set, to a line of `ambiguous.tsv`;
 //! - `ambiguous.tsv`: per line, the numbers of the lemmas a form can be;
 //! - `lemmas.tsv`: per line (sorted, numbered from 0), a lemma, its parts of
-//!   speech and its meaning.
+//!   speech, its meaning and, when it is written otherwise (German nouns),
+//!   the lemma as written.
 //!
 //! The fst is looked up where it lies (in the binary, or read once from the
 //! disk); the lemmas are found by their line offsets, not parsed whole.
@@ -24,13 +25,29 @@ use std::sync::{Arc, Mutex, OnceLock};
 const AMBIGUOUS: u64 = 1 << 40;
 
 /// The packs in the binary: (code, pack.json, forms.fst, ambiguous.tsv, lemmas.tsv).
-const BUILT_IN: &[(&str, &str, &[u8], &str, &str)] = &[(
-    "es",
-    include_str!("../assets/languages/es/pack.json"),
-    include_bytes!("../assets/languages/es/forms.fst"),
-    include_str!("../assets/languages/es/ambiguous.tsv"),
-    include_str!("../assets/languages/es/lemmas.tsv"),
-)];
+const BUILT_IN: &[(&str, &str, &[u8], &str, &str)] = &[
+    (
+        "es",
+        include_str!("../assets/languages/es/pack.json"),
+        include_bytes!("../assets/languages/es/forms.fst"),
+        include_str!("../assets/languages/es/ambiguous.tsv"),
+        include_str!("../assets/languages/es/lemmas.tsv"),
+    ),
+    (
+        "fr",
+        include_str!("../assets/languages/fr/pack.json"),
+        include_bytes!("../assets/languages/fr/forms.fst"),
+        include_str!("../assets/languages/fr/ambiguous.tsv"),
+        include_str!("../assets/languages/fr/lemmas.tsv"),
+    ),
+    (
+        "de",
+        include_str!("../assets/languages/de/pack.json"),
+        include_bytes!("../assets/languages/de/forms.fst"),
+        include_str!("../assets/languages/de/ambiguous.tsv"),
+        include_str!("../assets/languages/de/lemmas.tsv"),
+    ),
+];
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Meta {
@@ -55,7 +72,10 @@ pub struct Pack {
 
 /// One lemma: the word, its parts of speech ("prep,noun") and its meaning.
 pub struct Lemma<'a> {
+    /// The lemma's key: lower case, as forms are looked up.
     pub word: &'a str,
+    /// As it is written ("Haus"); the key when nothing else is given.
+    pub written: &'a str,
     pub pos: &'a str,
     pub english: &'a str,
 }
@@ -84,8 +104,12 @@ impl Pack {
     pub fn lemma(&self, n: u32) -> Option<Lemma<'_>> {
         let start = *self.offsets.get(n as usize)? as usize;
         let end = self.offsets.get(n as usize + 1).map(|e| *e as usize).unwrap_or(self.lemmas.len());
-        let mut parts = self.lemmas[start..end].trim_end_matches('\n').splitn(3, '\t');
-        Some(Lemma { word: parts.next()?, pos: parts.next().unwrap_or(""), english: parts.next().unwrap_or("") })
+        let mut parts = self.lemmas[start..end].trim_end_matches('\n').splitn(4, '\t');
+        let word = parts.next()?;
+        let pos = parts.next().unwrap_or("");
+        let english = parts.next().unwrap_or("");
+        let written = parts.next().filter(|w| !w.is_empty()).unwrap_or(word);
+        Some(Lemma { word, written, pos, english })
     }
 
     /// A lemma by its word (the lines are sorted).
@@ -178,5 +202,19 @@ mod tests {
         let a = es.lemmas_of("a");
         assert!(a.iter().any(|n| es.is_little(*n)));
         assert!(get(none, "sw").is_none());
+    }
+
+    #[test]
+    fn french_and_german_are_built_in_and_german_nouns_keep_their_capital() {
+        let none = Path::new("/nonexistent");
+        let fr = get(none, "fr").unwrap();
+        let word = |p: &Pack, form: &str| p.lemmas_of(form).iter().map(|n| p.lemma(*n).unwrap().word.to_string()).collect::<Vec<_>>();
+        assert!(word(&fr, "était").contains(&"être".to_string()));
+        assert_eq!(word(&fr, "allait"), ["aller"]);
+        let de = get(none, "de").unwrap();
+        assert_eq!(word(&de, "ging"), ["gehen"]);
+        assert!(word(&de, "häuser").contains(&"haus".to_string()));
+        assert_eq!(de.find("haus").unwrap().written, "Haus");
+        assert_eq!(de.find("gehen").unwrap().written, "gehen");
     }
 }

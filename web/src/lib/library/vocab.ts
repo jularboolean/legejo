@@ -93,6 +93,7 @@ export type Overview = {
 	books: { id: number; title: string; author: string | null; share: number }[];
 	next: WordRow[];
 	known: WordRow[];
+	matches: WordRow[];
 	source: string | null;
 };
 
@@ -105,11 +106,42 @@ export async function loadLanguages(fetcher: typeof fetch = fetch): Promise<Word
 	}
 }
 
-export async function loadOverview(language: string, fetcher: typeof fetch = fetch): Promise<Overview | null> {
+export async function loadOverview(language: string, q = '', fetcher: typeof fetch = fetch): Promise<Overview | null> {
 	try {
-		const res = await fetcher(`/api/vocabulary/overview?language=${encodeURIComponent(language)}`);
+		const res = await fetcher(
+			`/api/vocabulary/overview?language=${encodeURIComponent(language)}${q ? `&q=${encodeURIComponent(q)}` : ''}`
+		);
 		return res.ok ? await res.json() : null;
 	} catch {
 		return null;
 	}
+}
+
+// Word lists as files: plain text, or tab-separated for Anki's text import
+// with the headers Anki reads itself.
+export type ExportRow = { word: string; forms?: string[]; english: string | null };
+
+export function download(name: string, text: string) {
+	const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+	const a = Object.assign(document.createElement('a'), { href: url, download: name });
+	a.click();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function asText(heading: string[], rows: ExportRow[]): string {
+	const label = (w: ExportRow) => w.word + (w.forms?.length ? ` (${w.forms.join(', ')})` : '');
+	const width = Math.max(0, ...rows.map((w) => label(w).length));
+	const lines = rows.map((w) => `${label(w).padEnd(width)}   ${w.english ?? ''}`.trimEnd());
+	return [...heading, '', ...lines, ''].join('\n');
+}
+
+export function asAnki(deck: string, tags: string, rows: ExportRow[], about?: [string, string]): string {
+	const esc = (x: string) => x.replace(/[\t\n]/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+	const lines = rows.map((w) => {
+		const forms = w.forms?.length ? `<br><small>${esc(w.forms.join(' · '))}</small>` : '';
+		return [esc(w.word), esc(w.english ?? '') + forms, tags].join('\t');
+	});
+	if (about) lines.push([esc(about[0]), esc(about[1]), 'legejo'].join('\t'));
+	const head = ['#separator:tab', '#html:true', '#notetype:Basic', `#deck:${deck.replace(/::/g, ':')}`, '#tags column:3'];
+	return [...head, ...lines, ''].join('\n');
 }

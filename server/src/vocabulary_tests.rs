@@ -198,6 +198,20 @@ async fn a_spanish_book_gets_a_study_list_by_lemma_from_the_built_in_pack() {
     assert_eq!(row("grande")["class"], "adj");
     assert_eq!(row("a")["class"], "other");
     assert!(v["study_source"].as_str().unwrap().contains("Wiktionary"));
+
+    // Selected in the reader: "hizo" is "hacer", a verb, not known yet; then known.
+    let (status, w) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary/word?w=Hizo,"), Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{w}");
+    assert_eq!(w["word"], "hacer");
+    assert_eq!(w["class"], "verb");
+    assert_eq!(w["known"], false);
+    send(&app, Method::PUT, "/api/vocabulary/known", Some(&alice), Some(json!({ "language": "es", "stem": w["stem"], "known": true }))).await;
+    let (_, w) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary/word?w=hace"), Some(&alice), None).await;
+    assert_eq!(w["word"], "hacer", "{w}");
+    assert_eq!(w["known"], true);
+    // A name is not a word to learn.
+    let (status, _) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary/word?w=Juan"), Some(&alice), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

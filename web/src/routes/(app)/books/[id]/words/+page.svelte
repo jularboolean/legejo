@@ -7,6 +7,9 @@
 	import { getLocale, t } from '#lib/i18n';
 	import { css, fmt, knownCover, loadVocab, percent, setKnown, WORD_CLASSES, type StudyRow, type Vocab, type WordClass } from '#lib/library/vocab';
 	import type { MessageKey } from '#lib/i18n';
+	import WordsOption from '#lib/library/WordsOption.svelte';
+
+	let { data } = $props();
 
 	const id = $derived(Number(page.params.id));
 	let title = $state('');
@@ -145,7 +148,9 @@
 
 <a class="back" href={`/books/${id}`}><ArrowLeft size={15} /> {title}</a>
 
-{#if vocab?.study}
+{#if !data.words}
+	<WordsOption />
+{:else if vocab?.study}
 	<header>
 		<h1>{t('vocab.study')}</h1>
 		<p class="intro">{t('words.intro')}</p>

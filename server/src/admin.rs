@@ -372,6 +372,8 @@ pub struct Config {
     fulltext: bool,
     /// Whether the reader can look words up (dictionary.rs).
     dictionary: bool,
+    /// Whether the user has turned vocabulary and study lists on.
+    words: bool,
 }
 
 pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Json<Config>, Response> {
@@ -391,6 +393,7 @@ pub async fn config(State(state): State<AppState>, user: AuthUser) -> Result<Jso
         author_facts: crate::authorfacts::enabled(&state).await,
         fulltext: crate::fulltext::enabled(&state),
         dictionary: crate::dictionary::enabled(&state).await,
+        words: crate::vocabulary::turned_on(&state, user.0.id).await,
         libris_enabled: libris_enabled(&state).await.map_err(|e| internal(e.into()))?,
         openlibrary_enabled: crate::openlibrary::enabled(&state).await,
         mcp_enabled: state.settings.mcp,

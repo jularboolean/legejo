@@ -43,6 +43,9 @@ pub struct Account {
     /// Whether the user has turned on the catalogs of other libraries
     /// (catalogs.rs).
     pub catalogs: crate::db::DbFlag,
+    /// Whether the user has turned on vocabulary and study lists
+    /// (vocabulary.rs): the panel on a book's page, Before you read, My words.
+    pub words: crate::db::DbFlag,
     /// Whether there are catalogs to turn on: an admin has turned them on
     /// for the instance.
     #[sqlx(skip)]
@@ -60,7 +63,7 @@ fn unprocessable(msg: &str) -> Response {
 
 async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Response> {
     let mut account: Account = sqlx::query_as(
-        "SELECT username, email, pending_email, kobo_token, kindle_email, password_set, librarian, fediverse, catalogs FROM users WHERE id = $1",
+        "SELECT username, email, pending_email, kobo_token, kindle_email, password_set, librarian, fediverse, catalogs, words FROM users WHERE id = $1",
     )
         .bind(user_id)
         .fetch_one(&state.db)
@@ -72,6 +75,22 @@ async fn fetch_account(state: &AppState, user_id: i64) -> Result<Account, Respon
     account.fediverse_available = crate::fed::active(state).await.is_some();
     account.catalogs_available = crate::catalogs::enabled(state).await;
     Ok(account)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateWords {
+    enabled: bool,
+}
+
+/// PUT /api/account/words: turn vocabulary and study lists on or off.
+pub async fn set_words(State(state): State<AppState>, user: AuthUser, Json(req): Json<UpdateWords>) -> Result<Json<Account>, Response> {
+    sqlx::query("UPDATE users SET words = $1 WHERE id = $2")
+        .bind(crate::db::DbFlag::from(req.enabled))
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| internal(e.into()))?;
+    Ok(Json(fetch_account(&state, user.0.id).await?))
 }
 
 #[derive(Deserialize)]
