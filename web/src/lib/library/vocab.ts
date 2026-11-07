@@ -243,7 +243,7 @@ export async function loadBooks(
 }
 
 /** A level test: words from each frequency band of the reader's books. */
-export type LevelBand = { from: number; to: number; words: { stem: string; word: string }[] };
+export type LevelBand = { from: number; to: number; words: { stem: string; word: string; english: string | null }[] };
 export async function loadLevelTest(language: string, fetcher: typeof fetch = fetch): Promise<{ words: number; bands: LevelBand[] } | null> {
 	try {
 		const res = await fetcher(`/api/vocabulary/level?${new URLSearchParams({ language })}`);

@@ -300,6 +300,8 @@ async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
     assert_eq!(band["from"], 0);
     let asked: Vec<&str> = band["words"].as_array().unwrap().iter().map(|w| w["stem"].as_str().unwrap()).collect();
     assert!(!asked.is_empty() && asked.len() <= 8, "{level}");
+    let la = band["words"].as_array().unwrap().iter().find(|w| w["word"] == "la");
+    assert!(la.is_none_or(|w| w["english"] == "the"), "{level}");
     let words = level["words"].as_u64().unwrap();
     let mut answers: Vec<serde_json::Value> = asked.iter().map(|s| json!({ "stem": s, "known": true })).collect();
     answers[0] = json!({ "stem": asked[0], "known": false });

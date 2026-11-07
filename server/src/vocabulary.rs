@@ -1230,6 +1230,8 @@ pub struct LevelQuery {
 pub struct LevelWord {
     pub stem: String,
     pub word: String,
+    /// Shown once the reader has said they know the word, to check it.
+    pub english: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1253,7 +1255,7 @@ pub async fn level_sample(State(state): State<AppState>, user: AuthUser, Query(q
         .map(|(from, to)| {
             let mut words: Vec<LevelWord> = ranked[from..to]
                 .choose_multiple(&mut rng, LEVEL_ASK)
-                .map(|w| LevelWord { stem: w.stem.clone(), word: w.word.clone() })
+                .map(|w| LevelWord { stem: w.stem.clone(), word: w.word.clone(), english: meaning_of(&state, &q.language, &w.word, &w.stem).0 })
                 .collect();
             words.shuffle(&mut rng);
             LevelBand { from, to, words }

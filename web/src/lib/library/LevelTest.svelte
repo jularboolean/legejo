@@ -4,6 +4,7 @@
 	// From the share known in each band the server ticks that many of the
 	// band's commonest words, so a reader who already knows a lot does not
 	// have to tick hundreds of words one by one.
+	import { Check, X } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { fmt, loadLevelTest, sendLevelTest } from './vocab';
 
@@ -11,7 +12,9 @@
 
 	type State = 'idle' | 'loading' | 'asking' | 'sending' | 'done' | 'failed';
 	let step = $state<State>('idle');
-	let queue = $state<{ stem: string; word: string }[]>([]);
+	let queue = $state<{ stem: string; word: string; english: string | null }[]>([]);
+	/** The meaning shown after a "yes", for the reader to check before going on. */
+	let checking = $state(false);
 	let at = $state(0);
 	let answers = $state<{ stem: string; known: boolean }[]>([]);
 	let result = $state<{ estimate: number; ticked: number } | null>(null);
@@ -31,7 +34,14 @@
 		step = 'asking';
 	}
 
+	// A "yes" shows the meaning first; the answer counts once the reader has
+	// seen it and goes on, or takes it back.
 	async function answer(known: boolean) {
+		if (known && !checking && queue[at].english) {
+			checking = true;
+			return;
+		}
+		checking = false;
 		answers.push({ stem: queue[at].stem, known });
 		if (at + 1 < queue.length) {
 			at += 1;
@@ -48,6 +58,10 @@
 	}
 
 	function back() {
+		if (checking) {
+			checking = false;
+			return;
+		}
 		if (at === 0) return;
 		at -= 1;
 		answers.pop();
@@ -57,7 +71,7 @@
 		if (step !== 'asking' || e.metaKey || e.ctrlKey || e.altKey) return;
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-		if (e.key === 'ArrowRight' || e.key === 'j') answer(true);
+		if (e.key === 'ArrowRight' || e.key === 'j' || (checking && e.key === 'Enter')) answer(true);
 		else if (e.key === 'ArrowLeft' || e.key === 'n') answer(false);
 		else if (e.key === 'Backspace') back();
 		else return;
@@ -77,12 +91,25 @@
 		<div class="card" aria-live="polite">
 			<span class="count">{at + 1} / {queue.length}</span>
 			<span class="word" lang={language}>{queue[at].word}</span>
+			<span class="english" class:shown={checking}>{checking ? queue[at].english : ''}</span>
 			<span class="progress" aria-hidden="true"><span style:width={`${(at / queue.length) * 100}%`}></span></span>
 		</div>
-		<div class="answers">
-			<button onclick={() => answer(false)}>{t('words.level.test.no')}</button>
-			<button class="primary" onclick={() => answer(true)}>{t('words.level.test.yes')}</button>
-		</div>
+		{#if checking}
+			<p class="check">{t('words.level.test.check')}</p>
+			<div class="answers">
+				<button class="wrong" onclick={() => answer(false)}><X size={18} /> {t('words.level.test.wrong')}</button>
+				<button class="primary" onclick={() => answer(true)}>{t('words.level.test.next')}</button>
+			</div>
+		{:else}
+			<div class="round">
+				<button class="no" aria-label={t('words.level.test.no')} title={t('words.level.test.no')} onclick={() => answer(false)}>
+					<X size={30} strokeWidth={2.5} />
+				</button>
+				<button class="yes" aria-label={t('words.level.test.yes')} title={t('words.level.test.yes')} onclick={() => answer(true)}>
+					<Check size={30} strokeWidth={2.5} />
+				</button>
+			</div>
+		{/if}
 		<p class="keys">
 			{#if at > 0}<button class="link" onclick={back}>{t('words.level.test.back')}</button> ·{/if}
 			<button class="link" onclick={finish}>{t('words.level.test.stop')}</button>
@@ -137,6 +164,59 @@
 		overflow-wrap: anywhere;
 		text-align: center;
 	}
+	.english {
+		min-height: 1.4em;
+		max-width: 26rem;
+		text-align: center;
+		color: var(--muted);
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+	.english.shown {
+		opacity: 1;
+	}
+	.check {
+		text-align: center;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+	.round {
+		display: flex;
+		justify-content: center;
+		gap: 2.5rem;
+		padding: 0.2rem 0 0.3rem;
+	}
+	.round button {
+		width: 64px;
+		height: 64px;
+		display: grid;
+		place-items: center;
+		border-radius: 50%;
+		border: 2px solid var(--border);
+		background: none;
+		color: var(--fg);
+		transition:
+			transform 0.1s,
+			border-color 0.1s;
+	}
+	.round button:active {
+		transform: scale(0.94);
+	}
+	.round .no:hover {
+		border-color: var(--danger, #c0392b);
+		color: var(--danger, #c0392b);
+	}
+	.round .yes {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--bg);
+	}
+	.wrong {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+	}
 	.progress {
 		width: min(100%, 14rem);
 		height: 4px;
@@ -166,7 +246,8 @@
 		background: none;
 		color: var(--fg);
 	}
-	.primary {
+	.primary,
+	.answers .primary {
 		background: var(--accent);
 		border-color: var(--accent);
 		color: var(--bg);
