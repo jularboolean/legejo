@@ -1178,16 +1178,6 @@ async fn known_stems(state: &AppState, user: i64, language: &str) -> anyhow::Res
     Ok(rows.into_iter().map(|(s,)| s).collect())
 }
 
-/// A word's English, from the language's pack (by its key, the stem) or
-/// ESPDIC (by the word).
-fn english_of(state: &AppState, language: &str, word: &str, stem: &str) -> Option<String> {
-    if language == "eo" {
-        crate::espdic::lookup(word).map(|f| f.english)
-    } else {
-        crate::langpack::get(&state.data_dir, language)?.find(stem).map(|l| l.english.to_string()).filter(|e| !e.is_empty())
-    }
-}
-
 #[derive(Serialize)]
 pub struct WordLanguage {
     pub language: String,
@@ -1236,15 +1226,27 @@ pub struct BookShare {
     pub share: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct WordRow {
     pub stem: String,
     pub word: String,
     pub english: Option<String>,
+    pub class: Option<&'static str>,
+    pub known: bool,
     /// The reader's books it occurs in, and how often in all.
     pub books: Vec<i64>,
     pub count: u32,
 }
+
+/// How many of the commonest words in the reader's books they know.
+#[derive(Serialize)]
+pub struct CommonKnown {
+    pub known: usize,
+    pub of: usize,
+}
+
+/// The commonest words a summary on the words page counts against.
+const COMMON_WORDS: usize = 1000;
 
 #[derive(Serialize)]
 pub struct Overview {
@@ -1253,7 +1255,10 @@ pub struct Overview {
     /// Words to learn next: the commonest across the reader's books that the
     /// reader does not know yet.
     pub next: Vec<WordRow>,
-    pub known: Vec<WordRow>,
+    /// How many words the reader knows; the words themselves come a page at
+    /// a time from `known_words`.
+    pub known: usize,
+    pub common: CommonKnown,
     /// Words of the reader's books that match the search (`q`), with the
     /// known ones among them.
     pub matches: Vec<WordRow>,
@@ -1262,9 +1267,80 @@ pub struct Overview {
     pub pack: Option<crate::langpack::Meta>,
 }
 
+/// A word's English meaning and class, from the language's pack (by its key,
+/// the stem) or ESPDIC (by the word).
+fn meaning_of(state: &AppState, language: &str, word: &str, stem: &str) -> (Option<String>, Option<&'static str>) {
+    if language == "eo" {
+        (crate::espdic::lookup(word).map(|f| f.english), Some(esperanto_class(word)))
+    } else {
+        match crate::langpack::get(&state.data_dir, language).and_then(|p| {
+            p.find(stem).map(|l| (Some(l.english.to_string()).filter(|e| !e.is_empty()), l.pos.split(',').next().map(class_of_pos)))
+        }) {
+            Some(found) => found,
+            None => (None, None),
+        }
+    }
+}
+
+fn fill_meaning(state: &AppState, language: &str, row: &mut WordRow) {
+    let (english, class) = meaning_of(state, language, &row.word, &row.stem);
+    row.english = english;
+    row.class = class;
+}
+
+/// Every word of the reader's study lists in a language (names aside), with
+/// the books it occurs in, and each book's share of known words.
+struct Library {
+    books: Vec<BookShare>,
+    words: HashMap<String, WordRow>,
+    /// Every form a word was written in, for the search.
+    written: HashMap<String, Vec<String>>,
+}
+
+fn library(lists: &[(i64, String, Option<String>, i64, Vec<StudyWord>)], known: &std::collections::HashSet<String>, forms: bool) -> Library {
+    let mut books = Vec::new();
+    let mut words: HashMap<String, WordRow> = HashMap::new();
+    let mut written: HashMap<String, Vec<String>> = HashMap::new();
+    for (id, title, author, total, list) in lists {
+        let (mut covered, mut names) = (0u64, 0u64);
+        for w in list {
+            if w.name {
+                names += w.count as u64;
+                continue;
+            }
+            if known.contains(&w.stem) {
+                covered += w.count as u64;
+            }
+            let row = words.entry(w.stem.clone()).or_insert_with(|| WordRow {
+                stem: w.stem.clone(),
+                word: w.word.clone(),
+                english: None,
+                class: None,
+                known: known.contains(&w.stem),
+                books: Vec::new(),
+                count: 0,
+            });
+            row.books.push(*id);
+            row.count += w.count;
+            if forms {
+                let seen = written.entry(w.stem.clone()).or_default();
+                for f in &w.forms {
+                    if !seen.contains(f) {
+                        seen.push(f.clone());
+                    }
+                }
+            }
+        }
+        let learnable = (*total as u64).saturating_sub(names).max(1);
+        books.push(BookShare { id: *id, title: title.clone(), author: author.clone(), share: covered as f64 / learnable as f64 });
+    }
+    books.sort_by(|a, b| b.share.total_cmp(&a.share));
+    Library { books, words, written }
+}
+
 /// GET /api/vocabulary/overview?language=: the reader's books in the
-/// language with how much of each they know, the words to learn next, and
-/// the words they know, each with the books it occurs in.
+/// language with how much of each they know, the words to learn next, how
+/// many words they know, and (with `q`) the words that match a search.
 #[derive(Deserialize)]
 pub struct OverviewQuery {
     language: String,
@@ -1279,81 +1355,114 @@ pub async fn overview(State(state): State<AppState>, user: AuthUser, Query(q): Q
         (Ok(l), Ok(k)) => (l, k),
         _ => return internal("overview"),
     };
-    let mut books = Vec::new();
-    let mut words: HashMap<String, WordRow> = HashMap::new();
-    // Every form a word was written in, for the search.
-    let mut written: HashMap<String, Vec<String>> = HashMap::new();
-    for (id, title, author, total, list) in &lists {
-        let (mut covered, mut names) = (0u64, 0u64);
-        for w in list {
-            if w.name {
-                names += w.count as u64;
-                continue;
-            }
-            if known.contains(&w.stem) {
-                covered += w.count as u64;
-            }
-            let row = words.entry(w.stem.clone()).or_insert_with(|| WordRow {
-                stem: w.stem.clone(),
-                word: w.word.clone(),
-                english: None,
-                books: Vec::new(),
-                count: 0,
-            });
-            row.books.push(*id);
-            row.count += w.count;
-            if search.is_some() {
-                let forms = written.entry(w.stem.clone()).or_default();
-                for f in &w.forms {
-                    if !forms.contains(f) {
-                        forms.push(f.clone());
-                    }
-                }
-            }
-        }
-        let learnable = (*total as u64).saturating_sub(names).max(1);
-        books.push(BookShare { id: *id, title: title.clone(), author: author.clone(), share: covered as f64 / learnable as f64 });
-    }
-    books.sort_by(|a, b| b.share.total_cmp(&a.share));
+    let Library { books, words, written } = library(&lists, &known, search.is_some());
     // Words to learn next: in more books first, then more often.
-    let mut next: Vec<WordRow> = words.values().filter(|w| !known.contains(&w.stem)).map(|w| WordRow { english: None, ..clone_row(w) }).collect();
+    let mut next: Vec<WordRow> = words.values().filter(|w| !w.known).cloned().collect();
     next.sort_by(|a, b| (b.books.len(), b.count).cmp(&(a.books.len(), a.count)).then_with(|| a.word.cmp(&b.word)));
     next.truncate(30);
-    let mut known_rows: Vec<WordRow> = known
-        .iter()
-        .map(|s| match words.get(s) {
-            Some(w) => clone_row(w),
-            None => WordRow { stem: s.clone(), word: s.clone(), english: None, books: Vec::new(), count: 0 },
-        })
-        .collect();
-    known_rows.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.word.cmp(&b.word)));
+    // How many of the commonest words the reader knows.
+    let mut counts: Vec<(u32, bool)> = words.values().map(|w| (w.count, w.known)).collect();
+    counts.sort_by(|a, b| b.0.cmp(&a.0));
+    counts.truncate(COMMON_WORDS);
+    let common = CommonKnown { known: counts.iter().filter(|(_, k)| *k).count(), of: counts.len() };
     // The search: a word, one of its forms or its English.
     let mut matches: Vec<WordRow> = Vec::new();
     if let Some(q) = &search {
-        let mut found: Vec<&WordRow> = words
+        let mut found: Vec<WordRow> = words
             .values()
             .filter(|w| {
                 w.word.to_lowercase().contains(q.as_str())
                     || written.get(&w.stem).is_some_and(|f| f.iter().any(|f| f.contains(q.as_str())))
-                    || english_of(&state, &language, &w.word, &w.stem).is_some_and(|e| e.to_lowercase().contains(q.as_str()))
+                    || meaning_of(&state, &language, &w.word, &w.stem).0.is_some_and(|e| e.to_lowercase().contains(q.as_str()))
             })
+            .cloned()
             .collect();
         found.sort_by(|a, b| {
             let exact = |w: &WordRow| w.word.to_lowercase() != *q;
             (exact(a), b.count).cmp(&(exact(b), a.count))
         });
-        matches = found.into_iter().take(50).map(clone_row).collect();
+        found.truncate(50);
+        matches = found;
     }
-    for row in next.iter_mut().chain(known_rows.iter_mut()).chain(matches.iter_mut()) {
-        row.english = english_of(&state, &language, &row.word, &row.stem);
+    for row in next.iter_mut().chain(matches.iter_mut()) {
+        fill_meaning(&state, &language, row);
     }
     let pack = if language == "eo" { None } else { crate::langpack::get(&state.data_dir, &language).map(|p| p.meta.clone()) };
     let source = if language == "eo" { Some(crate::espdic::ATTRIBUTION.to_string()) } else { pack.as_ref().map(|p| p.attribution.clone()) };
-    Json(Overview { language, books, next, known: known_rows, matches, source, pack }).into_response()
+    Json(Overview { language, books, next, known: known.len(), common, matches, source, pack }).into_response()
 }
 
-fn clone_row(w: &WordRow) -> WordRow {
-    WordRow { stem: w.stem.clone(), word: w.word.clone(), english: w.english.clone(), books: w.books.clone(), count: w.count }
+/// GET /api/vocabulary/known/words?language=&q=&sort=&class=&offset=&limit=:
+/// the words the reader knows, a page at a time, with their meanings and the
+/// books they occur in. `sort` is `recent` (the default: last ticked first),
+/// `common` (most often in the reader's books) or `alpha`; without `limit`
+/// all of them come (for an export).
+#[derive(Deserialize)]
+pub struct KnownWordsQuery {
+    language: String,
+    q: Option<String>,
+    sort: Option<String>,
+    class: Option<String>,
+    #[serde(default)]
+    offset: usize,
+    limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct KnownWords {
+    /// How many known words match the filter and class.
+    pub total: usize,
+    pub words: Vec<WordRow>,
+}
+
+pub async fn known_words(State(state): State<AppState>, user: AuthUser, Query(q): Query<KnownWordsQuery>) -> Response {
+    let ticked: Result<Vec<(String, String)>, _> = sqlx::query_as(
+        "SELECT stem, created_at FROM known_words WHERE user_id = $1 AND language = $2 ORDER BY created_at DESC, stem",
+    )
+    .bind(user.0.id)
+    .bind(&q.language)
+    .fetch_all(&state.db)
+    .await;
+    let (ticked, lists) = match (ticked, study_lists(&state, user.0.id, &q.language).await) {
+        (Ok(t), Ok(l)) => (t, l),
+        (Err(e), _) => return internal(e),
+        (_, Err(e)) => return internal(e),
+    };
+    let known: std::collections::HashSet<String> = ticked.iter().map(|(s, _)| s.clone()).collect();
+    let Library { words, .. } = library(&lists, &known, false);
+    let mut rows: Vec<WordRow> = ticked
+        .iter()
+        .map(|(stem, _)| match words.get(stem) {
+            Some(w) => w.clone(),
+            None => WordRow { stem: stem.clone(), word: stem.clone(), english: None, class: None, known: true, books: Vec::new(), count: 0 },
+        })
+        .collect();
+    let filter = q.q.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+    let class = q.class.as_deref().filter(|c| !c.is_empty() && *c != "all");
+    // Meanings are looked up for every word only when the filter needs them.
+    if filter.is_some() || class.is_some() {
+        for row in rows.iter_mut() {
+            fill_meaning(&state, &q.language, row);
+        }
+        rows.retain(|w| {
+            filter.as_ref().is_none_or(|f| w.word.to_lowercase().contains(f.as_str()) || w.english.as_ref().is_some_and(|e| e.to_lowercase().contains(f.as_str())))
+                && class.is_none_or(|c| w.class.unwrap_or("other") == c)
+        });
+    }
+    match q.sort.as_deref() {
+        Some("common") => rows.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.word.cmp(&b.word))),
+        Some("alpha") => rows.sort_by(|a, b| a.word.to_lowercase().cmp(&b.word.to_lowercase())),
+        _ => {}
+    }
+    let total = rows.len();
+    let limit = q.limit.unwrap_or(usize::MAX);
+    let mut page: Vec<WordRow> = rows.into_iter().skip(q.offset).take(limit).collect();
+    if filter.is_none() && class.is_none() {
+        for row in page.iter_mut() {
+            fill_meaning(&state, &q.language, row);
+        }
+    }
+    Json(KnownWords { total, words: page }).into_response()
 }
 
 // ------------------------------------------------------------ in the reader

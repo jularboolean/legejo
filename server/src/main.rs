@@ -235,6 +235,7 @@ fn router(state: AppState) -> Router {
         .route("/books/{id}/vocabulary", get(vocabulary::for_book))
         .route("/books/{id}/vocabulary/word", get(vocabulary::word_in_book))
         .route("/vocabulary/known", get(vocabulary::known_list).put(vocabulary::known_set))
+        .route("/vocabulary/known/words", get(vocabulary::known_words))
         .route("/vocabulary/languages", get(vocabulary::languages))
         .route("/vocabulary/overview", get(vocabulary::overview))
         .route("/account/kindle", axum::routing::put(account::set_kindle))

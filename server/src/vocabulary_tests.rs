@@ -236,12 +236,35 @@ async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
     let books = v["books"].as_array().unwrap();
     assert_eq!(books.len(), 2);
     assert!(books[0]["share"].as_f64().unwrap() >= books[1]["share"].as_f64().unwrap());
-    let known = v["known"].as_array().unwrap();
-    assert_eq!(known[0]["word"], "la");
-    assert_eq!(known[0]["english"], "the");
-    assert_eq!(known[0]["books"].as_array().unwrap().len(), 2);
+    assert_eq!(v["known"], 1);
+    assert_eq!(v["common"]["known"], 1);
+    assert!(v["common"]["of"].as_u64().unwrap() > 1, "{}", v["common"]);
+    // The known words come a page at a time, the last ticked first.
+    send(&app, Method::PUT, "/api/vocabulary/known", Some(&alice), Some(json!({ "language": "eo", "stem": "hund", "known": true }))).await;
+    let (status, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&limit=1", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{k}");
+    assert_eq!(k["total"], 2);
+    assert_eq!(k["words"].as_array().unwrap().len(), 1);
+    assert_eq!(k["words"][0]["word"], "hundo", "{k}");
+    assert_eq!(k["words"][0]["class"], "noun");
+    let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&offset=1&limit=1", Some(&alice), None).await;
+    assert_eq!(k["words"][0]["word"], "la");
+    assert_eq!(k["words"][0]["english"], "the");
+    assert_eq!(k["words"][0]["books"].as_array().unwrap().len(), 2);
+    let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&sort=alpha", Some(&alice), None).await;
+    let all: Vec<&str> = k["words"].as_array().unwrap().iter().map(|w| w["word"].as_str().unwrap()).collect();
+    assert_eq!(all, ["hundo", "la"]);
+    let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&q=the", Some(&alice), None).await;
+    assert_eq!(k["total"], 1, "{k}");
+    let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&class=noun", Some(&alice), None).await;
+    assert_eq!(k["total"], 1, "{k}");
+    assert_eq!(k["words"][0]["word"], "hundo");
+    let (_, m) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo&q=hund", Some(&alice), None).await;
+    assert_eq!(m["matches"][0]["known"], true, "{m}");
     // Next: in both books first ("hundo", "kato"), not "la", not a name.
     let next: Vec<&str> = v["next"].as_array().unwrap().iter().map(|w| w["word"].as_str().unwrap()).collect();
     assert!(!next.contains(&"la") && !next.contains(&"Petro"), "{next:?}");
     assert_eq!(v["next"][0]["books"].as_array().unwrap().len(), 2, "{}", v["next"][0]);
+    assert_eq!(v["next"][0]["known"], false);
 }
+

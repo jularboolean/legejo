@@ -10,24 +10,34 @@
 		asText,
 		css,
 		download,
+		fmt,
 		languageInSentence,
+		loadKnownWords,
 		loadLanguages,
 		loadOverview,
 		percent,
 		setKnown,
+		WORD_CLASSES,
+		type KnownSort,
 		type Overview,
+		type WordClass,
 		type WordLanguage,
 		type WordRow
 	} from '#lib/library/vocab';
+	import type { MessageKey } from '#lib/i18n';
 
 	let { data } = $props();
+
+	/** Known words shown at first, and how many more each "show more" brings. */
+	const FIRST = 20;
+	const PAGE = 100;
+	const SORTS: KnownSort[] = ['recent', 'common', 'alpha'];
+	const SORT_KEY = 'legejo.words.knownSort';
 
 	const locale = $derived(getLocale());
 	let languages = $state<WordLanguage[] | null>(null);
 	let language = $state('');
 	let overview = $state<Overview | null>(null);
-	let filter = $state('');
-	let showAll = $state(false);
 
 	$effect(() => {
 		if (!data.words) return;
@@ -40,7 +50,6 @@
 		const current = language;
 		if (!current) return;
 		overview = null;
-		showAll = false;
 		loadOverview(current).then((o) => {
 			if (language === current) overview = o;
 		});
@@ -54,12 +63,64 @@
 	const bookTitles = (w: WordRow) =>
 		w.books.map((id) => overview?.books.find((b) => b.id === id)?.title).filter(Boolean).join(' · ');
 
-	const known = $derived.by(() => {
-		const q = filter.trim().toLowerCase();
-		const list = overview?.known ?? [];
-		return q ? list.filter((w) => w.word.toLowerCase().includes(q) || (w.english ?? '').toLowerCase().includes(q)) : list;
+	// The words the reader knows: asked of the server a page at a time, in the
+	// chosen order, class and filter.
+	let sort = $state<KnownSort>(readSort());
+	let wordClass = $state<WordClass | 'all'>('all');
+	let filter = $state('');
+	let knownWords = $state<WordRow[]>([]);
+	let knownTotal = $state(0);
+	let loadingKnown = $state(false);
+	let asked = 0;
+
+	function readSort(): KnownSort {
+		try {
+			const s = localStorage.getItem(SORT_KEY);
+			if (s && (SORTS as string[]).includes(s)) return s as KnownSort;
+		} catch {
+			// No storage; the default order.
+		}
+		return 'recent';
+	}
+	function chooseSort(s: KnownSort) {
+		sort = s;
+		try {
+			localStorage.setItem(SORT_KEY, s);
+		} catch {
+			// Kept for this visit only.
+		}
+	}
+
+	async function fetchKnown(offset: number, limit: number) {
+		const current = language;
+		const ask = ++asked;
+		loadingKnown = true;
+		const page = await loadKnownWords(current, { q: filter.trim(), sort, class: wordClass, offset, limit });
+		if (ask !== asked || language !== current) return;
+		loadingKnown = false;
+		if (!page) return;
+		knownTotal = page.total;
+		knownWords = offset ? [...knownWords, ...page.words] : page.words;
+	}
+	let knownTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		// Asked again when the language, order, class or filter changes.
+		const current = language;
+		void sort;
+		void wordClass;
+		const typed = filter.trim();
+		clearTimeout(knownTimer);
+		if (!current) return;
+		knownTimer = setTimeout(() => fetchKnown(0, FIRST), typed ? 250 : 0);
 	});
-	const shownKnown = $derived(showAll || filter ? known : known.slice(0, 60));
+	$effect(() => {
+		// A new language starts on all classes and no filter.
+		void language;
+		wordClass = 'all';
+		filter = '';
+	});
+	const showMore = () => fetchKnown(knownWords.length, PAGE);
+	const filtered = $derived(!!filter.trim() || wordClass !== 'all');
 
 	// The search among all the words of the reader's books, asked as one types.
 	let search = $state('');
@@ -79,13 +140,14 @@
 			});
 		}, 250);
 	});
-	const isKnown = (w: WordRow) => !!overview?.known.some((k) => k.stem === w.stem);
 
-	function exportKnown(kind: 'text' | 'anki') {
+	async function exportKnown(kind: 'text' | 'anki') {
 		if (!overview) return;
+		const all = await loadKnownWords(overview.language, { sort: 'alpha' });
+		if (!all) return;
 		const name = languageInSentence(overview.language, locale);
-		const title = t('words.page.fileTitle', { language: name, count: overview.known.length });
-		const rows = overview.known.map((w) => ({ word: w.word, english: w.english }));
+		const title = t('words.page.fileTitle', { language: name, count: all.total });
+		const rows = all.words.map((w) => ({ word: w.word, english: w.english }));
 		if (kind === 'text') {
 			const head = [title];
 			if (overview.source) head.push(t('words.attribution', { source: overview.source }));
@@ -98,17 +160,16 @@
 		}
 	}
 
-	// Ticking moves a word between the lists; the books' shares follow on the next load.
-	async function learn(w: WordRow, isKnown: boolean) {
+	// Ticking a word moves it between the lists; the counts and the books'
+	// shares follow from the server.
+	async function learn(w: WordRow, known: boolean) {
 		if (!overview) return;
-		if (!(await setKnown(overview.language, w.stem, isKnown))) return;
-		if (isKnown) {
-			overview.next = overview.next.filter((x) => x.stem !== w.stem);
-			overview.known = [w, ...overview.known.filter((x) => x.stem !== w.stem)];
-		} else {
-			overview.known = overview.known.filter((x) => x.stem !== w.stem);
-		}
-		const fresh = await loadOverview(overview.language);
+		const current = overview.language;
+		if (!(await setKnown(current, w.stem, known))) return;
+		if (matches) matches = matches.map((m) => (m.stem === w.stem ? { ...m, known } : m));
+		if (known) overview.next = overview.next.filter((x) => x.stem !== w.stem);
+		else knownWords = knownWords.filter((x) => x.stem !== w.stem);
+		const [fresh] = await Promise.all([loadOverview(current), fetchKnown(0, Math.max(FIRST, knownWords.length))]);
 		if (fresh && fresh.language === language) overview = fresh;
 	}
 </script>
@@ -143,8 +204,8 @@
 				{:else}
 					<ol class="words">
 						{#each matches as w (w.stem)}
-							<li class:known={isKnown(w)}>
-								<button class="tick" class:on={isKnown(w)} aria-label={isKnown(w) ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })} onclick={() => learn(w, !isKnown(w))}><Check size={15} /></button>
+							<li class:known={w.known}>
+								<button class="tick" class:on={w.known} aria-label={w.known ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })} onclick={() => learn(w, !w.known)}><Check size={15} /></button>
 								<span class="word">
 									<span class="head">{w.word}</span>
 									{#if w.english}<span class="gloss">{w.english}</span>{/if}
@@ -195,32 +256,62 @@
 		{/if}
 
 		<section>
-			<h2>{t('words.page.known', { count: overview.known.length })}</h2>
-			{#if overview.known.length}
+			<h2>{t('words.page.known', { count: fmt(overview.known, locale) })}</h2>
+			{#if overview.known}
+				{#if overview.common.of}
+					<p class="note">
+						{t('words.page.common', {
+							known: fmt(overview.common.known, locale),
+							of: fmt(overview.common.of, locale),
+							percent: percent(overview.common.known / overview.common.of)
+						})}
+					</p>
+					<span class="bar common" aria-hidden="true"><span style:width={css(overview.common.known / overview.common.of)}></span></span>
+				{/if}
 				<p class="export">
 					<Download size={14} />
-					{t('words.export', { count: overview.known.length })}
+					{t('words.export', { count: fmt(overview.known, locale) })}
 					<button onclick={() => exportKnown('text')}>{t('words.exportText')}</button> ·
 					<button onclick={() => exportKnown('anki')}>{t('words.exportAnki')}</button>
 				</p>
-			{/if}
-			{#if overview.known.length > 8}
-				<input class="filter" type="search" placeholder={t('words.page.filter')} bind:value={filter} />
-			{/if}
-			<ol class="words">
-				{#each shownKnown as w (w.stem)}
-					<li class="known">
-						<button class="tick on" aria-label={t('words.page.forget', { word: w.word })} onclick={() => learn(w, false)}><Check size={15} /></button>
-						<span class="word">
-							<span class="head">{w.word}</span>
-							{#if w.english}<span class="gloss">{w.english}</span>{/if}
-						</span>
-						{#if w.books.length}<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>{/if}
-					</li>
-				{/each}
-			</ol>
-			{#if known.length > shownKnown.length}
-				<button class="more" onclick={() => (showAll = true)}>{t('words.page.more')} ({known.length})</button>
+				<div class="controls">
+					<input class="filter" type="search" placeholder={t('words.page.filter')} bind:value={filter} />
+					<label class="sort">
+						{t('words.page.sort')}
+						<select value={sort} onchange={(e) => chooseSort((e.currentTarget as HTMLSelectElement).value as KnownSort)}>
+							{#each SORTS as s (s)}
+								<option value={s}>{t(`words.page.sort.${s}` as MessageKey)}</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+				<div class="classes" role="radiogroup" aria-label={t('words.class.all')}>
+					{#each ['all', ...WORD_CLASSES] as const as c (c)}
+						<button role="radio" aria-checked={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
+							{t(`words.class.${c}` as MessageKey)}
+						</button>
+					{/each}
+				</div>
+				{#if filtered && knownTotal === 0 && !loadingKnown}
+					<p class="note">{t('words.page.noKnown')}</p>
+				{/if}
+				<ol class="words" class:loading={loadingKnown}>
+					{#each knownWords as w (w.stem)}
+						<li class="known">
+							<button class="tick on" aria-label={t('words.page.forget', { word: w.word })} onclick={() => learn(w, false)}><Check size={15} /></button>
+							<span class="word">
+								<span class="head">{w.word}</span>
+								{#if w.english}<span class="gloss">{w.english}</span>{/if}
+							</span>
+							{#if w.books.length}<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>{/if}
+						</li>
+					{/each}
+				</ol>
+				{#if knownTotal > knownWords.length}
+					<button class="more" onclick={showMore} disabled={loadingKnown}>
+						{t('words.page.more', { count: fmt(knownTotal - knownWords.length, locale) })}
+					</button>
+				{/if}
 			{/if}
 		</section>
 
@@ -406,9 +497,51 @@
 		text-decoration: underline;
 		cursor: pointer;
 	}
+	.controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		margin: 0.2rem 0 0;
+	}
 	.filter {
-		margin: 0.2rem 0 0.6rem;
 		width: min(100%, 20rem);
+	}
+	.sort {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+	.classes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin: 0.6rem 0;
+	}
+	.classes button {
+		padding: 0.2rem 0.7rem;
+		border-radius: 99px;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--fg);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.classes button.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--bg);
+	}
+	.bar.common {
+		display: block;
+		max-width: 26rem;
+		margin: 0 0 0.7rem;
+	}
+	.words.loading {
+		opacity: 0.6;
 	}
 	.more {
 		margin-top: 0.6rem;

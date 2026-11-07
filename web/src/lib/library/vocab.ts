@@ -87,15 +87,49 @@ export const css = (x: number) => `${(x * 100).toFixed(1)}%`;
 
 // The words page (GET /api/vocabulary/languages and /overview).
 export type WordLanguage = { language: string; books: number; known: number };
-export type WordRow = { stem: string; word: string; english: string | null; books: number[]; count: number };
+export type WordRow = {
+	stem: string;
+	word: string;
+	english: string | null;
+	class: WordClass | null;
+	known: boolean;
+	books: number[];
+	count: number;
+};
 export type Overview = {
 	language: string;
 	books: { id: number; title: string; author: string | null; share: number }[];
 	next: WordRow[];
-	known: WordRow[];
+	/** How many words the reader knows; the words come from `loadKnownWords`. */
+	known: number;
+	/** How many of the commonest words in the reader's books they know. */
+	common: { known: number; of: number };
 	matches: WordRow[];
 	source: string | null;
 };
+
+export type KnownSort = 'recent' | 'common' | 'alpha';
+export type KnownQuery = { q?: string; sort?: KnownSort; class?: WordClass | 'all'; offset?: number; limit?: number };
+
+/** The words the reader knows in a language, a page at a time (all without a limit). */
+export async function loadKnownWords(
+	language: string,
+	query: KnownQuery = {},
+	fetcher: typeof fetch = fetch
+): Promise<{ total: number; words: WordRow[] } | null> {
+	const params = new URLSearchParams({ language });
+	if (query.q) params.set('q', query.q);
+	if (query.sort) params.set('sort', query.sort);
+	if (query.class && query.class !== 'all') params.set('class', query.class);
+	if (query.offset) params.set('offset', String(query.offset));
+	if (query.limit) params.set('limit', String(query.limit));
+	try {
+		const res = await fetcher(`/api/vocabulary/known/words?${params}`);
+		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}
 
 export async function loadLanguages(fetcher: typeof fetch = fetch): Promise<WordLanguage[]> {
 	try {
