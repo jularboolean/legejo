@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 /// Raised when what is computed changes, so that every book is done again.
-const VERSION: i64 = 4;
+const VERSION: i64 = 5;
 /// The fixed-size sample the difficulty is measured on, so that a long book
 /// does not look harder only for being long.
 const SAMPLE: usize = 20_000;
@@ -275,7 +275,7 @@ fn need_for_90(stems: &[u32]) -> u64 {
     sorted.len() as u64
 }
 
-pub fn compute(text: &str, language: &str) -> Option<Computed> {
+pub fn compute(text: &str, language: &str, pack: Option<&crate::langpack::Pack>) -> Option<Computed> {
     let stemmer = Stemmer::for_language(language)?;
     let text = without_gutenberg(text);
     let tokens = words(text);
@@ -342,11 +342,14 @@ pub fn compute(text: &str, language: &str) -> Option<Computed> {
     // Per distinct stem: its count and the forms it was written in.
     let mut counts: HashMap<String, u32> = HashMap::with_capacity(stem_names.len());
     let mut forms: HashMap<String, HashMap<String, u32>> = HashMap::with_capacity(stem_names.len());
+    // The distinct words with their counts and stems, kept for the study list.
+    let mut written: Vec<(String, u32, u32)> = Vec::with_capacity(word_ids.len());
     for (word, w) in word_ids {
         let s = word_stem[w as usize] as usize;
         let n = word_count[w as usize];
         *counts.entry(stem_names[s].clone()).or_default() += n;
-        forms.entry(stem_names[s].clone()).or_default().insert(word, n);
+        forms.entry(stem_names[s].clone()).or_default().insert(word.clone(), n);
+        written.push((word, n, s as u32));
     }
     let inside: HashMap<&str, u32> = stem_names.iter().map(String::as_str).zip(stem_inside.iter().copied()).collect();
     let capitals: HashMap<&str, u32> = stem_names.iter().map(String::as_str).zip(stem_capitals.iter().copied()).collect();
@@ -397,7 +400,10 @@ pub fn compute(text: &str, language: &str) -> Option<Computed> {
             Candidate { stem: (*stem).clone(), label, count: **n, name }
         })
         .collect();
-    let study = (language == "eo").then(|| {
+    let study = if let Some(pack) = pack.filter(|_| language != "eo") {
+        Some(study_by_lemma(pack, &written, &stem_names, &is_name))
+    } else {
+        (language == "eo").then(|| {
         ranked
             .iter()
             // A lone letter is an elision ("l'") or an initial, nothing to learn.
@@ -414,7 +420,8 @@ pub fn compute(text: &str, language: &str) -> Option<Computed> {
                 }
             })
             .collect()
-    });
+        })
+    };
     let sample_need = if stems.len() < SAMPLE {
         0
     } else {
@@ -432,6 +439,73 @@ pub fn compute(text: &str, language: &str) -> Option<Computed> {
         candidates,
         study,
     })
+}
+
+/// A study list from a language pack: each written word taken to its lemma
+/// (a form of several lemmas to the one the book uses most in forms that can
+/// only be that one, a little word to itself), lemmas in order of frequency.
+/// A word the pack does not know stands as written; a name as a name.
+fn study_by_lemma(
+    pack: &crate::langpack::Pack,
+    written: &[(String, u32, u32)],
+    stem_names: &[String],
+    is_name: &dyn Fn(&str) -> bool,
+) -> Vec<StudyWord> {
+    let found: Vec<Vec<u32>> = written.iter().map(|(w, _, _)| pack.lemmas_of(w)).collect();
+    let mut sure: HashMap<u32, u32> = HashMap::new();
+    for ((_, n, _), lemmas) in written.iter().zip(&found) {
+        if let [one] = lemmas.as_slice() {
+            *sure.entry(*one).or_default() += n;
+        }
+    }
+    // Key: the lemma's word, or the written word when the pack has none.
+    let mut by: HashMap<String, (u32, HashMap<String, u32>, bool)> = HashMap::new();
+    for ((word, n, stem), lemmas) in written.iter().zip(&found) {
+        let name = is_name(&stem_names[*stem as usize]);
+        let key = if name || lemmas.is_empty() {
+            word.clone()
+        } else {
+            // A little word that is a lemma itself stays itself ("a", "no")
+            // unless the book uses another of its lemmas more ("hace" as
+            // "hacer" where "hizo" and "hacer" are common).
+            let own = lemmas.iter().copied().find(|l| {
+                pack.lemma(*l).is_some_and(|x| x.word == word)
+                    && pack.is_little(*l)
+                    && lemmas.iter().filter(|o| *o != l).all(|o| sure.get(o).copied().unwrap_or(0) < *n)
+            });
+            let pick = own.unwrap_or_else(|| {
+                *lemmas
+                    .iter()
+                    .max_by_key(|l| {
+                        let w = pack.lemma(**l).map(|x| x.word).unwrap_or("");
+                        (sure.get(l).copied().unwrap_or(0), w == word, std::cmp::Reverse(w.len()))
+                    })
+                    .unwrap()
+            });
+            pack.lemma(pick).map(|x| x.word.to_string()).unwrap_or_else(|| word.clone())
+        };
+        let entry = by.entry(key).or_insert_with(|| (0, HashMap::new(), name));
+        entry.0 += n;
+        *entry.1.entry(word.clone()).or_default() += n;
+    }
+    // A lone letter the pack does not know is an elision or an initial.
+    let mut list: Vec<(String, (u32, HashMap<String, u32>, bool))> =
+        by.into_iter().filter(|(k, _)| k.chars().count() > 1 || pack.find(k).is_some()).collect();
+    list.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then_with(|| a.0.cmp(&b.0)));
+    list.into_iter()
+        .take(STUDY)
+        .map(|(key, (count, forms, name))| {
+            let mut f: Vec<(String, u32)> = forms.into_iter().collect();
+            f.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            let word = if name {
+                let mut c = key.chars();
+                c.next().map(|x| x.to_uppercase().chain(c).collect()).unwrap_or(key.clone())
+            } else {
+                key.clone()
+            };
+            StudyWord { stem: key, word, forms: f.into_iter().take(4).map(|(w, _)| w).collect(), count, name }
+        })
+        .collect()
 }
 
 // ----------------------------------------------------------------- worker
@@ -503,10 +577,11 @@ async fn count_one(state: &AppState, uuid: &str, sha: &str, language: &str) -> a
     let path = crate::books::book_path(state, uuid, Format::Epub);
     state.storage.fetch(&path).await;
     let lang = language.to_string();
+    let pack = crate::langpack::get(&state.data_dir, language);
     let computed = tokio::task::spawn_blocking(move || -> Option<Computed> {
         let sections = booktext::read_sections(Format::Epub, &path).ok()?;
         let text: String = sections.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
-        compute(&text, &lang)
+        compute(&text, &lang, pack.as_deref())
     })
     .await
     .unwrap_or_else(|e| {
@@ -661,6 +736,32 @@ pub struct StudyRow {
     /// had to be taken apart.
     pub english: Option<String>,
     pub found_as: Option<String>,
+    /// "verb", "noun", "adj" or "other" (little words, adverbs and the rest);
+    /// none for a name or a word without a known class.
+    pub class: Option<&'static str>,
+}
+
+/// A word class to filter a study list by, from a part of speech.
+fn class_of_pos(pos: &str) -> &'static str {
+    match pos {
+        "verb" => "verb",
+        "noun" => "noun",
+        "adj" => "adj",
+        _ => "other",
+    }
+}
+
+/// An Esperanto headword's class, by its ending.
+fn esperanto_class(word: &str) -> &'static str {
+    if EO_FIXED.contains(&word) || EO_PRONOUNS.contains(&word) || is_correlative(word) || word.chars().count() < 3 {
+        return "other";
+    }
+    match word.chars().last() {
+        Some('i') => "verb",
+        Some('o') => "noun",
+        Some('a') => "adj",
+        _ => "other",
+    }
 }
 
 #[derive(Serialize)]
@@ -688,7 +789,7 @@ pub struct Vocabulary {
     /// (names left out) the reader's known words cover.
     pub study: Option<Vec<StudyRow>>,
     pub known_share: Option<f64>,
-    pub study_source: Option<&'static str>,
+    pub study_source: Option<String>,
 }
 
 type Row = (String, i64, i64, i64, i64, String, String, String, Option<String>);
@@ -818,6 +919,8 @@ async fn answer(
         .map(|c| c.label.clone())
         .collect();
 
+    // Meanings from the language's pack; Esperanto has ESPDIC.
+    let pack = if language == "eo" { None } else { crate::langpack::get(&state.data_dir, &language) };
     let (study, known_share, study_source) = match study {
         Some(json) => {
             let list: Vec<StudyWord> = serde_json::from_str(json)?;
@@ -840,10 +943,27 @@ async fn answer(
                     } else if is_known {
                         covered += w.count as u64;
                     }
-                    let found = if w.name { None } else { crate::espdic::lookup(&w.word) };
+                    let (english, found_as, class) = if w.name {
+                        (None, None, None)
+                    } else if let Some(pack) = &pack {
+                        let lemma = pack.find(&w.word);
+                        (
+                            lemma.as_ref().map(|l| l.english.to_string()).filter(|e| !e.is_empty()),
+                            None,
+                            lemma.and_then(|l| l.pos.split(',').next().map(class_of_pos)),
+                        )
+                    } else {
+                        let found = crate::espdic::lookup(&w.word);
+                        (
+                            found.as_ref().map(|f| f.english.clone()),
+                            found.filter(|f| f.derived).map(|f| f.headword),
+                            Some(esperanto_class(&w.word)),
+                        )
+                    };
                     StudyRow {
-                        english: found.as_ref().map(|f| f.english.clone()),
-                        found_as: found.filter(|f| f.derived).map(|f| f.headword),
+                        english,
+                        found_as,
+                        class,
                         stem: w.stem,
                         word: w.word,
                         forms: w.forms,
@@ -854,7 +974,11 @@ async fn answer(
                 })
                 .collect();
             let learnable = (words as u64).saturating_sub(names_count).max(1);
-            (Some(rows), Some(covered as f64 / learnable as f64), Some(crate::espdic::ATTRIBUTION))
+            let source = match &pack {
+                Some(p) => p.meta.attribution.clone(),
+                None => crate::espdic::ATTRIBUTION.to_string(),
+            };
+            (Some(rows), Some(covered as f64 / learnable as f64), Some(source))
         }
         None => (None, None, None),
     };
@@ -976,7 +1100,7 @@ mod tests {
                 text.push_str("Petro respondis: la domo estas granda. ");
             }
         }
-        let c = compute(&text, "eo").unwrap();
+        let c = compute(&text, "eo", None).unwrap();
         assert!(c.words > 3000);
         assert!(c.coverage["50"] <= c.coverage["90"]);
         let petro = c.candidates.iter().find(|x| x.stem == "petr").unwrap();
@@ -991,8 +1115,8 @@ mod tests {
 
     #[test]
     fn a_language_without_a_stemmer_has_no_vocabulary() {
-        assert!(compute("some words here", "zh").is_none());
-        assert!(compute("några ord här", "sv").is_some());
+        assert!(compute("some words here", "zh", None).is_none());
+        assert!(compute("några ord här", "sv", None).is_some());
     }
 
     #[test]
@@ -1000,4 +1124,174 @@ mod tests {
         let text = "Header *** START OF THE PROJECT GUTENBERG EBOOK X *** the story *** END OF THE PROJECT GUTENBERG EBOOK X *** licence";
         assert_eq!(without_gutenberg(text).trim(), "the story");
     }
+}
+
+
+// ------------------------------------------------------------- the words page
+
+/// The study lists of a reader's books in a language: (book id, title,
+/// author, the book's word count, its list).
+async fn study_lists(state: &AppState, user: i64, language: &str) -> anyhow::Result<Vec<(i64, String, Option<String>, i64, Vec<StudyWord>)>> {
+    let rows: Vec<(i64, String, Option<String>, i64, String)> = sqlx::query_as(
+        "SELECT b.id, b.title, b.author, v.words, v.study FROM books b
+         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
+         WHERE b.owner_id = $1 AND b.language = $2 AND v.study IS NOT NULL AND v.words > 0
+         ORDER BY b.title",
+    )
+    .bind(user)
+    .bind(language)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(id, title, author, words, json)| serde_json::from_str(&json).ok().map(|s| (id, title, author, words, s)))
+        .collect())
+}
+
+async fn known_stems(state: &AppState, user: i64, language: &str) -> anyhow::Result<std::collections::HashSet<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as("SELECT stem FROM known_words WHERE user_id = $1 AND language = $2")
+        .bind(user)
+        .bind(language)
+        .fetch_all(&state.db)
+        .await?;
+    Ok(rows.into_iter().map(|(s,)| s).collect())
+}
+
+/// A word's English, from the language's pack or ESPDIC.
+fn english_of(state: &AppState, language: &str, word: &str) -> Option<String> {
+    if language == "eo" {
+        crate::espdic::lookup(word).map(|f| f.english)
+    } else {
+        crate::langpack::get(&state.data_dir, language)?.find(word).map(|l| l.english.to_string()).filter(|e| !e.is_empty())
+    }
+}
+
+#[derive(Serialize)]
+pub struct WordLanguage {
+    pub language: String,
+    /// Books of the reader's with a study list in the language.
+    pub books: i64,
+    pub known: i64,
+}
+
+/// GET /api/vocabulary/languages: the languages the reader has study lists
+/// or known words in.
+pub async fn languages(State(state): State<AppState>, user: AuthUser) -> Response {
+    let books: Result<Vec<(String, i64)>, _> = sqlx::query_as(
+        "SELECT b.language, COUNT(*) FROM books b
+         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
+         WHERE b.owner_id = $1 AND v.study IS NOT NULL AND v.words > 0
+         GROUP BY b.language",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await;
+    let known: Result<Vec<(String, i64)>, _> =
+        sqlx::query_as("SELECT language, COUNT(*) FROM known_words WHERE user_id = $1 GROUP BY language")
+            .bind(user.0.id)
+            .fetch_all(&state.db)
+            .await;
+    let (Ok(books), Ok(known)) = (books, known) else {
+        return internal("languages");
+    };
+    let mut out: Vec<WordLanguage> = books.into_iter().map(|(language, books)| WordLanguage { language, books, known: 0 }).collect();
+    for (language, n) in known {
+        match out.iter_mut().find(|l| l.language == language) {
+            Some(l) => l.known = n,
+            None => out.push(WordLanguage { language, books: 0, known: n }),
+        }
+    }
+    out.sort_by(|a, b| (b.books + b.known).cmp(&(a.books + a.known)));
+    Json(out).into_response()
+}
+
+#[derive(Serialize)]
+pub struct BookShare {
+    pub id: i64,
+    pub title: String,
+    pub author: Option<String>,
+    /// Share of the book's words (names aside) the reader knows.
+    pub share: f64,
+}
+
+#[derive(Serialize)]
+pub struct WordRow {
+    pub stem: String,
+    pub word: String,
+    pub english: Option<String>,
+    /// The reader's books it occurs in, and how often in all.
+    pub books: Vec<i64>,
+    pub count: u32,
+}
+
+#[derive(Serialize)]
+pub struct Overview {
+    pub language: String,
+    pub books: Vec<BookShare>,
+    /// Words to learn next: the commonest across the reader's books that the
+    /// reader does not know yet.
+    pub next: Vec<WordRow>,
+    pub known: Vec<WordRow>,
+    pub source: Option<String>,
+    /// The language pack the meanings come from (none for Esperanto).
+    pub pack: Option<crate::langpack::Meta>,
+}
+
+/// GET /api/vocabulary/overview?language=: the reader's books in the
+/// language with how much of each they know, the words to learn next, and
+/// the words they know, each with the books it occurs in.
+pub async fn overview(State(state): State<AppState>, user: AuthUser, Query(q): Query<KnownQuery>) -> Response {
+    let language = q.language;
+    let (lists, known) = match (study_lists(&state, user.0.id, &language).await, known_stems(&state, user.0.id, &language).await) {
+        (Ok(l), Ok(k)) => (l, k),
+        _ => return internal("overview"),
+    };
+    let mut books = Vec::new();
+    let mut words: HashMap<String, WordRow> = HashMap::new();
+    for (id, title, author, total, list) in &lists {
+        let (mut covered, mut names) = (0u64, 0u64);
+        for w in list {
+            if w.name {
+                names += w.count as u64;
+                continue;
+            }
+            if known.contains(&w.stem) {
+                covered += w.count as u64;
+            }
+            let row = words.entry(w.stem.clone()).or_insert_with(|| WordRow {
+                stem: w.stem.clone(),
+                word: w.word.clone(),
+                english: None,
+                books: Vec::new(),
+                count: 0,
+            });
+            row.books.push(*id);
+            row.count += w.count;
+        }
+        let learnable = (*total as u64).saturating_sub(names).max(1);
+        books.push(BookShare { id: *id, title: title.clone(), author: author.clone(), share: covered as f64 / learnable as f64 });
+    }
+    books.sort_by(|a, b| b.share.total_cmp(&a.share));
+    // Words to learn next: in more books first, then more often.
+    let mut next: Vec<WordRow> = words.values().filter(|w| !known.contains(&w.stem)).map(|w| WordRow { english: None, ..clone_row(w) }).collect();
+    next.sort_by(|a, b| (b.books.len(), b.count).cmp(&(a.books.len(), a.count)).then_with(|| a.word.cmp(&b.word)));
+    next.truncate(30);
+    let mut known_rows: Vec<WordRow> = known
+        .iter()
+        .map(|s| match words.get(s) {
+            Some(w) => clone_row(w),
+            None => WordRow { stem: s.clone(), word: s.clone(), english: None, books: Vec::new(), count: 0 },
+        })
+        .collect();
+    known_rows.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.word.cmp(&b.word)));
+    for row in next.iter_mut().chain(known_rows.iter_mut()) {
+        row.english = english_of(&state, &language, &row.word);
+    }
+    let pack = if language == "eo" { None } else { crate::langpack::get(&state.data_dir, &language).map(|p| p.meta.clone()) };
+    let source = if language == "eo" { Some(crate::espdic::ATTRIBUTION.to_string()) } else { pack.as_ref().map(|p| p.attribution.clone()) };
+    Json(Overview { language, books, next, known: known_rows, source, pack }).into_response()
+}
+
+fn clone_row(w: &WordRow) -> WordRow {
+    WordRow { stem: w.stem.clone(), word: w.word.clone(), english: w.english.clone(), books: w.books.clone(), count: w.count }
 }

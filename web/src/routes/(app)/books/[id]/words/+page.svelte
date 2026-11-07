@@ -5,13 +5,15 @@
 	import { ArrowLeft, BookOpen, Check, Download } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { getLocale, t } from '#lib/i18n';
-	import { css, fmt, knownCover, loadVocab, percent, setKnown, type StudyRow, type Vocab } from '#lib/library/vocab';
+	import { css, fmt, knownCover, loadVocab, percent, setKnown, WORD_CLASSES, type StudyRow, type Vocab, type WordClass } from '#lib/library/vocab';
+	import type { MessageKey } from '#lib/i18n';
 
 	const id = $derived(Number(page.params.id));
 	let title = $state('');
 	let vocab = $state<Vocab | null | undefined>(undefined);
 	let known = $state(new Set<string>());
 	let goal = $state<'80' | '90' | '95'>('80');
+	let wordClass = $state<WordClass | 'all'>('all');
 
 	// Known words hidden unless the reader has chosen to see them (remembered).
 	const HIDE_KEY = 'legejo.words.hideKnown';
@@ -49,7 +51,9 @@
 	const n = (x: number) => fmt(x, locale);
 	const goalCount = $derived(vocab ? (vocab.coverage[goal] ?? 0) : 0);
 	const ranked = $derived(vocab?.study ?? []);
-	const words = $derived(ranked.filter((w) => !w.name).slice(0, goalCount));
+	const goalWords = $derived(ranked.filter((w) => !w.name).slice(0, goalCount));
+	const words = $derived(wordClass === 'all' ? goalWords : goalWords.filter((w) => w.class === wordClass));
+	const hasClasses = $derived(ranked.some((w) => w.class));
 	const names = $derived(ranked.filter((w) => w.name).slice(0, 12));
 	const share = $derived(vocab ? knownCover(vocab, known) : 0);
 	const knownInList = $derived(words.filter((w) => known.has(w.stem)).length);
@@ -168,6 +172,15 @@
 		</div>
 		<label class="hide"><input type="checkbox" bind:checked={hideKnown} /> {t('words.hideKnown')}</label>
 	</div>
+	{#if hasClasses}
+		<div class="classes" role="radiogroup" aria-label={t('words.class.all')}>
+			{#each ['all', ...WORD_CLASSES] as const as c (c)}
+				<button role="radio" aria-checked={wordClass === c} class:on={wordClass === c} onclick={() => (wordClass = c)}>
+					{t(`words.class.${c}` as MessageKey)}
+				</button>
+			{/each}
+		</div>
+	{/if}
 	<div class="status">
 		<p class="muted small">{t('words.ticked', { known: knownInList, count: words.length })}</p>
 		<span class="export">
@@ -320,6 +333,27 @@
 	.seg small {
 		font-size: 0.72rem;
 		opacity: 0.8;
+	}
+	.classes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin-top: 0.6rem;
+	}
+	.classes button {
+		padding: 0.2rem 0.7rem;
+		border-radius: 99px;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--fg);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.classes button.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--bg);
 	}
 	.hide {
 		font-size: 0.88rem;

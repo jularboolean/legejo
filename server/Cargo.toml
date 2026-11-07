@@ -55,6 +55,7 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 rust-stemmers = "1.2"
 libc = "0.2"
 stop-words = "0.10"
+fst = "0.4"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

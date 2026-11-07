@@ -72,6 +72,9 @@ async fn an_esperanto_book_gets_its_study_list_and_the_readers_known_words_count
     assert_eq!(study[0]["word"], "la");
     let hundo = study.iter().find(|w| w["word"] == "hundo").unwrap();
     assert_eq!(hundo["english"], "dog, hound");
+    assert_eq!(hundo["class"], "noun");
+    assert_eq!(study.iter().find(|w| w["word"] == "diri").unwrap()["class"], "verb");
+    assert_eq!(study[0]["class"], "other", "la");
     assert_eq!(hundo["known"], false);
     let diri = study.iter().find(|w| w["word"] == "diri").unwrap();
     assert!(diri["english"].as_str().unwrap().contains("say"));
@@ -166,4 +169,65 @@ async fn a_search_for_one_form_finds_the_others() {
     assert_eq!(status, StatusCode::OK, "{v}");
     assert_eq!(v["books"].as_array().unwrap().len(), 1, "{v}");
     assert!(v["books"][0]["passages"][0]["text"].as_str().unwrap().contains("\u{E000}Hunden\u{E001}"), "{v}");
+}
+
+#[tokio::test]
+async fn a_spanish_book_gets_a_study_list_by_lemma_from_the_built_in_pack() {
+    let (app, db, _state) = test_app().await;
+    let (_, alice) = add_user(&db, "alice").await;
+    let text = "Ayer Juan hizo la cena. Luego quiso ir a la casa de su madre, y fue a pie. \
+                Hoy hace frío y Juan quiere dormir. La casa es grande. "
+        .repeat(60);
+    let up = upload(&app, &alice, &[("cena.epub", book("Cena", "es-ES", &text))], "").await;
+    let id = up["added"][0]["id"].as_i64().unwrap_or_else(|| panic!("{up}"));
+    let (status, v) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary"), Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(v["language"], "es");
+    let study = v["study"].as_array().unwrap_or_else(|| panic!("no study list: {v}"));
+    let row = |word: &str| study.iter().find(|w| w["word"] == word).unwrap_or_else(|| panic!("{word} not in {study:?}"));
+    // "hizo" and "hace" are both "hacer"; "quiso" and "quiere" "querer".
+    let hacer = row("hacer");
+    assert!(hacer["forms"].as_array().unwrap().iter().any(|f| f == "hizo"), "{hacer}");
+    assert!(hacer["english"].as_str().unwrap().contains("to do"), "{hacer}");
+    assert!(row("querer")["forms"].as_array().unwrap().iter().any(|f| f == "quiso"));
+    // A little word is itself, with its own meaning.
+    assert!(row("a")["english"].as_str().unwrap().starts_with("to"), "{}", row("a"));
+    assert_eq!(row("Juan")["name"], true);
+    assert_eq!(hacer["class"], "verb");
+    assert_eq!(row("casa")["class"], "noun");
+    assert_eq!(row("grande")["class"], "adj");
+    assert_eq!(row("a")["class"], "other");
+    assert!(v["study_source"].as_str().unwrap().contains("Wiktionary"));
+}
+
+#[tokio::test]
+async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
+    let (app, db, _state) = test_app().await;
+    let (_, alice) = add_user(&db, "alice").await;
+    let a = upload(&app, &alice, &[("hundo.epub", book("Hundo", "eo", &esperanto()))], "").await;
+    let b_text = "La kato dormas sur la tablo. La hundo rigardas la katon. ".repeat(150);
+    let b = upload(&app, &alice, &[("kato.epub", book("Kato", "eo", &b_text))], "").await;
+    let (a, b) = (a["added"][0]["id"].as_i64().unwrap(), b["added"][0]["id"].as_i64().unwrap());
+    for id in [a, b] {
+        send(&app, Method::GET, &format!("/api/books/{id}/vocabulary"), Some(&alice), None).await;
+    }
+    send(&app, Method::PUT, "/api/vocabulary/known", Some(&alice), Some(json!({ "language": "eo", "stem": "la", "known": true }))).await;
+
+    let (status, langs) = send(&app, Method::GET, "/api/vocabulary/languages", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{langs}");
+    assert_eq!(langs, json!([{ "language": "eo", "books": 2, "known": 1 }]));
+
+    let (status, v) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let books = v["books"].as_array().unwrap();
+    assert_eq!(books.len(), 2);
+    assert!(books[0]["share"].as_f64().unwrap() >= books[1]["share"].as_f64().unwrap());
+    let known = v["known"].as_array().unwrap();
+    assert_eq!(known[0]["word"], "la");
+    assert_eq!(known[0]["english"], "the");
+    assert_eq!(known[0]["books"].as_array().unwrap().len(), 2);
+    // Next: in both books first ("hundo", "kato"), not "la", not a name.
+    let next: Vec<&str> = v["next"].as_array().unwrap().iter().map(|w| w["word"].as_str().unwrap()).collect();
+    assert!(!next.contains(&"la") && !next.contains(&"Petro"), "{next:?}");
+    assert_eq!(v["next"][0]["books"].as_array().unwrap().len(), 2, "{}", v["next"][0]);
 }

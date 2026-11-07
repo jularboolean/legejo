@@ -20,7 +20,8 @@
 		Sparkles,
 		Users,
 		X,
-		Highlighter
+		Highlighter,
+		GraduationCap
 	} from '@lucide/svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import Logo from '#lib/Logo.svelte';
@@ -54,7 +55,7 @@
 	});
 
 	/** The pages the tabs lead to, whose heading has the pigeon beside it on a phone. */
-	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/authors', '/audiobooks', '/public'];
+	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/words', '/authors', '/audiobooks', '/public'];
 	const branded = $derived(TAB_PAGES.includes(page.url.pathname));
 
 	function toggleSheet(which: 'shelves' | 'more') {
@@ -112,6 +113,17 @@
 	// app and the saved books at hand. Only in a built app: in development
 	// it would stand between the editor and the page.
 	let hasSaved = $state(false);
+	// The words page is in the menu once the reader has a book with a study
+	// list or words ticked as known.
+	let hasWords = $state(false);
+	$effect(() => {
+		if (!data.user) return;
+		void page.url.pathname;
+		fetch('/api/vocabulary/languages')
+			.then((r) => (r.ok ? r.json() : []))
+			.then((l: unknown[]) => (hasWords = l.length > 0))
+			.catch(() => {});
+	});
 
 	// After an upgrade, a note that says so, with what is new a click away.
 	// Per browser: the version last seen here. A browser seeing Legejo for
@@ -238,6 +250,12 @@
 		<Highlighter size={15} strokeWidth={1.75} />
 		{t('sidebar.notes')}
 	</a>
+	{#if hasWords}
+		<a class="nav-item" href="/words">
+			<GraduationCap size={15} strokeWidth={1.75} />
+			{t('sidebar.words')}
+		</a>
+	{/if}
 	{#if hasSaved || data.offline}
 		<a class="nav-item" href="/offline">
 			<HardDriveDownload size={15} strokeWidth={1.75} />

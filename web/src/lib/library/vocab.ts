@@ -10,7 +10,11 @@ export type StudyRow = {
 	known: boolean;
 	english: string | null;
 	found_as: string | null;
+	class: WordClass | null;
 };
+
+export type WordClass = 'verb' | 'noun' | 'adj' | 'other';
+export const WORD_CLASSES: WordClass[] = ['verb', 'noun', 'adj', 'other'];
 
 export type Vocab = {
 	language: string;
@@ -80,3 +84,32 @@ export const fmt = (n: number, locale: string) => n.toLocaleString(locale);
 export const percent = (x: number) => Math.round(x * 100);
 /** For CSS: no space before the sign. */
 export const css = (x: number) => `${(x * 100).toFixed(1)}%`;
+
+// The words page (GET /api/vocabulary/languages and /overview).
+export type WordLanguage = { language: string; books: number; known: number };
+export type WordRow = { stem: string; word: string; english: string | null; books: number[]; count: number };
+export type Overview = {
+	language: string;
+	books: { id: number; title: string; author: string | null; share: number }[];
+	next: WordRow[];
+	known: WordRow[];
+	source: string | null;
+};
+
+export async function loadLanguages(fetcher: typeof fetch = fetch): Promise<WordLanguage[]> {
+	try {
+		const res = await fetcher('/api/vocabulary/languages');
+		return res.ok ? await res.json() : [];
+	} catch {
+		return [];
+	}
+}
+
+export async function loadOverview(language: string, fetcher: typeof fetch = fetch): Promise<Overview | null> {
+	try {
+		const res = await fetcher(`/api/vocabulary/overview?language=${encodeURIComponent(language)}`);
+		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}

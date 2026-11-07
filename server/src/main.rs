@@ -87,6 +87,7 @@ mod esperanto;
 mod dictionary;
 mod espdic;
 mod language;
+mod langpack;
 mod vocabulary;
 #[cfg(test)]
 mod email_change_tests;
@@ -233,6 +234,8 @@ fn router(state: AppState) -> Router {
         .route("/dictionary", get(dictionary::lookup))
         .route("/books/{id}/vocabulary", get(vocabulary::for_book))
         .route("/vocabulary/known", get(vocabulary::known_list).put(vocabulary::known_set))
+        .route("/vocabulary/languages", get(vocabulary::languages))
+        .route("/vocabulary/overview", get(vocabulary::overview))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
