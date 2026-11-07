@@ -312,6 +312,27 @@ function blockOf(node: Node): Node | null {
 }
 
 /**
+ * epub.js parses a chapter by its file extension, so a `.htm` or `.html`
+ * chapter is read as HTML even when the manifest says XHTML. An HTML parser
+ * takes a self-closing `<title/>` as an open title and puts the whole chapter
+ * in it, and the page comes out blank. Such chapters are read as XHTML first,
+ * and as HTML only when they are not well-formed XML.
+ */
+function parseHtmAsXhtml(book: Book) {
+	const archive = (book as unknown as { archive?: { handleResponse?: (r: unknown, type?: string) => unknown } })
+		.archive;
+	const original = archive?.handleResponse;
+	if (!archive || !original) return;
+	archive.handleResponse = function (response: unknown, type?: string) {
+		if ((type === 'htm' || type === 'html') && typeof response === 'string') {
+			const doc = new DOMParser().parseFromString(response, 'application/xhtml+xml');
+			if (!doc.getElementsByTagName('parsererror').length) return doc;
+		}
+		return original.call(this, response, type);
+	};
+}
+
+/**
  * Download and open an EPUB and show it in `options.host`.
  * Rejects with a `ReaderError` when the book can't be fetched or parsed.
  */
@@ -330,6 +351,7 @@ export async function openReader(options: ReaderEngineOptions): Promise<ReaderEn
 		}
 		throw new ReaderError('invalid');
 	}
+	parseHtmAsXhtml(book);
 
 	const spine = book.spine as unknown as InternalSpine;
 	const sections = spine.spineItems ?? [];
