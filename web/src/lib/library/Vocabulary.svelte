@@ -3,7 +3,7 @@
 	// a card leading to it, and for every counted book a panel to fold out.
 	import { GraduationCap, ChevronRight } from '@lucide/svelte';
 	import { getLocale, t, type MessageKey } from '#lib/i18n';
-	import { css, fmt, languageInSentence, loadVocab, percent, type Vocab } from './vocab';
+	import { css, fmt, languageInSentence, loadVocab, percent, readingLevel, type Vocab } from './vocab';
 
 	let { bookId, part }: { bookId: number; part: 'study' | 'stats' } = $props();
 
@@ -44,6 +44,7 @@
 				<span class="lead">
 					{#if known > 0.05}
 						{t('vocab.studyKnown', { percent: percent(known) })}
+						{t(`words.level.${readingLevel(known)}` as MessageKey)}
 					{:else}
 						{t('vocab.studyLead', { count: n(vocab.coverage['80'] ?? 0) })}
 					{/if}

@@ -271,6 +271,46 @@ async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
     assert_eq!(e["examples"], json!([]));
     let (_, m) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo&q=hund", Some(&alice), None).await;
     assert_eq!(m["matches"][0]["known"], true, "{m}");
+
+    // The book being read comes first, then the one known most of.
+    send(&app, Method::PUT, &format!("/api/books/{b}/progress"), Some(&alice), Some(json!({ "cfi": "epubcfi(/6/2)", "percent": 0.3 }))).await;
+    let (status, list) = send(&app, Method::GET, "/api/vocabulary/books?language=eo&limit=1", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(list["total"], 2);
+    assert_eq!(list["books"][0]["id"], b, "{list}");
+    assert_eq!(list["books"][0]["reading"], true);
+    let (_, list) = send(&app, Method::GET, "/api/vocabulary/books?language=eo&offset=1", Some(&alice), None).await;
+    assert_eq!(list["books"][0]["id"], a, "{list}");
+
+    // Many at once, as "tick all above".
+    let (status, _) = send(&app, Method::PUT, "/api/vocabulary/known/many", Some(&alice),
+        Some(json!({ "language": "eo", "stems": ["kat", "dorm", "bon"], "known": true }))).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, o) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo", Some(&alice), None).await;
+    assert_eq!(o["known"], 5, "{o}");
+    send(&app, Method::PUT, "/api/vocabulary/known/many", Some(&alice), Some(json!({ "language": "eo", "stems": ["kat", "dorm", "bon"], "known": false }))).await;
+    let (_, o) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo", Some(&alice), None).await;
+    assert_eq!(o["known"], 2);
+
+    // The level test: words from the band of the reader's books; knowing all
+    // asked ticks the whole band, and a word answered "no" stays unticked.
+    let (status, level) = send(&app, Method::GET, "/api/vocabulary/level?language=eo", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{level}");
+    let band = &level["bands"][0];
+    assert_eq!(band["from"], 0);
+    let asked: Vec<&str> = band["words"].as_array().unwrap().iter().map(|w| w["stem"].as_str().unwrap()).collect();
+    assert!(!asked.is_empty() && asked.len() <= 8, "{level}");
+    let words = level["words"].as_u64().unwrap();
+    let mut answers: Vec<serde_json::Value> = asked.iter().map(|s| json!({ "stem": s, "known": true })).collect();
+    answers[0] = json!({ "stem": asked[0], "known": false });
+    let (status, done) = send(&app, Method::POST, "/api/vocabulary/level", Some(&alice), Some(json!({ "language": "eo", "answers": answers }))).await;
+    assert_eq!(status, StatusCode::OK, "{done}");
+    assert!(done["estimate"].as_u64().unwrap() >= 1, "{done}");
+    let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo", Some(&alice), None).await;
+    let known: Vec<&str> = k["words"].as_array().unwrap().iter().map(|w| w["stem"].as_str().unwrap()).collect();
+    assert!(!known.contains(&asked[0]), "{known:?}");
+    assert!(asked[1..].iter().all(|s| known.contains(s)), "{known:?}");
+    assert!(known.len() as u64 <= words + 2);
     // Next: in both books first ("hundo", "kato"), not "la", not a name.
     let next: Vec<&str> = v["next"].as_array().unwrap().iter().map(|w| w["word"].as_str().unwrap()).collect();
     assert!(!next.contains(&"la") && !next.contains(&"Petro"), "{next:?}");
@@ -278,3 +318,22 @@ async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
     assert_eq!(v["next"][0]["known"], false);
 }
 
+
+#[tokio::test]
+async fn books_counted_before_the_word_table_are_put_in_it_in_the_background() {
+    let (app, db, state) = test_app().await;
+    let (_, alice) = add_user(&db, "alice").await;
+    let a = upload(&app, &alice, &[("hundo.epub", book("Hundo", "eo", &esperanto()))], "").await;
+    let a = a["added"][0]["id"].as_i64().unwrap();
+    send(&app, Method::GET, &format!("/api/books/{a}/vocabulary"), Some(&alice), None).await;
+    // As a version without the table would have left it.
+    sqlx::query("DELETE FROM vocabulary_words").execute(&db).await.unwrap();
+    sqlx::query("DELETE FROM vocabulary_indexed").execute(&db).await.unwrap();
+    let (_, o) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo", Some(&alice), None).await;
+    assert_eq!(o["next"], json!([]), "{o}");
+    assert_eq!(crate::vocabulary::index_pending(&state, 20).await.unwrap(), 1);
+    assert_eq!(crate::vocabulary::index_pending(&state, 20).await.unwrap(), 0);
+    let (_, o) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo", Some(&alice), None).await;
+    assert!(!o["next"].as_array().unwrap().is_empty(), "{o}");
+    assert!(o["books"][0]["share"].as_f64().unwrap() == 0.0);
+}

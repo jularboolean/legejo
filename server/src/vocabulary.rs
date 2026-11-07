@@ -536,6 +536,7 @@ async fn store(state: &AppState, sha: &str, language: &str, c: Option<Computed>)
         // book is not read again until its file or language changes.
         None => (0, 0, 0, 0, "{}".into(), "[]".into(), "[]".into(), None),
     };
+    let at = crate::db::now_ts();
     sqlx::query(
         "INSERT INTO vocabulary (file_sha256, language, version, words, stems, hapax, sample_need, coverage, curve, candidates, study, computed_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -553,11 +554,72 @@ async fn store(state: &AppState, sha: &str, language: &str, c: Option<Computed>)
     .bind(coverage)
     .bind(curve)
     .bind(candidates)
-    .bind(study)
-    .bind(crate::db::now_ts())
+    .bind(&study)
+    .bind(&at)
     .execute(&state.db)
     .await?;
+    index_words(state, sha, language, study.as_deref(), &at).await
+}
+
+/// Rows of vocabulary_words written in one statement.
+const INDEX_BATCH: usize = 150;
+
+/// Put a book's study list in vocabulary_words, one row per word, in place
+/// of what was there, and note which computation it comes from.
+async fn index_words(state: &AppState, sha: &str, language: &str, study: Option<&str>, computed_at: &str) -> anyhow::Result<()> {
+    let list: Vec<StudyWord> = study.and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default();
+    let mut tx = state.db.begin().await?;
+    sqlx::query("DELETE FROM vocabulary_words WHERE file_sha256 = $1 AND language = $2")
+        .bind(sha)
+        .bind(language)
+        .execute(&mut *tx)
+        .await?;
+    for chunk in list.chunks(INDEX_BATCH) {
+        let mut sql = String::from("INSERT INTO vocabulary_words (file_sha256, language, stem, word, forms, n, name) VALUES ");
+        for i in 0..chunk.len() {
+            let b = i * 7;
+            if i > 0 {
+                sql.push_str(", ");
+            }
+            sql.push_str(&format!("(${}, ${}, ${}, ${}, ${}, ${}, ${})", b + 1, b + 2, b + 3, b + 4, b + 5, b + 6, b + 7));
+        }
+        sql.push_str(" ON CONFLICT (file_sha256, language, stem) DO NOTHING");
+        let mut q = sqlx::query(&sql);
+        for w in chunk {
+            q = q.bind(sha).bind(language).bind(&w.stem).bind(&w.word).bind(w.forms.join(" ")).bind(w.count as i64).bind(w.name as i64);
+        }
+        q.execute(&mut *tx).await?;
+    }
+    sqlx::query(
+        "INSERT INTO vocabulary_indexed (file_sha256, language, computed_at) VALUES ($1, $2, $3)
+         ON CONFLICT (file_sha256, language) DO UPDATE SET computed_at = excluded.computed_at",
+    )
+    .bind(sha)
+    .bind(language)
+    .bind(computed_at)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(())
+}
+
+/// Index a few books whose study lists are not in vocabulary_words yet (or
+/// are there from an older computation, or were counted by a version
+/// without the table). Returns how many it did.
+pub(crate) async fn index_pending(state: &AppState, limit: i64) -> anyhow::Result<usize> {
+    let rows: Vec<(String, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT v.file_sha256, v.language, v.study, v.computed_at FROM vocabulary v
+         LEFT JOIN vocabulary_indexed i ON i.file_sha256 = v.file_sha256 AND i.language = v.language
+         WHERE i.computed_at IS NULL OR i.computed_at <> v.computed_at
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await?;
+    for (sha, language, study, at) in &rows {
+        index_words(state, sha, language, study.as_deref(), at).await?;
+    }
+    Ok(rows.len())
 }
 
 /// Count the words of a few books not yet counted (or counted by an older
@@ -622,6 +684,14 @@ pub(crate) async fn drop_orphans(state: &AppState) -> anyhow::Result<u64> {
     )
     .execute(&state.db)
     .await?;
+    for table in ["vocabulary_words", "vocabulary_indexed"] {
+        sqlx::query(&format!(
+            "DELETE FROM {table} WHERE NOT EXISTS
+               (SELECT 1 FROM vocabulary v WHERE v.file_sha256 = {table}.file_sha256 AND v.language = {table}.language)"
+        ))
+        .execute(&state.db)
+        .await?;
+    }
     Ok(gone.rows_affected())
 }
 
@@ -644,6 +714,14 @@ pub async fn worker(state: AppState) {
                 false
             }
         };
+        let indexing = match index_pending(&state, 20).await {
+            Ok(n) => n > 0,
+            Err(e) => {
+                tracing::warn!("vocabulary words: {e:#}");
+                false
+            }
+        };
+        let busy = busy || indexing;
         if !busy {
             tokio::time::sleep(IDLE).await;
         }
@@ -1078,6 +1156,159 @@ pub async fn known_set(State(state): State<AppState>, user: AuthUser, Json(chang
     }
 }
 
+/// Words one bulk change may tick or untick at most.
+const MANY_MAX: usize = 5000;
+
+#[derive(Deserialize)]
+pub struct KnownMany {
+    language: String,
+    stems: Vec<String>,
+    known: bool,
+}
+
+/// PUT /api/vocabulary/known/many: tick or untick many words at once (all
+/// the words above one in a study list).
+pub async fn known_many(State(state): State<AppState>, user: AuthUser, Json(change): Json<KnownMany>) -> Response {
+    if change.language.is_empty() || change.language.len() > 12 || change.stems.len() > MANY_MAX {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "a language and at most 5000 stems" }))).into_response();
+    }
+    let stems: Vec<&String> = change.stems.iter().filter(|s| !s.is_empty() && s.chars().count() <= 80).collect();
+    match set_many(&state, user.0.id, &change.language, &stems, change.known).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => internal(e),
+    }
+}
+
+async fn set_many(state: &AppState, user: i64, language: &str, stems: &[&String], known: bool) -> anyhow::Result<()> {
+    let mut tx = state.db.begin().await?;
+    for stem in stems {
+        let query = if known {
+            "INSERT INTO known_words (user_id, language, stem) VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, language, stem) DO NOTHING"
+        } else {
+            "DELETE FROM known_words WHERE user_id = $1 AND language = $2 AND stem = $3"
+        };
+        sqlx::query(query).bind(user).bind(language).bind(stem.as_str()).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+// ------------------------------------------------------------ level test
+
+/// The frequency bands of the level test, by rank among the words of the
+/// reader's books in the language, and the words asked from each.
+const LEVEL_BANDS: [usize; 7] = [0, 250, 500, 1000, 2000, 4000, 8000];
+const LEVEL_ASK: usize = 8;
+
+/// The words of the reader's books in a language, names aside, commonest
+/// first, as far as the level test reaches.
+async fn ranked_words(state: &AppState, user: i64, language: &str) -> anyhow::Result<Vec<WordRow>> {
+    let rows: Vec<Total> = sqlx::query_as(&format!(
+        "SELECT w.stem, MIN(w.word), CAST(SUM(w.n) AS BIGINT) AS total, COUNT(*) {READERS_WORDS}
+         GROUP BY w.stem ORDER BY total DESC, w.stem LIMIT {}",
+        LEVEL_BANDS[LEVEL_BANDS.len() - 1]
+    ))
+    .bind(user)
+    .bind(language)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(rows.into_iter().map(|t| row_of(t, false)).collect())
+}
+
+/// The bands that the reader's words reach: (from, to) by rank.
+fn level_bands(words: usize) -> Vec<(usize, usize)> {
+    LEVEL_BANDS.windows(2).filter(|b| b[0] < words).map(|b| (b[0], b[1].min(words))).collect()
+}
+
+#[derive(Deserialize)]
+pub struct LevelQuery {
+    language: String,
+}
+
+#[derive(Serialize)]
+pub struct LevelWord {
+    pub stem: String,
+    pub word: String,
+}
+
+#[derive(Serialize)]
+pub struct LevelBand {
+    pub from: usize,
+    pub to: usize,
+    pub words: Vec<LevelWord>,
+}
+
+/// GET /api/vocabulary/level?language=: words to ask in a short level test,
+/// a few picked at random from each frequency band of the reader's books.
+pub async fn level_sample(State(state): State<AppState>, user: AuthUser, Query(q): Query<LevelQuery>) -> Response {
+    use rand::seq::SliceRandom;
+    let ranked = match ranked_words(&state, user.0.id, &q.language).await {
+        Ok(r) => r,
+        Err(e) => return internal(e),
+    };
+    let mut rng = rand::thread_rng();
+    let bands: Vec<LevelBand> = level_bands(ranked.len())
+        .into_iter()
+        .map(|(from, to)| {
+            let mut words: Vec<LevelWord> = ranked[from..to]
+                .choose_multiple(&mut rng, LEVEL_ASK)
+                .map(|w| LevelWord { stem: w.stem.clone(), word: w.word.clone() })
+                .collect();
+            words.shuffle(&mut rng);
+            LevelBand { from, to, words }
+        })
+        .collect();
+    Json(json!({ "words": ranked.len(), "bands": bands })).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct LevelAnswer {
+    stem: String,
+    known: bool,
+}
+
+#[derive(Deserialize)]
+pub struct LevelAnswers {
+    language: String,
+    answers: Vec<LevelAnswer>,
+}
+
+/// POST /api/vocabulary/level: the answers of a level test. In each band
+/// the reader is taken to know as large a share of the words as they knew
+/// of those asked, the commonest first; the words answered are ticked or
+/// left as answered. Words ticked before stay ticked.
+pub async fn level_apply(State(state): State<AppState>, user: AuthUser, Json(a): Json<LevelAnswers>) -> Response {
+    if a.answers.len() > 200 {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "at most 200 answers" }))).into_response();
+    }
+    let ranked = match ranked_words(&state, user.0.id, &a.language).await {
+        Ok(r) => r,
+        Err(e) => return internal(e),
+    };
+    let rank: HashMap<&str, usize> = ranked.iter().enumerate().map(|(i, w)| (w.stem.as_str(), i)).collect();
+    let answer: HashMap<&str, bool> = a.answers.iter().map(|x| (x.stem.as_str(), x.known)).collect();
+    let mut tick: Vec<&String> = Vec::new();
+    let mut estimate = 0usize;
+    for (from, to) in level_bands(ranked.len()) {
+        let asked: Vec<bool> = answer.iter().filter(|(s, _)| rank.get(*s).is_some_and(|r| (from..to).contains(r))).map(|(_, k)| *k).collect();
+        if asked.is_empty() {
+            continue;
+        }
+        let share = asked.iter().filter(|k| **k).count() as f64 / asked.len() as f64;
+        let take = ((to - from) as f64 * share).round() as usize;
+        estimate += take;
+        tick.extend(ranked[from..from + take].iter().map(|w| &w.stem).filter(|s| answer.get(s.as_str()) != Some(&false)));
+    }
+    tick.extend(a.answers.iter().filter(|x| x.known && rank.contains_key(x.stem.as_str())).map(|x| &x.stem));
+    tick.sort();
+    tick.dedup();
+    match set_many(&state, user.0.id, &a.language, &tick, true).await {
+        Ok(()) => Json(json!({ "estimate": estimate, "ticked": tick.len() })).into_response(),
+        Err(e) => internal(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1174,25 +1405,6 @@ mod tests {
 
 // ------------------------------------------------------------- the words page
 
-/// The study lists of a reader's books in a language: (book id, title,
-/// author, the book's word count, its list).
-async fn study_lists(state: &AppState, user: i64, language: &str) -> anyhow::Result<Vec<(i64, String, Option<String>, i64, Vec<StudyWord>)>> {
-    let rows: Vec<(i64, String, Option<String>, i64, String)> = sqlx::query_as(
-        "SELECT b.id, b.title, b.author, v.words, v.study FROM books b
-         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
-         WHERE b.owner_id = $1 AND b.language = $2 AND v.study IS NOT NULL AND v.words > 0
-         ORDER BY b.title",
-    )
-    .bind(user)
-    .bind(language)
-    .fetch_all(&state.db)
-    .await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(id, title, author, words, json)| serde_json::from_str(&json).ok().map(|s| (id, title, author, words, s)))
-        .collect())
-}
-
 async fn known_stems(state: &AppState, user: i64, language: &str) -> anyhow::Result<std::collections::HashSet<String>> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT stem FROM known_words WHERE user_id = $1 AND language = $2")
         .bind(user)
@@ -1241,13 +1453,15 @@ pub async fn languages(State(state): State<AppState>, user: AuthUser) -> Respons
     Json(out).into_response()
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct BookShare {
     pub id: i64,
     pub title: String,
     pub author: Option<String>,
     /// Share of the book's words (names aside) the reader knows.
     pub share: f64,
+    /// Begun and not finished.
+    pub reading: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -1265,23 +1479,29 @@ pub struct WordRow {
 /// How many of the commonest words in the reader's books they know.
 #[derive(Serialize)]
 pub struct CommonKnown {
-    pub known: usize,
-    pub of: usize,
+    pub known: i64,
+    pub of: i64,
 }
 
 /// The commonest words a summary on the words page counts against.
-const COMMON_WORDS: usize = 1000;
+const COMMON_WORDS: i64 = 1000;
+/// Books the words page shows at first.
+const FIRST_BOOKS: usize = 10;
 
 #[derive(Serialize)]
 pub struct Overview {
     pub language: String,
+    /// The first of the reader's books in the language, the ones they are
+    /// reading first, then the ones they know most of; the rest come from
+    /// `books`.
     pub books: Vec<BookShare>,
+    pub books_total: usize,
     /// Words to learn next: the commonest across the reader's books that the
     /// reader does not know yet.
     pub next: Vec<WordRow>,
     /// How many words the reader knows; the words themselves come a page at
     /// a time from `known_words`.
-    pub known: usize,
+    pub known: i64,
     pub common: CommonKnown,
     /// Words of the reader's books that match the search (`q`), with the
     /// known ones among them.
@@ -1312,59 +1532,93 @@ fn fill_meaning(state: &AppState, language: &str, row: &mut WordRow) {
     row.class = class;
 }
 
-/// Every word of the reader's study lists in a language (names aside), with
-/// the books it occurs in, and each book's share of known words.
-struct Library {
-    books: Vec<BookShare>,
-    words: HashMap<String, WordRow>,
-    /// Every form a word was written in, for the search.
-    written: HashMap<String, Vec<String>>,
+/// The words of the reader's books in a language, names aside ($1 the
+/// reader, $2 the language), for the sums below.
+const READERS_WORDS: &str = "FROM vocabulary_words w
+     JOIN books b ON b.file_sha256 = w.file_sha256 AND b.language = w.language
+     WHERE b.owner_id = $1 AND w.language = $2 AND w.name = 0";
+
+const IS_KNOWN: &str = "EXISTS (SELECT 1 FROM known_words k WHERE k.user_id = $1 AND k.language = $2 AND k.stem = w.stem)";
+
+/// A word summed over the reader's books: (stem, word, uses, books).
+type Total = (String, String, i64, i64);
+
+fn row_of((stem, word, n, _): Total, known: bool) -> WordRow {
+    WordRow { stem, word, english: None, class: None, known, books: Vec::new(), count: n.clamp(0, u32::MAX as i64) as u32 }
 }
 
-fn library(lists: &[(i64, String, Option<String>, i64, Vec<StudyWord>)], known: &std::collections::HashSet<String>, forms: bool) -> Library {
-    let mut books = Vec::new();
-    let mut words: HashMap<String, WordRow> = HashMap::new();
-    let mut written: HashMap<String, Vec<String>> = HashMap::new();
-    for (id, title, author, total, list) in lists {
-        let (mut covered, mut names) = (0u64, 0u64);
-        for w in list {
-            if w.name {
-                names += w.count as u64;
-                continue;
-            }
-            if known.contains(&w.stem) {
-                covered += w.count as u64;
-            }
-            let row = words.entry(w.stem.clone()).or_insert_with(|| WordRow {
-                stem: w.stem.clone(),
-                word: w.word.clone(),
-                english: None,
-                class: None,
-                known: known.contains(&w.stem),
-                books: Vec::new(),
-                count: 0,
-            });
-            row.books.push(*id);
-            row.count += w.count;
-            if forms {
-                let seen = written.entry(w.stem.clone()).or_default();
-                for f in &w.forms {
-                    if !seen.contains(f) {
-                        seen.push(f.clone());
-                    }
-                }
-            }
-        }
-        let learnable = (*total as u64).saturating_sub(names).max(1);
-        books.push(BookShare { id: *id, title: title.clone(), author: author.clone(), share: covered as f64 / learnable as f64 });
+/// The reader's books each word occurs in, for a few words.
+async fn books_of(state: &AppState, user: i64, language: &str, rows: &mut [WordRow]) -> anyhow::Result<()> {
+    if rows.is_empty() {
+        return Ok(());
     }
-    books.sort_by(|a, b| b.share.total_cmp(&a.share));
-    Library { books, words, written }
+    let marks: Vec<String> = (0..rows.len()).map(|i| format!("${}", i + 3)).collect();
+    let sql = format!("SELECT w.stem, b.id {READERS_WORDS} AND w.stem IN ({}) ORDER BY b.id", marks.join(", "));
+    let mut q = sqlx::query_as::<_, (String, i64)>(&sql).bind(user).bind(language);
+    for r in rows.iter() {
+        q = q.bind(&r.stem);
+    }
+    let mut found: HashMap<String, Vec<i64>> = HashMap::new();
+    for (stem, id) in q.fetch_all(&state.db).await? {
+        found.entry(stem).or_default().push(id);
+    }
+    for r in rows.iter_mut() {
+        r.books = found.remove(&r.stem).unwrap_or_default();
+    }
+    Ok(())
 }
 
-/// GET /api/vocabulary/overview?language=: the reader's books in the
-/// language with how much of each they know, the words to learn next, how
-/// many words they know, and (with `q`) the words that match a search.
+/// The reader's books in a language with how much of each they know: those
+/// they are reading first (last read first), then those they know most of.
+async fn book_shares(state: &AppState, user: i64, language: &str) -> anyhow::Result<Vec<BookShare>> {
+    let rows: Vec<(i64, String, Option<String>, i64, i64, i64)> = sqlx::query_as(
+        "SELECT b.id, b.title, b.author, v.words,
+             CAST(COALESCE(SUM(CASE WHEN w.name = 1 THEN w.n ELSE 0 END), 0) AS BIGINT),
+             CAST(COALESCE(SUM(CASE WHEN w.name = 0 AND k.stem IS NOT NULL THEN w.n ELSE 0 END), 0) AS BIGINT)
+         FROM books b
+         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
+         LEFT JOIN vocabulary_words w ON w.file_sha256 = v.file_sha256 AND w.language = v.language
+         LEFT JOIN known_words k ON k.user_id = $1 AND k.language = w.language AND k.stem = w.stem
+         WHERE b.owner_id = $1 AND b.language = $2 AND v.study IS NOT NULL AND v.words > 0
+         GROUP BY b.id, b.title, b.author, v.words",
+    )
+    .bind(user)
+    .bind(language)
+    .fetch_all(&state.db)
+    .await?;
+    let percent = crate::progress::progress_percent(state.backend);
+    let last_read = crate::progress::last_read_at(state.backend);
+    let joins = crate::progress::PROGRESS_JOINS;
+    let reading: Vec<(i64, Option<String>)> = sqlx::query_as(&format!(
+        "SELECT b.id, {last_read} FROM books b {joins}
+         WHERE b.owner_id = $1 AND b.language = $2 AND {percent} > 0 AND {percent} < 0.99"
+    ))
+    .bind(user)
+    .bind(language)
+    .fetch_all(&state.db)
+    .await?;
+    let reading: HashMap<i64, String> = reading.into_iter().map(|(id, at)| (id, at.unwrap_or_default())).collect();
+    let mut books: Vec<BookShare> = rows
+        .into_iter()
+        .map(|(id, title, author, words, names, known)| {
+            let learnable = (words - names).max(1);
+            BookShare { id, title, author, share: known as f64 / learnable as f64, reading: reading.contains_key(&id) }
+        })
+        .collect();
+    books.sort_by(|a, b| {
+        b.reading
+            .cmp(&a.reading)
+            .then_with(|| reading.get(&b.id).cmp(&reading.get(&a.id)))
+            .then_with(|| b.share.total_cmp(&a.share))
+            .then_with(|| a.title.cmp(&b.title))
+    });
+    Ok(books)
+}
+
+/// GET /api/vocabulary/overview?language=: the first of the reader's books
+/// in the language with how much of each they know, the words to learn
+/// next, how many words they know, and (with `q`) the words that match a
+/// search.
 #[derive(Deserialize)]
 pub struct OverviewQuery {
     language: String,
@@ -1373,47 +1627,121 @@ pub struct OverviewQuery {
 }
 
 pub async fn overview(State(state): State<AppState>, user: AuthUser, Query(q): Query<OverviewQuery>) -> Response {
+    match overview_of(&state, user.0.id, q).await {
+        Ok(o) => Json(o).into_response(),
+        Err(e) => internal(e),
+    }
+}
+
+async fn overview_of(state: &AppState, user: i64, q: OverviewQuery) -> anyhow::Result<Overview> {
     let search = q.q.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
     let language = q.language;
-    let (lists, known) = match (study_lists(&state, user.0.id, &language).await, known_stems(&state, user.0.id, &language).await) {
-        (Ok(l), Ok(k)) => (l, k),
-        _ => return internal("overview"),
-    };
-    let Library { books, words, written } = library(&lists, &known, search.is_some());
+    let mut books = book_shares(state, user, &language).await?;
+    let books_total = books.len();
+    books.truncate(FIRST_BOOKS);
     // Words to learn next: in more books first, then more often.
-    let mut next: Vec<WordRow> = words.values().filter(|w| !w.known).cloned().collect();
-    next.sort_by(|a, b| (b.books.len(), b.count).cmp(&(a.books.len(), a.count)).then_with(|| a.word.cmp(&b.word)));
-    next.truncate(30);
+    let next: Vec<Total> = sqlx::query_as(&format!(
+        "SELECT w.stem, MIN(w.word), CAST(SUM(w.n) AS BIGINT), COUNT(*) {READERS_WORDS} AND NOT {IS_KNOWN}
+         GROUP BY w.stem ORDER BY COUNT(*) DESC, SUM(w.n) DESC, MIN(w.word) LIMIT 30"
+    ))
+    .bind(user)
+    .bind(&language)
+    .fetch_all(&state.db)
+    .await?;
+    let mut next: Vec<WordRow> = next.into_iter().map(|t| row_of(t, false)).collect();
+    let (known,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM known_words WHERE user_id = $1 AND language = $2")
+        .bind(user)
+        .bind(&language)
+        .fetch_one(&state.db)
+        .await?;
     // How many of the commonest words the reader knows.
-    let mut counts: Vec<(u32, bool)> = words.values().map(|w| (w.count, w.known)).collect();
-    counts.sort_by(|a, b| b.0.cmp(&a.0));
-    counts.truncate(COMMON_WORDS);
-    let common = CommonKnown { known: counts.iter().filter(|(_, k)| *k).count(), of: counts.len() };
-    // The search: a word, one of its forms or its English.
-    let mut matches: Vec<WordRow> = Vec::new();
-    if let Some(q) = &search {
-        let mut found: Vec<WordRow> = words
-            .values()
-            .filter(|w| {
-                w.word.to_lowercase().contains(q.as_str())
-                    || written.get(&w.stem).is_some_and(|f| f.iter().any(|f| f.contains(q.as_str())))
-                    || meaning_of(&state, &language, &w.word, &w.stem).0.is_some_and(|e| e.to_lowercase().contains(q.as_str()))
-            })
-            .cloned()
-            .collect();
-        found.sort_by(|a, b| {
-            let exact = |w: &WordRow| w.word.to_lowercase() != *q;
-            (exact(a), b.count).cmp(&(exact(b), a.count))
-        });
-        found.truncate(50);
-        matches = found;
-    }
+    let (common_known, common_of): (i64, i64) = sqlx::query_as(&format!(
+        "SELECT COUNT(k.stem), COUNT(*) FROM
+           (SELECT w.stem, SUM(w.n) AS total {READERS_WORDS} GROUP BY w.stem ORDER BY total DESC, w.stem LIMIT {COMMON_WORDS}) t
+         LEFT JOIN known_words k ON k.user_id = $1 AND k.language = $2 AND k.stem = t.stem"
+    ))
+    .bind(user)
+    .bind(&language)
+    .fetch_one(&state.db)
+    .await?;
+    let mut matches = match &search {
+        Some(s) => search_words(state, user, &language, s).await?,
+        None => Vec::new(),
+    };
+    books_of(state, user, &language, &mut next).await?;
+    books_of(state, user, &language, &mut matches).await?;
     for row in next.iter_mut().chain(matches.iter_mut()) {
-        fill_meaning(&state, &language, row);
+        fill_meaning(state, &language, row);
     }
     let pack = if language == "eo" { None } else { crate::langpack::get(&state.data_dir, &language).map(|p| p.meta.clone()) };
     let source = if language == "eo" { Some(crate::espdic::ATTRIBUTION.to_string()) } else { pack.as_ref().map(|p| p.attribution.clone()) };
-    Json(Overview { language, books, next, known: known.len(), common, matches, source, pack }).into_response()
+    Ok(Overview {
+        language,
+        books,
+        books_total,
+        next,
+        known,
+        common: CommonKnown { known: common_known, of: common_of },
+        matches,
+        source,
+        pack,
+    })
+}
+
+/// Words of the reader's books that match a search: by the word, one of the
+/// forms the books write it in, or its English. Exact words first.
+async fn search_words(state: &AppState, user: i64, language: &str, q: &str) -> anyhow::Result<Vec<WordRow>> {
+    // Every word of the reader's books, with whether one of its forms
+    // matches; the meaning is looked up here, not in the database.
+    let like = format!("%{}%", q.replace('\\', "").replace('%', "").replace('_', ""));
+    let all: Vec<(String, String, i64, i64, i64, i64)> = sqlx::query_as(&format!(
+        "SELECT w.stem, MIN(w.word), CAST(SUM(w.n) AS BIGINT), COUNT(*),
+             MAX(CASE WHEN w.forms LIKE $3 OR w.stem LIKE $3 THEN 1 ELSE 0 END),
+             MAX(CASE WHEN {IS_KNOWN} THEN 1 ELSE 0 END)
+         {READERS_WORDS} GROUP BY w.stem"
+    ))
+    .bind(user)
+    .bind(language)
+    .bind(&like)
+    .fetch_all(&state.db)
+    .await?;
+    let mut found: Vec<WordRow> = all
+        .into_iter()
+        .filter(|(stem, word, _, _, form, _)| {
+            *form == 1
+                || word.to_lowercase().contains(q)
+                || meaning_of(state, language, word, stem).0.is_some_and(|e| e.to_lowercase().contains(q))
+        })
+        .map(|(stem, word, n, books, _, known)| row_of((stem, word, n, books), known == 1))
+        .collect();
+    found.sort_by(|a, b| {
+        let exact = |w: &WordRow| w.word.to_lowercase() != q;
+        (exact(a), b.count).cmp(&(exact(b), a.count))
+    });
+    found.truncate(50);
+    Ok(found)
+}
+
+/// GET /api/vocabulary/books?language=&offset=&limit=: the reader's books in
+/// a language with how much of each they know, a page at a time, in the
+/// order of the overview.
+#[derive(Deserialize)]
+pub struct BooksQuery {
+    language: String,
+    #[serde(default)]
+    offset: usize,
+    limit: Option<usize>,
+}
+
+pub async fn books(State(state): State<AppState>, user: AuthUser, Query(q): Query<BooksQuery>) -> Response {
+    match book_shares(&state, user.0.id, &q.language).await {
+        Ok(all) => {
+            let total = all.len();
+            let page: Vec<BookShare> = all.into_iter().skip(q.offset).take(q.limit.unwrap_or(100).min(500)).collect();
+            Json(json!({ "total": total, "books": page })).into_response()
+        }
+        Err(e) => internal(e),
+    }
 }
 
 /// GET /api/vocabulary/known/words?language=&q=&sort=&class=&offset=&limit=:
@@ -1440,25 +1768,29 @@ pub struct KnownWords {
 }
 
 pub async fn known_words(State(state): State<AppState>, user: AuthUser, Query(q): Query<KnownWordsQuery>) -> Response {
-    let ticked: Result<Vec<(String, String)>, _> = sqlx::query_as(
-        "SELECT stem, created_at FROM known_words WHERE user_id = $1 AND language = $2 ORDER BY created_at DESC, stem",
-    )
-    .bind(user.0.id)
+    match known_words_of(&state, user.0.id, q).await {
+        Ok(k) => Json(k).into_response(),
+        Err(e) => internal(e),
+    }
+}
+
+async fn known_words_of(state: &AppState, user: i64, q: KnownWordsQuery) -> anyhow::Result<KnownWords> {
+    let ticked: Vec<(String, Option<String>, Option<i64>, Option<i64>)> = sqlx::query_as(&format!(
+        "SELECT k.stem, t.word, t.total, t.books FROM known_words k
+         LEFT JOIN (SELECT w.stem, MIN(w.word) AS word, CAST(SUM(w.n) AS BIGINT) AS total, COUNT(*) AS books
+                    {READERS_WORDS} GROUP BY w.stem) t ON t.stem = k.stem
+         WHERE k.user_id = $1 AND k.language = $2
+         ORDER BY k.created_at DESC, k.stem"
+    ))
+    .bind(user)
     .bind(&q.language)
     .fetch_all(&state.db)
-    .await;
-    let (ticked, lists) = match (ticked, study_lists(&state, user.0.id, &q.language).await) {
-        (Ok(t), Ok(l)) => (t, l),
-        (Err(e), _) => return internal(e),
-        (_, Err(e)) => return internal(e),
-    };
-    let known: std::collections::HashSet<String> = ticked.iter().map(|(s, _)| s.clone()).collect();
-    let Library { words, .. } = library(&lists, &known, false);
+    .await?;
     let mut rows: Vec<WordRow> = ticked
-        .iter()
-        .map(|(stem, _)| match words.get(stem) {
-            Some(w) => w.clone(),
-            None => WordRow { stem: stem.clone(), word: stem.clone(), english: None, class: None, known: true, books: Vec::new(), count: 0 },
+        .into_iter()
+        .map(|(stem, word, n, books)| {
+            let word = word.unwrap_or_else(|| stem.clone());
+            row_of((stem, word, n.unwrap_or(0), books.unwrap_or(0)), true)
         })
         .collect();
     let filter = q.q.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
@@ -1466,7 +1798,7 @@ pub async fn known_words(State(state): State<AppState>, user: AuthUser, Query(q)
     // Meanings are looked up for every word only when the filter needs them.
     if filter.is_some() || class.is_some() {
         for row in rows.iter_mut() {
-            fill_meaning(&state, &q.language, row);
+            fill_meaning(state, &q.language, row);
         }
         rows.retain(|w| {
             filter.as_ref().is_none_or(|f| w.word.to_lowercase().contains(f.as_str()) || w.english.as_ref().is_some_and(|e| e.to_lowercase().contains(f.as_str())))
@@ -1483,10 +1815,15 @@ pub async fn known_words(State(state): State<AppState>, user: AuthUser, Query(q)
     let mut page: Vec<WordRow> = rows.into_iter().skip(q.offset).take(limit).collect();
     if filter.is_none() && class.is_none() {
         for row in page.iter_mut() {
-            fill_meaning(&state, &q.language, row);
+            fill_meaning(state, &q.language, row);
         }
     }
-    Json(KnownWords { total, words: page }).into_response()
+    // The books of each word: in chunks, so that an export of thousands of
+    // words stays within the database's limit of parameters.
+    for chunk in page.chunks_mut(500) {
+        books_of(state, user, &q.language, chunk).await?;
+    }
+    Ok(KnownWords { total, words: page })
 }
 
 // ------------------------------------------------------------ examples
@@ -1635,32 +1972,22 @@ pub struct Example {
 /// most. Asked for only when the reader opens them, since a sentence from
 /// later in a book can give away what happens.
 pub async fn examples(State(state): State<AppState>, user: AuthUser, Query(q): Query<ExamplesQuery>) -> Response {
-    let rows: Vec<(i64, String, String, String)> = match sqlx::query_as(
-        "SELECT b.id, b.title, b.uuid, v.study FROM books b
-         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
-         WHERE b.owner_id = $1 AND b.language = $2 AND v.study IS NOT NULL",
-    )
+    // The books with the word, most uses first, and the forms each writes it in.
+    let found: Vec<(i64, String, String, i64, String)> = match sqlx::query_as(&format!(
+        "SELECT b.id, b.title, b.uuid, w.n, w.forms {READERS_WORDS} AND w.stem = $3 ORDER BY w.n DESC, b.id LIMIT {EXAMPLE_BOOKS}"
+    ))
     .bind(user.0.id)
     .bind(&q.language)
+    .bind(&q.stem)
     .fetch_all(&state.db)
     .await
     {
         Ok(r) => r,
         Err(e) => return internal(e),
     };
-    // The books with the word, most uses first, and the forms each wrote it in.
-    let mut found: Vec<(i64, String, String, u32, Vec<String>)> = rows
-        .into_iter()
-        .filter_map(|(id, title, uuid, json)| {
-            let list: Vec<StudyWord> = serde_json::from_str(&json).ok()?;
-            let w = list.into_iter().find(|w| w.stem == q.stem && !w.name)?;
-            Some((id, title, uuid, w.count, w.forms))
-        })
-        .collect();
-    found.sort_by(|a, b| b.3.cmp(&a.3));
-    found.truncate(EXAMPLE_BOOKS);
     let mut per_book: Vec<Vec<Example>> = Vec::new();
     for (id, title, uuid, _, forms) in found {
+        let forms: Vec<String> = forms.split(' ').filter(|f| !f.is_empty()).map(String::from).collect();
         let path = crate::books::book_path(&state, &uuid, Format::Epub);
         state.storage.fetch(&path).await;
         let sentences = tokio::task::spawn_blocking(move || -> Vec<Vec<Piece>> {

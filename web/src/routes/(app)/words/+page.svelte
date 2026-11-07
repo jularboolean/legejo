@@ -3,8 +3,10 @@
 	// they understand, the words worth learning next, and the words they know,
 	// each with the books it occurs in.
 	import { Check, Download, GraduationCap, Quote } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import WordsOption from '#lib/library/WordsOption.svelte';
+	import LevelTest from '#lib/library/LevelTest.svelte';
 	import {
 		asAnki,
 		asText,
@@ -14,11 +16,13 @@
 		languageInSentence,
 		loadKnownWords,
 		loadLanguages,
+		loadBooks,
 		loadExamples,
 		loadOverview,
 		percent,
 		setKnown,
 		WORD_CLASSES,
+		type BookShare,
 		type Example,
 		type KnownSort,
 		type Overview,
@@ -32,6 +36,8 @@
 
 	/** Known words shown at first, and how many more each "show more" brings. */
 	const FIRST = 20;
+	/** Below this many known words the level test comes first on the page. */
+	const LEVEL_TEST_BELOW = 100;
 	const PAGE = 100;
 	const SORTS: KnownSort[] = ['recent', 'common', 'alpha'];
 	const SORT_KEY = 'legejo.words.knownSort';
@@ -40,6 +46,7 @@
 	let languages = $state<WordLanguage[] | null>(null);
 	let language = $state('');
 	let overview = $state<Overview | null>(null);
+	let levelFirst = $state(true);
 
 	$effect(() => {
 		if (!data.words) return;
@@ -53,9 +60,54 @@
 		if (!current) return;
 		overview = null;
 		loadOverview(current).then((o) => {
-			if (language === current) overview = o;
+			if (language !== current) return;
+			overview = o;
+			// Where the level test stands is settled when the page opens, so
+			// that it does not move away while it shows its result.
+			levelFirst = (o?.known ?? 0) < LEVEL_TEST_BELOW;
 		});
 	});
+
+	// The books: the first come with the overview, the rest a page at a time.
+	const BOOK_PAGE = 50;
+	let books = $state<BookShare[]>([]);
+	let booksTotal = $state(0);
+	let loadingBooks = $state(false);
+	let sameLanguage = '';
+	$effect(() => {
+		if (!overview) return;
+		const current = overview.language;
+		const fresh = overview.books;
+		booksTotal = overview.books_total;
+		// After a tick the shares change: as many books as were shown, fresh;
+		// a new language starts on the first ones.
+		const shown = untrack(() => (books[0] && fresh[0] && books.length > fresh.length && sameLanguage === current ? books.length : 0));
+		sameLanguage = current;
+		if (shown) {
+			loadBooks(current, 0, shown).then((page) => {
+				if (page && language === current) books = page.books;
+			});
+		} else {
+			books = fresh;
+		}
+	});
+	async function moreBooks() {
+		if (!overview) return;
+		loadingBooks = true;
+		const current = overview.language;
+		const page = await loadBooks(current, books.length, BOOK_PAGE);
+		loadingBooks = false;
+		if (page && language === current) {
+			books = [...books, ...page.books];
+			booksTotal = page.total;
+		}
+	}
+	async function refresh() {
+		if (!overview) return;
+		const current = overview.language;
+		const [fresh] = await Promise.all([loadOverview(current), fetchKnown(0, Math.max(FIRST, knownWords.length))]);
+		if (fresh && fresh.language === language) overview = fresh;
+	}
 
 	const title = (code: string) => {
 		const name = languageInSentence(code, locale);
@@ -190,8 +242,7 @@
 		if (matches) matches = matches.map((m) => (m.stem === w.stem ? { ...m, known } : m));
 		if (known) overview.next = overview.next.filter((x) => x.stem !== w.stem);
 		else knownWords = knownWords.filter((x) => x.stem !== w.stem);
-		const [fresh] = await Promise.all([loadOverview(current), fetchKnown(0, Math.max(FIRST, knownWords.length))]);
-		if (fresh && fresh.language === language) overview = fresh;
+		await refresh();
 	}
 </script>
 
@@ -274,22 +325,34 @@
 				{/if}
 			</section>
 		{/if}
-		{#if overview.books.length}
+		{#if levelFirst}
+			<LevelTest language={overview.language} onDone={refresh} />
+		{/if}
+
+		{#if books.length}
 			<section>
 				<h2>{t('words.page.books')}</h2>
 				<p class="note">{t('words.page.booksNote')}</p>
 				<ul class="books">
-					{#each overview.books as b (b.id)}
+					{#each books as b (b.id)}
 						<li>
 							<a href={`/books/${b.id}/words`}>
 								<span class="title">{b.title}</span>
-								{#if b.author}<span class="author">{b.author}</span>{/if}
+								<span class="author">
+									{#if b.reading}<span class="reading">{t('words.page.reading')}</span>{/if}
+									{b.author ?? ''}
+								</span>
 							</a>
 							<span class="bar" aria-hidden="true"><span style:width={css(b.share)}></span></span>
 							<span class="pct">{percent(b.share)} %</span>
 						</li>
 					{/each}
 				</ul>
+				{#if booksTotal > books.length}
+					<button class="more" onclick={moreBooks} disabled={loadingBooks}>
+						{t('words.page.moreBooks', { count: fmt(booksTotal - books.length, locale) })}
+					</button>
+				{/if}
 			</section>
 		{/if}
 
@@ -357,6 +420,10 @@
 				{/if}
 			{/if}
 		</section>
+
+		{#if !levelFirst}
+			<LevelTest language={overview.language} onDone={refresh} />
+		{/if}
 
 		{#if overview.source}<p class="note attribution">{t('words.attribution', { source: overview.source })}</p>{/if}
 	{/if}
@@ -444,6 +511,15 @@
 	.author {
 		font-size: 0.8rem;
 		color: var(--muted);
+	}
+	.reading {
+		display: inline-block;
+		margin-right: 0.3rem;
+		padding: 0 0.35rem;
+		border-radius: 99px;
+		background: var(--accent);
+		color: var(--bg);
+		font-size: 0.72rem;
 	}
 	.bar {
 		height: 6px;

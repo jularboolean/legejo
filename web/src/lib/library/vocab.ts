@@ -59,6 +59,20 @@ export async function setKnown(language: string, stem: string, known: boolean): 
 	}
 }
 
+/** Tick or untick many words at once (all the words above one in a list). */
+export async function setKnownMany(language: string, stems: string[], known: boolean): Promise<boolean> {
+	try {
+		const res = await fetch('/api/vocabulary/known/many', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ language, stems, known })
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
 /** Share of the book's words there are to learn (names left out) that the known words cover. */
 export function knownCover(v: Vocab, known: Set<string>): number {
 	if (!v.study) return 0;
@@ -96,9 +110,12 @@ export type WordRow = {
 	books: number[];
 	count: number;
 };
+export type BookShare = { id: number; title: string; author: string | null; share: number; reading: boolean };
 export type Overview = {
 	language: string;
-	books: { id: number; title: string; author: string | null; share: number }[];
+	/** The first of the reader's books: those being read, then those known most of. */
+	books: BookShare[];
+	books_total: number;
 	next: WordRow[];
 	/** How many words the reader knows; the words come from `loadKnownWords`. */
 	known: number;
@@ -189,6 +206,65 @@ export async function loadExamples(language: string, stem: string, fetcher: type
 		const params = new URLSearchParams({ language, stem });
 		const res = await fetcher(`/api/vocabulary/examples?${params}`);
 		return res.ok ? (await res.json()).examples : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * What a share of a book's running words known means for reading it, after
+ * the research on lexical coverage (Hu & Nation 2000; Laufer &
+ * Ravenhorst-Kalovski 2010): some 95 % to follow a text with little help,
+ * 98 % to read it with ease.
+ */
+export type ReadingLevel = 'hard' | 'tough' | 'support' | 'good' | 'easy';
+export function readingLevel(share: number): ReadingLevel {
+	if (share >= 0.98) return 'easy';
+	if (share >= 0.95) return 'good';
+	if (share >= 0.9) return 'support';
+	if (share >= 0.8) return 'tough';
+	return 'hard';
+}
+
+/** The reader's books in a language with how much of each they know, a page at a time. */
+export async function loadBooks(
+	language: string,
+	offset: number,
+	limit: number,
+	fetcher: typeof fetch = fetch
+): Promise<{ total: number; books: BookShare[] } | null> {
+	try {
+		const params = new URLSearchParams({ language, offset: String(offset), limit: String(limit) });
+		const res = await fetcher(`/api/vocabulary/books?${params}`);
+		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}
+
+/** A level test: words from each frequency band of the reader's books. */
+export type LevelBand = { from: number; to: number; words: { stem: string; word: string }[] };
+export async function loadLevelTest(language: string, fetcher: typeof fetch = fetch): Promise<{ words: number; bands: LevelBand[] } | null> {
+	try {
+		const res = await fetcher(`/api/vocabulary/level?${new URLSearchParams({ language })}`);
+		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Send a level test's answers; the server ticks the words it takes the reader to know. */
+export async function sendLevelTest(
+	language: string,
+	answers: { stem: string; known: boolean }[]
+): Promise<{ estimate: number; ticked: number } | null> {
+	try {
+		const res = await fetch('/api/vocabulary/level', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ language, answers })
+		});
+		return res.ok ? await res.json() : null;
 	} catch {
 		return null;
 	}

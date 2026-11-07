@@ -2,10 +2,10 @@
 	// A book's study list: its words in order of frequency, ESPDIC's English
 	// with each, the reader's known words ticked (shared by every book in the
 	// language), and the list as a text file or an Anki import.
-	import { ArrowLeft, BookOpen, Check, Download } from '@lucide/svelte';
+	import { ArrowLeft, ArrowUpToLine, BookOpen, Check, Download } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { getLocale, t } from '#lib/i18n';
-	import { css, fmt, knownCover, loadVocab, percent, setKnown, WORD_CLASSES, type StudyRow, type Vocab, type WordClass } from '#lib/library/vocab';
+	import { css, fmt, knownCover, loadVocab, percent, readingLevel, setKnown, setKnownMany, WORD_CLASSES, type StudyRow, type Vocab, type WordClass } from '#lib/library/vocab';
 	import type { MessageKey } from '#lib/i18n';
 	import WordsOption from '#lib/library/WordsOption.svelte';
 
@@ -15,7 +15,7 @@
 	let title = $state('');
 	let vocab = $state<Vocab | null | undefined>(undefined);
 	let known = $state(new Set<string>());
-	let goal = $state<'80' | '90' | '95'>('80');
+	let goal = $state<'80' | '90' | '95' | '98'>('80');
 	let wordClass = $state<WordClass | 'all'>('all');
 
 	// Known words hidden unless the reader has chosen to see them (remembered).
@@ -77,6 +77,22 @@
 			else back.add(w.stem);
 			known = back;
 		}
+	}
+
+	// "I know all of these": every word of the list down to this one.
+	const aboveCount = (w: StudyRow) => {
+		const at = words.indexOf(w);
+		return words.slice(0, at + 1).filter((x) => !known.has(x.stem)).length;
+	};
+	async function tickUpTo(w: StudyRow) {
+		if (!vocab) return;
+		const at = words.indexOf(w);
+		const stems = words.slice(0, at + 1).filter((x) => !known.has(x.stem)).map((x) => x.stem);
+		if (stems.length === 0) return;
+		if (stems.length > 1 && !confirm(t('words.tickAllConfirm', { count: n(stems.length) }))) return;
+		const before = known;
+		known = new Set([...known, ...stems]);
+		if (!(await setKnownMany(vocab.language, stems, true))) known = before;
 	}
 
 	const gloss = (w: StudyRow) => (w.english ? (w.found_as ? `≈ ${w.found_as}: ${w.english}` : w.english) : '');
@@ -159,17 +175,20 @@
 	<div class="meter" role="img" aria-label={t('words.meter', { percent: percent(share) })}>
 		<div class="track">
 			<span class="fill" style:width={css(share)}></span>
+			<span class="mark" style:left="95%" title={t('words.mark', { percent: 95, what: t('words.mark.readable') })}></span>
+			<span class="mark" style:left="98%" title={t('words.mark', { percent: 98, what: t('words.mark.comfortable') })}></span>
 			<span class="goal" style:left={css(Number(goal) / 100)}></span>
 		</div>
 		<div class="legend">
 			<span>{t('words.meter', { percent: percent(share) })}</span>
 			<span class="muted">{t('words.goal', { percent: goal })}</span>
 		</div>
+		<p class="level">{t(`words.level.${readingLevel(share)}` as MessageKey)}</p>
 	</div>
 
 	<div class="controls">
 		<div class="seg" role="radiogroup" aria-label={t('words.goalLabel')}>
-			{#each ['80', '90', '95'] as const as g (g)}
+			{#each ['80', '90', '95', '98'] as const as g (g)}
 				<button role="radio" aria-checked={goal === g} class:on={goal === g} onclick={() => (goal = g)}>
 					{g} %<small>{t('vocab.words', { count: n(vocab.coverage[g] ?? 0) })}</small>
 				</button>
@@ -210,7 +229,14 @@
 					</span>
 					{#if gloss(w)}<span class="gloss">{gloss(w)}</span>{/if}
 				</button>
-				<span class="rank">{rankOf.get(w.stem)}</span>
+				<span class="rank">
+					{#if !known.has(w.stem) && aboveCount(w) > 1}
+						<button class="upto" title={t('words.tickAll', { count: n(aboveCount(w)) })} aria-label={t('words.tickAll', { count: n(aboveCount(w)) })} onclick={() => tickUpTo(w)}>
+							<ArrowUpToLine size={14} />
+						</button>
+					{/if}
+					{rankOf.get(w.stem)}
+				</span>
 				{#if open === w.stem}
 					<div class="meaning">
 						{#if meanings[w.stem] === 'loading'}
@@ -288,6 +314,20 @@
 		border-radius: 5px;
 		background: var(--accent);
 		transition: width 0.25s;
+	}
+	.mark {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 1px;
+		background: var(--muted);
+		opacity: 0.6;
+	}
+	.level {
+		margin: 0.3rem 0 0;
+		font-size: 0.88rem;
+		color: var(--muted);
+		max-width: 40rem;
 	}
 	.goal {
 		position: absolute;
@@ -484,7 +524,30 @@
 	}
 	.rank {
 		min-width: 2.2rem;
-		text-align: right;
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.3rem;
+	}
+	.upto {
+		display: grid;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		border: 0;
+		border-radius: 50%;
+		background: none;
+		color: var(--muted);
+		opacity: 0.45;
+		cursor: pointer;
+	}
+	li:hover .upto,
+	.upto:focus-visible {
+		opacity: 1;
+	}
+	.upto:hover {
+		color: var(--accent);
+		background: var(--hover, rgba(127, 127, 127, 0.12));
 	}
 	.meaning {
 		grid-column: 2 / -1;
