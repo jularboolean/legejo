@@ -259,6 +259,16 @@ async fn the_words_page_gathers_the_readers_books_and_words_in_a_language() {
     let (_, k) = send(&app, Method::GET, "/api/vocabulary/known/words?language=eo&class=noun", Some(&alice), None).await;
     assert_eq!(k["total"], 1, "{k}");
     assert_eq!(k["words"][0]["word"], "hundo");
+    // Example sentences, from both books, each sentence once.
+    let (status, e) = send(&app, Method::GET, "/api/vocabulary/examples?language=eo&stem=hund", Some(&alice), None).await;
+    assert_eq!(status, StatusCode::OK, "{e}");
+    let examples = e["examples"].as_array().unwrap();
+    assert_eq!(examples.len(), 2, "{e}");
+    let books: std::collections::HashSet<i64> = examples.iter().map(|x| x["book"].as_i64().unwrap()).collect();
+    assert_eq!(books.len(), 2, "{e}");
+    assert!(examples[0]["pieces"].as_array().unwrap().iter().any(|p| p["hit"] == true && p["text"] == "hundo"), "{e}");
+    let (_, e) = send(&app, Method::GET, "/api/vocabulary/examples?language=eo&stem=nenio", Some(&alice), None).await;
+    assert_eq!(e["examples"], json!([]));
     let (_, m) = send(&app, Method::GET, "/api/vocabulary/overview?language=eo&q=hund", Some(&alice), None).await;
     assert_eq!(m["matches"][0]["known"], true, "{m}");
     // Next: in both books first ("hundo", "kato"), not "la", not a name.

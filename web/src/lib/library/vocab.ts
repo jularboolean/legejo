@@ -179,3 +179,17 @@ export function asAnki(deck: string, tags: string, rows: ExportRow[], about?: [s
 	const head = ['#separator:tab', '#html:true', '#notetype:Basic', `#deck:${deck.replace(/::/g, ':')}`, '#tags column:3'];
 	return [...head, ...lines, ''].join('\n');
 }
+
+/** A sentence with a word from one of the reader's books, the word marked. */
+export type Example = { book: number; title: string; pieces: { text: string; hit: boolean }[] };
+
+/** A few example sentences with a word from the reader's books in a language. */
+export async function loadExamples(language: string, stem: string, fetcher: typeof fetch = fetch): Promise<Example[] | null> {
+	try {
+		const params = new URLSearchParams({ language, stem });
+		const res = await fetcher(`/api/vocabulary/examples?${params}`);
+		return res.ok ? (await res.json()).examples : null;
+	} catch {
+		return null;
+	}
+}

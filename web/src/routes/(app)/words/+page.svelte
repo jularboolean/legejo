@@ -2,7 +2,7 @@
 	// The words page: per language, the reader's books with how much of each
 	// they understand, the words worth learning next, and the words they know,
 	// each with the books it occurs in.
-	import { Check, Download, GraduationCap } from '@lucide/svelte';
+	import { Check, Download, GraduationCap, Quote } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import WordsOption from '#lib/library/WordsOption.svelte';
 	import {
@@ -14,10 +14,12 @@
 		languageInSentence,
 		loadKnownWords,
 		loadLanguages,
+		loadExamples,
 		loadOverview,
 		percent,
 		setKnown,
 		WORD_CLASSES,
+		type Example,
 		type KnownSort,
 		type Overview,
 		type WordClass,
@@ -122,6 +124,25 @@
 	const showMore = () => fetchKnown(knownWords.length, PAGE);
 	const filtered = $derived(!!filter.trim() || wordClass !== 'all');
 
+	// Example sentences, asked for only when the reader opens them: a
+	// sentence from later in a book can give away what happens.
+	let examples = $state<Record<string, Example[] | 'loading' | 'failed'>>({});
+	async function toggleExamples(w: WordRow) {
+		if (examples[w.stem]) {
+			delete examples[w.stem];
+			return;
+		}
+		const current = language;
+		examples[w.stem] = 'loading';
+		const found = await loadExamples(current, w.stem);
+		if (language !== current || !examples[w.stem]) return;
+		examples[w.stem] = found ?? 'failed';
+	}
+	$effect(() => {
+		void language;
+		examples = {};
+	});
+
 	// The search among all the words of the reader's books, asked as one types.
 	let search = $state('');
 	let matches = $state<WordRow[] | null>(null);
@@ -174,6 +195,49 @@
 	}
 </script>
 
+{#snippet wordRow(w: WordRow, on: boolean)}
+	{@const open = examples[w.stem]}
+	<li class:known={on}>
+		<button
+			class="tick"
+			class:on
+			aria-label={on ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })}
+			onclick={() => learn(w, !on)}><Check size={15} /></button
+		>
+		<span class="word">
+			<span class="head">{w.word}</span>
+			{#if w.english}<span class="gloss">{w.english}</span>{/if}
+		</span>
+		<span class="side">
+			{#if w.books.length}
+				<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>
+				<button class="ex-toggle" aria-expanded={!!open} onclick={() => toggleExamples(w)}>
+					<Quote size={12} />
+					{open ? t('words.examples.hide') : t('words.examples.show')}
+				</button>
+			{/if}
+		</span>
+		{#if open}
+			<div class="examples" aria-label={t('words.examples.label', { word: w.word })} aria-live="polite">
+				{#if open === 'loading'}
+					<p class="note">{t('words.examples.loading')}</p>
+				{:else if open === 'failed'}
+					<p class="note">{t('words.examples.failed')}</p>
+				{:else if open.length === 0}
+					<p class="note">{t('words.examples.none')}</p>
+				{:else}
+					{#each open as ex, i (i)}
+						<blockquote>
+							<p>{#each ex.pieces as piece, j (j)}{#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}{/each}</p>
+							<cite><a href={`/books/${ex.book}`}>{ex.title}</a></cite>
+						</blockquote>
+					{/each}
+				{/if}
+			</div>
+		{/if}
+	</li>
+{/snippet}
+
 <svelte:head><title>{t('sidebar.words')} – Legejo</title></svelte:head>
 
 <h1>{t('sidebar.words')}</h1>
@@ -204,14 +268,7 @@
 				{:else}
 					<ol class="words">
 						{#each matches as w (w.stem)}
-							<li class:known={w.known}>
-								<button class="tick" class:on={w.known} aria-label={w.known ? t('words.page.forget', { word: w.word }) : t('words.know', { word: w.word })} onclick={() => learn(w, !w.known)}><Check size={15} /></button>
-								<span class="word">
-									<span class="head">{w.word}</span>
-									{#if w.english}<span class="gloss">{w.english}</span>{/if}
-								</span>
-								<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>
-							</li>
+							{@render wordRow(w, w.known)}
 						{/each}
 					</ol>
 				{/if}
@@ -242,14 +299,7 @@
 				<p class="note">{t('words.page.nextNote')}</p>
 				<ol class="words">
 					{#each overview.next as w (w.stem)}
-						<li>
-							<button class="tick" aria-label={t('words.know', { word: w.word })} onclick={() => learn(w, true)}><Check size={15} /></button>
-							<span class="word">
-								<span class="head">{w.word}</span>
-								{#if w.english}<span class="gloss">{w.english}</span>{/if}
-							</span>
-							<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>
-						</li>
+						{@render wordRow(w, false)}
 					{/each}
 				</ol>
 			</section>
@@ -297,14 +347,7 @@
 				{/if}
 				<ol class="words" class:loading={loadingKnown}>
 					{#each knownWords as w (w.stem)}
-						<li class="known">
-							<button class="tick on" aria-label={t('words.page.forget', { word: w.word })} onclick={() => learn(w, false)}><Check size={15} /></button>
-							<span class="word">
-								<span class="head">{w.word}</span>
-								{#if w.english}<span class="gloss">{w.english}</span>{/if}
-							</span>
-							{#if w.books.length}<span class="where" title={bookTitles(w)}>{inBooks(w)}</span>{/if}
-						</li>
+						{@render wordRow(w, true)}
 					{/each}
 				</ol>
 				{#if knownTotal > knownWords.length}
@@ -474,6 +517,60 @@
 		font-size: 0.78rem;
 		color: var(--muted);
 		white-space: nowrap;
+	}
+	.side {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.15rem;
+	}
+	.ex-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--accent);
+		font: inherit;
+		font-size: 0.78rem;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.examples {
+		grid-column: 2 / -1;
+		margin: 0.1rem 0 0.3rem;
+	}
+	.examples .note {
+		margin: 0;
+	}
+	blockquote {
+		margin: 0 0 0.5rem;
+		padding: 0.1rem 0 0.1rem 0.7rem;
+		border-left: 2px solid var(--border);
+	}
+	blockquote p {
+		margin: 0;
+		font-size: 0.92rem;
+		line-height: 1.45;
+	}
+	blockquote mark {
+		background: none;
+		color: inherit;
+		font-weight: 600;
+		text-decoration: underline;
+		text-decoration-color: var(--accent);
+		text-underline-offset: 2px;
+	}
+	cite {
+		display: block;
+		margin-top: 0.15rem;
+		font-size: 0.78rem;
+		font-style: normal;
+		color: var(--muted);
+	}
+	cite a {
+		color: inherit;
 	}
 	.search {
 		width: min(100%, 26rem);

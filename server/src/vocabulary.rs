@@ -1141,6 +1141,30 @@ mod tests {
     }
 
     #[test]
+    fn examples_are_whole_sentences_with_the_word_marked_and_spread_through_the_book() {
+        let text = "Ella dijo que no. »¿Qué hizo el perro en la casa grande?» preguntó el hombre.\n".to_string()
+            + &"Una frase sin la palabra que buscamos aquí hoy. ".repeat(30)
+            + "El perro durmió toda la noche en la casa del pueblo. Perro! ";
+        let forms = vec!["perro".to_string()];
+        let found = examples_in(&text, &forms, 3);
+        assert_eq!(found.len(), 2, "{found:?}");
+        let joined: String = found[0].iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(joined, "»¿Qué hizo el perro en la casa grande?»");
+        assert_eq!(found[0].iter().filter(|p| p.hit).map(|p| p.text.as_str()).collect::<Vec<_>>(), ["perro"]);
+        assert!(found[1][1].hit && found[1][1].text == "perro", "{:?}", found[1]);
+        // A paragraph with hard line breaks is read as running text.
+        let wrapped = "Cuando me lo\ncontó le pregunté por qué el perro\nlloraba tanto. CAPÍTULO I\nEl perro de Augusto dormía en\nla cocina grande.";
+        let found = examples_in(wrapped, &forms, 3);
+        let texts: Vec<String> = found.iter().map(|p| p.iter().map(|p| p.text.as_str()).collect::<String>()).collect();
+        assert_eq!(texts, ["Cuando me lo contó le pregunté por qué el perro lloraba tanto."], "{texts:?}");
+        // A heading is not part of the sentence after it.
+        let found = examples_in("Ahora\nLlueve sobre el perro de la mujer.\nNace Luna", &forms, 3);
+        assert_eq!(found[0].iter().map(|p| p.text.as_str()).collect::<String>(), "Llueve sobre el perro de la mujer.");
+        // Too short to be an example: "Perro!".
+        assert!(examples_in("Perro! Perro.", &forms, 3).is_empty());
+    }
+
+    #[test]
     fn gutenbergs_licence_is_not_counted() {
         let text = "Header *** START OF THE PROJECT GUTENBERG EBOOK X *** the story *** END OF THE PROJECT GUTENBERG EBOOK X *** licence";
         assert_eq!(without_gutenberg(text).trim(), "the story");
@@ -1463,6 +1487,207 @@ pub async fn known_words(State(state): State<AppState>, user: AuthUser, Query(q)
         }
     }
     Json(KnownWords { total, words: page }).into_response()
+}
+
+// ------------------------------------------------------------ examples
+
+/// Example sentences a word gets at most, and from how many books.
+const EXAMPLES: usize = 3;
+const EXAMPLE_BOOKS: usize = 3;
+/// An example sentence is this many words long, so it shows how the word is
+/// used without being a fragment or a page.
+const EXAMPLE_WORDS: std::ops::RangeInclusive<usize> = 5..=35;
+/// Sentences apart that two examples from one book are at least.
+const EXAMPLE_SPREAD: usize = 25;
+
+/// A piece of an example sentence: the word itself (`hit`) or the text
+/// around it.
+#[derive(Serialize, Debug, PartialEq)]
+pub struct Piece {
+    pub text: String,
+    pub hit: bool,
+}
+
+/// The sentences of a text: split after . ! ? …, with closing quotes kept
+/// with their sentence. A line break ends a sentence too (a heading ends at
+/// one) unless the next line starts with a small letter: then it only wraps
+/// a sentence, as in a book with hard line breaks in its paragraphs.
+fn sentences(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        let ends = match c {
+            '\n' => !text[at + 1..].trim_start().chars().next().is_some_and(char::is_lowercase),
+            '.' | '!' | '?' | '…' => chars.peek().is_none_or(|(_, n)| n.is_whitespace() || matches!(n, '"' | '”' | '»' | '\'' | '’' | ')')),
+            _ => false,
+        };
+        if !ends {
+            continue;
+        }
+        let mut end = at + c.len_utf8();
+        while let Some(&(i, n)) = chars.peek() {
+            if matches!(n, '"' | '”' | '»' | '\'' | '’' | ')') {
+                end = i + n.len_utf8();
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        let s = text[start..end].trim();
+        if !s.is_empty() {
+            out.push(s);
+        }
+        start = end;
+    }
+    let s = text[start..].trim();
+    if !s.is_empty() {
+        out.push(s);
+    }
+    out
+}
+
+/// Up to `max` sentences of a book's text with one of the forms in it,
+/// in the order of the book and spread through it, cut into pieces with the
+/// forms marked.
+fn examples_in(text: &str, forms: &[String], max: usize) -> Vec<Vec<Piece>> {
+    let forms: Vec<String> = forms.iter().map(|f| f.to_lowercase()).collect();
+    let mut out = Vec::new();
+    let mut last: Option<usize> = None;
+    let mut seen: Vec<&str> = Vec::new();
+    for (n, sentence) in sentences(without_gutenberg(text)).into_iter().enumerate() {
+        if out.len() >= max {
+            break;
+        }
+        if last.is_some_and(|l| n < l + EXAMPLE_SPREAD) {
+            continue;
+        }
+        // One starting with a small letter is the end of a sentence cut off,
+        // one without a full stop or the like a heading or a line cut off.
+        let ends = sentence.trim_end_matches(['"', '”', '»', '\'', '’', ')']).ends_with(['.', '!', '?', '…']);
+        if !ends || sentence.chars().find(|c| c.is_alphabetic()).is_none_or(char::is_lowercase) {
+            continue;
+        }
+        let tokens = words(sentence);
+        if !EXAMPLE_WORDS.contains(&tokens.len()) || !tokens.iter().any(|t| forms.contains(&t.to_lowercase())) || seen.contains(&sentence) {
+            continue;
+        }
+        seen.push(sentence);
+        let mut pieces = Vec::new();
+        let mut at = 0;
+        for t in tokens {
+            if !forms.contains(&t.to_lowercase()) {
+                continue;
+            }
+            // A token is a slice of the sentence: its place is its address.
+            let start = t.as_ptr() as usize - sentence.as_ptr() as usize;
+            if start > at {
+                pieces.push(Piece { text: one_line(&sentence[at..start]), hit: false });
+            }
+            pieces.push(Piece { text: t.to_string(), hit: true });
+            at = start + t.len();
+        }
+        if at < sentence.len() {
+            pieces.push(Piece { text: one_line(&sentence[at..]), hit: false });
+        }
+        out.push(pieces);
+        last = Some(n);
+    }
+    out
+}
+
+/// Text with its runs of white space (line breaks too) as single spaces.
+fn one_line(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut space = false;
+    for c in text.chars() {
+        if c.is_whitespace() {
+            space = true;
+        } else {
+            if space {
+                out.push(' ');
+            }
+            space = false;
+            out.push(c);
+        }
+    }
+    if space {
+        out.push(' ');
+    }
+    out
+}
+
+#[derive(Deserialize)]
+pub struct ExamplesQuery {
+    language: String,
+    stem: String,
+}
+
+#[derive(Serialize)]
+pub struct Example {
+    pub book: i64,
+    pub title: String,
+    pub pieces: Vec<Piece>,
+}
+
+/// GET /api/vocabulary/examples?language=&stem=: a few sentences with the
+/// word from the reader's books in the language, from the books that use it
+/// most. Asked for only when the reader opens them, since a sentence from
+/// later in a book can give away what happens.
+pub async fn examples(State(state): State<AppState>, user: AuthUser, Query(q): Query<ExamplesQuery>) -> Response {
+    let rows: Vec<(i64, String, String, String)> = match sqlx::query_as(
+        "SELECT b.id, b.title, b.uuid, v.study FROM books b
+         JOIN vocabulary v ON v.file_sha256 = b.file_sha256 AND v.language = b.language
+         WHERE b.owner_id = $1 AND b.language = $2 AND v.study IS NOT NULL",
+    )
+    .bind(user.0.id)
+    .bind(&q.language)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => return internal(e),
+    };
+    // The books with the word, most uses first, and the forms each wrote it in.
+    let mut found: Vec<(i64, String, String, u32, Vec<String>)> = rows
+        .into_iter()
+        .filter_map(|(id, title, uuid, json)| {
+            let list: Vec<StudyWord> = serde_json::from_str(&json).ok()?;
+            let w = list.into_iter().find(|w| w.stem == q.stem && !w.name)?;
+            Some((id, title, uuid, w.count, w.forms))
+        })
+        .collect();
+    found.sort_by(|a, b| b.3.cmp(&a.3));
+    found.truncate(EXAMPLE_BOOKS);
+    let mut per_book: Vec<Vec<Example>> = Vec::new();
+    for (id, title, uuid, _, forms) in found {
+        let path = crate::books::book_path(&state, &uuid, Format::Epub);
+        state.storage.fetch(&path).await;
+        let sentences = tokio::task::spawn_blocking(move || -> Vec<Vec<Piece>> {
+            let Ok(sections) = booktext::read_sections(Format::Epub, &path) else { return Vec::new() };
+            let text: String = sections.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
+            examples_in(&text, &forms, EXAMPLES)
+        })
+        .await
+        .unwrap_or_default();
+        per_book.push(sentences.into_iter().map(|pieces| Example { book: id, title: title.clone(), pieces }).collect());
+    }
+    give_memory_back();
+    // One from each book in turn, so that several books are heard.
+    let mut out = Vec::new();
+    let mut iters: Vec<_> = per_book.into_iter().map(|v| v.into_iter()).collect();
+    while out.len() < EXAMPLES {
+        let before = out.len();
+        for it in iters.iter_mut() {
+            if out.len() < EXAMPLES {
+                out.extend(it.next());
+            }
+        }
+        if out.len() == before {
+            break;
+        }
+    }
+    Json(json!({ "examples": out })).into_response()
 }
 
 // ------------------------------------------------------------ in the reader
