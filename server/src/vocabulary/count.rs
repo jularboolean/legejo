@@ -160,11 +160,46 @@ fn need_for_90(stems: &[u32]) -> u64 {
     sorted.len() as u64
 }
 
-/// Count a text in a language, with the language's pack when it has one.
-/// None when there is nothing to count it with, or no text.
+/// The lines of a text that are in the pack's language. A line whose small
+/// words are mostly unknown to the pack, or that has no word the pack knows,
+/// is in another language (an English title page, credits or a licence in a
+/// book in Swahili) and is left out. An unknown word with a capital is not
+/// held against a line that has words of the language: names are unknown to
+/// any pack.
+fn in_language(text: &str, pack: &Pack) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.split('\n') {
+        let (mut known, mut unknown, mut names) = (0u32, 0u32, 0u32);
+        for w in words(line) {
+            if !pack.lemmas_of(&w.to_lowercase()).is_empty() {
+                known += 1;
+            } else if w.chars().next().is_some_and(char::is_uppercase) {
+                names += 1;
+            } else {
+                unknown += 1;
+            }
+        }
+        let foreign = (unknown >= 2 && known * 2 < known + unknown) || (known == 0 && unknown + names > 0);
+        if foreign {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
 pub fn compute(text: &str, language: &str, pack: Option<Arc<Pack>>) -> Option<Computed> {
     let stemmer = Stemmer::for_book(language, pack.clone())?;
     let text = without_gutenberg(text);
+    let kept;
+    let text = match pack.as_deref().filter(|_| language != "eo") {
+        Some(p) => {
+            kept = in_language(text, p);
+            kept.as_str()
+        }
+        None => text,
+    };
     let tokens = words(text);
     if tokens.is_empty() {
         return None;
@@ -459,6 +494,23 @@ mod tests {
 
     fn spanish() -> Arc<Pack> {
         crate::langpack::Packs::new(std::path::PathBuf::from("/nonexistent")).get("es").unwrap()
+    }
+
+    #[test]
+    fn lines_in_another_language_are_left_out() {
+        let es = spanish();
+        let text = "Illustrations by René Leisink, adapted for this edition.\n\
+                    Licensed under a Creative Commons licence; you may share it.\n\
+                    Augusto Pérez y Eugenia Domingo\n\
+                    El perro duerme en la casa y el gato mira por la ventana.\n";
+        let kept = in_language(text, &es);
+        assert!(!kept.contains("Illustrations") && !kept.contains("Licensed"), "{kept}");
+        assert!(kept.contains("Augusto Pérez y Eugenia Domingo"), "{kept}");
+        assert!(kept.contains("El perro duerme"), "{kept}");
+        // A line without a word of the language (a label of the book's own)
+        // goes; a heading of one word of the language stays.
+        let kept = in_language("Illustrations\nThanks\nCasa\n", &es);
+        assert_eq!(kept.trim(), "Casa");
     }
 
     #[test]
