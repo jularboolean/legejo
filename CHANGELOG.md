@@ -4,6 +4,52 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.46.0 (2026-11-08)
+
+- **Study lists for any language with a language pack.** A pack takes every
+  word of a book to its dictionary form (*hizo* to *hacer*) with a short
+  English meaning, so books in that language get a study list, the
+  Vocabulary panel and My words. Packs for Spanish, French, German, Dutch and
+  Swahili are at [legejo.se/languages](https://legejo.se/languages), made
+  from Wiktionary. Install them under **Admin → Languages** with one click;
+  the page suggests the languages your library has books in, offers updates
+  and imports a pack from a zip file. Esperanto is still built in.
+- **Upgrading keeps your study lists.** Spanish, French and German were
+  built into 1.45; on the first start of 1.46 an instance with books in
+  those languages fetches their packs from legejo.se by itself. Set
+  `LEGEJO_LANGUAGES_URL` to the empty string to keep an instance from
+  reaching legejo.se for packs.
+- **Make a pack for your own language.** The image has a `langpack`
+  program that builds a pack from the language's file at kaikki.org in one
+  command; see
+  [legejo-languages](https://github.com/jularboolean/legejo-languages), where
+  new languages are welcome.
+- **My words.** A new page gathers, per language, how much of each of your
+  books you understand, the words worth learning next, a search among all the
+  words of your books, and the words you know, a page at a time, sorted by
+  when you ticked them, how common they are or alphabetically, by word
+  class, with an export as a text file or for Anki. Example sentences from
+  your own books show on request, so that nothing gives away the story by
+  surprise.
+- **A level test.** Answer whether you know some fifty words, from the
+  commonest to rarer ones (the meaning shows after a yes, to check
+  yourself), and the commonest words you probably know are ticked for you.
+  In a study list, **tick all the words down to here** with one click.
+- **Honest numbers.** The share of a book's words you know now comes with
+  what it means for reading it: some 95 % to follow a text without looking
+  words up all the time, 98 % to read it with ease.
+- **Words in the reader.** Select a word in a book with a study list to see
+  its dictionary form, meaning and how often the book uses it, and tick it
+  as known.
+- **Vocabulary is an option.** Turn it on under **Account → Options**; it is
+  on for everyone who has already ticked words.
+- **Large libraries.** My words reads a summary per reader instead of every
+  book's list, and the clean-up of old counts runs in small steps, so pages
+  stay quick and the database is never held up with thousands of books.
+- **Fixes.** Books whose chapters are `.htm` files written as XHTML no longer
+  show blank pages in the reader. Credits and licences in another language
+  than the book's no longer end up among its words.
+
 ## 1.45.1 (2026-11-06)
 
 - **A book's most frequent words, without the little ones.** The
