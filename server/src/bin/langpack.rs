@@ -71,6 +71,8 @@ const CASES: &[&str] = &[
     "participle", "infinitive", "gerund", "imperative", "subjunctive", "indicative", "present", "past", "preterite", "imperfect", "future",
     "first", "second", "third", "diminutive", "augmentative",
 ];
+/// How a note on a word's use begins, after its meaning.
+const USAGE_NOTES: &[&str] = &["referring to ", "used ", "indicates ", "indicating ", "expressing ", "denoting "];
 /// Inflection-table rows that are not forms.
 const BAD_FORM_TAGS: &[&str] = &["table-tags", "inflection-template", "romanization", "class", "auxiliary", "obsolete", "archaic"];
 const ABBREVIATION_TAGS: &[&str] = &["abbreviation", "initialism", "acronym"];
@@ -83,6 +85,10 @@ const SOFT_TAGS: &[&str] = &[
     "nonstandard", "neologism", "humorous", "derogatory", "offensive", "informal", "euphemistic", "childish", "poetic", "regional",
     "proscribed", "text-messaging", "eye-dialect",
 ];
+/// Registers that mark a meaning as a variant when a gloss names them in
+/// its parentheses ("thee (dialectal)"); not "formal"/"informal", which
+/// such parentheses use to describe the word ("you (informal ...)").
+const NOTED_TAGS: &[&str] = &["dialectal", "dialect", "archaic", "obsolete", "dated", "rare", "regional", "slang", "vulgar", "nonstandard", "proscribed", "colloquial"];
 /// Alternative spellings that are heard rather than read: not linked to the
 /// word they stand for (Quebec "a" for "elle"), unlike obsolete spellings.
 const SPOKEN_TAGS: &[&str] = &[
@@ -105,7 +111,7 @@ const GRAMMAR: &[&str] = &[
     "subjunctive", "imperative", "participle", "gerund", "infinitive", "supine", "aorist", "strong", "weak", "mixed", "definite",
     "indefinite", "comparative", "superlative", "positive", "degree", "form", "forms", "inflection", "inflected", "of", "and", "or",
     "with", "without", "reflexive", "object", "subject", "possessive", "demonstrative", "relative", "interrogative", "personal",
-    "polite", "informal", "formal", "negative", "affirmative", "active", "passive", "voice", "mood", "tense", "case", "class", "noun",
+    "polite", "informal", "formal", "subjective", "objective", "impersonal", "dependent", "independent", "negative", "affirmative", "active", "passive", "voice", "mood", "tense", "case", "class", "noun",
     "verb", "adjective", "adverb", "pronoun", "determiner", "article", "stem", "base", "variant", "short", "long", "attributive",
     "predicative", "all", "emphatic", "stressed", "unstressed", "contracted", "uncontracted", "elided", "simple", "compound", "i", "ii",
     "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii",
@@ -194,6 +200,10 @@ struct Form {
     form: String,
     #[serde(default)]
     tags: Vec<String>,
+    /// The table a row comes from ("declension", "conjugation"); empty for
+    /// forms given on the headword line.
+    #[serde(default)]
+    source: String,
 }
 
 impl Sense {
@@ -218,14 +228,30 @@ impl Sense {
             || self.tags.iter().any(|t| t.starts_with(|c: char| c.is_ascii_uppercase()))
             || !self.topics.is_empty()
             || self.qualifier_words().any(|w| SOFT_TAGS.contains(&w.as_str()))
+            || self.is_noted()
+    }
+
+    /// A register named only in parentheses after a one-word meaning
+    /// ("thee (dialectal)"): sorted after senses marked by their tags. Not
+    /// a note on one meaning among several ("her, it, you (formal)").
+    fn is_noted(&self) -> bool {
+        let g = self.glosses.last().map(|g| g.trim().trim_end_matches('.')).unwrap_or("");
+        let Some(open) = g.rfind('(').filter(|_| g.ends_with(')')) else { return false };
+        let meaning = short(&g[..open]);
+        let note: Vec<String> = g[open..].to_lowercase().split(|c: char| !c.is_alphabetic()).filter(|w| !w.is_empty()).map(String::from).collect();
+        !meaning.is_empty() && !meaning.contains([',', ';', '(']) && note.len() <= 3 && note.iter().any(|w| NOTED_TAGS.contains(&w.as_str()))
     }
 
     /// The sense's English, cleaned: the most specific of nested glosses,
-    /// without wikitext, parentheses and a final stop, and without a
+    /// without wikitext, parentheses and a final stop, without a
     /// grammatical description before a colon ("A reflexive pronoun:
-    /// oneself, himself").
+    /// oneself, himself") and without usage examples after the meaning
+    /// ("what: e.g. asking for a subject complement").
     fn gloss(&self) -> String {
-        let g = self.glosses.last().map(|g| short(&strip_wikitext(g))).unwrap_or_default();
+        let mut g = self.glosses.last().map(|g| short(&strip_wikitext(g))).unwrap_or_default();
+        if let Some(i) = g.find("e.g.").filter(|&i| i > 0) {
+            g = short(&g[..i]);
+        }
         after_description(&g).unwrap_or(g)
     }
 }
@@ -327,8 +353,14 @@ fn target_key(token: &str) -> Option<String> {
 }
 
 /// Rule 1: initialisms and the like are not words to learn.
+/// A contraction of one word (Dutch "m'n" for mijn), which kaikki also
+/// tags as an abbreviation, is a spelling of it (rule 7) and not skipped;
+/// one of two words (Spanish "al", a + el) is.
 fn is_abbreviation(sense: &Sense, gloss: &str) -> bool {
     let g = gloss.to_lowercase();
+    if sense.has_tag(&["contraction"]) && g.strip_prefix("contraction of ").is_some_and(|rest| rest.split_whitespace().count() == 1) {
+        return false;
+    }
     sense.has_tag(ABBREVIATION_TAGS) || ["initialism of", "abbreviation of", "acronym of"].iter().any(|p| g.starts_with(p))
 }
 
@@ -389,9 +421,25 @@ fn alt_targets(sense: &Sense, gloss: &str) -> Vec<String> {
     Vec::new()
 }
 
+/// The words a "form of" sense points at; for a little word a target of
+/// two words ("ze": unstressed form of "hen and hun") gives both. Not for a
+/// verb with clitics ("dársele": dar + se + le).
+fn form_targets(sense: &Sense, little: bool) -> Vec<String> {
+    let split = |w: &str| -> Vec<String> {
+        if little {
+            w.split(" and ").flat_map(|w| w.split(" or ")).filter_map(key_of).collect()
+        } else {
+            target_key(w).into_iter().collect()
+        }
+    };
+    sense.form_of.iter().flat_map(|t| split(&t.word)).collect()
+}
+
 /// Rule 2: what a little word that Wiktionary files as a form of another
-/// ("me": accusative of yo) means by itself, from `form_of[].extra` or the
-/// gloss after the colon; None when the gloss only names the inflection.
+/// ("me": accusative of yo) means by itself, from `form_of[].extra`, the
+/// gloss after the colon, or the target's meaning quoted in `extra` ("het":
+/// neuter singular of de (“the”)); None when the gloss only names the
+/// inflection.
 fn little_form_gloss(sense: &Sense, gloss: &str) -> Option<String> {
     for t in &sense.form_of {
         let x = short(&strip_wikitext(&t.extra));
@@ -399,8 +447,22 @@ fn little_form_gloss(sense: &Sense, gloss: &str) -> Option<String> {
             return Some(x);
         }
     }
-    let candidate = if let Some(i) = gloss.find(": ") {
-        &gloss[i + 2..]
+    if let Some(i) = gloss.find(": ") {
+        let after = gloss[i + 2..].trim();
+        if !after.is_empty() && !is_grammar_only(after) {
+            return Some(after.to_string());
+        }
+    }
+    // The meaning `Sense::gloss` found after a description and its colon.
+    let raw = sense.glosses.last().map(|g| short(&strip_wikitext(g))).unwrap_or_default();
+    if raw.contains(": ") && raw != gloss && !gloss.is_empty() && !is_grammar_only(gloss) {
+        return Some(gloss.to_string());
+    }
+    if let Some(q) = sense.form_of.iter().find_map(|t| quoted(&t.extra)) {
+        return Some(q);
+    }
+    let candidate = if gloss.contains(": ") {
+        return None;
     } else if gloss.to_lowercase().contains(" of ") {
         &gloss[gloss.rfind("; ")? + 2..]
     } else if sense.glosses.len() > 1 {
@@ -410,6 +472,34 @@ fn little_form_gloss(sense: &Sense, gloss: &str) -> Option<String> {
     };
     let candidate = candidate.trim();
     (!candidate.is_empty() && !is_grammar_only(candidate)).then(|| candidate.to_string())
+}
+
+/// The text inside “…” (`(“you (singular)”)` gives "you"): the meaning
+/// kaikki quotes after a target word. Not checked against GRAMMAR, since
+/// it is English ("I").
+fn quoted(s: &str) -> Option<String> {
+    let start = s.find('“')? + '“'.len_utf8();
+    let end = s[start..].find('”')? + start;
+    let q = short(&strip_wikitext(&s[start..end]));
+    q.starts_with(|c: char| c.is_alphabetic()).then_some(q)
+}
+
+/// A note on how a word is used ("referring to a thing or a person
+/// further away"), not a meaning.
+fn is_usage_note(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    lower.split_whitespace().count() >= 4 && USAGE_NOTES.iter().any(|n| lower.starts_with(n))
+}
+
+/// Parts of speech named in a description of a word ("definite article").
+const WORD_CLASSES: &[&str] = &["pronoun", "article", "determiner", "noun", "verb", "adjective", "adverb", "particle", "preposition", "conjunction"];
+
+/// A description of the word in grammar terms, not a meaning that happens
+/// to be one ("past", "common person"): three words or more, or two naming
+/// a part of speech ("impersonal pronoun").
+fn is_grammar_note(s: &str) -> bool {
+    let words: Vec<String> = s.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect();
+    is_grammar_only(s) && (words.len() >= 3 || (words.len() == 2 && words.iter().any(|w| WORD_CLASSES.contains(&w.as_str()))))
 }
 
 /// Whether a text only describes an inflection ("genitive plural").
@@ -423,6 +513,49 @@ fn is_grammar_only(s: &str) -> bool {
         }
     }
     any
+}
+
+const PERSONS: &[&str] = &["first-person", "second-person", "third-person"];
+
+/// Rule 14: the tables of a little word that list the pronouns of every
+/// person (Dutch and German pronouns and possessives share one), whose rows
+/// are other words and not forms of this one. A table is told by its
+/// `source`; it is shared when its pronoun or possessive rows name more
+/// than one person. A word's own person table (Swahili "na": nami, nawe,
+/// naye) has no such rows.
+fn shared_tables(forms: &[Form]) -> HashSet<&str> {
+    let mut persons: HashMap<&str, (HashSet<&str>, bool)> = HashMap::new();
+    for f in forms.iter().filter(|f| !f.source.is_empty()) {
+        let (ps, pronoun) = persons.entry(f.source.as_str()).or_default();
+        ps.extend(f.tags.iter().map(String::as_str).filter(|t| PERSONS.contains(t)));
+        *pronoun |= f.tags.iter().any(|t| t == "pronoun" || t == "possessive");
+    }
+    persons.into_iter().filter(|(_, (ps, pronoun))| *pronoun && ps.len() > 1).map(|(s, _)| s).collect()
+}
+
+/// Rule 15: an alternative form on a headword line that is marked as
+/// outside the standard language (Dutch "is" for eens, proscribed) is no
+/// form of the word. Narrower than SPOKEN_TAGS for senses (rule 7): an
+/// informal or eye-dialect spelling in a book's dialogue ("v'là") still
+/// links.
+const OFF_STANDARD_TAGS: &[&str] = &["proscribed", "dialectal"];
+
+fn is_spoken_alternative(form: &Form) -> bool {
+    form.tags.iter().any(|t| t == "alternative") && form.tags.iter().any(|t| OFF_STANDARD_TAGS.contains(&t.as_str()))
+}
+
+/// Rule 2: the meaning a little word takes from the little word it is a
+/// form of ("het": neuter singular of de, "the"): the first atom of the
+/// target's line that is not a note on grammar, when the line leads with a
+/// little part.
+fn first_meaning(key: &str, info: &LemmaInfo) -> Option<String> {
+    let line = compose(key, info)?;
+    let first = line.pos.split(',').next()?;
+    if !LITTLE.contains(&first) {
+        return None;
+    }
+    let part = line.gloss.split(" / ").next()?;
+    atoms(part).into_iter().map(|a| a.text).find(|t| !is_grammar_only(t))
 }
 
 /// Rule 4: little words and verbs lead a lemma's parts of speech,
@@ -537,17 +670,46 @@ fn fit(parts: &mut [Vec<Atom>]) {
 struct Gloss {
     atoms: Vec<Atom>,
     soft: bool,
+    /// Marked only in the gloss's parentheses: sorted after other soft senses.
+    noted: bool,
     hard: bool,
 }
 
 impl Gloss {
-    fn new(text: String, sense: &Sense) -> Option<Gloss> {
+    fn new(text: String, sense: &Sense, little: bool) -> Option<Gloss> {
         let mut atoms = atoms(&text);
         atoms.retain(|a| !is_inflection_note(&a.text));
+        // A little word's notes beside its meaning go: on its grammar ("it;
+        // third-person singular neuter subjective personal pronoun", "the;
+        // definite article, masculine and feminine singular, plural") and
+        // on its use ("that; referring to a thing or a person further away").
+        // Other words keep theirs ("barley, used for brewing beer").
+        if little && atoms.iter().any(|a| !is_grammar_only(&a.text)) {
+            let (mut in_note, mut in_use) = (false, false);
+            atoms = atoms
+                .into_iter()
+                .enumerate()
+                .filter(|(i, a)| {
+                    if is_grammar_note(&a.text) || (in_note && is_grammar_only(&a.text)) {
+                        in_note = true;
+                        return false;
+                    }
+                    if (in_use && a.sep != ';') || (*i > 0 && is_usage_note(&a.text)) {
+                        // The rest of the sentence goes with it ("used for
+                        // emphasis or to express surprise, or ...").
+                        in_use = true;
+                        return false;
+                    }
+                    (in_note, in_use) = (false, false);
+                    true
+                })
+                .map(|(_, a)| a)
+                .collect();
+        }
         if let Some(first) = atoms.first_mut() {
             first.sep = ';';
         }
-        (!atoms.is_empty()).then(|| Gloss { atoms, soft: sense.is_soft(), hard: sense.is_hard() })
+        (!atoms.is_empty()).then(|| Gloss { atoms, soft: sense.is_soft(), noted: sense.is_noted(), hard: sense.is_hard() })
     }
 }
 
@@ -584,7 +746,24 @@ fn compose(key: &str, info: &LemmaInfo) -> Option<Line> {
         if ss.is_empty() {
             continue;
         }
-        ss.sort_by_key(|g| g.soft);
+        ss.sort_by_key(|g| (g.soft, g.noted));
+        // The same meaning given for several inflections ("you (polite)"
+        // as subject and object) takes one of the senses kept.
+        let mut said = HashSet::new();
+        ss.retain(|g| said.insert(render(&g.atoms).to_lowercase()));
+        // A later sense that is a note on use ("used after some verbs and
+        // translated by various prepositions") gives way.
+        let mut k = 0;
+        ss.retain(|g| {
+            k += 1;
+            k == 1 || !LITTLE.contains(&pos.as_str()) || !is_usage_note(&render(&g.atoms))
+        });
+        // A little word's sense that only describes it ("feminine plural
+        // pronoun") gives way to senses with a meaning.
+        let grammar = |g: &&Gloss| LITTLE.contains(&pos.as_str()) && g.atoms.iter().all(|a| is_grammar_note(&a.text));
+        if ss.iter().any(|g| !grammar(g)) {
+            ss.retain(|g| !grammar(g));
+        }
         let is_little = LITTLE.contains(&pos.as_str());
         names.push(pos.clone());
         senses += ss.len();
@@ -670,6 +849,18 @@ struct Stats {
     alt_links: u64,
     gloss_links: u64,
     dropped_from_little: u64,
+    borrowed: u64,
+}
+
+/// A little word's entry that is only a form of other words (rule 2).
+struct Borrow {
+    id: u32,
+    pos: String,
+    targets: Vec<u32>,
+    /// The targets' meanings as quoted in the entry, if it quotes them.
+    glosses: Vec<Gloss>,
+    plural: bool,
+    oblique: bool,
 }
 
 #[derive(Default)]
@@ -679,6 +870,9 @@ struct Builder {
     lemmas: HashMap<u32, LemmaInfo>,
     /// form -> (lemma key id, how)
     forms: HashMap<String, Vec<(u32, Kind)>>,
+    /// Little words that are only forms of others: (key id, part of
+    /// speech, targets), resolved in `finish` (rule 2).
+    borrows: Vec<Borrow>,
     stats: Stats,
     lang: String,
     lang_code: String,
@@ -738,6 +932,17 @@ impl Builder {
         let little = LITTLE.contains(&e.pos.as_str());
         let noun = matches!(e.pos.as_str(), "noun" | "intj");
         let (mut glosses, mut links, mut alts) = (Vec::new(), Vec::new(), Vec::new());
+        // Whether every link comes from a "form of" sense (rule 2).
+        let mut only_form_of = true;
+        // The glosses that are a target's quoted meaning.
+        let mut borrowed = Vec::new();
+        // Whether every "form of" sense is a plural ("unos" of un), which
+        // does not take the singular's meaning.
+        let mut plural = true;
+        // Whether every "form of" sense is an oblique case or a possessive
+        // of a pronoun ("euer", genitive of ihr), whose meaning is not the
+        // target's.
+        let mut oblique = e.pos == "pron";
         for s in &e.senses {
             let gloss = s.gloss();
             if is_abbreviation(s, &gloss) {
@@ -749,8 +954,19 @@ impl Builder {
                 continue;
             }
             if !s.form_of.is_empty() {
+                plural &= s.has_tag(&["plural"]) && !s.has_tag(&["singular"]);
+                oblique &= s.has_tag(&["genitive", "dative", "accusative", "ablative", "locative", "instrumental", "prepositional", "possessive"]);
                 if little {
-                    if let Some(g) = little_form_gloss(s, &gloss).and_then(|g| Gloss::new(g, s)) {
+                    let own = little_form_gloss(s, &gloss);
+                    // The target's meaning quoted ("ze": unstressed form of zij
+                    // (“she”)) says the word is its form too, and is the
+                    // word's own meaning only when it is a lemma otherwise.
+                    let shared = own.as_ref().is_some_and(|o| s.form_of.iter().any(|t| quoted(&t.extra).as_ref() == Some(o)));
+                    if let Some(g) = own.and_then(|g| Gloss::new(g, s, little)) {
+                        if shared {
+                            links.extend(form_targets(s, little));
+                            borrowed.push(glosses.len());
+                        }
                         glosses.push(g);
                         continue;
                     }
@@ -758,33 +974,49 @@ impl Builder {
                         continue;
                     }
                 }
-                links.extend(s.form_of.iter().filter_map(|t| target_key(&t.word)));
+                links.extend(form_targets(s, little));
                 continue;
             }
             let targets = alt_targets(s, &gloss);
             if s.has_tag(&["alt-of"]) || !targets.is_empty() {
+                only_form_of = false;
                 if !s.has_tag(SPOKEN_TAGS) {
                     alts.extend(targets);
                 }
                 continue;
             }
             if let Some(t) = form_of_in_gloss(&gloss) {
+                only_form_of = false;
                 self.stats.gloss_links += 1;
                 links.push(t);
                 continue;
             }
-            if let Some(g) = Gloss::new(gloss, s) {
+            if let Some(g) = Gloss::new(gloss, s, little) {
                 glosses.push(g);
             }
         }
         let id = self.intern(&key);
-        self.stats.stated_links += links.len() as u64;
+        // Rule 2: a little word that is only a form of other words waits
+        // for them; in `finish` it takes the meaning quoted for them or a
+        // little target's first meaning if it is a lemma by another entry,
+        // and links to them.
+        let borrow = little && only_form_of && !links.is_empty() && borrowed.len() == glosses.len();
+        if borrow {
+            let targets: Vec<u32> = links.iter().map(|t| self.intern(t)).collect();
+            self.borrows.push(Borrow { id, pos: e.pos.clone(), targets, glosses: std::mem::take(&mut glosses), plural, oblique });
+        } else {
+            self.stats.stated_links += links.len() as u64;
+            for t in &links {
+                let target = self.intern(t);
+                self.link(&key, target, Kind { table: false, stated: !noun });
+            }
+        }
         self.stats.alt_links += alts.len() as u64;
-        for t in links.into_iter().chain(alts) {
+        for t in alts {
             let target = self.intern(&t);
             self.link(&key, target, Kind { table: false, stated: !noun });
         }
-        if glosses.is_empty() {
+        if glosses.is_empty() && !borrow {
             return;
         }
         let info = self.lemmas.entry(id).or_default();
@@ -799,9 +1031,15 @@ impl Builder {
             Some((_, g)) => g.extend(glosses),
             None => info.pos.push((e.pos.clone(), glosses)),
         }
+        if borrow {
+            // The slot keeps the part of speech in the dump's order; the
+            // word's own forms are not wanted for a form of another word.
+            return;
+        }
         self.link(&key, id, Kind { table: false, stated: true });
+        let shared = if little { shared_tables(&e.forms) } else { HashSet::new() };
         for f in &e.forms {
-            if f.tags.iter().any(|t| BAD_FORM_TAGS.contains(&t.as_str())) {
+            if f.tags.iter().any(|t| BAD_FORM_TAGS.contains(&t.as_str())) || shared.contains(f.source.as_str()) || is_spoken_alternative(f) {
                 continue;
             }
             // Rule 12: a form with a space (German "kommt an") cannot be looked up.
@@ -811,8 +1049,49 @@ impl Builder {
         }
     }
 
-    fn finish(self) -> Pack {
-        let Builder { keys, key_index, lemmas, forms, mut stats, lang, lang_code } = self;
+    /// Rule 2: a little word that is a little word of its own by another
+    /// entry ("het", a pronoun too) and in this one only a form of a little
+    /// word ("het", the neuter of the article de) takes that word's first
+    /// meaning for this part of speech, and still links to it. Otherwise, as
+    /// a plain inflection ("todas" of todo), it links to its targets as any
+    /// form does.
+    fn resolve_borrows(&mut self) {
+        let borrows = std::mem::take(&mut self.borrows);
+        let meanings: Vec<Vec<Gloss>> = borrows
+            .iter()
+            .map(|b| {
+                let own = self.lemmas.get(&b.id).is_some_and(|i| i.pos.iter().any(|(p, g)| !g.is_empty() && LITTLE.contains(&p.as_str())));
+                if !own || b.oblique {
+                    return Vec::new();
+                }
+                if !b.glosses.is_empty() {
+                    return b.glosses.clone();
+                }
+                if b.plural {
+                    return Vec::new();
+                }
+                let first = b.targets.iter().filter(|t| **t != b.id).find_map(|t| first_meaning(&self.keys[*t as usize], self.lemmas.get(t)?));
+                first.map(|m| Gloss { atoms: vec![Atom { text: m, sep: ';' }], soft: false, noted: false, hard: false }).into_iter().collect()
+            })
+            .collect();
+        for (b, meaning) in borrows.into_iter().zip(meanings) {
+            let key = self.keys[b.id as usize].clone();
+            if !meaning.is_empty() {
+                self.stats.borrowed += 1;
+                if let Some((_, g)) = self.lemmas.entry(b.id).or_default().pos.iter_mut().find(|(p, _)| *p == b.pos) {
+                    g.extend(meaning);
+                }
+            }
+            self.stats.stated_links += b.targets.len() as u64;
+            for t in b.targets {
+                self.link(&key, t, Kind { table: false, stated: true });
+            }
+        }
+    }
+
+    fn finish(mut self) -> Pack {
+        self.resolve_borrows();
+        let Builder { keys, key_index, lemmas, forms, mut stats, lang, lang_code, .. } = self;
         let mut lines: Vec<(u32, Line)> = lemmas.iter().filter_map(|(id, info)| compose(&keys[*id as usize], info).map(|l| (*id, l))).collect();
         lines.sort_by(|a, b| a.1.key.as_bytes().cmp(b.1.key.as_bytes()));
         let line_of: HashMap<u32, u32> = lines.iter().enumerate().map(|(n, (id, _))| (*id, n as u32)).collect();
@@ -957,7 +1236,7 @@ fn summary(pack: &Pack, code: &str) -> String {
     let empty = pack.lines.iter().filter(|l| l.gloss.trim().is_empty()).count();
     let wikitext = pack.lines.iter().filter(|l| l.gloss.contains("[[") || l.gloss.contains("{{")).count();
     let mut out = format!(
-        "{code}: {} lemmas, {} forms, {ambiguous} forms of more than one lemma\n  {} entries read ({} all-caps entries, {} abbreviation and {} letter-name senses skipped{})\n  links: {} from inflection tables, {} from \"form of\" senses, {} from glosses saying \"form of\", {} from alternative spellings, {} into little words dropped\n  {empty} lemmas without a gloss, {wikitext} with wikitext left in it\n",
+        "{code}: {} lemmas, {} forms, {ambiguous} forms of more than one lemma\n  {} entries read ({} all-caps entries, {} abbreviation and {} letter-name senses skipped{})\n  links: {} from inflection tables, {} from \"form of\" senses, {} from glosses saying \"form of\", {} from alternative spellings, {} into little words dropped\n  {} little words glossed by the little word they are a form of\n  {empty} lemmas without a gloss, {wikitext} with wikitext left in it\n",
         pack.lines.len(),
         pack.forms.len(),
         s.entries,
@@ -970,6 +1249,7 @@ fn summary(pack: &Pack, code: &str) -> String {
         s.gloss_links,
         s.alt_links,
         s.dropped_from_little,
+        s.borrowed,
     );
     let mut little: Vec<&Line> = pack.lines.iter().filter(|l| l.little).collect();
     little.sort_by(|a, b| b.senses.cmp(&a.senses).then_with(|| a.key.cmp(&b.key)));
@@ -1086,6 +1366,35 @@ mod tests {
 {"word":"nous","pos":"noun","senses":[{"glosses":["the nous, (divine) reason in philosophy"]}]}
 {"word":"nach","pos":"adv","senses":[{"glosses":["Separated form of nach-"]}]}
 {"word":"nach","pos":"prep","senses":[{"glosses":["after, past"]},{"glosses":["to, towards"]}]}
+{"word":"ik","pos":"pron","senses":[{"glosses":["I; first-person singular subjective personal pronoun"]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"},{"form":"ikke","tags":["alternative","childish","informal"]}]}
+{"word":"jij","pos":"pron","senses":[{"glosses":["you; second-person singular subjective personal pronoun"]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"ze","pos":"pron","senses":[{"glosses":["unstressed form of zij (“she”) (feminine singular subject)"],"tags":["form-of","unstressed"],"form_of":[{"word":"zij","extra":"(“she”) (feminine singular subject)"}]},{"glosses":["unstressed form of zij (“they”) (plural subject)"],"tags":["form-of","unstressed"],"form_of":[{"word":"zij","extra":"(“they”) (plural subject)"}]},{"glosses":["unstressed form of haar (“her”) (feminine singular object)"],"tags":["form-of","unstressed"],"form_of":[{"word":"haar","extra":"(“her”) (feminine singular object)"}]},{"glosses":["unstressed form of hen and hun (“them”) (plural object)"],"tags":["form-of","unstressed"],"form_of":[{"word":"hen and hun","extra":"(“them”) (plural object)"}]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"hen","pos":"pron","senses":[{"glosses":["them; third-person plural objective personal pronoun"]}]}
+{"word":"zij","pos":"pron","senses":[{"glosses":["she; third-person singular feminine subjective personal pronoun"]},{"glosses":["they; third-person plural subjective pronoun"]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"'k","pos":"pron","senses":[{"glosses":["subjective unstressed form of ik (“I”)"],"tags":["form-of","subjective","unstressed"],"form_of":[{"word":"ik","extra":"I"}]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"m'n","pos":"pron","senses":[{"glosses":["contraction of mijn"],"tags":["abbreviation","alt-of","contraction","dependent","possessive"],"alt_of":[{"word":"mijn"}]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"mijn","pos":"det","senses":[{"glosses":["my; first-person singular possessive determiner"],"tags":["dependent","possessive"]}],"forms":[{"form":"mijne","tags":["independent","possessive"]},{"form":"form m'n","tags":["contracted"]},{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"je","pos":"pron","senses":[{"glosses":["subjective unstressed form of jij (“you (singular)”)"],"tags":["form-of","subjective","unstressed"],"form_of":[{"word":"jij","extra":"(“you (singular)”)"}]},{"glosses":["one, people, you, someone, anyone; an unspecified individual or group of individuals (as subject or object)"],"tags":["indefinite","informal","personal","pronoun"]}]}
+{"word":"je","pos":"det","senses":[{"glosses":["possessive unstressed form of jij (“you (singular)”): your (singular)"],"tags":["form-of","possessive","second-person","unstressed"],"form_of":[{"word":"jij","extra":"(“you (singular)”): your (singular)"}]}]}
+{"word":"het","pos":"article","senses":[{"glosses":["neuter singular of de (“the”), the definite article"],"tags":["form-of","neuter","singular"],"form_of":[{"word":"de","extra":"(“the”), the definite article"}]}]}
+{"word":"het","pos":"pron","senses":[{"glosses":["it; third-person singular neuter subjective personal pronoun"],"tags":["neuter"]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"declension"},{"form":"l-self","tags":["inflection-template"],"source":"declension"},{"form":"ik","tags":["first-person","personal","pronoun","singular","stressed","subjective"],"source":"declension"},{"form":"'k","tags":["first-person","personal","pronoun","singular","subjective","unstressed"],"source":"declension"},{"form":"mij","tags":["first-person","objective","personal","pronoun","singular","stressed"],"source":"declension"},{"form":"m'n","tags":["first-person","personal","possessive","pronoun","singular","unstressed"],"source":"declension"},{"form":"jij","tags":["personal","pronoun","second-person","singular","stressed","subjective"],"source":"declension"},{"form":"ze","tags":["feminine","personal","pronoun","singular","subjective","third-person","unstressed"],"source":"declension"},{"form":"het","tags":["neuter","objective","personal","pronoun","singular","third-person"],"source":"declension"}]}
+{"word":"de","pos":"article","senses":[{"glosses":["the; definite article, masculine and feminine singular, plural"]}]}
+{"word":"dat","pos":"det","senses":[{"glosses":["neuter singular of die (“that”); referring to a thing or a person further away."],"tags":["demonstrative","distal","form-of","neuter","singular"],"form_of":[{"word":"die","extra":"(“that”); referring to a thing or a person further away"}]}]}
+{"word":"dat","pos":"conj","senses":[{"glosses":["that (introducing a subordinate clause)"]}]}
+{"word":"is","pos":"verb","senses":[{"glosses":["third-person singular present indicative of zijn; is, equals"],"tags":["form-of","indicative","present","singular","third-person"],"form_of":[{"word":"zijn","extra":"is, equals"}]}]}
+{"word":"is","pos":"adv","senses":[{"glosses":["alternative form of eens (“once”)"],"tags":["alt-of","alternative","dialectal","informal","often","proscribed"],"alt_of":[{"word":"eens","extra":"once"}]}]}
+{"word":"eens","pos":"adv","senses":[{"glosses":["once, one time"]}],"forms":[{"form":"'s","tags":["alternative","informal"]},{"form":"is","tags":["alternative","dialectal","informal","often","proscribed"]}]}
+{"word":"zijn","pos":"verb","senses":[{"glosses":["to be"]}],"forms":[{"form":"irregular","tags":["table-tags"],"source":"conjugation"},{"form":"ben","tags":["first-person","present","singular"],"source":"conjugation"},{"form":"bent","tags":["present","second-person","singular"],"source":"conjugation"},{"form":"is","tags":["present","singular","third-person"],"source":"conjugation"}]}
+{"word":"u","pos":"pron","senses":[{"glosses":["you (polite)"],"tags":["formal","personal","second-person","singular","subjective"]},{"glosses":["you (polite)"],"tags":["formal","objective","personal","second-person","singular"]},{"glosses":["thee (dialectal)"],"tags":["objective","personal","second-person","singular"]},{"glosses":["yourself (polite)"],"tags":["formal","pronoun","reflexive","second-person","singular"]}]}
+{"word":"wat","pos":"pron","senses":[{"glosses":["what: e.g. (1) asking for a subject complement; (2) asking for a sentence object"],"tags":["interrogative"]},{"glosses":["which: e.g. (1) modifying the demonstrative pronouns dat and datgene; (2) referring back to an entire sentence"],"tags":["relative"]}]}
+{"word":"un","pos":"article","senses":[{"glosses":["masculine singular indefinite article; a, an"]}]}
+{"word":"unos","pos":"article","senses":[{"glosses":["masculine plural of un"],"tags":["form-of","masculine","plural"],"form_of":[{"word":"un"}]}]}
+{"word":"unos","pos":"det","senses":[{"glosses":["some, a few"]}]}
+{"word":"euer","pos":"pron","senses":[{"glosses":["genitive of ihr (“you”)"],"tags":["form-of","genitive"],"form_of":[{"word":"ihr","extra":"(“you”)"}]}]}
+{"word":"euer","pos":"det","senses":[{"glosses":["your"]}]}
+{"word":"ihr","pos":"pron","senses":[{"glosses":["you"]}]}
+{"word":"una","pos":"article","senses":[{"glosses":["feminine singular of un"],"tags":["feminine","form-of","singular"],"form_of":[{"word":"un"}]}]}
+{"word":"na","pos":"prep","senses":[{"glosses":["with"]}],"forms":[{"form":"no-table-tags","tags":["table-tags"],"source":"inflection"},{"form":"nami","tags":["first-person","singular"],"source":"inflection"},{"form":"nawe","tags":["second-person","singular"],"source":"inflection"},{"form":"naye","tags":["class-1","class-2","singular","third-person"],"source":"inflection"}]}
 "#;
 
     fn pack() -> Pack {
@@ -1257,7 +1566,7 @@ mod tests {
         assert_eq!(lemmas_of(&p, "para"), ["para", "parar"], "a verb saying para is its form does add to it");
         assert_eq!(lemmas_of(&p, "paras"), ["para"]);
         assert_eq!(lemmas_of(&p, "die"), ["der", "die"]);
-        assert_eq!(line(&p, "die").unwrap().gloss, "that; which; who; whom; whose");
+        assert_eq!(line(&p, "die").unwrap().gloss, "the / that; which; who; whom; whose", "the article takes der's meaning (rule 2)");
         assert_eq!(lemmas_of(&p, "des"), ["der"]);
     }
 
@@ -1289,6 +1598,69 @@ mod tests {
         assert!(is_inflection_note("dative of él"));
         assert!(!is_inflection_note("all of us"));
         assert!(!is_inflection_note("A form of address to a woman"));
+    }
+
+    #[test]
+    fn a_shared_pronoun_table_gives_no_forms() {
+        let p = pack();
+        assert_eq!(lemmas_of(&p, "ze"), ["hen", "zij"], "not every pronoun whose table lists ze");
+        assert!(line(&p, "ze").is_none(), "only forms of zij and haar, with their meanings quoted");
+        assert_eq!(lemmas_of(&p, "'k"), ["ik"]);
+        assert_eq!(lemmas_of(&p, "m'n"), ["mijn"], "a contraction is a spelling of its word");
+        assert!(lemmas_of(&p, "mij").is_empty());
+        assert_eq!(lemmas_of(&p, "jij"), ["jij"]);
+        assert_eq!(lemmas_of(&p, "mijne"), ["mijn"], "forms on the headword line stay");
+        assert_eq!(lemmas_of(&p, "nami"), ["na"], "a word's own person table stays");
+        assert_eq!(lemmas_of(&p, "nawe"), ["na"]);
+        assert_eq!(shared_tables(&[]).len(), 0);
+    }
+
+    #[test]
+    fn a_little_word_that_is_a_form_of_a_little_word_keeps_a_meaning() {
+        let p = pack();
+        let het = line(&p, "het").unwrap();
+        assert_eq!((het.pos.as_str(), het.gloss.as_str()), ("article,pron", "the / it"));
+        assert_eq!(lemmas_of(&p, "het"), ["de", "het"], "the quoted meaning is de's: a lemma and a form of it");
+        assert!(line(&p, "una").is_none(), "a plain inflection of un stays its form");
+        assert_eq!(lemmas_of(&p, "una"), ["un"]);
+        let unos = line(&p, "unos").unwrap();
+        assert_eq!((unos.pos.as_str(), unos.gloss.as_str()), ("det", "some, a few"), "a plural does not take the singular's meaning");
+        assert_eq!(lemmas_of(&p, "unos"), ["un", "unos"]);
+        assert_eq!(line(&p, "euer").unwrap().gloss, "your", "a genitive of ihr does not mean what ihr means");
+        assert_eq!(lemmas_of(&p, "euer"), ["euer", "ihr"]);
+        assert_eq!(line(&p, "dat").unwrap().gloss, "that", "the quoted meaning, not the description after it");
+        let je = line(&p, "je").unwrap();
+        assert_eq!((je.pos.as_str(), je.gloss.as_str()), ("pron,det", "you; one, people, someone, anyone; an unspecified individual or group of individuals / your"));
+        assert_eq!(quoted("(“you (singular)”): your").as_deref(), Some("you"));
+        assert_eq!(quoted("is, equals"), None);
+    }
+
+    #[test]
+    fn proscribed_and_dialectal_alternatives_make_no_link() {
+        let p = pack();
+        assert_eq!(lemmas_of(&p, "is"), ["zijn"]);
+        assert_eq!(lemmas_of(&p, "'s"), ["eens"], "informal, not marked off the standard");
+        assert_eq!(lemmas_of(&p, "ikke"), ["ik"]);
+    }
+
+    #[test]
+    fn registers_in_parentheses_and_examples_give_way() {
+        let p = pack();
+        assert_eq!(line(&p, "u").unwrap().gloss, "you; yourself; thee");
+        assert_eq!(line(&p, "wat").unwrap().gloss, "what; which");
+        assert_eq!(line(&p, "de").unwrap().gloss, "the", "the notes on its grammar go");
+        let s = Sense::default();
+        let notes = |g: &str| render(&Gloss::new(g.to_string(), &s, true).unwrap().atoms);
+        assert_eq!(render(&Gloss::new("barley, used for brewing beer".into(), &s, false).unwrap().atoms), "barley, used for brewing beer", "only a little word's notes go");
+        assert_eq!(notes("that; referring to a thing or a person further away"), "that");
+        assert_eq!(notes("after, past"), "after, past");
+        assert_eq!(notes("genitive plural"), "genitive plural", "a gloss that is only a note keeps it");
+        let noted = |g: &str| Sense { glosses: vec![g.into()], ..Default::default() }.is_noted();
+        assert!(noted("thee (dialectal)"));
+        assert!(!noted("accusative of ella; her, it, you (formal)"));
+        assert!(!noted("you (polite)"));
+        assert!(!noted("you (informal second-person singular personal pronoun, disjunctive)"));
+        assert_eq!(notes("for, because; used for emphasis or to express surprise, doubt; then"), "for, because; then");
     }
 
     #[test]
