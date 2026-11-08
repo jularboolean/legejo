@@ -88,6 +88,9 @@ mod dictionary;
 mod espdic;
 mod language;
 mod langpack;
+mod langadmin;
+#[cfg(test)]
+mod langadmin_tests;
 mod vocabulary;
 #[cfg(test)]
 mod email_change_tests;
@@ -184,6 +187,7 @@ fn router(state: AppState) -> Router {
     let upload = DefaultBodyLimit::max(state.settings.max_upload_bytes);
     let cover = DefaultBodyLimit::max(images::MAX_COVER_BYTES + MULTIPART_SLACK);
     let avatar = DefaultBodyLimit::max(images::MAX_AVATAR_BYTES + MULTIPART_SLACK);
+    let language_zip = DefaultBodyLimit::max(langadmin::MAX_ZIP_BYTES + MULTIPART_SLACK);
     let api = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/directory", get(directory::instance))
@@ -206,6 +210,8 @@ fn router(state: AppState) -> Router {
         .route("/instance", get(live::instance))
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))
+        .route("/admin/languages", get(langadmin::list).post(langadmin::import).layer(language_zip))
+        .route("/admin/languages/{code}", axum::routing::delete(langadmin::remove))
         .route("/admin/users/{id}", axum::routing::delete(admin::delete_user))
         .route("/admin/users/{id}/admin", axum::routing::put(admin::set_admin))
         .route("/admin/users/{id}/reset", post(register::admin_reset))

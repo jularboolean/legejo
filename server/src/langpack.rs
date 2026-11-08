@@ -148,6 +148,16 @@ impl Pack {
         &self.id
     }
 
+    /// How many lemmas the pack has.
+    pub fn lemma_count(&self) -> usize {
+        self.offsets.len()
+    }
+
+    /// How many forms the pack can look up.
+    pub fn form_count(&self) -> usize {
+        self.forms.len()
+    }
+
     pub fn lemma(&self, n: u32) -> Option<Lemma<'_>> {
         let start = *self.offsets.get(n as usize)? as usize;
         let end = self.offsets.get(n as usize + 1).map(|e| *e as usize).unwrap_or(self.lemmas.len());
@@ -282,6 +292,23 @@ fn read_dir(dir: &Path) -> anyhow::Result<Pack> {
     Pack::new(meta, false, Cow::Owned(forms), ambiguous, Cow::Owned(lemmas))
 }
 
+/// Whether the binary has a pack for a language.
+pub fn is_built_in(code: &str) -> bool {
+    BUILT_IN.iter().any(|(c, ..)| *c == code)
+}
+
+/// A pack in a directory checked as `load` would read it for `code`, with
+/// what an imported pack must have besides: lemmas, and forms that point at
+/// them. The importer (langadmin.rs) calls it on the unpacked files before
+/// they take the place of the pack there is.
+pub fn check_dir(dir: &Path, code: &str) -> anyhow::Result<Pack> {
+    let pack = read_dir(dir)?;
+    anyhow::ensure!(pack.meta.language == code, "pack.json says the pack is for \"{}\", not \"{code}\"", pack.meta.language);
+    anyhow::ensure!(pack.lemma_count() > 0, "lemmas.tsv has no lemmas");
+    anyhow::ensure!(pack.form_count() > 0, "no line of forms.tsv points at a lemma of lemmas.tsv");
+    Ok(pack)
+}
+
 /// The pack for a language: one in the data directory first (so that an
 /// operator can bring a newer one), else the built-in one.
 fn load(data_dir: &Path, code: &str) -> Option<Arc<Pack>> {
@@ -348,11 +375,23 @@ impl Packs {
         found
     }
 
+    /// Where the packs on the disk are: `<data dir>/languages`, always on
+    /// the local disk, also when the data directory is kept in a bucket
+    /// (storage.rs does not carry them).
+    pub fn dir(&self) -> PathBuf {
+        self.data_dir.join("languages")
+    }
+
     /// The packs there are, by language: a pack on the disk before the
     /// built-in one for the same language.
     pub fn installed(&self) -> Vec<Meta> {
+        self.installed_packs().iter().map(|p| p.meta.clone()).collect()
+    }
+
+    /// As `installed`, the packs themselves.
+    pub fn installed_packs(&self) -> Vec<Arc<Pack>> {
         let mut codes: Vec<String> = BUILT_IN.iter().map(|(c, ..)| c.to_string()).collect();
-        if let Ok(dir) = std::fs::read_dir(self.data_dir.join("languages")) {
+        if let Ok(dir) = std::fs::read_dir(self.dir()) {
             for entry in dir.flatten() {
                 let Some(code) = entry.file_name().to_str().map(str::to_string) else { continue };
                 if crate::language::is_code(&code) && entry.path().join("pack.json").is_file() && !codes.contains(&code) {
@@ -361,7 +400,7 @@ impl Packs {
             }
         }
         codes.sort();
-        codes.iter().filter_map(|c| self.get(c)).map(|p| p.meta.clone()).collect()
+        codes.iter().filter_map(|c| self.get(c)).collect()
     }
 
     /// The names each installed pack's language goes by, with its code: the

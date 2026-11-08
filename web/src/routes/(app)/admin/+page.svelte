@@ -7,6 +7,7 @@
 	import { isNewer, latestRelease, type Release } from '#lib/version';
 	import Connections from './Connections.svelte';
 	import Federation from './Federation.svelte';
+	import Languages from './Languages.svelte';
 	import Users from './Users.svelte';
 	import type { PageData } from './$types';
 
@@ -308,6 +309,8 @@
 	{/if}
 	<p class="hint">{t('admin.fulltextHint')}</p>
 </section>
+
+<Languages />
 
 <section>
 	<h2>{t('admin.group.sharing')}</h2>
