@@ -593,7 +593,11 @@ they are left out of the count. The words you know are hidden from the list unti
 <strong>Hide words I know</strong>.</p>
 <p>The English meanings come from ESPDIC, Paul Denisowski's Esperanto–English dictionary (CC BY
 3.0), which is built into Legejo; nothing is asked of any other server for them. A word not in it
-as it stands is found by its root: <em>hundetegojn</em> as <em>hundeto</em>, a little dog.</p>"""),
+as it stands is found by its root: <em>hundetegojn</em> as <em>hundeto</em>, a little dog.</p>
+<p>Books in other languages get the same list once the instance has a language pack for the
+language: an admin installs one with a click on the <strong>Admin</strong> page, under
+<strong>Languages</strong>, from those listed at <code>legejo.se/languages</code>. The meanings in
+a pack come from Wiktionary, in English.</p>"""),
 
  ]),
 

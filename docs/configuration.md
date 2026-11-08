@@ -115,6 +115,7 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_KOBO_TRACE` | `false` | `true` logs what is said with a Kobo, headers and bodies, for finding out why a sync went wrong. Tokens, keys, addresses and what the device reports of its use are left out; titles, places and highlights are not, so turn it off when done |
 | `LEGEJO_MCP` | `false` | `true` turns on the MCP endpoint for AI assistants |
 | `LEGEJO_FULLTEXT` | | Searching inside the books, also a switch on the Admin page. `true` or `false` here wins over the switch. While on, the text of the EPUBs, and of the PDFs that have any (a scan needs OCR), is kept in the database, once per text; switched off, the text is dropped |
+| `LEGEJO_LANGUAGES_URL` | `https://legejo.se/languages` | Where Admin → Languages finds the catalogue of language packs (`index.json` and `<code>.zip` next to it). Set to the empty string for no catalogue: packs then come only from a zip file, and an instance that used the Spanish, French or German pack once built into Legejo does not get it from the catalogue by itself |
 | `LEGEJO_AI_API_KEY` | | Turns on the librarian. The key of the account that pays |
 | `LEGEJO_AI_BASE_URL` | `https://api.openai.com/v1` | The provider's chat API, for the librarian |
 | `LEGEJO_AI_MODEL` | `gpt-5.4-mini` | The model the librarian is |

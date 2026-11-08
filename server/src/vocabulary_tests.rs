@@ -173,8 +173,9 @@ async fn a_search_for_one_form_finds_the_others() {
 }
 
 #[tokio::test]
-async fn a_spanish_book_gets_a_study_list_by_lemma_from_the_built_in_pack() {
-    let (app, db, _state) = test_app().await;
+async fn a_spanish_book_gets_a_study_list_by_lemma_from_its_pack() {
+    let (app, db, state) = test_app().await;
+    crate::testutil::install_pack(&state, "es");
     let (_, alice) = add_user(&db, "alice").await;
     let text = "Ayer Juan hizo la cena. Luego quiso ir a la casa de su madre, y fue a pie. \
                 Hoy hace frío y Juan quiere dormir. La casa es grande. "
@@ -587,7 +588,8 @@ async fn characteristic_words_come_from_the_df_table() {
 
 #[tokio::test]
 async fn search_finds_a_word_by_form_and_by_meaning() {
-    let (app, db, _state) = test_app().await;
+    let (app, db, state) = test_app().await;
+    crate::testutil::install_pack(&state, "es");
     let (_, alice) = add_user(&db, "alice").await;
     let text = "Ayer Juan hizo la cena. Luego quiso ir a la casa de su madre, y fue a pie. \
                 Hoy hace frío y Juan quiere dormir. La casa es grande. "
@@ -660,7 +662,7 @@ async fn a_pack_for_a_language_without_a_stemmer_gives_a_study_list_and_a_new_pa
     let (status, o) = send(&app, Method::GET, "/api/vocabulary/overview?language=xx", Some(&alice), None).await;
     assert_eq!(status, StatusCode::OK, "{o}");
     assert_eq!(o["pack"]["name"], "Xxish", "{o}");
-    assert_eq!(o["pack"]["built_in"], false);
+    assert!(o["pack"].get("built_in").is_none(), "{o}");
     assert_eq!(o["source"], "the tests");
     assert_eq!(o["books"].as_array().unwrap().len(), 1);
     let (status, w) = send(&app, Method::GET, &format!("/api/books/{id}/vocabulary/word?w=Blorping,"), Some(&alice), None).await;

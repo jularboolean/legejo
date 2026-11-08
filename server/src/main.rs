@@ -89,6 +89,7 @@ mod espdic;
 mod language;
 mod langpack;
 mod langadmin;
+mod langcatalogue;
 #[cfg(test)]
 mod langadmin_tests;
 mod vocabulary;
@@ -148,7 +149,7 @@ pub struct AppState {
     pub oidc: Option<std::sync::Arc<oidc::Oidc>>,
     /// Operator settings from the environment (settings.rs).
     pub settings: std::sync::Arc<settings::Settings>,
-    /// The language packs, from the data directory or the binary (langpack.rs).
+    /// The language packs in the data directory (langpack.rs).
     pub packs: std::sync::Arc<langpack::Packs>,
 }
 
@@ -211,6 +212,7 @@ fn router(state: AppState) -> Router {
         .route("/admin/users", get(admin::list_users))
         .route("/admin/log", get(audit::list))
         .route("/admin/languages", get(langadmin::list).post(langadmin::import).layer(language_zip))
+        .route("/admin/languages/install", post(langadmin::install_from_catalogue))
         .route("/admin/languages/{code}", axum::routing::delete(langadmin::remove))
         .route("/admin/users/{id}", axum::routing::delete(admin::delete_user))
         .route("/admin/users/{id}/admin", axum::routing::put(admin::set_admin))

@@ -493,7 +493,7 @@ mod tests {
     }
 
     fn spanish() -> Arc<Pack> {
-        crate::langpack::Packs::new(std::path::PathBuf::from("/nonexistent")).get("es").unwrap()
+        crate::langpack::fixture("es")
     }
 
     #[test]

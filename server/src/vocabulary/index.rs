@@ -430,8 +430,12 @@ pub(crate) async fn drop_orphans(state: &AppState) -> anyhow::Result<u64> {
 pub async fn worker(state: AppState) {
     let mut last_sweep: Option<Instant> = None;
     let mut analyzed = false;
+    let mut upgrade = crate::langcatalogue::Upgrade::default();
     loop {
         if last_sweep.is_none_or(|at| at.elapsed() >= SWEEP) {
+            // Before the books are counted: a book counted with the built-in
+            // pack of old waits for the pack from the catalogue.
+            crate::langcatalogue::upgrade_built_in(&state, &mut upgrade).await;
             if let Err(e) = crate::language::normalize_catalog(&state).await {
                 tracing::warn!("languages: {e:#}");
             }

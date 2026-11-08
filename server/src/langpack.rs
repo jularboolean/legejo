@@ -1,9 +1,10 @@
 //! Language packs: what it takes to give a book in a language a study list.
 //! A pack maps every inflected form of the language to its lemma ("hizo" to
-//! "hacer") and gives each lemma a short English meaning. Spanish, French
-//! and German are built in; a pack for any other language, or a newer one
-//! for these, can be put in the data directory under `languages/<code>/`
-//! (tools/langpack/README.md).
+//! "hacer") and gives each lemma a short English meaning. Packs live in the
+//! data directory under `languages/<code>/`: installed from the catalogue
+//! (langcatalogue.rs), imported from a zip (langadmin.rs) or put there by
+//! hand (tools/langpack/README.md). None is in the binary; Esperanto has
+//! ESPDIC instead (espdic.rs).
 //!
 //! A pack is `pack.json` (its language, name, version, source and licence),
 //! `lemmas.tsv` (per line: a lemma, its parts of speech, its meaning and,
@@ -11,48 +12,21 @@
 //! lines sorted by the lemma) and its forms, in one of two shapes:
 //! - `forms.tsv`: per line a form and the lemmas it can be, in any order;
 //!   the index below is built from it when the pack is loaded;
-//! - `forms.fst` and `ambiguous.tsv`: the index pre-built, as the packs in
-//!   the binary carry it: an fst map from each form to a lemma's line
-//!   number, or, with bit 40 set, to a line of `ambiguous.tsv` listing the
-//!   numbers of several.
+//! - `forms.fst` and `ambiguous.tsv`: the index pre-built (`langpack
+//!   --index`): an fst map from each form to a lemma's line number, or, with
+//!   bit 40 set, to a line of `ambiguous.tsv` listing the numbers of several.
 //!
-//! The fst is looked up where it lies (in the binary, or in memory); the
-//! lemmas are found by their line offsets, not parsed whole.
+//! The fst is looked up in memory; the lemmas are found by their line
+//! offsets, not parsed whole.
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 const AMBIGUOUS: u64 = 1 << 40;
-
-/// The packs in the binary: (code, pack.json, forms.fst, ambiguous.tsv, lemmas.tsv).
-const BUILT_IN: &[(&str, &str, &[u8], &str, &str)] = &[
-    (
-        "es",
-        include_str!("../assets/languages/es/pack.json"),
-        include_bytes!("../assets/languages/es/forms.fst"),
-        include_str!("../assets/languages/es/ambiguous.tsv"),
-        include_str!("../assets/languages/es/lemmas.tsv"),
-    ),
-    (
-        "fr",
-        include_str!("../assets/languages/fr/pack.json"),
-        include_bytes!("../assets/languages/fr/forms.fst"),
-        include_str!("../assets/languages/fr/ambiguous.tsv"),
-        include_str!("../assets/languages/fr/lemmas.tsv"),
-    ),
-    (
-        "de",
-        include_str!("../assets/languages/de/pack.json"),
-        include_bytes!("../assets/languages/de/forms.fst"),
-        include_str!("../assets/languages/de/ambiguous.tsv"),
-        include_str!("../assets/languages/de/lemmas.tsv"),
-    ),
-];
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Meta {
@@ -67,19 +41,15 @@ pub struct Meta {
     /// the catalog brings to its code.
     #[serde(default)]
     pub also: Vec<String>,
-    /// Whether the pack is the one in the binary: set when it is loaded,
-    /// never read from pack.json.
-    #[serde(default, skip_deserializing)]
-    pub built_in: bool,
 }
 
 pub struct Pack {
     pub meta: Meta,
     /// language:version:hash, which tells one pack's contents from another's.
     id: String,
-    forms: fst::Map<Cow<'static, [u8]>>,
+    forms: fst::Map<Vec<u8>>,
     ambiguous: Vec<Vec<u32>>,
-    lemmas: Cow<'static, str>,
+    lemmas: String,
     /// Where each line of `lemmas` starts.
     offsets: Vec<u32>,
 }
@@ -108,9 +78,8 @@ impl Pack {
     /// ambiguous.tsv. Every value of the fst is checked against the lemmas
     /// and the ambiguous lines, so that a pack that does not fit together
     /// is refused here rather than looked up wrongly.
-    fn new(mut meta: Meta, built_in: bool, forms: Cow<'static, [u8]>, ambiguous: Option<Vec<Vec<u32>>>, lemmas: Cow<'static, str>) -> anyhow::Result<Pack> {
+    fn new(meta: Meta, forms: Vec<u8>, ambiguous: Option<Vec<Vec<u32>>>, lemmas: String) -> anyhow::Result<Pack> {
         anyhow::ensure!(meta.format == 1, "pack format {} is not known", meta.format);
-        meta.built_in = built_in;
         let mut hash = Sha256::new();
         hash.update(lemmas.as_bytes());
         hash.update(&forms);
@@ -281,7 +250,7 @@ fn read_dir(dir: &Path) -> anyhow::Result<Pack> {
     if text.is_file() {
         let forms = std::fs::read_to_string(&text).context("forms.tsv")?;
         let (lemmas, fst, ambiguous) = build_index(&lemmas, &forms)?;
-        return Pack::new(meta, false, Cow::Owned(fst), Some(ambiguous), Cow::Owned(lemmas));
+        return Pack::new(meta, fst, Some(ambiguous), lemmas);
     }
     let forms = std::fs::read(dir.join("forms.fst")).context("forms.tsv or forms.fst")?;
     let ambiguous = match std::fs::read_to_string(dir.join("ambiguous.tsv")) {
@@ -289,12 +258,7 @@ fn read_dir(dir: &Path) -> anyhow::Result<Pack> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(anyhow::Error::from(e).context("ambiguous.tsv")),
     };
-    Pack::new(meta, false, Cow::Owned(forms), ambiguous, Cow::Owned(lemmas))
-}
-
-/// Whether the binary has a pack for a language.
-pub fn is_built_in(code: &str) -> bool {
-    BUILT_IN.iter().any(|(c, ..)| *c == code)
+    Pack::new(meta, forms, ambiguous, lemmas)
 }
 
 /// A pack in a directory checked as `load` would read it for `code`, with
@@ -309,41 +273,27 @@ pub fn check_dir(dir: &Path, code: &str) -> anyhow::Result<Pack> {
     Ok(pack)
 }
 
-/// The pack for a language: one in the data directory first (so that an
-/// operator can bring a newer one), else the built-in one.
+/// The pack for a language in the data directory, if there is one that loads.
 fn load(data_dir: &Path, code: &str) -> Option<Arc<Pack>> {
     let dir = data_dir.join("languages").join(code);
-    let found = if dir.join("pack.json").exists() {
-        match read_dir(&dir) {
-            Ok(p) if p.meta.language == code => Some(Arc::new(p)),
-            Ok(p) => {
-                tracing::warn!("language pack in {}: says it is for \"{}\"", dir.display(), p.meta.language);
-                None
-            }
-            Err(e) => {
-                tracing::warn!("language pack in {} cannot be read: {e:#}", dir.display());
-                None
-            }
+    if !dir.join("pack.json").exists() {
+        return None;
+    }
+    match read_dir(&dir) {
+        Ok(p) if p.meta.language == code => Some(Arc::new(p)),
+        Ok(p) => {
+            tracing::warn!("language pack in {}: says it is for \"{}\"", dir.display(), p.meta.language);
+            None
         }
-    } else {
-        None
-    };
-    found.or_else(|| {
-        BUILT_IN.iter().find(|(c, ..)| *c == code).and_then(|(_, meta, forms, ambiguous, lemmas)| {
-            let meta: Meta = serde_json::from_str(meta).ok()?;
-            match Pack::new(meta, true, Cow::Borrowed(forms), Some(parse_ambiguous(ambiguous)), Cow::Borrowed(lemmas)) {
-                Ok(p) => Some(Arc::new(p)),
-                Err(e) => {
-                    tracing::error!("built-in language pack {code} cannot be read: {e:#}");
-                    None
-                }
-            }
-        })
-    })
+        Err(e) => {
+            tracing::warn!("language pack in {} cannot be read: {e:#}", dir.display());
+            None
+        }
+    }
 }
 
-/// The packs an instance has: those in the data directory, else the ones in
-/// the binary; each loaded once, when first asked for.
+/// The packs an instance has, in the data directory; each loaded once, when
+/// first asked for.
 pub struct Packs {
     data_dir: PathBuf,
     cache: RwLock<HashMap<String, Option<Arc<Pack>>>>,
@@ -365,7 +315,7 @@ impl Packs {
         self.reload(code)
     }
 
-    /// Load the pack for a language (again), from the disk or the binary.
+    /// Load the pack for a language (again) from the disk.
     pub fn reload(&self, code: &str) -> Option<Arc<Pack>> {
         if !crate::language::is_code(code) {
             return None;
@@ -382,15 +332,14 @@ impl Packs {
         self.data_dir.join("languages")
     }
 
-    /// The packs there are, by language: a pack on the disk before the
-    /// built-in one for the same language.
+    /// The packs there are, by language.
     pub fn installed(&self) -> Vec<Meta> {
         self.installed_packs().iter().map(|p| p.meta.clone()).collect()
     }
 
     /// As `installed`, the packs themselves.
     pub fn installed_packs(&self) -> Vec<Arc<Pack>> {
-        let mut codes: Vec<String> = BUILT_IN.iter().map(|(c, ..)| c.to_string()).collect();
+        let mut codes: Vec<String> = Vec::new();
         if let Ok(dir) = std::fs::read_dir(self.dir()) {
             for entry in dir.flatten() {
                 let Some(code) = entry.file_name().to_str().map(str::to_string) else { continue };
@@ -434,19 +383,55 @@ pub(crate) fn write_xx(dir: &Path, gloss_for_blorp: &str, version: &str) {
     std::fs::write(dir.join("forms.tsv"), "zams\tzam\nblorped\tblorp\nflib\tflib,blorp\nblorping\tblorp\nzam\tzam\nblorp\tblorp\nko\tko\nflib\tblorp\nglorf\tnothing\n").unwrap();
 }
 
+/// Where the packs the tests use are: Spanish, French and German as
+/// `langpack --index` writes them (server/tests/packs/<code>).
+#[cfg(test)]
+pub(crate) fn fixture_dir(code: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/packs").join(code)
+}
+
+/// A test pack, loaded once per test process.
+#[cfg(test)]
+pub(crate) fn fixture(code: &str) -> Arc<Pack> {
+    static LOADED: std::sync::OnceLock<std::sync::Mutex<HashMap<String, Arc<Pack>>>> = std::sync::OnceLock::new();
+    let mut loaded = LOADED.get_or_init(Default::default).lock().unwrap();
+    loaded.entry(code.to_string()).or_insert_with(|| Arc::new(read_dir(&fixture_dir(code)).unwrap())).clone()
+}
+
+/// A test pack copied into a data directory, as an installed pack.
+#[cfg(test)]
+pub(crate) fn install_fixture(data_dir: &Path, code: &str) {
+    let to = data_dir.join("languages").join(code);
+    std::fs::create_dir_all(&to).unwrap();
+    for entry in std::fs::read_dir(fixture_dir(code)).unwrap().flatten() {
+        std::fs::copy(entry.path(), to.join(entry.file_name())).unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn built_in() -> Packs {
-        Packs::new(PathBuf::from("/nonexistent"))
+    fn temp_dir() -> PathBuf {
+        std::env::temp_dir().join(format!("legejo-langpack-{}", crate::books::new_uuid()))
     }
 
     #[test]
-    fn spanish_is_built_in_and_finds_irregular_forms() {
-        let packs = built_in();
+    fn no_pack_is_built_in() {
+        let packs = Packs::new(temp_dir());
+        for code in ["es", "fr", "de", "eo"] {
+            assert!(packs.get(code).is_none(), "{code}");
+        }
+        assert!(packs.installed().is_empty());
+        assert!(packs.aliases().is_empty());
+    }
+
+    #[test]
+    fn an_installed_spanish_pack_finds_irregular_forms() {
+        let dir = temp_dir();
+        install_fixture(&dir, "es");
+        let packs = Packs::new(dir.clone());
         let es = packs.get("es").unwrap();
-        assert!(es.meta.built_in);
         assert!(es.id().starts_with("es:"), "{}", es.id());
         let word = |form: &str| es.lemmas_of(form).iter().map(|n| es.lemma(*n).unwrap().word.to_string()).collect::<Vec<_>>();
         assert_eq!(word("hizo"), ["hacer"]);
@@ -459,18 +444,18 @@ mod tests {
         assert!(packs.get("sw").is_none());
         assert!(packs.get("Es").is_none() && packs.get("e").is_none() && packs.get("espa").is_none());
         let codes: Vec<String> = packs.installed().into_iter().map(|m| m.language).collect();
-        assert_eq!(codes, ["de", "es", "fr"]);
+        assert_eq!(codes, ["es"]);
         assert!(packs.aliases().contains(&("spanish".to_string(), "es".to_string())), "{:?}", packs.aliases());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
-    fn french_and_german_are_built_in_and_german_nouns_keep_their_capital() {
-        let packs = built_in();
-        let fr = packs.get("fr").unwrap();
+    fn french_and_german_packs_and_german_nouns_keep_their_capital() {
         let word = |p: &Pack, form: &str| p.lemmas_of(form).iter().map(|n| p.lemma(*n).unwrap().word.to_string()).collect::<Vec<_>>();
+        let fr = fixture("fr");
         assert!(word(&fr, "était").contains(&"être".to_string()));
         assert_eq!(word(&fr, "allait"), ["aller"]);
-        let de = packs.get("de").unwrap();
+        let de = fixture("de");
         assert_eq!(word(&de, "ging"), ["gehen"]);
         assert!(word(&de, "häuser").contains(&"haus".to_string()));
         assert_eq!(de.find("haus").unwrap().written, "Haus");
@@ -478,12 +463,11 @@ mod tests {
     }
 
     #[test]
-    fn a_text_only_pack_is_built_at_load_and_wins_over_the_built_in() {
-        let dir = std::env::temp_dir().join(format!("legejo-langpack-{}", crate::books::new_uuid()));
+    fn a_text_only_pack_is_built_at_load() {
+        let dir = temp_dir();
         write_xx(&dir.join("languages/xx"), "to run", "1");
         let packs = Packs::new(dir.clone());
         let xx = packs.get("xx").unwrap();
-        assert!(!xx.meta.built_in);
         assert_eq!(xx.meta.also, ["xxish", "xxx"]);
         let words = |p: &Pack, form: &str| {
             let mut w: Vec<String> = p.lemmas_of(form).iter().map(|n| p.lemma(*n).unwrap().word.to_string()).collect();
@@ -514,14 +498,11 @@ mod tests {
         assert_ne!(again.id(), id);
         assert_eq!(again.find("blorp").unwrap().english, "to sprint");
 
-        // A disk pack for a built-in language wins over the one in the binary.
-        write_xx(&dir.join("languages/es"), "to run", "1");
-        std::fs::write(dir.join("languages/es/pack.json"), r#"{"format": 1, "language": "es", "name": "Mine", "version": "9", "source": "", "license": "", "attribution": ""}"#).unwrap();
-        assert!(packs.get("es").unwrap().meta.built_in, "loaded before the disk pack came: until reloaded");
-        let es = packs.reload("es").unwrap();
-        assert_eq!(es.meta.name, "Mine");
-        assert!(!es.meta.built_in);
-        assert!(es.lemmas_of("hizo").is_empty());
+        // A pack appears on the disk later: there once reloaded.
+        assert!(packs.get("es").is_none());
+        install_fixture(&dir, "es");
+        assert!(packs.get("es").is_none(), "remembered as missing until reloaded");
+        assert!(!packs.reload("es").unwrap().lemmas_of("hizo").is_empty());
 
         // A pre-built index whose fst has forms of several lemmas needs ambiguous.tsv.
         let broken = dir.join("languages/yy");

@@ -2,10 +2,12 @@
 
 A language pack gives books in a language a study list: the words of a book
 in order of how often they occur, each taken to its dictionary form (*hizo*
-to *hacer*) with a short English meaning. Spanish, French and German are
-built into Legejo. Esperanto comes from ESPDIC and cannot be replaced. A pack
-for any other language is made from Wiktionary with one command and put in
-the data directory.
+to *hacer*) with a short English meaning. Esperanto is the one language
+built into Legejo: it comes from ESPDIC and cannot be replaced. Every other
+language needs a pack. Ready-made packs are listed at
+<https://legejo.se/languages>, and an admin installs one with a click under
+Admin → Languages. A pack for any other language is made from Wiktionary with
+one command and imported from a zip file or put in the data directory.
 
 ## Build one
 
@@ -41,8 +43,18 @@ Wiktionary's content is licensed CC BY-SA 4.0, and so is a pack made from it.
 
 ## Install
 
-Copy the directory into the data directory under `languages/<code>/` (with
-Docker, `/data/languages/sw/`):
+From the catalogue: Admin → Languages lists the packs at legejo.se with an
+Install button. The server downloads `<code>.zip`, checks it against the
+sha256 in the catalogue and installs it. `LEGEJO_LANGUAGES_URL` points the
+server at another catalogue (an `index.json` and the zips next to it), or,
+set to the empty string, turns the catalogue off.
+
+From a file: zip `pack.json`, `lemmas.tsv` and `forms.tsv` (and optionally a
+`README.txt`) and import the zip under Admin → Languages → Import from a
+file. A pack for a language already there replaces it.
+
+By hand: copy the directory into the data directory under `languages/<code>/`
+(with Docker, `/data/languages/sw/`):
 
 ```
 /data/languages/sw/pack.json
@@ -51,8 +63,7 @@ Docker, `/data/languages/sw/`):
 ```
 
 and restart Legejo. Books in that language are counted again in the
-background and get a study list. A pack here wins over a built-in one for
-the same language, so a newer Spanish pack can be brought the same way.
+background and get a study list.
 
 ## Codes
 
@@ -101,15 +112,16 @@ points at is never shown. Restart Legejo to pick the change up.
 
 ## For developers
 
-The three built-in packs are rebuilt the same way, with `--index`, which
-writes the pre-built look-up index `forms.fst` and `ambiguous.tsv` instead
-of `forms.tsv`, so that nothing is built when the server starts:
+The Spanish, French and German packs the server's tests use
+(`server/tests/packs/`) are built the same way, with `--index`, which writes
+the pre-built look-up index `forms.fst` and `ambiguous.tsv` instead of
+`forms.tsv`, so that nothing is built when a test loads them:
 
 ```sh
 cd server
-cargo run --release --bin langpack -- es Español kaikki.org-dictionary-Spanish.jsonl.gz assets/languages/es --index
-cargo run --release --bin langpack -- fr Français kaikki.org-dictionary-French.jsonl.gz assets/languages/fr --index
-cargo run --release --bin langpack -- de Deutsch kaikki.org-dictionary-German.jsonl.gz assets/languages/de --index
+cargo run --release --bin langpack -- es Español kaikki.org-dictionary-Spanish.jsonl.gz tests/packs/es --index
+cargo run --release --bin langpack -- fr Français kaikki.org-dictionary-French.jsonl.gz tests/packs/fr --index
+cargo run --release --bin langpack -- de Deutsch kaikki.org-dictionary-German.jsonl.gz tests/packs/de --index
 ```
 
 `forms.fst` maps each form to a lemma's line number in `lemmas.tsv`, or,

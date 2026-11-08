@@ -42,7 +42,9 @@ with SQLite built in.
 - **Vocabulary:** for each book, how many of its commonest words cover most
   of the text, its names and characteristic words, and a difficulty compared
   with the other books in the language. Esperanto books get a study list in
-  order of frequency, with English meanings and an export to Anki.
+  order of frequency, with English meanings and an export to Anki; books in
+  other languages get one from a language pack, installed with a click from
+  [legejo.se/languages](https://legejo.se/languages).
 - **E-readers:** Kobo sync (books, collections, progress and highlights),
   a KOReader sync server, OPDS 1.2 and Send to Kindle.
 - **Shelves to share:** with users on your instance, with someone on another

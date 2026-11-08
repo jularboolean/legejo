@@ -1,5 +1,7 @@
-//! Admin → Languages: the language packs an instance has, a pack imported
-//! from a zip, and an imported pack removed again.
+//! Admin → Languages: the language packs an instance has and the ones the
+//! catalogue offers (langcatalogue.rs), a pack installed from the catalogue
+//! or imported from a zip, and a pack removed again. Esperanto needs no
+//! pack: it has ESPDIC, in the binary.
 //!
 //! A zip holds a text pack (`pack.json`, `lemmas.tsv`, `forms.tsv`, and
 //! optionally `README.txt`) at its root or under one top folder. It is
@@ -26,7 +28,7 @@ use axum::extract::{Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path as FsPath;
@@ -39,8 +41,9 @@ const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 /// The files a pack zip may hold, and the ones it must.
 const ALLOWED: [&str; 4] = ["pack.json", "lemmas.tsv", "forms.tsv", "README.txt"];
 const REQUIRED: [&str; 3] = ["pack.json", "lemmas.tsv", "forms.tsv"];
-/// Where packs can be downloaded.
-const CATALOGUE: &str = "https://legejo.se/languages";
+/// Where people find the packs, and how to make one: the page of the
+/// default catalogue, linked whatever LEGEJO_LANGUAGES_URL says.
+const CATALOGUE_PAGE: &str = crate::settings::LANGUAGES_URL;
 
 /// One import or removal at a time in this process.
 static BUSY: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -77,9 +80,6 @@ pub struct Entry {
     source: String,
     license: String,
     attribution: String,
-    built_in: bool,
-    /// Imported for a language the binary has a pack for.
-    replaces_built_in: bool,
     lemmas: usize,
     forms: usize,
     /// Books on the instance in the language, of every user.
@@ -95,8 +95,6 @@ fn entry(pack: &Pack, books: &HashMap<String, i64>) -> Entry {
         source: m.source.clone(),
         license: m.license.clone(),
         attribution: m.attribution.clone(),
-        built_in: m.built_in,
-        replaces_built_in: !m.built_in && crate::langpack::is_built_in(&m.language),
         lemmas: pack.lemma_count(),
         forms: pack.form_count(),
         books: books.get(&m.language).copied().unwrap_or(0),
@@ -111,10 +109,44 @@ async fn books_by_language(state: &AppState) -> Result<HashMap<String, i64>, Api
     Ok(rows.into_iter().collect())
 }
 
+/// A pack of the catalogue, as the admin page shows it.
+#[derive(Serialize)]
+pub struct Available {
+    code: String,
+    name: String,
+    english: String,
+    version: String,
+    lemmas: u64,
+    /// The size of the download.
+    bytes: u64,
+    license: String,
+    attribution: String,
+    /// The version installed, if the language has a pack.
+    installed_version: Option<String>,
+    /// The catalogue's version is newer than the one installed.
+    update: bool,
+    books: i64,
+}
+
+#[derive(Serialize)]
+pub struct Esperanto {
+    books: i64,
+}
+
 #[derive(Serialize)]
 pub struct List {
     packs: Vec<Entry>,
+    /// Built in, through ESPDIC: always there.
+    esperanto: Esperanto,
+    /// The page about packs on legejo.se.
     catalogue: &'static str,
+    /// Where the catalogue is fetched from; None when it is off.
+    catalogue_url: Option<String>,
+    catalogue_error: Option<String>,
+    available: Vec<Available>,
+    /// Languages with books on the instance, a pack in the catalogue and
+    /// none installed: most books first.
+    suggested: Vec<String>,
 }
 
 /// GET /api/admin/languages
@@ -124,11 +156,49 @@ pub async fn list(State(state): State<AppState>, _admin: AdminUser) -> Result<Js
     let installed = tokio::task::spawn_blocking(move || packs.installed_packs()).await.map_err(|e| ApiError::from(internal(e.into())))?;
     let mut packs: Vec<Entry> = installed.iter().map(|p| entry(p, &books)).collect();
     packs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then_with(|| a.code.cmp(&b.code)));
-    Ok(Json(List { packs, catalogue: CATALOGUE }))
+    let (available, catalogue_error) = match crate::langcatalogue::catalogue(&state, false).await {
+        None => (Vec::new(), None),
+        Some(Err(e)) => (Vec::new(), Some(e)),
+        Some(Ok(catalogue)) => {
+            let offers = catalogue
+                .packs
+                .iter()
+                .map(|o| {
+                    let installed = packs.iter().find(|p| p.code == o.code).map(|p| p.version.clone());
+                    Available {
+                        code: o.code.clone(),
+                        name: o.name.clone(),
+                        english: o.english.clone(),
+                        version: o.version.clone(),
+                        lemmas: o.lemmas,
+                        bytes: o.bytes,
+                        license: o.license.clone(),
+                        attribution: o.attribution.clone(),
+                        update: installed.as_deref().is_some_and(|v| crate::langcatalogue::newer(&o.version, v)),
+                        installed_version: installed,
+                        books: books.get(&o.code).copied().unwrap_or(0),
+                    }
+                })
+                .collect();
+            (offers, None)
+        }
+    };
+    let mut suggested: Vec<&Available> = available.iter().filter(|a| a.installed_version.is_none() && a.books > 0).collect();
+    suggested.sort_by(|a, b| b.books.cmp(&a.books).then_with(|| a.code.cmp(&b.code)));
+    let suggested = suggested.into_iter().map(|a| a.code.clone()).collect();
+    Ok(Json(List {
+        packs,
+        esperanto: Esperanto { books: books.get("eo").copied().unwrap_or(0) },
+        catalogue: CATALOGUE_PAGE,
+        catalogue_url: state.settings.languages_url.clone(),
+        catalogue_error,
+        available,
+        suggested,
+    }))
 }
 
 /// Why an import failed: the zip (422, said to the admin) or the server.
-enum Failure {
+pub(crate) enum Failure {
     Bad(String),
     Internal(anyhow::Error),
 }
@@ -238,8 +308,11 @@ fn hidden(languages: &FsPath, code: &str, what: &str) -> std::path::PathBuf {
     languages.join(format!(".{code}.{what}-{}", crate::books::new_uuid()))
 }
 
-/// Unpack, check and install a pack zip; the language's code.
-fn install(languages: &FsPath, bytes: &[u8]) -> Result<String, Failure> {
+/// Unpack, check and install a pack zip; the language's code, and whether
+/// it was installed now. `expect` is the language the pack must be for.
+/// With `if_missing`, a pack there already is kept, also when it appears
+/// while this one is unpacked (another process installing it too).
+fn install(languages: &FsPath, bytes: &[u8], expect: Option<&str>, if_missing: bool) -> Result<(String, bool), Failure> {
     let files = unzip(bytes)?;
     let json = &files.iter().find(|(n, _)| *n == "pack.json").expect("required").1;
     let meta: crate::langpack::Meta = serde_json::from_slice(json).map_err(|e| bad(format!("pack.json: {e}")))?;
@@ -250,6 +323,13 @@ fn install(languages: &FsPath, bytes: &[u8]) -> Result<String, Failure> {
     if !crate::language::is_code(&code) {
         return Err(bad(format!("pack.json: \"{code}\" is not a language code (two or three lower-case letters)")));
     }
+    if let Some(expect) = expect.filter(|e| *e != code) {
+        return Err(bad(format!("pack.json says the pack is for \"{code}\", not \"{expect}\"")));
+    }
+    let there = |dir: &FsPath| dir.join("pack.json").is_file();
+    if if_missing && there(&languages.join(&code)) {
+        return Ok((code, false));
+    }
     std::fs::create_dir_all(languages)?;
     let tmp = hidden(languages, &code, "tmp");
     let result = (|| {
@@ -259,6 +339,9 @@ fn install(languages: &FsPath, bytes: &[u8]) -> Result<String, Failure> {
         }
         crate::langpack::check_dir(&tmp, &code).map_err(|e| bad(format!("the pack cannot be loaded: {e:#}")))?;
         let dir = languages.join(&code);
+        if if_missing && there(&dir) {
+            return Ok(false);
+        }
         let old = if dir.exists() {
             let old = hidden(languages, &code, "old");
             std::fs::rename(&dir, &old)?;
@@ -270,6 +353,9 @@ fn install(languages: &FsPath, bytes: &[u8]) -> Result<String, Failure> {
             if let Some(old) = &old {
                 let _ = std::fs::rename(old, &dir);
             }
+            if if_missing && there(&dir) {
+                return Ok(false);
+            }
             return Err(e.into());
         }
         if let Some(old) = old {
@@ -277,12 +363,29 @@ fn install(languages: &FsPath, bytes: &[u8]) -> Result<String, Failure> {
                 tracing::warn!("language pack: could not remove {}: {e}", old.display());
             }
         }
-        Ok(())
+        Ok(true)
     })();
-    if result.is_err() && tmp.exists() {
+    if tmp.exists() {
         let _ = std::fs::remove_dir_all(&tmp);
     }
-    result.map(|()| code)
+    result.map(|now| (code, now))
+}
+
+/// Install a pack zip and load it: the one way in for an imported zip and a
+/// download from the catalogue alike. The pack, and whether it was
+/// installed now (see `install` for `expect` and `if_missing`).
+pub(crate) async fn install_zip(state: &AppState, bytes: Vec<u8>, expect: Option<&str>, if_missing: bool) -> Result<(Arc<Pack>, bool), Failure> {
+    let _busy = BUSY.lock().await;
+    let languages = state.packs.dir();
+    let packs = state.packs.clone();
+    let expect = expect.map(str::to_string);
+    tokio::task::spawn_blocking(move || -> Result<(Arc<Pack>, bool), Failure> {
+        let (code, now) = install(&languages, &bytes, expect.as_deref(), if_missing)?;
+        let pack = packs.reload(&code).ok_or_else(|| Failure::Internal(anyhow::anyhow!("the pack for {code} was installed but does not load")))?;
+        Ok((pack, now))
+    })
+    .await
+    .map_err(|e| Failure::Internal(e.into()))?
 }
 
 /// POST /api/admin/languages: a pack zip in the multipart field `file`.
@@ -301,17 +404,8 @@ pub async fn import(State(state): State<AppState>, admin: AdminUser, mut multipa
     if bytes.len() > MAX_ZIP_BYTES {
         return Err(error(StatusCode::PAYLOAD_TOO_LARGE, format!("the zip is larger than {} MB", MAX_ZIP_BYTES / (1024 * 1024))).into());
     }
-    let _busy = BUSY.lock().await;
-    let languages = state.packs.dir();
-    let packs = state.packs.clone();
-    let done = tokio::task::spawn_blocking(move || -> Result<Arc<Pack>, Failure> {
-        let code = install(&languages, &bytes)?;
-        packs.reload(&code).ok_or_else(|| Failure::Internal(anyhow::anyhow!("the pack for {code} was installed but does not load")))
-    })
-    .await
-    .map_err(|e| ApiError::from(internal(e.into())))?;
-    let pack = match done {
-        Ok(pack) => pack,
+    let pack = match install_zip(&state, Vec::from(bytes), None, false).await {
+        Ok((pack, _)) => pack,
         Err(Failure::Bad(message)) => return Err(error(StatusCode::UNPROCESSABLE_ENTITY, message).into()),
         Err(Failure::Internal(e)) => return Err(internal(e).into()),
     };
@@ -327,8 +421,40 @@ pub async fn import(State(state): State<AppState>, admin: AdminUser, mut multipa
     Ok(Json(entry(&pack, &books)))
 }
 
-/// DELETE /api/admin/languages/{code}: an imported pack; the built-in one
-/// for the language, if there is one, takes its place again.
+#[derive(Deserialize)]
+pub struct InstallForm {
+    code: String,
+}
+
+/// POST /api/admin/languages/install `{"code": "nl"}`: the catalogue's pack
+/// for a language, downloaded and installed (or updated).
+pub async fn install_from_catalogue(State(state): State<AppState>, admin: AdminUser, Json(form): Json<InstallForm>) -> Result<Json<Entry>, ApiError> {
+    use crate::langcatalogue::InstallError;
+    let code = form.code;
+    if code == "eo" || !crate::language::is_code(&code) {
+        return Err(error(StatusCode::NOT_FOUND, "the catalogue has no pack for this language").into());
+    }
+    let pack = match crate::langcatalogue::install(&state, &code, false).await {
+        Ok((pack, _)) => pack,
+        Err(InstallError::Off) => return Err(error(StatusCode::CONFLICT, "the catalogue is off (LEGEJO_LANGUAGES_URL)").into()),
+        Err(InstallError::Unknown) => return Err(error(StatusCode::NOT_FOUND, "the catalogue has no pack for this language").into()),
+        Err(InstallError::Upstream(message)) => return Err(error(StatusCode::BAD_GATEWAY, message).into()),
+        Err(InstallError::Internal(e)) => return Err(internal(e).into()),
+    };
+    tracing::info!("admin: {} installed the language pack {} version {} from the catalogue", admin.0.username, pack.meta.language, pack.meta.version);
+    crate::audit::log(
+        &state,
+        crate::audit::by(&admin.0),
+        "admin.language_installed",
+        serde_json::json!({ "code": pack.meta.language, "name": pack.meta.name, "version": pack.meta.version }),
+    )
+    .await;
+    let books = books_by_language(&state).await?;
+    Ok(Json(entry(&pack, &books)))
+}
+
+/// DELETE /api/admin/languages/{code}: an installed pack; the books in the
+/// language have no study list until a pack comes again.
 pub async fn remove(State(state): State<AppState>, admin: AdminUser, Path(code): Path<String>) -> Result<StatusCode, ApiError> {
     if !crate::language::is_code(&code) {
         return Err(error(StatusCode::NOT_FOUND, "not found").into());
@@ -337,14 +463,9 @@ pub async fn remove(State(state): State<AppState>, admin: AdminUser, Path(code):
     let languages = state.packs.dir();
     let dir = languages.join(&code);
     if !dir.is_dir() {
-        return Err(if crate::langpack::is_built_in(&code) {
-            error(StatusCode::CONFLICT, "a built-in pack cannot be removed")
-        } else {
-            error(StatusCode::NOT_FOUND, "not found")
-        }
-        .into());
+        return Err(error(StatusCode::NOT_FOUND, "not found").into());
     }
-    let name = state.packs.get(&code).filter(|p| !p.meta.built_in).map(|p| p.meta.name.clone()).unwrap_or_default();
+    let name = state.packs.get(&code).map(|p| p.meta.name.clone()).unwrap_or_default();
     let packs = state.packs.clone();
     let code_ = code.clone();
     tokio::task::spawn_blocking(move || -> std::io::Result<()> {

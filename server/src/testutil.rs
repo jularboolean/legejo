@@ -29,7 +29,15 @@ pub async fn test_app_private() -> (Router, AnyPool, AppState) {
 }
 
 async fn test_app_with(fed: std::sync::Arc<crate::fed::Fed>) -> (Router, AnyPool, AppState) {
-    build(fed, crate::settings::Settings::default()).await
+    // No catalogue of language packs: tests do not reach legejo.se.
+    build(fed, crate::settings::Settings { languages_url: None, ..crate::settings::Settings::default() }).await
+}
+
+/// Install one of the test language packs (server/tests/packs: es, fr, de)
+/// in the test's data directory, as the catalogue would.
+pub fn install_pack(state: &AppState, code: &str) {
+    crate::langpack::install_fixture(&state.data_dir, code);
+    state.packs.reload(code).unwrap_or_else(|| panic!("the test pack {code} does not load"));
 }
 
 async fn build(fed: std::sync::Arc<crate::fed::Fed>, settings: crate::settings::Settings) -> (Router, AnyPool, AppState) {

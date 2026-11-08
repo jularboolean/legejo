@@ -115,7 +115,15 @@ pub struct Settings {
     /// Log all that is said with a Kobo (kobotrace.rs). Off unless
     /// LEGEJO_KOBO_TRACE=true.
     pub kobo_trace: bool,
+    /// Where the catalogue of language packs is (langcatalogue.rs):
+    /// LEGEJO_LANGUAGES_URL, by default https://legejo.se/languages. None
+    /// when it is set to the empty string: no catalogue, packs only from a
+    /// file.
+    pub languages_url: Option<String>,
 }
+
+/// The catalogue of language packs when LEGEJO_LANGUAGES_URL is not set.
+pub const LANGUAGES_URL: &str = "https://legejo.se/languages";
 
 #[derive(Clone, Debug)]
 pub struct DictionaryServices {
@@ -190,6 +198,7 @@ impl Default for Settings {
             dictionary: DictionaryServices::default(),
             shelf_suggestions: true,
             kobo_trace: false,
+            languages_url: Some(LANGUAGES_URL.to_string()),
         }
     }
 }
@@ -236,7 +245,7 @@ impl Settings {
             Some(_) => Some(flag("LEGEJO_FULLTEXT")?),
             None => None,
         };
-        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()?, kobo_trace: flag("LEGEJO_KOBO_TRACE")? })
+        Ok(Settings { limits, max_upload_bytes: max_upload_mb as usize * 1024 * 1024, metrics, import, audio_import, secure_cookies, mcp, fulltext, kobo: d.kobo, dictionary: d.dictionary, shelf_suggestions: shelf_suggestions()?, kobo_trace: flag("LEGEJO_KOBO_TRACE")?, languages_url: languages_url()? })
     }
 }
 
@@ -254,6 +263,22 @@ pub fn ai_from_env() -> anyhow::Result<Option<Ai>> {
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
         model: var("LEGEJO_AI_MODEL")?.map(|m| m.trim().to_string()).unwrap_or_else(|| "gpt-5.4-mini".to_string()),
     }))
+}
+
+/// LEGEJO_LANGUAGES_URL: unset, the default catalogue; set but empty, none
+/// (`var` takes empty for unset, so the variable is read here itself).
+fn languages_url() -> anyhow::Result<Option<String>> {
+    let raw = match std::env::var("LEGEJO_LANGUAGES_URL") {
+        Ok(v) => v,
+        Err(std::env::VarError::NotPresent) => return Ok(Some(LANGUAGES_URL.to_string())),
+        Err(e) => anyhow::bail!("LEGEJO_LANGUAGES_URL: {e}"),
+    };
+    let url = raw.trim().trim_end_matches('/');
+    if url.is_empty() {
+        return Ok(None);
+    }
+    anyhow::ensure!(url.starts_with("https://") || url.starts_with("http://"), "LEGEJO_LANGUAGES_URL must be an http(s) address, not {raw:?}");
+    Ok(Some(url.to_string()))
 }
 
 /// LEGEJO_SHELF_SUGGESTIONS: on unless "off" (or "false", "0", "no").

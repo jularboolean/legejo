@@ -599,7 +599,11 @@ kaj ili ne estas kalkulataj. La vortoj, kiujn vi scias, estas kaŝitaj de la lis
 <strong>Kaŝi vortojn, kiujn mi scias</strong>.</p>
 <p>La anglaj signifoj venas el ESPDIC, la Esperanto–angla vortaro de Paul Denisowski (CC BY 3.0),
 enkonstruita en Legejo; neniu alia servilo estas demandata pri ili. Vorto, kiu ne estas en ĝi tia,
-kia ĝi staras, estas trovata per sia radiko: <em>hundetegojn</em> kiel <em>hundeto</em>.</p>"""),
+kia ĝi staras, estas trovata per sia radiko: <em>hundetegojn</em> kiel <em>hundeto</em>.</p>
+<p>Libroj en aliaj lingvoj ricevas la saman liston, kiam la instanco havas lingvopakon por la
+lingvo: administranto instalas ĝin per unu klako en la paĝo <strong>Administrado</strong>, sub
+<strong>Lingvoj</strong>, el tiuj listigitaj ĉe <code>legejo.se/languages</code>. La signifoj en
+pako venas el Vikivortaro, en la angla.</p>"""),
 
  ]),
 
