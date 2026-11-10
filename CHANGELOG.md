@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.47.2 (2026-11-10)
+
+- **`LEGEJO_PUBLIC_URL` is checked at start.** The address must begin with
+  `http://` or `https://` and have nothing after the host and port, as the
+  field under Admin → Connections already asks. Until now anything was
+  taken, and a value such as `192.168.1.10:3000` gave a Kobo that synced
+  but could not download its books, and mail with links that led nowhere.
+  **A server whose variable is not such an address no longer starts**, and
+  says what is wrong in its log: correct the value, or leave it empty.
+
 ## 1.47.1 (2026-11-10)
 
 - **A language pack's extras take little memory.** The server read what
