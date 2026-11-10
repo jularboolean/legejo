@@ -106,7 +106,7 @@ works with Docker and Kubernetes secrets.
 | `LEGEJO_DATA_DIR` | `/data` | Book files, covers and the SQLite database; with `LEGEJO_STORAGE`, a cache of the bucket |
 | `LEGEJO_STORAGE` | | `s3://bucket/prefix`: keep book files, covers, audiobooks, avatars and exports in an S3 bucket, with the `AWS_*` variables above |
 | `LEGEJO_ADDR` | `0.0.0.0:3000` | Address to listen on |
-| `LEGEJO_PUBLIC_URL` | | The public `https://` address of the instance |
+| `LEGEJO_PUBLIC_URL` | | The address the instance is reached on: `https://books.example.org`, or on a local network `http://192.168.1.10:3000`. A Kobo downloads its books from it |
 | `LEGEJO_SECURE_COOKIES` | on with an `https` public URL | Mark session cookies `Secure`. Set to `false` to serve over plain HTTP |
 | `LEGEJO_ADMIN_USER` | `admin` | Initial admin account, made at the start when the database is empty and `LEGEJO_ADMIN_PASSWORD` is set |
 | `LEGEJO_ADMIN_PASSWORD` | | Its password. Unset, the first visitor creates the admin in the browser |

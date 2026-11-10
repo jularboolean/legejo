@@ -692,7 +692,8 @@ borrowed through Kobo Plus, do not arrive. Books already on the device stay, and
 account stays signed in. To shop on the device again, set <code>api_endpoint=</code> back to
 <code>https://storeapi.kobo.com</code>.</p>
 <p>The instance must be reachable from the Kobo at the address in
-<code>LEGEJO_PUBLIC_URL</code> (Recipe 1.4).</p>
+<code>LEGEJO_PUBLIC_URL</code> (Recipe 1.4): the device downloads its books from it. On a local
+network without a domain, that is an address such as <code>http://192.168.1.10:3000</code>.</p>
 <p>Once the device has synced, the same place on the Account page lists it under
 <strong>Your Kobo devices</strong>, with when it was last seen, and says how the last sync
 went: what was sent, or that it failed and with what. That is where to look first when
@@ -1034,7 +1035,7 @@ Both ways are noted in the system log (Recipe 12.5).</p>"""),
 <tr><td><code>DATABASE_URL</code></td><td>SQLite in the data directory</td><td><code>postgres://…</code> or <code>sqlite://…</code></td></tr>
 <tr><td><code>LEGEJO_DATA_DIR</code></td><td><code>/data</code></td><td>Book files, covers and the SQLite database</td></tr>
 <tr><td><code>LEGEJO_ADDR</code></td><td><code>0.0.0.0:3000</code></td><td>Address to listen on</td></tr>
-<tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>The public <code>https://</code> address</td></tr>
+<tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>The address the instance is reached on, <code>https://</code> or on a local network <code>http://</code></td></tr>
 <tr><td><code>LEGEJO_SECURE_COOKIES</code></td><td>on with <code>https</code></td><td><code>false</code> to serve over plain HTTP</td></tr>
 <tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>First admin, made at the start with the password below</td></tr>
 <tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td></td><td>Its password; unset, the first visitor creates the admin in the browser</td></tr>

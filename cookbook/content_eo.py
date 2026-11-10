@@ -699,7 +699,8 @@ pruntitaj per Kobo Plus, ne alvenas. Libroj jam en la aparato restas, kaj via Ko
 ensalutinta. Por denove aĉeti en la aparato, remetu <code>api_endpoint=</code> al
 <code>https://storeapi.kobo.com</code>.</p>
 <p>La instanco devas esti atingebla de la Kobo ĉe la adreso en
-<code>LEGEJO_PUBLIC_URL</code> (Recepto 1.4).</p>
+<code>LEGEJO_PUBLIC_URL</code> (Recepto 1.4): la aparato elŝutas siajn librojn de ĝi. En loka reto
+sen domajno, tio estas adreso kiel <code>http://192.168.1.10:3000</code>.</p>
 <p>Post kiam la aparato sinkroniĝis, la sama loko sur la paĝo Konto listigas ĝin sub
 <strong>Viaj Kobo-aparatoj</strong>, kun la tempo, kiam ĝi laste estis vidata, kaj diras, kiel
 iris la lasta sinkronigo: kio estis sendita, aŭ ke ĝi malsukcesis kaj kun kia eraro. Tie unue
@@ -1046,7 +1047,7 @@ funkcias. Ambaŭ manieroj estas notataj en la sistema protokolo (Recepto 12.5).<
 <tr><td><code>DATABASE_URL</code></td><td>SQLite en la datumdosierujo</td><td><code>postgres://…</code> aŭ <code>sqlite://…</code></td></tr>
 <tr><td><code>LEGEJO_DATA_DIR</code></td><td><code>/data</code></td><td>Librodosieroj, kovriloj kaj la SQLite-datumbazo</td></tr>
 <tr><td><code>LEGEJO_ADDR</code></td><td><code>0.0.0.0:3000</code></td><td>Adreso, ĉe kiu aŭskulti</td></tr>
-<tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>La publika adreso <code>https://</code></td></tr>
+<tr><td><code>LEGEJO_PUBLIC_URL</code></td><td></td><td>La adreso, ĉe kiu la instanco estas atingata, <code>https://</code> aŭ en loka reto <code>http://</code></td></tr>
 <tr><td><code>LEGEJO_SECURE_COOKIES</code></td><td>ŝaltita kun <code>https</code></td><td><code>false</code> por servi per simpla HTTP</td></tr>
 <tr><td><code>LEGEJO_ADMIN_USER</code></td><td><code>admin</code></td><td>Unua administranto, kreata ĉe la starto kun la suba pasvorto</td></tr>
 <tr><td><code>LEGEJO_ADMIN_PASSWORD</code></td><td></td><td>Ĝia pasvorto; sen ĝi la unua vizitanto kreas la administranton en la retumilo</td></tr>
