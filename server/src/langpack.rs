@@ -115,6 +115,78 @@ impl Extras {
     }
 }
 
+/// The index over tags.tsv, read a line at a time: the file of a large
+/// language is tens of megabytes, and is never held whole. The builder
+/// writes the lines in the order of the index (by lemma, then form), and
+/// then each goes straight into it; a file in another order (edited by
+/// hand) is read again, its keys sorted first.
+fn read_tags(path: &Path, hash: &mut Sha256, kinds: &mut Vec<String>) -> anyhow::Result<fst::Map<Vec<u8>>> {
+    use std::io::BufRead;
+    /// The lines as (key, kind), each kind numbered as it is first seen.
+    fn lines<'a>(
+        path: &Path,
+        kinds: &'a mut Vec<String>,
+        kind_ids: &'a mut HashMap<String, u64>,
+        mut hash: Option<&'a mut Sha256>,
+    ) -> anyhow::Result<impl Iterator<Item = anyhow::Result<(String, u64)>> + 'a> {
+        let reader = std::io::BufReader::new(std::fs::File::open(path)?);
+        Ok(reader.lines().filter_map(move |line| {
+            let line = match line {
+                Ok(line) => line,
+                Err(e) => return Some(Err(e.into())),
+            };
+            if let Some(hash) = hash.as_deref_mut() {
+                hash.update(line.as_bytes());
+                hash.update(b"\n");
+            }
+            let mut parts = line.splitn(3, '\t');
+            let (Some(form), Some(lemma), Some(kind)) = (parts.next(), parts.next(), parts.next()) else { return None };
+            if form.is_empty() || lemma.is_empty() || kind.is_empty() {
+                return None;
+            }
+            let id = match kind_ids.get(kind) {
+                Some(id) => *id,
+                None => {
+                    let id = kinds.len() as u64;
+                    kind_ids.insert(kind.to_string(), id);
+                    kinds.push(kind.to_string());
+                    id
+                }
+            };
+            Some(Ok((format!("{lemma}\t{form}"), id)))
+        }))
+    }
+    let mut kind_ids: HashMap<String, u64> = HashMap::new();
+    let mut builder = fst::MapBuilder::memory();
+    let mut last: Option<String> = None;
+    let mut in_order = true;
+    for entry in lines(path, kinds, &mut kind_ids, Some(hash))? {
+        let (key, id) = entry?;
+        match last.as_deref().map(|l| l.cmp(key.as_str())) {
+            Some(std::cmp::Ordering::Equal) => continue,
+            Some(std::cmp::Ordering::Greater) => {
+                in_order = false;
+                break;
+            }
+            _ => {}
+        }
+        builder.insert(&key, id)?;
+        last = Some(key);
+    }
+    if in_order {
+        return Ok(fst::Map::new(builder.into_inner()?)?);
+    }
+    // Not in order: every key at once, sorted. The kinds keep their numbers.
+    let mut keys: Vec<(String, u64)> = lines(path, kinds, &mut kind_ids, None)?.collect::<anyhow::Result<_>>()?;
+    keys.sort();
+    keys.dedup_by(|a, b| a.0 == b.0);
+    let mut builder = fst::MapBuilder::memory();
+    for (key, id) in keys {
+        builder.insert(key, id)?;
+    }
+    Ok(fst::Map::new(builder.into_inner()?)?)
+}
+
 /// The extras in a pack's directory; None when it has neither tags.tsv nor
 /// frequency.tsv. A line that cannot be used is passed over.
 fn read_extras(dir: &Path, pack: &Pack) -> anyhow::Result<Option<Extras>> {
@@ -123,8 +195,9 @@ fn read_extras(dir: &Path, pack: &Pack) -> anyhow::Result<Option<Extras>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(anyhow::Error::from(e).context(name.to_string())),
     };
-    let (tags_text, frequency_text) = (read("tags.tsv")?, read("frequency.tsv")?);
-    if tags_text.is_none() && frequency_text.is_none() {
+    let tags_path = dir.join("tags.tsv");
+    let frequency_text = read("frequency.tsv")?;
+    if !tags_path.is_file() && frequency_text.is_none() {
         return Ok(None);
     }
     let meta: ExtrasMeta = match read("extras.json")? {
@@ -133,34 +206,7 @@ fn read_extras(dir: &Path, pack: &Pack) -> anyhow::Result<Option<Extras>> {
     };
     let mut hash = Sha256::new();
     let mut kinds: Vec<String> = Vec::new();
-    let tags = match &tags_text {
-        Some(text) => {
-            hash.update(text.as_bytes());
-            let mut kind_ids: HashMap<&str, u64> = HashMap::new();
-            let mut keys: Vec<(String, u64)> = Vec::new();
-            for line in text.lines() {
-                let mut parts = line.splitn(3, '\t');
-                let (Some(form), Some(lemma), Some(kind)) = (parts.next(), parts.next(), parts.next()) else { continue };
-                if form.is_empty() || lemma.is_empty() || kind.is_empty() {
-                    continue;
-                }
-                let next = kind_ids.len() as u64;
-                let id = *kind_ids.entry(kind).or_insert_with(|| {
-                    kinds.push(kind.to_string());
-                    next
-                });
-                keys.push((format!("{lemma}\t{form}"), id));
-            }
-            keys.sort();
-            keys.dedup_by(|a, b| a.0 == b.0);
-            let mut builder = fst::MapBuilder::memory();
-            for (key, id) in keys {
-                builder.insert(key, id)?;
-            }
-            Some(fst::Map::new(builder.into_inner()?)?)
-        }
-        None => None,
-    };
+    let tags = if tags_path.is_file() { Some(read_tags(&tags_path, &mut hash, &mut kinds).context("tags.tsv")?) } else { None };
     let mut ranks = HashMap::new();
     if let Some(text) = &frequency_text {
         hash.update(text.as_bytes());
@@ -727,6 +773,23 @@ mod tests {
         let forms: Vec<String> = extras.forms_of("blorp").into_iter().map(|(f, _)| f).collect();
         assert_eq!(forms, ["blorped", "blorping", "flib"]);
         assert!(extras.forms_of("blor").is_empty() && extras.forms_of("zzz").is_empty());
+        // The same lines in the builder's order (by lemma, then form) are
+        // read straight into the index, and say the same.
+        let unordered = std::fs::read_to_string(xx_dir.join("tags.tsv")).unwrap();
+        let mut ordered: Vec<&str> = unordered.lines().filter(|l| l.matches('\t').count() == 2).collect();
+        ordered.sort_by_key(|l| {
+            let mut parts = l.split('\t');
+            let form = parts.next().unwrap();
+            (parts.next().unwrap(), form)
+        });
+        let other = dir.join("languages/yy");
+        write_xx(&other, "to run", "1");
+        std::fs::write(other.join("tags.tsv"), ordered.join("\n") + "\n").unwrap();
+        let (mut hash, mut kinds) = (Sha256::new(), Vec::new());
+        let index = read_tags(&other.join("tags.tsv"), &mut hash, &mut kinds).unwrap();
+        assert_eq!(index.len(), 4);
+        assert_eq!(kinds[index.get("blorp\tblorped").unwrap() as usize], "past");
+        assert_eq!(kinds[index.get("zam\tzams").unwrap() as usize], "plural");
         // Ranks by the pack's lemmas: a word it does not have takes no rank.
         let rank = |w: &str| extras.rank(xx.line_of(w).unwrap());
         assert_eq!((rank("ko"), rank("blorp"), rank("zam"), rank("flib")), (Some(1), Some(2), Some(3), None));
