@@ -5,6 +5,7 @@ mod account;
 mod pdfnotes;
 mod directory;
 mod admin;
+mod analysis;
 mod annotations;
 mod app_passwords;
 mod oidc;
@@ -111,6 +112,8 @@ mod authorfacts_tests;
 mod changelog;
 mod read_state_tests;
 mod shelflink_tests;
+#[cfg(test)]
+mod analysis_tests;
 #[cfg(test)]
 mod annotation_tests;
 
@@ -244,6 +247,9 @@ fn router(state: AppState) -> Router {
         .route("/dictionary", get(dictionary::lookup))
         .route("/books/{id}/vocabulary", get(vocabulary::for_book))
         .route("/books/{id}/vocabulary/word", get(vocabulary::word_in_book))
+        .route("/books/{id}/analysis", get(analysis::for_book))
+        .route("/books/{id}/analysis/concordance", get(analysis::concordance))
+        .route("/analysis/forms", get(analysis::forms))
         .route("/vocabulary/known", get(vocabulary::known_list).put(vocabulary::known_set))
         .route("/vocabulary/known/words", get(vocabulary::known_words))
         .route("/vocabulary/known/many", axum::routing::put(vocabulary::known_many))

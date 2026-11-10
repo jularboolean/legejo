@@ -30,6 +30,28 @@ const FORMAT: u32 = 1;
 /// A form's value in the fst: a lemma's line number, or with this bit set
 /// the number of a line in ambiguous.tsv.
 const AMBIGUOUS: u64 = 1 << 40;
+
+/// The tags of an inflected form that say what it is, in the order they are
+/// written to tags.tsv. kaikki's other tags (regions, registers, notes about
+/// the table) are left out.
+const GRAMMAR_TAGS: &[&str] = &[
+    "first-person", "second-person", "third-person", "singular", "plural", "masculine", "feminine", "neuter", "present", "preterite",
+    "imperfect", "past", "future", "perfect", "pluperfect", "indicative", "subjunctive", "conditional", "imperative", "infinitive",
+    "gerund", "participle", "nominative", "accusative", "genitive", "dative", "comparative", "superlative", "definite", "indefinite",
+];
+/// Lemmas listed in frequency.tsv at most.
+const FREQUENCY_LEMMAS: usize = 20_000;
+
+/// What a form's tags say it is ("third-person singular preterite
+/// indicative"), or None when they say nothing of the kind or kaikki could
+/// not read the table.
+fn grammar_tags(tags: &[String]) -> Option<String> {
+    if tags.iter().any(|t| t.starts_with("error-")) {
+        return None;
+    }
+    let kept: Vec<&str> = GRAMMAR_TAGS.iter().copied().filter(|g| tags.iter().any(|t| t == g)).collect();
+    (!kept.is_empty()).then(|| kept.join(" "))
+}
 /// The longest gloss written for a lemma, in characters.
 const MAX_GLOSS: usize = 110;
 /// A gloss longer than this gives way to a shorter sense of the same part
@@ -870,6 +892,9 @@ struct Builder {
     lemmas: HashMap<u32, LemmaInfo>,
     /// form -> (lemma key id, how)
     forms: HashMap<String, Vec<(u32, Kind)>>,
+    /// What an inflection table says a form of a lemma is: (form, lemma key
+    /// id) -> each thing it can be.
+    tags: HashMap<(String, u32), std::collections::BTreeSet<String>>,
     /// Little words that are only forms of others: (key id, part of
     /// speech, targets), resolved in `finish` (rule 2).
     borrows: Vec<Borrow>,
@@ -883,6 +908,8 @@ struct Builder {
 struct Pack {
     lines: Vec<Line>,
     forms: BTreeMap<String, Vec<u32>>,
+    /// (lemma key, form) -> what the form can be, for tags.tsv.
+    tags: BTreeMap<(String, String), Vec<String>>,
     stats: Stats,
     /// The language's English name, as the dump says.
     lang: String,
@@ -1045,6 +1072,9 @@ impl Builder {
             // Rule 12: a form with a space (German "kommt an") cannot be looked up.
             let Some(form) = key_of(&f.form) else { continue };
             self.stats.table_links += 1;
+            if let Some(what) = grammar_tags(&f.tags) {
+                self.tags.entry((form.clone(), id)).or_default().insert(what);
+            }
             self.link(&form, id, Kind { table: true, stated: false });
         }
     }
@@ -1091,7 +1121,7 @@ impl Builder {
 
     fn finish(mut self) -> Pack {
         self.resolve_borrows();
-        let Builder { keys, key_index, lemmas, forms, mut stats, lang, lang_code, .. } = self;
+        let Builder { keys, key_index, lemmas, forms, tags, mut stats, lang, lang_code, .. } = self;
         let mut lines: Vec<(u32, Line)> = lemmas.iter().filter_map(|(id, info)| compose(&keys[*id as usize], info).map(|l| (*id, l))).collect();
         lines.sort_by(|a, b| a.1.key.as_bytes().cmp(b.1.key.as_bytes()));
         let line_of: HashMap<u32, u32> = lines.iter().enumerate().map(|(n, (id, _))| (*id, n as u32)).collect();
@@ -1122,7 +1152,15 @@ impl Builder {
                 out.insert(form, numbers);
             }
         }
-        Pack { lines: lines.into_iter().map(|(_, l)| l).collect(), forms: out, stats, lang, lang_code }
+        // The tags of the forms that are kept as forms of their lemma.
+        let tags = tags
+            .into_iter()
+            .filter_map(|((form, id), what)| {
+                let n = *line_of.get(&id)?;
+                out.get(&form)?.contains(&n).then(|| ((lines[n as usize].1.key.clone(), form), what.into_iter().collect()))
+            })
+            .collect();
+        Pack { lines: lines.into_iter().map(|(_, l)| l).collect(), forms: out, tags, stats, lang, lang_code }
     }
 }
 
@@ -1229,6 +1267,57 @@ fn write_pack(pack: &Pack, dir: &Path, index: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// tags.tsv: per line a form, its lemma and what the form is, the several
+/// things it can be separated by semicolons.
+fn write_tags(pack: &Pack, dir: &Path) -> anyhow::Result<usize> {
+    let mut out = BufWriter::new(File::create(dir.join("tags.tsv"))?);
+    for ((lemma, form), what) in &pack.tags {
+        writeln!(out, "{form}\t{lemma}\t{}", what.join(";"))?;
+    }
+    out.flush()?;
+    Ok(pack.tags.len())
+}
+
+/// The lemmas of a pack in order of frequency, from a list of words as
+/// written with their counts ("de 123456" per line, most common first; a
+/// list without counts is taken in its order). A word's count goes to the
+/// lemma spelt like it, else is shared by the lemmas it can be a form of.
+fn frequency(pack: &Pack, reader: impl BufRead) -> anyhow::Result<Vec<String>> {
+    let mut score: HashMap<u32, f64> = HashMap::new();
+    for (n, line) in reader.lines().enumerate() {
+        let line = line.with_context(|| format!("reading line {}", n + 1))?;
+        let mut parts = line.split_whitespace();
+        let Some(word) = parts.next().and_then(key_of) else { continue };
+        // Without a count: a weight that falls with the line, as Zipf has it.
+        let count = parts.next().and_then(|c| c.parse::<f64>().ok()).unwrap_or(1.0 / (n as f64 + 1.0));
+        let Some(lemmas) = pack.forms.get(&word) else { continue };
+        match lemmas.iter().find(|l| pack.lines[**l as usize].key == word) {
+            Some(own) => *score.entry(*own).or_default() += count,
+            None => {
+                for l in lemmas {
+                    *score.entry(*l).or_default() += count / lemmas.len() as f64;
+                }
+            }
+        }
+    }
+    let mut ranked: Vec<(u32, f64)> = score.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Ok(ranked.into_iter().take(FREQUENCY_LEMMAS).map(|(l, _)| pack.lines[l as usize].key.clone()).collect())
+}
+
+/// extras.json: what the extra files are and, for the frequency list, where
+/// it comes from.
+fn write_extras_meta(dir: &Path, code: &str, tags: bool, frequency: Option<&str>) -> anyhow::Result<()> {
+    let q = |s: &str| serde_json::to_string(s).unwrap_or_default();
+    let mut json = format!("{{\n  \"format\": {FORMAT},\n  \"language\": {},\n  \"version\": {},\n  \"tags\": {tags}", q(code), q(&today()));
+    if let Some(source) = frequency {
+        json.push_str(&format!(",\n  \"frequency\": {}", q(source)));
+    }
+    json.push_str("\n}\n");
+    std::fs::write(dir.join("extras.json"), json)?;
+    Ok(())
+}
+
 /// What came out, for a look before the pack is used.
 fn summary(pack: &Pack, code: &str) -> String {
     let s = &pack.stats;
@@ -1270,13 +1359,27 @@ fn open(path: &Path) -> anyhow::Result<Box<dyn BufRead>> {
     Ok(Box::new(BufReader::with_capacity(1 << 20, reader)))
 }
 
-const USAGE: &str = "usage: langpack <code> \"<Name>\" <kaikki.jsonl.gz> <out dir> [--index]\n\
+const USAGE: &str = "usage: langpack <code> \"<Name>\" <kaikki.jsonl.gz> <out dir> [--index] [--tags] [--frequency <word list> \"<its source and licence>\"]\n\
     e.g.   langpack sw Kiswahili kaikki.org-dictionary-Swahili.jsonl.gz sw";
 
 fn main() -> anyhow::Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let index = args.iter().any(|a| a == "--index");
-    args.retain(|a| a != "--index");
+    let mut flag = |name: &str| {
+        let found = args.iter().any(|a| a == name);
+        args.retain(|a| a != name);
+        found
+    };
+    let index = flag("--index");
+    let tags = flag("--tags");
+    // --frequency takes the list and a line saying where it comes from.
+    let words = match args.iter().position(|a| a == "--frequency") {
+        Some(at) if at + 2 < args.len() => {
+            let taken: Vec<String> = args.drain(at..at + 3).collect();
+            Some((PathBuf::from(&taken[1]), taken[2].clone()))
+        }
+        Some(_) => bail!("--frequency takes a word list and a line about its source: {USAGE}"),
+        None => None,
+    };
     let [code, name, src, out] = args.as_slice() else { bail!("{USAGE}") };
     if code.is_empty() || code.len() > 3 || !code.chars().all(|c| c.is_ascii_lowercase()) {
         bail!("the language code must be two or three lower-case letters, like sw: {USAGE}");
@@ -1297,6 +1400,21 @@ fn main() -> anyhow::Result<()> {
     write_meta(&out, code, name, &aliases(code, name, &pack.lang))?;
     print!("{}", summary(&pack, code));
     println!("written to {}{}", out.display(), if index { " with forms.fst and ambiguous.tsv" } else { "" });
+    if tags {
+        let n = write_tags(&pack, &out)?;
+        println!("tags.tsv: {n} forms said to be something by an inflection table");
+    }
+    if let Some((list, _)) = &words {
+        let ranked = frequency(&pack, open(list)?).with_context(|| format!("reading {}", list.display()))?;
+        if ranked.is_empty() {
+            bail!("{} names no word the pack knows; is it a list of words with their counts?", list.display());
+        }
+        std::fs::write(out.join("frequency.tsv"), ranked.join("\n") + "\n")?;
+        println!("frequency.tsv: {} lemmas in order of frequency", ranked.len());
+    }
+    if tags || words.is_some() {
+        write_extras_meta(&out, code, tags, words.as_ref().map(|(_, source)| source.as_str()))?;
+    }
     Ok(())
 }
 
@@ -1709,5 +1827,35 @@ mod tests {
         assert!(build(BufReader::new("".as_bytes())).is_err());
         let summary = summary(&pack(), "xx");
         assert!(summary.contains("0 lemmas without a gloss") && summary.contains("nos\tpron"));
+    }
+
+    #[test]
+    fn inflection_tables_say_what_a_form_is() {
+        let p = pack();
+        let what = |lemma: &str, form: &str| p.tags.get(&(lemma.to_string(), form.to_string())).cloned().unwrap_or_default();
+        assert_eq!(what("zijn", "ben"), ["first-person singular present"]);
+        assert_eq!(what("avoir", "avait"), ["imperfect"]);
+        assert_eq!(what("haus", "häuser"), ["plural"]);
+        assert_eq!(what("haus", "hauses"), ["genitive"]);
+        // Tags that are not grammar say nothing; nor does the lemma itself.
+        assert!(what("eens", "is").is_empty());
+        assert!(what("gehen", "gehen").is_empty());
+        assert_eq!(grammar_tags(&["singular".into(), "error-unrecognized-form".into()]), None);
+        assert_eq!(grammar_tags(&["indicative".into(), "with-voseo".into(), "singular".into(), "second-person".into()]).as_deref(), Some("second-person singular indicative"));
+    }
+
+    #[test]
+    fn a_word_list_orders_the_lemmas_by_frequency() {
+        let p = pack();
+        // "hombres" counts for hombre; "fue" is shared by ser and ir; a word
+        // the pack does not know is passed over.
+        let list = "gehen 50\nhombres 40\nfue 30\nhombre 5\nzzzz 999\nging 20\n";
+        let ranked = frequency(&p, BufReader::new(list.as_bytes())).unwrap();
+        assert_eq!(&ranked[..2], ["gehen", "hombre"], "{ranked:?}");
+        assert!(ranked.contains(&"ser".to_string()) && ranked.contains(&"ir".to_string()));
+        assert!(!ranked.contains(&"zzzz".to_string()));
+        // Without counts the order of the list is the order.
+        let ranked = frequency(&p, BufReader::new("hombre\ngehen\n".as_bytes())).unwrap();
+        assert_eq!(ranked, ["hombre", "gehen"]);
     }
 }

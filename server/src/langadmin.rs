@@ -4,7 +4,10 @@
 //! pack: it has ESPDIC, in the binary.
 //!
 //! A zip holds a text pack (`pack.json`, `lemmas.tsv`, `forms.tsv`, and
-//! optionally `README.txt`) at its root or under one top folder. It is
+//! optionally `README.txt` and the extras `tags.tsv`, `frequency.tsv` and
+//! `extras.json`) at its root or under one top folder. The catalogue gives
+//! the extras as a zip of their own beside the pack's, which servers from
+//! before there were extras do not ask for; the two are installed as one. It is
 //! unpacked into a hidden directory next to the packs, loaded there as
 //! `Packs` would load it, and only then put in the place of the pack there
 //! is, by renaming directories: a broken pack never replaces a working one,
@@ -39,8 +42,10 @@ pub const MAX_ZIP_BYTES: usize = 64 * 1024 * 1024;
 /// The most a zip may unpack to, all files together.
 const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 /// The files a pack zip may hold, and the ones it must.
-const ALLOWED: [&str; 4] = ["pack.json", "lemmas.tsv", "forms.tsv", "README.txt"];
+const ALLOWED: [&str; 7] = ["pack.json", "lemmas.tsv", "forms.tsv", "README.txt", "tags.tsv", "frequency.tsv", "extras.json"];
 const REQUIRED: [&str; 3] = ["pack.json", "lemmas.tsv", "forms.tsv"];
+/// The files a zip of extras may hold; it must hold one of the first two.
+const EXTRAS: [&str; 4] = ["tags.tsv", "frequency.tsv", "extras.json", "README.txt"];
 /// Where people find the packs, and how to make one: the page of the
 /// default catalogue, linked whatever LEGEJO_LANGUAGES_URL says.
 const CATALOGUE_PAGE: &str = crate::settings::LANGUAGES_URL;
@@ -82,6 +87,8 @@ pub struct Entry {
     attribution: String,
     lemmas: usize,
     forms: usize,
+    /// The pack has extras for the analysis (tags, a frequency list).
+    extras: bool,
     /// Books on the instance in the language, of every user.
     books: i64,
 }
@@ -97,6 +104,7 @@ fn entry(pack: &Pack, books: &HashMap<String, i64>) -> Entry {
         attribution: m.attribution.clone(),
         lemmas: pack.lemma_count(),
         forms: pack.form_count(),
+        extras: pack.has_extras(),
         books: books.get(&m.language).copied().unwrap_or(0),
     }
 }
@@ -123,8 +131,11 @@ pub struct Available {
     attribution: String,
     /// The version installed, if the language has a pack.
     installed_version: Option<String>,
-    /// The catalogue's version is newer than the one installed.
+    /// The catalogue's version is newer than the one installed, or it has
+    /// extras and the pack installed has none.
     update: bool,
+    /// The catalogue has extras for the pack.
+    extras: bool,
     books: i64,
 }
 
@@ -164,7 +175,9 @@ pub async fn list(State(state): State<AppState>, _admin: AdminUser) -> Result<Js
                 .packs
                 .iter()
                 .map(|o| {
-                    let installed = packs.iter().find(|p| p.code == o.code).map(|p| p.version.clone());
+                    let there = packs.iter().find(|p| p.code == o.code);
+                    let installed = there.map(|p| p.version.clone());
+                    let extras_missing = o.extras.is_some() && there.is_some_and(|p| !p.extras);
                     Available {
                         code: o.code.clone(),
                         name: o.name.clone(),
@@ -174,7 +187,8 @@ pub async fn list(State(state): State<AppState>, _admin: AdminUser) -> Result<Js
                         bytes: o.bytes,
                         license: o.license.clone(),
                         attribution: o.attribution.clone(),
-                        update: installed.as_deref().is_some_and(|v| crate::langcatalogue::newer(&o.version, v)),
+                        update: extras_missing || installed.as_deref().is_some_and(|v| crate::langcatalogue::newer(&o.version, v)),
+                        extras: o.extras.is_some(),
                         installed_version: installed,
                         books: books.get(&o.code).copied().unwrap_or(0),
                     }
@@ -217,7 +231,7 @@ fn bad(message: impl Into<String>) -> Failure {
 /// one top folder, only the allowed names, at most MAX_UNPACKED_BYTES in
 /// all. The metadata some systems add when they zip a folder (`__MACOSX/`,
 /// `.DS_Store`) is passed over.
-fn unzip(bytes: &[u8]) -> Result<Vec<(&'static str, Vec<u8>)>, Failure> {
+fn unzip(bytes: &[u8], allowed: &'static [&'static str], required: &[&str]) -> Result<Vec<(&'static str, Vec<u8>)>, Failure> {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| bad(format!("not a zip file ({e})")))?;
     // First the names and declared sizes, before anything is unpacked.
     let mut top: Option<String> = None;
@@ -264,8 +278,8 @@ fn unzip(bytes: &[u8]) -> Result<Vec<(&'static str, Vec<u8>)>, Failure> {
         if at_root && top.is_some() {
             return Err(bad("the files must be at the root of the zip or in one folder"));
         }
-        let Some(allowed) = ALLOWED.iter().find(|a| **a == base) else {
-            return Err(bad(format!("\"{name}\": a pack holds only {}", ALLOWED.join(", "))));
+        let Some(allowed) = allowed.iter().find(|a| **a == base) else {
+            return Err(bad(format!("\"{name}\": a pack holds only {}", allowed.join(", "))));
         };
         if wanted.iter().any(|(_, n)| n == allowed) {
             return Err(bad(format!("\"{base}\" is in the zip twice")));
@@ -279,7 +293,7 @@ fn unzip(bytes: &[u8]) -> Result<Vec<(&'static str, Vec<u8>)>, Failure> {
     if at_root && top.is_some() {
         return Err(bad("the files must be at the root of the zip or in one folder"));
     }
-    for name in REQUIRED {
+    for name in required.iter().copied() {
         if !wanted.iter().any(|(_, n)| *n == name) {
             return Err(bad(format!("the zip has no {name}")));
         }
@@ -308,12 +322,30 @@ fn hidden(languages: &FsPath, code: &str, what: &str) -> std::path::PathBuf {
     languages.join(format!(".{code}.{what}-{}", crate::books::new_uuid()))
 }
 
-/// Unpack, check and install a pack zip; the language's code, and whether
-/// it was installed now. `expect` is the language the pack must be for.
+/// Unpack, check and install a pack zip, with the catalogue's zip of extras
+/// when there is one; the language's code, and whether it was installed
+/// now. `expect` is the language the pack must be for.
 /// With `if_missing`, a pack there already is kept, also when it appears
 /// while this one is unpacked (another process installing it too).
-fn install(languages: &FsPath, bytes: &[u8], expect: Option<&str>, if_missing: bool) -> Result<(String, bool), Failure> {
-    let files = unzip(bytes)?;
+fn install(languages: &FsPath, bytes: &[u8], extras: Option<&[u8]>, expect: Option<&str>, if_missing: bool) -> Result<(String, bool), Failure> {
+    let mut files = unzip(bytes, &ALLOWED, &REQUIRED)?;
+    if let Some(extras) = extras {
+        let extra = unzip(extras, &EXTRAS, &[])?;
+        if !extra.iter().any(|(n, _)| *n == "tags.tsv" || *n == "frequency.tsv") {
+            return Err(bad("the extras hold neither tags.tsv nor frequency.tsv"));
+        }
+        // The extras of the zip of their own stand for any in the pack's.
+        files.retain(|(n, _)| !EXTRAS.contains(n) || *n == "README.txt");
+        files.extend(extra.into_iter().filter(|(n, _)| *n != "README.txt"));
+    }
+    // Extras say which language they are for; another's are refused.
+    if let Some((_, json)) = files.iter().find(|(n, _)| *n == "extras.json") {
+        let meta: serde_json::Value = serde_json::from_slice(json).map_err(|e| bad(format!("extras.json: {e}")))?;
+        let pack: serde_json::Value = files.iter().find(|(n, _)| *n == "pack.json").and_then(|(_, j)| serde_json::from_slice(j).ok()).unwrap_or_default();
+        if meta["language"].is_string() && meta["language"] != pack["language"] {
+            return Err(bad(format!("extras.json says the extras are for {}, the pack is for {}", meta["language"], pack["language"])));
+        }
+    }
     let json = &files.iter().find(|(n, _)| *n == "pack.json").expect("required").1;
     let meta: crate::langpack::Meta = serde_json::from_slice(json).map_err(|e| bad(format!("pack.json: {e}")))?;
     let code = meta.language;
@@ -374,13 +406,19 @@ fn install(languages: &FsPath, bytes: &[u8], expect: Option<&str>, if_missing: b
 /// Install a pack zip and load it: the one way in for an imported zip and a
 /// download from the catalogue alike. The pack, and whether it was
 /// installed now (see `install` for `expect` and `if_missing`).
-pub(crate) async fn install_zip(state: &AppState, bytes: Vec<u8>, expect: Option<&str>, if_missing: bool) -> Result<(Arc<Pack>, bool), Failure> {
+pub(crate) async fn install_zip(
+    state: &AppState,
+    bytes: Vec<u8>,
+    extras: Option<Vec<u8>>,
+    expect: Option<&str>,
+    if_missing: bool,
+) -> Result<(Arc<Pack>, bool), Failure> {
     let _busy = BUSY.lock().await;
     let languages = state.packs.dir();
     let packs = state.packs.clone();
     let expect = expect.map(str::to_string);
     tokio::task::spawn_blocking(move || -> Result<(Arc<Pack>, bool), Failure> {
-        let (code, now) = install(&languages, &bytes, expect.as_deref(), if_missing)?;
+        let (code, now) = install(&languages, &bytes, extras.as_deref(), expect.as_deref(), if_missing)?;
         let pack = packs.reload(&code).ok_or_else(|| Failure::Internal(anyhow::anyhow!("the pack for {code} was installed but does not load")))?;
         Ok((pack, now))
     })
@@ -404,7 +442,7 @@ pub async fn import(State(state): State<AppState>, admin: AdminUser, mut multipa
     if bytes.len() > MAX_ZIP_BYTES {
         return Err(error(StatusCode::PAYLOAD_TOO_LARGE, format!("the zip is larger than {} MB", MAX_ZIP_BYTES / (1024 * 1024))).into());
     }
-    let pack = match install_zip(&state, Vec::from(bytes), None, false).await {
+    let pack = match install_zip(&state, Vec::from(bytes), None, None, false).await {
         Ok((pack, _)) => pack,
         Err(Failure::Bad(message)) => return Err(error(StatusCode::UNPROCESSABLE_ENTITY, message).into()),
         Err(Failure::Internal(e)) => return Err(internal(e).into()),

@@ -135,6 +135,7 @@
 					{t('vocab.characteristicLater', { min: vocab.distinctive_from, language, count: vocab.books_in_language })}
 				</p>
 			{/if}
+			<p class="more"><a href={`/books/${bookId}/analysis`}>{t('analysis.link')} →</a></p>
 		</details>
 	{/if}
 {/if}
@@ -287,6 +288,9 @@
 		flex-wrap: wrap;
 		gap: 0.3rem;
 		margin: 0;
+	}
+	.more {
+		margin: 1rem 0 0;
 	}
 	.chip {
 		font-size: 0.8rem;

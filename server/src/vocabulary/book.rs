@@ -25,7 +25,7 @@ const DISTINCTIVE_FROM: i64 = 5;
 
 /// A language's stopwords (stopwords-iso), as words and as stems, so that
 /// a stem or a label can be looked up. Built once per language.
-fn stopwords(language: &str) -> Arc<HashSet<String>> {
+pub(crate) fn stopwords(language: &str) -> Arc<HashSet<String>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Arc<HashSet<String>>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(set) = cache.lock().unwrap().get(language) {
@@ -487,6 +487,8 @@ pub struct WordInBook {
     pub known: bool,
     /// How often the book uses it, in all its forms.
     pub count: u32,
+    /// Whether the language's words have tables of forms (analysis/).
+    pub forms: bool,
 }
 
 /// GET /api/books/{id}/vocabulary/word?w=: a word selected in the reader,
@@ -553,5 +555,6 @@ pub async fn word_in_book(State(state): State<AppState>, user: AuthUser, Path(id
         Ok(k) => k,
         Err(e) => return internal(e),
     };
-    Json(WordInBook { stem, word, english: m.english, class: m.class, known, count }).into_response()
+    let forms = crate::analysis::has_forms(&state, &language);
+    Json(WordInBook { stem, word, english: m.english, class: m.class, known, count, forms }).into_response()
 }

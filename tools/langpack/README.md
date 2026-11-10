@@ -41,6 +41,34 @@ and `0 with wikitext left in it` are what you want to see.
 Wiktionary's content is licensed CC BY-SA 4.0, and so is a pack made from it.
 `pack.json` carries the attribution; keep it.
 
+## Extras for the analysis
+
+A book's Analysis page can count the forms a book is written in (so many
+subjunctives, so many preterites), show the table of a word's forms in the
+reader, and estimate the book's level. That takes two more files, which the
+builder writes when asked:
+
+```sh
+langpack es Español kaikki.org-dictionary-Spanish.jsonl.gz es --tags \
+  --frequency words.txt "Where the list comes from, and its licence"
+```
+
+- `--tags` writes `tags.tsv`: what the inflection tables of Wiktionary say
+  each form is.
+- `--frequency <list> "<source>"` writes `frequency.tsv`: the pack's lemmas
+  in order of frequency, from a list of words as written, most common first,
+  one per line with or without its count (`de 123456`). Wiktionary has no
+  frequency data, so the list comes from elsewhere; the second argument says
+  from where and under which licence, and is shown wherever the estimate is.
+  Mind the list's licence: the pack is distributed with it.
+- Either writes `extras.json`, which says what there is.
+
+The extras sit in the pack's directory beside the other files, and a zip
+with them imports as any pack does. Legejo 1.46 and older refuse a zip that
+holds them, which is why the catalogue keeps them in a zip of their own
+(`<code>.extras.zip`, named under `extras` in `index.json`) that only newer
+servers ask for.
+
 ## Install
 
 From the catalogue: Admin → Languages lists the packs at legejo.se with an
@@ -92,6 +120,20 @@ A pack is three text files, UTF-8, tab-separated, which any editor opens:
   keys (comma-separated) of the lemmas it can be. The lemma itself is a form
   too (`hacer hacer`). Any order; a repeated pair is harmless.
 
+And the extras, when the pack has them:
+
+- `tags.tsv`: one form of a lemma per line: the form, the lemma's key, and
+  what the form is, as tags separated by spaces (`hizo hacer third-person
+  singular preterite indicative`); a form that can be several things has
+  them separated by semicolons. The tags are Wiktionary's: `present`,
+  `preterite`, `imperfect`, `past`, `future`, `perfect`, `pluperfect`,
+  `indicative`, `subjunctive`, `conditional`, `imperative`, `infinitive`,
+  `gerund`, `participle`, the persons, `singular`, `plural`, the genders,
+  the cases, `comparative`, `superlative`, `definite`, `indefinite`.
+- `frequency.tsv`: the lemmas' keys in order of frequency, one per line.
+- `extras.json`: `language`, `version`, and `frequency`, the line about the
+  list's source.
+
 Forms point at keys, not at line numbers, so lines in `lemmas.tsv` can be
 edited, added and removed freely. To fix a meaning, edit the third column.
 To add a word, add its line to `lemmas.tsv` and its forms to `forms.tsv`. To
@@ -105,7 +147,12 @@ points at is never shown. Restart Legejo to pick the change up.
   and *an*; *ankommen* is found only when written in one word.
 - Wiktionary has no frequency data. The study list orders words by their
   occurrences in the book, and the summary orders little words by their
-  number of senses.
+  number of senses. A book's estimated level needs a frequency list from
+  elsewhere (see Extras).
+- `tags.tsv` holds what the inflection tables say. A form that Wiktionary
+  describes only in an entry of its own ("plural of …") has no tags, and
+  the lemma itself seldom has: the grammar counts verb forms and cases
+  well, number and gender not at all.
 - Packs are read from the local data directory.
 - A form that can be several lemmas (*fue*: *ser* or *ir*) is listed with
   all of them; Legejo picks when it counts.

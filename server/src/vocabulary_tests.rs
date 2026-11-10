@@ -10,7 +10,7 @@ use axum::http::{Method, StatusCode};
 use serde_json::json;
 
 /// An EPUB in a language, its one chapter this text.
-fn book(title: &str, language: &str, text: &str) -> Vec<u8> {
+pub(crate) fn book(title: &str, language: &str, text: &str) -> Vec<u8> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);

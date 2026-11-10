@@ -38,7 +38,7 @@ pub struct Piece {
 /// with their sentence. A line break ends a sentence too (a heading ends at
 /// one) unless the next line starts with a small letter: then it only wraps
 /// a sentence, as in a book with hard line breaks in its paragraphs.
-fn sentences(text: &str) -> Vec<&str> {
+pub(crate) fn sentences(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let mut chars = text.char_indices().peekable();
@@ -123,7 +123,7 @@ fn examples_in(text: &str, forms: &[String], max: usize) -> Vec<Vec<Piece>> {
 }
 
 /// Text with its runs of white space (line breaks too) as single spaces.
-fn one_line(text: &str) -> String {
+pub(crate) fn one_line(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut space = false;
     for c in text.chars() {
@@ -147,7 +147,7 @@ fn one_line(text: &str) -> String {
 /// parts in order, a line break between them, as the file's sections would
 /// read. None when the text is not there (the search off, or the book not
 /// read yet).
-async fn stored_text(state: &AppState, text_hash: &str) -> Option<String> {
+pub(crate) async fn stored_text(state: &AppState, text_hash: &str) -> Option<String> {
     let parts: Vec<(String,)> = sqlx::query_as("SELECT body FROM book_text WHERE text_hash = $1 ORDER BY section, pos")
         .bind(text_hash)
         .fetch_all(&state.db)

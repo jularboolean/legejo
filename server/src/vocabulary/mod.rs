@@ -28,7 +28,10 @@ mod words;
 
 pub use book::{for_book, known_list, known_many, known_set, turned_on, word_in_book};
 pub use count::Stemmer;
-pub(crate) use count::compute;
+pub(crate) use book::stopwords;
+pub(crate) use count::{compute, without_gutenberg, words};
+pub(crate) use examples::{one_line, sentences, stored_text};
+pub(crate) use index::give_memory_back;
 pub use examples::examples;
 pub use index::worker;
 #[cfg(test)]

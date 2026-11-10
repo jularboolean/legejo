@@ -484,7 +484,7 @@ async fn an_instance_that_used_the_built_in_packs_gets_them_from_the_catalogue_o
     assert!(!state.packs.dir().join("es").exists());
 
     // A second process that installs a pack there already leaves it as it is.
-    let (pack, now) = match crate::langadmin::install_zip(&state, de.clone(), Some("de"), true).await {
+    let (pack, now) = match crate::langadmin::install_zip(&state, de.clone(), None, Some("de"), true).await {
         Ok(done) => done,
         Err(_) => panic!("install_zip failed"),
     };
@@ -492,7 +492,7 @@ async fn an_instance_that_used_the_built_in_packs_gets_them_from_the_catalogue_o
     assert_eq!(pack.meta.language, "de");
     assert!(hidden_dirs(&state).is_empty(), "{:?}", hidden_dirs(&state));
     // And a pack for another language than asked for is refused.
-    assert!(crate::langadmin::install_zip(&state, es.clone(), Some("de"), false).await.is_err());
+    assert!(crate::langadmin::install_zip(&state, es.clone(), None, Some("de"), false).await.is_err());
 }
 
 #[tokio::test]
@@ -510,4 +510,81 @@ async fn a_new_instance_gets_no_pack_by_itself() {
     let done: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'language_packs_migrated'").fetch_optional(&db).await.unwrap();
     assert_eq!(done.as_deref(), Some("true"));
     assert!(catalogue.seen.lock().unwrap().is_empty(), "nothing asked");
+}
+
+/// The extras of the test pack, as files.
+fn xx_extras(language: &str) -> Vec<(String, Vec<u8>)> {
+    vec![
+        ("tags.tsv".to_string(), b"blorped\tblorp\tpast\nzams\tzam\tplural\n".to_vec()),
+        ("frequency.tsv".to_string(), b"ko\nblorp\nzam\n".to_vec()),
+        ("extras.json".to_string(), format!(r#"{{"format": 1, "language": "{language}", "version": "1", "tags": true, "frequency": "A list, CC0"}}"#).into_bytes()),
+    ]
+}
+
+#[tokio::test]
+async fn extras_come_with_a_pack_from_the_catalogue_and_in_an_imported_zip() {
+    let catalogue = start_catalogue().await;
+    let xx = pack_zip("xx", "to run", "1");
+    let yy = pack_zip("yy", "to run", "1");
+    let extras = zip_of(&xx_extras("xx"));
+    let mut with_extras = offer("xx", "Xxish", "1", &xx, None);
+    with_extras["extras"] = serde_json::json!({ "sha256": sha256(&extras), "bytes": extras.len() });
+    // The extras of yy do not match what the catalogue says of them.
+    let mut mismatched = offer("yy", "Yyish", "1", &yy, None);
+    mismatched["extras"] = serde_json::json!({ "sha256": "0".repeat(64), "bytes": 1 });
+    let index = serde_json::json!({ "format": 1, "packs": [with_extras, mismatched] });
+    {
+        let mut files = catalogue.files.lock().unwrap();
+        files.insert("/languages/index.json".into(), Served::Body(index.to_string().into_bytes()));
+        files.insert("/languages/xx.zip".into(), Served::Body(xx.clone()));
+        files.insert("/languages/xx.extras.zip".into(), Served::Body(extras.clone()));
+        files.insert("/languages/yy.zip".into(), Served::Body(yy.clone()));
+        files.insert("/languages/yy.extras.zip".into(), Served::Body(zip_of(&xx_extras("yy"))));
+    }
+    let (app, _db, state, admin) = with_catalogue(Some(&catalogue.base)).await;
+
+    // A pack installed before there were extras: the catalogue's are an update.
+    let (status, entry) = import(&app, &admin, &xx).await;
+    assert_eq!(status, StatusCode::OK, "{entry}");
+    assert_eq!(entry["extras"], false);
+    let before = state.packs.get("xx").unwrap().id().to_string();
+    let (_, list) = send(&app, Method::GET, "/api/admin/languages", Some(&admin), None).await;
+    assert_eq!(available(&list, "xx")["extras"], true);
+    assert_eq!(available(&list, "xx")["update"], true, "{list}");
+
+    let (status, entry) = send(&app, Method::POST, "/api/admin/languages/install", Some(&admin), Some(serde_json::json!({ "code": "xx" }))).await;
+    assert_eq!(status, StatusCode::OK, "{entry}");
+    assert_eq!(entry["extras"], true);
+    let pack = state.packs.get("xx").unwrap();
+    assert_eq!(pack.id(), before, "the same pack: no book is counted again");
+    assert_eq!(pack.extras().unwrap().tags_of("blorp", "blorped"), [["past"]]);
+    assert!(pack.extras().unwrap().has_frequency());
+    let (_, list) = send(&app, Method::GET, "/api/admin/languages", Some(&admin), None).await;
+    assert_eq!(available(&list, "xx")["update"], false, "{list}");
+
+    // Extras that do not match the catalogue are left; the pack comes all the same.
+    let (status, entry) = send(&app, Method::POST, "/api/admin/languages/install", Some(&admin), Some(serde_json::json!({ "code": "yy" }))).await;
+    assert_eq!(status, StatusCode::OK, "{entry}");
+    assert_eq!(entry["extras"], false);
+    assert!(state.packs.get("yy").unwrap().extras().is_none());
+
+    // A zip made by hand may hold the extras with the pack; those of another
+    // language, or ones that cannot be read, are refused and nothing changes.
+    let mut files: Vec<(String, Vec<u8>)> = xx_files("to sprint", "2");
+    files.extend(xx_extras("xx"));
+    let (status, entry) = import(&app, &admin, &zip_of(&files)).await;
+    assert_eq!(status, StatusCode::OK, "{entry}");
+    assert_eq!((entry["version"].as_str(), entry["extras"].as_bool()), (Some("2"), Some(true)));
+    let mut wrong: Vec<(String, Vec<u8>)> = xx_files("to dash", "3");
+    wrong.extend(xx_extras("zz"));
+    let (status, body) = import(&app, &admin, &zip_of(&wrong)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("extras"), "{body}");
+    let mut broken: Vec<(String, Vec<u8>)> = xx_files("to dash", "3");
+    broken.push(("extras.json".to_string(), b"not json".to_vec()));
+    broken.push(("tags.tsv".to_string(), b"a\tb\tc\n".to_vec()));
+    let (status, _) = import(&app, &admin, &zip_of(&broken)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(state.packs.get("xx").unwrap().meta.version, "2");
+    assert!(hidden_dirs(&state).is_empty());
 }

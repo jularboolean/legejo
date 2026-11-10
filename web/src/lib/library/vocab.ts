@@ -63,6 +63,8 @@ export type WordInBook = {
 	class: WordClass | null;
 	known: boolean;
 	count: number;
+	/** The language's words have tables of forms (GET /api/analysis/forms). */
+	forms?: boolean;
 };
 
 /** The word in the book's study list, or null when it is not there. */

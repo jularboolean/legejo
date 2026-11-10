@@ -8,6 +8,7 @@
 	import { getLocale, t } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
 	import { loadWordInBook, setKnown, type WordInBook } from '#lib/library/vocab';
+	import WordForms from './WordForms.svelte';
 
 	type Props = {
 		/** The passage: a selection waiting for an action, or a highlight being edited. */
@@ -112,10 +113,13 @@
 	// The selected word in the book's study list (vocabulary.rs), at once:
 	// it is local, nothing is asked of a dictionary elsewhere.
 	let myWord = $state<WordInBook | null>(null);
+	// The word's table of forms, when the reader asks for it.
+	let showForms = $state(false);
 	$effect(() => {
 		const w = word;
 		const book = wordsBook;
 		myWord = null;
+		showForms = false;
 		if (!w || !book) return;
 		loadWordInBook(book, w).then((found) => {
 			if (word === w && wordsBook === book) myWord = found;
@@ -198,7 +202,13 @@
 				>
 					{myWord.known ? t('reader.words.known') : t('reader.words.know')}
 				</button>
+				{#if word && myWord.forms}
+					<button type="button" class="act" aria-expanded={showForms} onclick={() => (showForms = !showForms)}>
+						{t('reader.words.forms')}
+					</button>
+				{/if}
 			</p>
+			{#if showForms && word && wordsLanguage}<WordForms language={wordsLanguage} {word} />{/if}
 		</div>
 	{/if}
 	{#if looked}

@@ -18,6 +18,15 @@
 //!
 //! The fst is looked up in memory; the lemmas are found by their line
 //! offsets, not parsed whole.
+//!
+//! A pack may have extras beside it, for the analysis of a book
+//! (analysis/): `tags.tsv` (per line a form, its lemma and what the form
+//! is: "hizo", "hacer", "third-person singular preterite indicative"; the
+//! several things it can be separated by semicolons), `frequency.tsv` (the
+//! lemmas in order of frequency, one per line) and `extras.json` (what
+//! there is and where the frequency list comes from). They are read when
+//! first asked for, not with the pack, and are not part of its id: a book's
+//! words are not counted again when extras come.
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -43,6 +52,129 @@ pub struct Meta {
     pub also: Vec<String>,
 }
 
+/// extras.json.
+#[derive(Deserialize, Default, Clone, Debug)]
+pub struct ExtrasMeta {
+    /// Where the frequency list comes from and its licence, to show with
+    /// what is worked out from it.
+    #[serde(default)]
+    pub frequency: Option<String>,
+}
+
+/// A pack's extras, as read from its directory.
+pub struct Extras {
+    pub meta: ExtrasMeta,
+    /// A hash of the files, which tells one set of extras from another.
+    id: String,
+    /// "lemma\tform" -> a place in `kinds`; None without tags.tsv.
+    tags: Option<fst::Map<Vec<u8>>>,
+    /// The distinct descriptions of tags.tsv ("plural", "first-person
+    /// singular present;third-person singular present").
+    kinds: Vec<String>,
+    /// A lemma's line number -> its rank, the commonest 1.
+    ranks: HashMap<u32, u32>,
+}
+
+impl Extras {
+    /// What a form of a lemma is: each thing it can be, as its tags.
+    pub fn tags_of(&self, lemma: &str, form: &str) -> Vec<Vec<&str>> {
+        let Some(n) = self.tags.as_ref().and_then(|t| t.get(format!("{lemma}\t{form}"))) else { return Vec::new() };
+        self.kinds[n as usize].split(';').map(|kind| kind.split(' ').collect()).collect()
+    }
+
+    /// The forms of a lemma that tags.tsv describes, each with what it can be.
+    pub fn forms_of(&self, lemma: &str) -> Vec<(String, Vec<Vec<&str>>)> {
+        use fst::{IntoStreamer, Streamer};
+        let Some(tags) = &self.tags else { return Vec::new() };
+        let prefix = format!("{lemma}\t");
+        let mut stream = tags.range().ge(prefix.as_bytes()).into_stream();
+        let mut out = Vec::new();
+        while let Some((key, n)) = stream.next() {
+            let Some(form) = std::str::from_utf8(key).ok().and_then(|k| k.strip_prefix(prefix.as_str())) else { break };
+            out.push((form.to_string(), self.kinds[n as usize].split(';').map(|kind| kind.split(' ').collect()).collect()));
+        }
+        out
+    }
+
+    pub fn has_tags(&self) -> bool {
+        self.tags.is_some()
+    }
+
+    pub fn has_frequency(&self) -> bool {
+        !self.ranks.is_empty()
+    }
+
+    /// How many lemmas the frequency list ranks.
+    pub fn ranked(&self) -> usize {
+        self.ranks.len()
+    }
+
+    /// A lemma's rank by frequency (the commonest 1), by its line number.
+    pub fn rank(&self, lemma: u32) -> Option<u32> {
+        self.ranks.get(&lemma).copied()
+    }
+}
+
+/// The extras in a pack's directory; None when it has neither tags.tsv nor
+/// frequency.tsv. A line that cannot be used is passed over.
+fn read_extras(dir: &Path, pack: &Pack) -> anyhow::Result<Option<Extras>> {
+    let read = |name: &str| match std::fs::read_to_string(dir.join(name)) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(anyhow::Error::from(e).context(name.to_string())),
+    };
+    let (tags_text, frequency_text) = (read("tags.tsv")?, read("frequency.tsv")?);
+    if tags_text.is_none() && frequency_text.is_none() {
+        return Ok(None);
+    }
+    let meta: ExtrasMeta = match read("extras.json")? {
+        Some(json) => serde_json::from_str(&json).context("extras.json")?,
+        None => ExtrasMeta::default(),
+    };
+    let mut hash = Sha256::new();
+    let mut kinds: Vec<String> = Vec::new();
+    let tags = match &tags_text {
+        Some(text) => {
+            hash.update(text.as_bytes());
+            let mut kind_ids: HashMap<&str, u64> = HashMap::new();
+            let mut keys: Vec<(String, u64)> = Vec::new();
+            for line in text.lines() {
+                let mut parts = line.splitn(3, '\t');
+                let (Some(form), Some(lemma), Some(kind)) = (parts.next(), parts.next(), parts.next()) else { continue };
+                if form.is_empty() || lemma.is_empty() || kind.is_empty() {
+                    continue;
+                }
+                let next = kind_ids.len() as u64;
+                let id = *kind_ids.entry(kind).or_insert_with(|| {
+                    kinds.push(kind.to_string());
+                    next
+                });
+                keys.push((format!("{lemma}\t{form}"), id));
+            }
+            keys.sort();
+            keys.dedup_by(|a, b| a.0 == b.0);
+            let mut builder = fst::MapBuilder::memory();
+            for (key, id) in keys {
+                builder.insert(key, id)?;
+            }
+            Some(fst::Map::new(builder.into_inner()?)?)
+        }
+        None => None,
+    };
+    let mut ranks = HashMap::new();
+    if let Some(text) = &frequency_text {
+        hash.update(text.as_bytes());
+        for word in text.lines().map(str::trim).filter(|w| !w.is_empty()) {
+            if let Some(n) = pack.line_of(word) {
+                let rank = ranks.len() as u32 + 1;
+                ranks.entry(n).or_insert(rank);
+            }
+        }
+    }
+    let id = hash.finalize().iter().take(6).map(|b| format!("{b:02x}")).collect();
+    Ok(Some(Extras { meta, id, tags, kinds, ranks }))
+}
+
 pub struct Pack {
     pub meta: Meta,
     /// language:version:hash, which tells one pack's contents from another's.
@@ -52,6 +184,9 @@ pub struct Pack {
     lemmas: String,
     /// Where each line of `lemmas` starts.
     offsets: Vec<u32>,
+    /// Where the pack was read from, for its extras.
+    dir: Option<PathBuf>,
+    extras: std::sync::OnceLock<Option<Extras>>,
 }
 
 /// One lemma: the word, its parts of speech ("prep,noun") and its meaning.
@@ -108,7 +243,35 @@ impl Pack {
                 anyhow::ensure!(value < count, "\"{form}\" points at lemma {value}, beyond the {count} lemmas");
             }
         }
-        Ok(Pack { meta, id, forms, ambiguous, lemmas, offsets })
+        Ok(Pack { meta, id, forms, ambiguous, lemmas, offsets, dir: None, extras: Default::default() })
+    }
+
+    /// The pack's extras, read from its directory the first time they are
+    /// asked for; None when it has none or they cannot be read.
+    pub fn extras(&self) -> Option<&Extras> {
+        self.extras
+            .get_or_init(|| {
+                let dir = self.dir.as_deref()?;
+                read_extras(dir, self).unwrap_or_else(|e| {
+                    tracing::warn!("language pack in {}: its extras cannot be read: {e:#}", dir.display());
+                    None
+                })
+            })
+            .as_ref()
+    }
+
+    /// Whether the pack's directory holds extras (not read for this).
+    pub fn has_extras(&self) -> bool {
+        self.dir.as_deref().is_some_and(|d| d.join("tags.tsv").is_file() || d.join("frequency.tsv").is_file())
+    }
+
+    /// The pack's id with that of its extras: what a book's analysis was
+    /// worked out with.
+    pub fn id_with_extras(&self) -> String {
+        match self.extras() {
+            Some(extras) => format!("{}+{}", self.id, extras.id),
+            None => self.id.clone(),
+        }
     }
 
     /// language:version:hash of the pack's contents: a book counted with
@@ -138,13 +301,18 @@ impl Pack {
         Some(Lemma { word, written, pos, english })
     }
 
-    /// A lemma by its word (the lines are sorted).
-    pub fn find(&self, word: &str) -> Option<Lemma<'_>> {
+    /// A lemma's line number by its word (the lines are sorted).
+    pub fn line_of(&self, word: &str) -> Option<u32> {
         let n = self.offsets.binary_search_by(|&at| {
             let rest = &self.lemmas[at as usize..];
             rest.split('\t').next().unwrap_or("").cmp(word)
         });
-        n.ok().and_then(|n| self.lemma(n as u32))
+        n.ok().map(|n| n as u32)
+    }
+
+    /// A lemma by its word.
+    pub fn find(&self, word: &str) -> Option<Lemma<'_>> {
+        self.line_of(word).and_then(|n| self.lemma(n))
     }
 
     /// The lemmas a lower-case form can be.
@@ -250,7 +418,7 @@ fn read_dir(dir: &Path) -> anyhow::Result<Pack> {
     if text.is_file() {
         let forms = std::fs::read_to_string(&text).context("forms.tsv")?;
         let (lemmas, fst, ambiguous) = build_index(&lemmas, &forms)?;
-        return Pack::new(meta, fst, Some(ambiguous), lemmas);
+        return Pack::new(meta, fst, Some(ambiguous), lemmas).map(|p| Pack { dir: Some(dir.to_path_buf()), ..p });
     }
     let forms = std::fs::read(dir.join("forms.fst")).context("forms.tsv or forms.fst")?;
     let ambiguous = match std::fs::read_to_string(dir.join("ambiguous.tsv")) {
@@ -258,7 +426,7 @@ fn read_dir(dir: &Path) -> anyhow::Result<Pack> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(anyhow::Error::from(e).context("ambiguous.tsv")),
     };
-    Pack::new(meta, forms, ambiguous, lemmas)
+    Pack::new(meta, forms, ambiguous, lemmas).map(|p| Pack { dir: Some(dir.to_path_buf()), ..p })
 }
 
 /// A pack in a directory checked as `load` would read it for `code`, with
@@ -270,6 +438,8 @@ pub fn check_dir(dir: &Path, code: &str) -> anyhow::Result<Pack> {
     anyhow::ensure!(pack.meta.language == code, "pack.json says the pack is for \"{}\", not \"{code}\"", pack.meta.language);
     anyhow::ensure!(pack.lemma_count() > 0, "lemmas.tsv has no lemmas");
     anyhow::ensure!(pack.form_count() > 0, "no line of forms.tsv points at a lemma of lemmas.tsv");
+    // Extras that are there must be readable; a pack without any is whole.
+    read_extras(dir, &pack)?;
     Ok(pack)
 }
 
@@ -381,6 +551,15 @@ pub(crate) fn write_xx(dir: &Path, gloss_for_blorp: &str, version: &str) {
     .unwrap();
     std::fs::write(dir.join("lemmas.tsv"), format!("zam\tnoun\tcat\nblorp\tverb\t{gloss_for_blorp}\nko\tprep\tto\nflib\tnoun\tbox\n")).unwrap();
     std::fs::write(dir.join("forms.tsv"), "zams\tzam\nblorped\tblorp\nflib\tflib,blorp\nblorping\tblorp\nzam\tzam\nblorp\tblorp\nko\tko\nflib\tblorp\nglorf\tnothing\n").unwrap();
+}
+
+/// Extras for the made-up pack of `write_xx`: "flib" is the past of blorp
+/// or a noun in the singular, and "ko" the commonest word.
+#[cfg(test)]
+pub(crate) fn write_xx_extras(dir: &Path) {
+    std::fs::write(dir.join("tags.tsv"), "blorped\tblorp\tpast\nblorping\tblorp\tgerund\nflib\tblorp\tthird-person singular past;first-person singular past\nzams\tzam\tplural\nbroken line\n").unwrap();
+    std::fs::write(dir.join("frequency.tsv"), "ko\nblorp\nnothing\nzam\n").unwrap();
+    std::fs::write(dir.join("extras.json"), r#"{"format": 1, "language": "xx", "version": "1", "tags": true, "frequency": "A word list, CC0"}"#).unwrap();
 }
 
 /// Where the packs the tests use are: Spanish, French and German as
@@ -521,6 +700,40 @@ mod tests {
         assert!(read_dir(&broken).is_ok());
         std::fs::write(broken.join("ambiguous.tsv"), "0,7\n").unwrap();
         assert!(read_dir(&broken).err().map(|e| e.to_string()).unwrap_or_default().contains("beyond"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn extras_are_read_when_asked_for_and_are_not_part_of_the_packs_id() {
+        let dir = temp_dir();
+        let xx_dir = dir.join("languages/xx");
+        write_xx(&xx_dir, "to run", "1");
+        let packs = Packs::new(dir.clone());
+        let bare = packs.get("xx").unwrap();
+        assert!(bare.extras().is_none() && !bare.has_extras());
+        assert_eq!(bare.id_with_extras(), bare.id());
+
+        write_xx_extras(&xx_dir);
+        let xx = packs.reload("xx").unwrap();
+        assert_eq!(xx.id(), bare.id(), "the words are not counted again for extras");
+        assert_ne!(xx.id_with_extras(), xx.id());
+        assert!(xx.has_extras());
+        let extras = xx.extras().unwrap();
+        assert!(extras.has_tags() && extras.has_frequency());
+        assert_eq!(extras.meta.frequency.as_deref(), Some("A word list, CC0"));
+        assert_eq!(extras.tags_of("blorp", "blorped"), [["past"]]);
+        assert_eq!(extras.tags_of("blorp", "flib"), [vec!["third-person", "singular", "past"], vec!["first-person", "singular", "past"]]);
+        assert!(extras.tags_of("flib", "flib").is_empty() && extras.tags_of("blorp", "nothing").is_empty());
+        let forms: Vec<String> = extras.forms_of("blorp").into_iter().map(|(f, _)| f).collect();
+        assert_eq!(forms, ["blorped", "blorping", "flib"]);
+        assert!(extras.forms_of("blor").is_empty() && extras.forms_of("zzz").is_empty());
+        // Ranks by the pack's lemmas: a word it does not have takes no rank.
+        let rank = |w: &str| extras.rank(xx.line_of(w).unwrap());
+        assert_eq!((rank("ko"), rank("blorp"), rank("zam"), rank("flib")), (Some(1), Some(2), Some(3), None));
+        // The checked import refuses extras that cannot be read.
+        assert!(check_dir(&xx_dir, "xx").is_ok());
+        std::fs::write(xx_dir.join("extras.json"), "not json").unwrap();
+        assert!(check_dir(&xx_dir, "xx").err().map(|e| format!("{e:#}")).unwrap_or_default().contains("extras.json"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -349,7 +349,7 @@ pub(super) async fn count_one(state: &AppState, uuid: &str, sha: &str, language:
 /// Hand the memory freed after counting back to the system. glibc keeps
 /// what a blocking thread's arena held, so a long count would otherwise
 /// leave the process at its peak.
-pub(super) fn give_memory_back() {
+pub(crate) fn give_memory_back() {
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     // SAFETY: malloc_trim only releases free memory held by the allocator.
     unsafe {
@@ -441,6 +441,9 @@ pub async fn worker(state: AppState) {
             }
             if let Err(e) = drop_orphans(&state).await {
                 tracing::warn!("vocabulary: {e:#}");
+            }
+            if let Err(e) = crate::analysis::drop_orphans(&state).await {
+                tracing::warn!("analysis: {e:#}");
             }
             if state.backend == Backend::Sqlite {
                 // Keeps the planner's statistics current as the tables grow.

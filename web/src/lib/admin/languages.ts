@@ -9,6 +9,8 @@ export type LanguagePack = {
   attribution: string;
   lemmas: number;
   forms: number;
+  /** The pack has extras for the analysis of books. */
+  extras?: boolean;
   /** Books on the instance in the language, of every user. */
   books: number;
 };
@@ -29,6 +31,8 @@ export type AvailablePack = {
   installed_version: string | null;
   /** The catalogue has a newer version than the one installed. */
   update: boolean;
+  /** The catalogue has extras for the pack. */
+  extras?: boolean;
   books: number;
 };
 

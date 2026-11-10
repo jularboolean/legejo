@@ -4,6 +4,13 @@
 //! by default https://legejo.se/languages; set to the empty string, there is
 //! no catalogue and packs come only from a file (langadmin.rs).
 //!
+//! A pack may have extras for the analysis of books (tags of the inflected
+//! forms, a frequency list): `<base>/<code>.extras.zip`, which the index
+//! names under the pack's `extras` with its own sha256. They are a file of
+//! their own because servers from before there were extras take a pack zip
+//! with no other files than the pack's; those servers do not read `extras`
+//! and never ask for it.
+//!
 //! The index is fetched when an admin looks at the packs, and kept in memory
 //! for an hour (a failure for a minute). A zip is downloaded whole into
 //! memory, at most `langadmin::MAX_ZIP_BYTES`, checked against the sha256
@@ -54,6 +61,17 @@ pub struct Offer {
     pub license: String,
     #[serde(default)]
     pub attribution: String,
+    /// The pack's extras, when the catalogue has them.
+    #[serde(default)]
+    pub extras: Option<ExtrasOffer>,
+}
+
+/// `<code>.extras.zip` of the catalogue.
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct ExtrasOffer {
+    pub sha256: String,
+    #[serde(default)]
+    pub bytes: u64,
 }
 
 #[derive(Deserialize)]
@@ -204,7 +222,26 @@ pub async fn install(state: &AppState, code: &str, if_missing: bool) -> Result<(
             return Err(InstallError::Upstream(format!("{url} does not match the catalogue (sha256 {sum}, the catalogue says {})", offer.sha256)));
         }
     }
-    match crate::langadmin::install_zip(state, zip, Some(code), if_missing).await {
+    // The extras with it. Without them the pack is still worth having: a
+    // download that fails or does not match is said in the log and left.
+    let extras = match &offer.extras {
+        Some(extras) => {
+            let url = format!("{base}/{code}.extras.zip");
+            match get_capped(&state.http, &url, MAX_ZIP_BYTES, DOWNLOAD_TIMEOUT).await {
+                Ok(zip) if sha256_hex(&zip).eq_ignore_ascii_case(&extras.sha256) => Some(zip),
+                Ok(_) => {
+                    tracing::warn!("language catalogue: {url} does not match the catalogue; the pack is installed without its extras");
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!("language catalogue: {e}; the pack is installed without its extras");
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+    match crate::langadmin::install_zip(state, zip, extras, Some(code), if_missing).await {
         Ok(done) => Ok(done),
         Err(Failure::Bad(message)) => Err(InstallError::Upstream(format!("the pack from {url} cannot be installed: {message}"))),
         Err(Failure::Internal(e)) => Err(InstallError::Internal(e)),

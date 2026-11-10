@@ -32,7 +32,7 @@
 	let installing = $state<string | null>(null);
 	let installError = $state<{ code: string; message: string } | null>(null);
 	/** What the last install did: installed, or updated (from another version). */
-	let installed = $state<{ pack: LanguagePack; updated: boolean } | null>(null);
+	let installed = $state<{ pack: LanguagePack; updated: boolean; extras: boolean } | null>(null);
 
 	const n = (count: number) => count.toLocaleString(getLocale());
 	const catalogue = $derived(list?.catalogue || CATALOGUE);
@@ -81,10 +81,12 @@
 	async function install(code: string) {
 		if (installing) return;
 		clearNotes();
-		const updated = list?.packs.some((p) => p.code === code) ?? false;
+		const before = list?.packs.find((p) => p.code === code);
 		installing = code;
 		try {
-			installed = { pack: await installPack(code), updated };
+			const pack = await installPack(code);
+			// The same version again: only its extras are new.
+			installed = { pack, updated: before !== undefined, extras: before?.version === pack.version };
 			await load();
 		} catch (err) {
 			installError = { code, message: why(err) };
@@ -181,7 +183,7 @@
 									<span class="spin"><LoaderCircle size={13} /></span>
 									{t('langAdmin.updating')}
 								{:else}
-									{t('langAdmin.update', { version: offer.version })}
+									{offer.version === pack.version ? t('langAdmin.extras') : t('langAdmin.update', { version: offer.version })}
 								{/if}
 							</button>
 						{/if}
@@ -195,7 +197,9 @@
 		{#if removeError}<p class="error">{removeError}</p>{/if}
 		{#if installed}
 			<p class="ok">
-				{installed.updated
+				{installed.extras
+					? t('langAdmin.extrasDone', { name: installed.pack.name })
+					: installed.updated
 					? t('langAdmin.updateDone', { name: installed.pack.name, version: installed.pack.version })
 					: t('langAdmin.installDone', { name: installed.pack.name })}
 			</p>

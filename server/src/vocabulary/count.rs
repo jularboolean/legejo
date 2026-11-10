@@ -91,7 +91,7 @@ impl Stemmer {
 
 /// The words of a text, as written: letters, with an apostrophe inside a
 /// word kept ("don't", "l'Vivo" is "l'Vivo").
-pub(super) fn words(text: &str) -> Vec<&str> {
+pub(crate) fn words(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
     let chars: Vec<(usize, char)> = text.char_indices().collect();
@@ -120,7 +120,7 @@ fn find_ascii_ci(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 /// The book's own text: Project Gutenberg's licence before and after it cut
 /// away. The markers are ASCII, so they are found byte by byte, and a cut at
 /// one falls on a character boundary.
-pub(super) fn without_gutenberg(text: &str) -> &str {
+pub(crate) fn without_gutenberg(text: &str) -> &str {
     let mut text = text;
     for marker in ["*** START OF THE PROJECT GUTENBERG", "*** START OF THIS PROJECT GUTENBERG", "***START OF THE PROJECT GUTENBERG"] {
         if let Some(at) = find_ascii_ci(text.as_bytes(), marker.as_bytes(), 0) {
