@@ -147,8 +147,9 @@ async fn a_pack_with_extras_gives_grammar_a_level_and_tables_of_forms() {
     assert_eq!(a["grammar"]["source"], "pack");
     let tense = a["grammar"]["groups"].as_array().unwrap().iter().find(|g| g["key"] == "tense").unwrap_or_else(|| panic!("{a}"));
     let past = tense["items"].as_array().unwrap().iter().find(|i| i["tag"] == "past").unwrap();
-    // "blorped" is the past; "flib" may be it, or the noun.
-    assert_eq!((past["count"].as_i64(), past["possible"].as_i64()), (Some(60), Some(60)));
+    // "blorped" is the past, and so is "flib": a noun too, but the book
+    // uses the verb more in forms that are only the verb's.
+    assert_eq!((past["count"].as_i64(), past["possible"].as_i64()), (Some(120), Some(0)));
     assert_eq!(a["reach"]["cefr"], "A1");
     assert_eq!(a["reach"]["source"], "A word list, CC0");
     assert_eq!(a["forms"], true);

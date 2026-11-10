@@ -157,17 +157,40 @@ const SORTS: [(&str, &[&str]); 5] = [
     ("degree", &["comparative", "superlative"]),
 ];
 
-/// What a lower-case word can be, by the pack's tags: per sort, its kinds,
-/// and whether the one kind is sure (every reading of the word has it).
-fn kinds_of(word: &str, pack: &Pack, extras: &Extras) -> Vec<(usize, &'static str, bool)> {
+/// The lemmas a word of the book is read as. A word that is a lemma itself
+/// ("casa", "nada", "calle") is that word and no form of another, unless
+/// the book uses another of its lemmas at least as much in forms that can
+/// only be that one: "era" is the verb in a book full of "eran" and "soy".
+/// The study list reads a word the same way (vocabulary/count.rs).
+fn read_as(word: &str, count: u32, pack: &Pack, sure: &HashMap<u32, u32>) -> Vec<u32> {
+    let lemmas = pack.lemmas_of(word);
+    let Some(own) = lemmas.iter().copied().find(|l| pack.lemma(*l).is_some_and(|x| x.word == word)) else {
+        return lemmas;
+    };
+    let other = lemmas
+        .iter()
+        .copied()
+        .filter(|l| pack.lemma(*l).is_some_and(|x| x.word != word))
+        .filter(|l| sure.get(l).copied().unwrap_or(0) >= count)
+        .max_by_key(|l| (sure.get(l).copied().unwrap_or(0), std::cmp::Reverse(*l)));
+    vec![other.unwrap_or(own)]
+}
+
+/// What a lower-case word can be, by the pack's tags, read as these lemmas:
+/// per sort, its kinds, and whether the one kind is sure (every reading of
+/// the word has it).
+fn kinds_of(word: &str, lemmas: &[u32], pack: &Pack, extras: &Extras) -> Vec<(usize, &'static str, bool)> {
     let mut readings: Vec<Vec<&str>> = Vec::new();
-    // A reading the tags say nothing of: the word as a lemma of its own.
+    // A reading the tags say nothing of.
     let mut untold = false;
-    for lemma in pack.lemmas_of(word) {
-        let Some(l) = pack.lemma(lemma) else { continue };
+    for lemma in lemmas {
+        let Some(l) = pack.lemma(*lemma) else { continue };
         let told = extras.tags_of(l.word, word);
         untold |= told.is_empty();
         readings.extend(told);
+    }
+    if readings.is_empty() {
+        return Vec::new();
     }
     let mut out = Vec::new();
     for (sort, (_, kinds)) in SORTS.iter().enumerate() {
@@ -182,8 +205,23 @@ fn kinds_of(word: &str, pack: &Pack, extras: &Extras) -> Vec<(usize, &'static st
 /// A book's forms counted by a pack's tags.
 fn grammar_by_pack(p: &Prepared, pack: &Pack, names: &HashSet<u32>) -> Option<Grammar> {
     let extras = pack.extras().filter(|e| e.has_tags())?;
-    let kinds: Vec<Vec<(usize, &'static str, bool)>> =
-        (0..p.lower.len() as u32).map(|id| if names.contains(&id) { Vec::new() } else { kinds_of(p.word(id), pack, extras) }).collect();
+    let counts = p.counts();
+    // How much the book uses each lemma in forms that can only be that one.
+    let mut sure: HashMap<u32, u32> = HashMap::new();
+    for id in 0..p.lower.len() as u32 {
+        if let [one] = pack.lemmas_of(p.word(id)).as_slice() {
+            *sure.entry(*one).or_default() += counts[id as usize];
+        }
+    }
+    let kinds: Vec<Vec<(usize, &'static str, bool)>> = (0..p.lower.len() as u32)
+        .map(|id| {
+            if names.contains(&id) {
+                return Vec::new();
+            }
+            let word = p.word(id);
+            kinds_of(word, &read_as(word, counts[id as usize], pack, &sure), pack, extras)
+        })
+        .collect();
     /// A kind's sure and possible counts, and the forms seen for each.
     #[derive(Default)]
     struct Seen {
@@ -386,6 +424,10 @@ fn forms_by_pack(written: &str, pack: &Pack) -> Option<Forms> {
     let mut tables: Vec<Table> = Vec::new();
     for (form, readings) in extras.forms_of(lemma.word) {
         for reading in readings {
+            // Forms with a pronoun attached and regional forms are left out.
+            if reading.iter().any(|t| *t == "combined" || *t == "variant") {
+                continue;
+            }
             let (slot, title): (Vec<&str>, Vec<&str>) = reading.iter().partition(|t| SLOT.contains(t));
             let key = title.join("-");
             let row = Row { tags: slot.iter().map(|t| t.to_string()).collect(), this: form == word, form: form.clone() };
@@ -544,14 +586,21 @@ mod tests {
         assert_eq!(group("tense").of, 400);
         assert_eq!((item("tense", "present").count, item("tense", "past").count), (200, 200));
         assert_eq!(item("tense", "past").examples, ["blorped"]);
-        // The subjunctive is sure, its person is not; the imperative may be the noun.
+        // The subjunctive is sure, its person is not.
         assert_eq!((item("mood", "subjunctive").count, item("mood", "subjunctive").possible), (100, 0));
         assert_eq!((item("person", "first-person").count, item("person", "first-person").possible), (0, 100));
-        assert_eq!((item("person", "third-person").count, item("person", "third-person").possible), (300, 100));
-        assert_eq!((item("mood", "imperative").count, item("mood", "imperative").possible), (0, 100));
+        // "flib" is a noun of its own too, but the book uses the verb far
+        // more in forms that are only the verb's: it is read as the verb.
+        assert_eq!((item("mood", "imperative").count, item("mood", "imperative").possible), (100, 0));
         assert_eq!(item("mood", "imperative").examples, ["flib"]);
         assert_eq!(item("mood", "infinitive").count, 100);
         assert!(g.groups.iter().all(|g| g.key != "case"));
+        // In a book that hardly uses the verb otherwise, "flib" is the noun
+        // and is not counted as a form of the verb.
+        let text = "Zam flib ko flib. Ko flib zam flib ko. Zam blorped ko flib. ".repeat(100);
+        let p = prepare(&text);
+        let g = grammar(&p, "xx", Some(&pack), &HashSet::new()).unwrap();
+        assert!(g.groups.iter().flat_map(|g| &g.items).all(|i| i.tag != "imperative"), "{:?}", g.groups);
 
         // The table of the verb, from any of its forms.
         let f = forms_by_pack("Blorped", &pack).unwrap();

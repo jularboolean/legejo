@@ -44,13 +44,50 @@ const FREQUENCY_LEMMAS: usize = 20_000;
 
 /// What a form's tags say it is ("third-person singular preterite
 /// indicative"), or None when they say nothing of the kind or kaikki could
-/// not read the table.
+/// not read the table. Two tags of the pack's own come last, for forms a
+/// table of the word's forms leaves out: "combined" for a verb form with a
+/// pronoun attached (Spanish "hazlo", "hacerme": the tags say what the
+/// verb form is, not which pronoun), and "variant" for a regional form
+/// beside the standard one (the voseo's "hacés").
 fn grammar_tags(tags: &[String]) -> Option<String> {
     if tags.iter().any(|t| t.starts_with("error-")) {
         return None;
     }
-    let kept: Vec<&str> = GRAMMAR_TAGS.iter().copied().filter(|g| tags.iter().any(|t| t == g)).collect();
-    (!kept.is_empty()).then(|| kept.join(" "))
+    let has = |tag: &str| tags.iter().any(|t| t == tag);
+    let person = ["first-person", "second-person", "third-person"].iter().any(|p| has(p));
+    let combined = has("combined-form") || ((has("infinitive") || has("gerund")) && person);
+    let variant = has("vos-form") || has("with-vos");
+    let mut kept: Vec<&str> = GRAMMAR_TAGS
+        .iter()
+        .copied()
+        .filter(|g| has(g))
+        // The case and person of an attached pronoun are not the verb's.
+        .filter(|g| !combined || !matches!(*g, "accusative" | "dative" | "first-person" | "second-person" | "third-person" | "singular" | "plural") || has("imperative"))
+        .filter(|g| !combined || !matches!(*g, "accusative" | "dative"))
+        .collect();
+    if kept.is_empty() {
+        return None;
+    }
+    if combined {
+        kept.push("combined");
+    }
+    if variant {
+        kept.push("variant");
+    }
+    Some(kept.join(" "))
+}
+
+/// The readings of a form without those that only say less than another:
+/// the headword line gives "first-person singular present" for a form the
+/// table has as "first-person singular present indicative".
+fn fullest(readings: Vec<String>) -> Vec<String> {
+    let sets: Vec<HashSet<&str>> = readings.iter().map(|r| r.split(' ').collect()).collect();
+    readings
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !sets.iter().enumerate().any(|(j, other)| j != *i && sets[*i].len() < other.len() && sets[*i].is_subset(other)))
+        .map(|(_, r)| r.clone())
+        .collect()
 }
 /// The longest gloss written for a lemma, in characters.
 const MAX_GLOSS: usize = 110;
@@ -1157,7 +1194,7 @@ impl Builder {
             .into_iter()
             .filter_map(|((form, id), what)| {
                 let n = *line_of.get(&id)?;
-                out.get(&form)?.contains(&n).then(|| ((lines[n as usize].1.key.clone(), form), what.into_iter().collect()))
+                out.get(&form)?.contains(&n).then(|| ((lines[n as usize].1.key.clone(), form), fullest(what.into_iter().collect())))
             })
             .collect();
         Pack { lines: lines.into_iter().map(|(_, l)| l).collect(), forms: out, tags, stats, lang, lang_code }
@@ -1841,7 +1878,20 @@ mod tests {
         assert!(what("eens", "is").is_empty());
         assert!(what("gehen", "gehen").is_empty());
         assert_eq!(grammar_tags(&["singular".into(), "error-unrecognized-form".into()]), None);
-        assert_eq!(grammar_tags(&["indicative".into(), "with-voseo".into(), "singular".into(), "second-person".into()]).as_deref(), Some("second-person singular indicative"));
+        assert_eq!(grammar_tags(&["indicative".into(), "informal".into(), "singular".into(), "second-person".into()]).as_deref(), Some("second-person singular indicative"));
+        // A pronoun attached: what the verb form is, marked; a regional form marked too.
+        let tags = |list: &[&str]| grammar_tags(&list.iter().map(|t| t.to_string()).collect::<Vec<_>>());
+        assert_eq!(tags(&["accusative", "combined-form", "infinitive", "object-singular", "object-third-person"]).as_deref(), Some("infinitive combined"));
+        assert_eq!(tags(&["first-person", "infinitive", "singular"]).as_deref(), Some("infinitive combined"));
+        assert_eq!(
+            tags(&["accusative", "combined-form", "imperative", "informal", "second-person", "singular", "with-tú"]).as_deref(),
+            Some("second-person singular imperative combined")
+        );
+        assert_eq!(tags(&["indicative", "present", "second-person", "singular", "vos-form"]).as_deref(), Some("second-person singular present indicative variant"));
+        // The reading that says less than another goes.
+        let kept = fullest(vec!["first-person singular present".into(), "first-person singular present indicative".into(), "first-person singular present subjunctive".into()]);
+        assert_eq!(kept, ["first-person singular present indicative", "first-person singular present subjunctive"]);
+        assert_eq!(fullest(vec!["plural".into(), "genitive".into()]), ["plural", "genitive"]);
     }
 
     #[test]
