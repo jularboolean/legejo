@@ -576,6 +576,27 @@ the languages Snowball has stemmers for, among them all the languages Legejo spe
 another language, or with no language set, has no panel. Legejo counts each book once, in the
 background, the first time it is asked for its words at the latest.</p>"""),
 
+ ("Looking Closer at a Book's Language",
+  "<p>You want to know how a book is written: how long its sentences are, which phrases it repeats, who is in it.</p>",
+  """<p>Open the book, fold out <strong>Vocabulary</strong> and follow <strong>Analysis</strong> at
+the end of the panel. The page has a tab for each view. <strong>Style</strong> measures the
+sentences and the words, how much of the book is dialogue and how varied its vocabulary is, gives
+its readability as LIX and as the index made for its language, and draws the difficulty from the
+first part of the book to the last. <strong>Phrases</strong> lists the words the book writes
+together far more often than chance would have it, fixed expressions worth learning whole.
+<strong>People</strong> shows the names, where in the book each is named and which of them are
+named near each other. <strong>Concordance</strong> lines up every place where a word or a phrase
+stands; choose a phrase, a name or a form on the other tabs to see its lines.</p>""",
+  """<p>A book in Esperanto has a <strong>Grammar</strong> tab too: its verb forms, participles,
+accusatives and plurals counted by their endings. A book in another language has it when the
+language's pack came with extras, which is up to the pack; there a form that can be several
+things is counted as possibly each, the lighter part of a bar. In the reader, select a word and
+choose <strong>Forms</strong> for the table of its forms.</p>
+<p>The numbers are measurements, not verdicts. LIX was made for Swedish, and serves in other
+languages to compare books in the same language. The concordance reads the whole book, also what
+you have not come to yet. Nothing is worked out until the page is opened for the first time, so
+that first look takes a moment.</p>"""),
+
  ("Learning the Words of a Book in Esperanto",
   "<p>You are learning Esperanto and want to know the words of a book before you read it.</p>",
   """<p>A book in Esperanto has a card <strong>Before you read</strong> on its page. It leads to

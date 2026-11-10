@@ -4,6 +4,33 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.47.0 (2026-11-10)
+
+- **Analysis: a closer look at a book's language.** A new page for each
+  book, reached from the end of the Vocabulary panel (with *Vocabulary and
+  study lists* turned on under Account → Options). **Style** measures the
+  sentences and the words, the share of dialogue and how varied the
+  vocabulary is, gives the readability as LIX and as the index made for the
+  language (Flesch for English, Fernández Huerta for Spanish, Amstad for
+  German, Gulpease for Italian), and draws the difficulty through the book.
+  **Phrases** lists the fixed expressions the book repeats. **People**
+  shows the names, where in the book each is named and who is named with
+  whom. **Concordance** lines up every place where a word, in all its forms,
+  or a phrase stands. Nothing is worked out until the page is first opened.
+- **Grammar, counted.** A book in Esperanto shows its verb forms,
+  participles, accusatives and plurals. A book in a language whose pack has
+  extras shows its tenses, moods, persons and cases, as Wiktionary's
+  inflection tables name them; a form that can be several things is counted
+  as possibly each. In the reader, select a word and choose **Forms** for
+  the table of its forms.
+- **Extras for language packs.** A pack can come with what each inflected
+  form is, and with a frequency list that gives a book an estimated CEFR
+  level. Under **Admin → Languages**, a pack whose extras the catalogue has
+  shows **Fetch the extras for the analysis**; the books' words are not
+  counted again for them. The `langpack` program writes them with `--tags`
+  and `--frequency`; see `tools/langpack/README.md`. Reading a language's
+  extras takes some memory the first time a book in it is analysed.
+
 ## 1.46.0 (2026-11-08)
 
 - **Study lists for any language with a language pack.** A pack takes every

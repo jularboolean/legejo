@@ -582,6 +582,28 @@ Tio funkcias por la lingvoj, por kiuj Snowball havas radikigilojn, inter ili ĉi
 Legejo parolas; libro en alia lingvo, aŭ sen lingvo, ne havas panelon. Legejo kalkulas ĉiun libron
 unufoje, fone, plej malfrue la unuan fojon, kiam iu demandas pri ĝiaj vortoj.</p>"""),
 
+ ("Rigardi pli proksime la lingvon de libro",
+  "<p>Vi volas scii, kiel libro estas verkita: kiom longaj estas ĝiaj frazoj, kiujn frazerojn ĝi ripetas, kiuj aperas en ĝi.</p>",
+  """<p>Malfermu la libron, malfaldu <strong>Vortprovizo</strong> kaj sekvu <strong>Analizo</strong>
+fine de la panelo. La paĝo havas langeton por ĉiu vido. <strong>Stilo</strong> mezuras la frazojn
+kaj la vortojn, kiom de la libro estas dialogo kaj kiom varia estas ĝia vortprovizo, donas ĝian
+legeblecon kiel LIX kaj kiel la indicon faritan por ĝia lingvo, kaj desegnas la malfacilecon de
+la unua parto de la libro ĝis la lasta. <strong>Frazeroj</strong> listigas la vortojn, kiujn la
+libro skribas kune multe pli ofte, ol la hazardo donus: fiksajn esprimojn, lernindajn kiel tutojn.
+<strong>Personoj</strong> montras la nomojn, kie en la libro ĉiu estas nomata, kaj kiuj el ili
+estas nomataj proksime unu al la alia. <strong>Konkordanco</strong> vicigas ĉiun lokon, kie
+staras vorto aŭ frazero; elektu frazeron, nomon aŭ formon en la aliaj langetoj por vidi ĝiajn
+liniojn.</p>""",
+  """<p>Libro en Esperanto havas ankaŭ la langeton <strong>Gramatiko</strong>: ĝiaj verboformoj,
+participoj, akuzativoj kaj pluraloj, kalkulitaj laŭ siaj finaĵoj. Libro en alia lingvo havas ĝin,
+kiam la lingvopako venis kun aldonaĵo, kio dependas de la pako; tie formo, kiu povas esti pluraj
+aferoj, estas kalkulata kiel eble ĉiu el ili, la pli hela parto de stango. En la legilo elektu
+vorton kaj premu <strong>Formoj</strong> por la tabelo de ĝiaj formoj.</p>
+<p>La nombroj estas mezuroj, ne juĝoj. LIX estis farita por la sveda, kaj en aliaj lingvoj taŭgas
+por kompari librojn en la sama lingvo. La konkordanco legas la tutan libron, ankaŭ tion, kion vi
+ankoraŭ ne atingis. Nenio estas kalkulata, antaŭ ol la paĝo unuafoje malfermiĝas, do tiu unua
+rigardo daŭras momenton.</p>"""),
+
  ("Lerni la vortojn de libro en Esperanto",
   "<p>Vi lernas Esperanton kaj volas koni la vortojn de libro antaŭ ol legi ĝin.</p>",
   """<p>Libro en Esperanto havas karton <strong>Antaŭ la legado</strong> sur sia paĝo. Ĝi kondukas al
