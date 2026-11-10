@@ -59,7 +59,7 @@ impl Live {
     pub async fn load(db: &sqlx::AnyPool) -> anyhow::Result<Live> {
         let mail = crate::mail::from_env()?;
         let ai = crate::settings::ai_from_env()?;
-        let public_url = crate::settings::var("LEGEJO_PUBLIC_URL")?.map(|u| u.trim().trim_end_matches('/').to_string());
+        let public_url = crate::settings::var("LEGEJO_PUBLIC_URL")?.map(|u| public_url_from_env(&u)).transpose()?;
         let env = FromEnv { mail: mail.is_some(), ai: ai.is_some(), public_url: public_url.is_some() };
         let live = Live { values: RwLock::new(Values { mail, ai, public_url }), env, fulltext: false.into() };
         live.reload(db).await?;
@@ -453,6 +453,19 @@ pub(crate) fn clean_url(raw: &str) -> Result<Option<String>, Response> {
     Ok(Some(raw.to_string()))
 }
 
+/// LEGEJO_PUBLIC_URL as it must be written. Every link handed out is built
+/// from it (to a Kobo, in mail, to other instances), so one that is not an
+/// address stops the start rather than giving links that lead nowhere.
+fn public_url_from_env(raw: &str) -> anyhow::Result<String> {
+    match clean_url(raw) {
+        Ok(Some(url)) => Ok(url),
+        _ => anyhow::bail!(
+            "LEGEJO_PUBLIC_URL must be an address such as https://books.example.org or http://192.168.1.10:3000, \
+             beginning with http:// or https:// and with nothing after the host and port, not {raw:?}"
+        ),
+    }
+}
+
 /// PUT /api/admin/connections/public-url
 pub async fn put_public_url(State(state): State<AppState>, admin: AdminUser, headers: HeaderMap, Json(form): Json<PublicUrlForm>) -> Result<Json<Connections>, Response> {
     if state.live.env.public_url {
@@ -501,4 +514,23 @@ fn fail(status: StatusCode, field: &str) -> Response {
 fn internal(e: anyhow::Error) -> Response {
     tracing::error!("internal error: {e:#}");
     fail(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+}
+
+#[cfg(test)]
+mod public_url_tests {
+    use super::public_url_from_env;
+
+    #[test]
+    fn the_public_address_from_the_environment_must_be_an_address() {
+        for (raw, url) in [
+            ("https://books.example.org", "https://books.example.org"),
+            (" http://192.168.1.10:3000/ ", "http://192.168.1.10:3000"),
+        ] {
+            assert_eq!(public_url_from_env(raw).unwrap(), url);
+        }
+        for raw in ["192.168.1.10:3000", "books.example.org", "http://books.example.org/legejo", "ftp://books.example.org", "https://books.example.org?x=1"] {
+            let e = public_url_from_env(raw).unwrap_err().to_string();
+            assert!(e.contains("LEGEJO_PUBLIC_URL") && e.contains(raw), "{e}");
+        }
+    }
 }
