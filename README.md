@@ -39,12 +39,12 @@ with SQLite built in.
 - **Reading:** a web reader with themes, highlights, notes and reading aloud.
   It also reads PDF files and comics, and works offline when installed on a
   phone or tablet.
-- **Vocabulary:** for each book, how many of its commonest words cover most
-  of the text, its names and characteristic words, and a difficulty compared
-  with the other books in the language. Esperanto books get a study list in
-  order of frequency, with English meanings and an export to Anki; books in
-  other languages get one from a language pack, installed with a click from
-  [legejo.se/languages](https://legejo.se/languages).
+- **Vocabulary and analysis:** for each book, how far its commonest words
+  reach, a study list in order of frequency with English meanings and an
+  export to Anki, and a closer look at its language: readability, repeated
+  phrases, people, a concordance and the grammar it is written in.
+  Esperanto is built in; other languages come as language packs, installed
+  with a click from [legejo.se/languages](https://legejo.se/languages).
 - **E-readers:** Kobo sync (books, collections, progress and highlights),
   a KOReader sync server, OPDS 1.2 and Send to Kindle.
 - **Shelves to share:** with users on your instance, with someone on another
