@@ -4,6 +4,13 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.47.1 (2026-11-10)
+
+- **A language pack's extras take little memory.** The server read what
+  each inflected form is into memory all at once the first time a language
+  was analysed, which on a small server with several languages could be more
+  than it had. It is now read a line at a time.
+
 ## 1.47.0 (2026-11-10)
 
 - **Analysis: a closer look at a book's language.** A new page for each
