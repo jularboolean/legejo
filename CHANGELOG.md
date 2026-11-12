@@ -4,6 +4,16 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.47.3 (2026-11-12)
+
+- **Images are left out of a book's text.** The text that search, the
+  analysis, the vocabulary and the reading time go by held each image's alt
+  text, which converters often set to "image", "images" or a file name: a
+  search for "image" found books full of pictures, and their analysis listed
+  phrases such as "image images". Books whose text had it are read again by
+  the search in the background, and their analysis and vocabulary are
+  computed again.
+
 ## 1.47.2 (2026-11-10)
 
 - **`LEGEJO_PUBLIC_URL` is checked at start.** The address must begin with
