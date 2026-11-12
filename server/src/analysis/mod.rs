@@ -38,7 +38,7 @@ use std::sync::Arc;
 
 /// Raised when what is computed changes, so that a book is analysed again
 /// the next time it is asked for.
-const VERSION: i64 = 2;
+const VERSION: i64 = 3;
 /// Words a book must have before it is analysed.
 const WORDS_MIN: usize = 300;
 /// A text whose "words" are this long on average is not written in words

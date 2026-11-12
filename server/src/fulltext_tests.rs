@@ -286,3 +286,27 @@ async fn esperanto_typed_in_the_x_system_finds_the_printed_words() {
     let expr = fulltext::text_expr(crate::db::Backend::Postgres, "cxambro \"sxangxo kaj\"").unwrap();
     assert_eq!(expr, "(cxambro:* | ĉambro:*) & ((sxangxo <-> kaj) | (ŝanĝo <-> kaj))");
 }
+
+#[tokio::test]
+async fn a_text_stored_with_image_alt_text_is_read_again() {
+    let (app, db, state) = test_app_on().await;
+    let (_, a) = add_user(&db, "alice").await;
+    upload(&app, &a, &[("havet.epub", novel("Havet"))], "").await;
+    let done = fulltext::index_pending(&state, 10).await.unwrap();
+    let id = done[0].0;
+    // As an earlier version stored it, with an image's alt text in it.
+    sqlx::query("UPDATE book_text SET body = body || ' [image: images] [image: images]', text_hash = 'old'").execute(&db).await.unwrap();
+    sqlx::query("UPDATE books SET text_hash = 'old' WHERE id = ?").bind(id).execute(&db).await.unwrap();
+    let with_alt = "SELECT COUNT(*) FROM book_text WHERE body LIKE '%[image:%'";
+    assert!(sqlx::query_scalar::<_, i64>(with_alt).fetch_one(&db).await.unwrap() > 0);
+
+    sqlx::raw_sql(include_str!("../migrations/sqlite/0038_text_without_images.sql")).execute(&db).await.unwrap();
+    assert_eq!(fulltext::index_pending(&state, 10).await.unwrap(), vec![(id, fulltext::Indexed::Stored)]);
+    fulltext::drop_orphans(&state).await.unwrap();
+    assert_eq!(sqlx::query_scalar::<_, i64>(with_alt).fetch_one(&db).await.unwrap(), 0);
+    let chars: Option<String> =
+        sqlx::query_scalar("SELECT text_chars_sha256 FROM books WHERE id = ?").bind(id).fetch_one(&db).await.unwrap();
+    assert!(chars.is_none(), "the length for the reading time is counted again");
+    let (_, v) = send(&app, Method::GET, "/api/search/text?q=storm", Some(&a), None).await;
+    assert_eq!(v["books"].as_array().map(Vec::len), Some(1), "the book's own words are still found: {v}");
+}

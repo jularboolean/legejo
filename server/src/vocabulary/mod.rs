@@ -50,7 +50,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Raised when what is computed changes, so that every book is done again.
-const VERSION: i64 = 8;
+const VERSION: i64 = 9;
 
 fn internal(e: impl std::fmt::Display) -> Response {
     tracing::error!("internal error: {e}");

@@ -147,7 +147,7 @@ const BLOCK_TAGS: [&str; 22] = [
 const SKIPPED: [&str; 4] = ["script", "style", "head", "svg"];
 
 /// XHTML to readable text: block elements become line breaks, entities are
-/// decoded, images are represented by their alt text.
+/// decoded, images are left out.
 pub fn html_to_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len() / 2);
     let mut rest = html;
@@ -187,11 +187,10 @@ pub fn html_to_text(html: &str) -> String {
             continue;
         }
         if name == "img" {
-            if let Some(alt) = attribute(tag, "alt").filter(|a| !a.trim().is_empty()) {
-                out.push_str(" [image: ");
-                push_text(&mut out, &alt);
-                out.push_str("] ");
-            }
+            // An image's alt text is not the book's words: often only
+            // "image" or a file name, put there by the tool that made the
+            // EPUB. A space keeps the words on either side apart.
+            out.push(' ');
         } else if BLOCK_TAGS.contains(&name.as_str()) {
             out.push('\n');
         }
@@ -200,27 +199,6 @@ pub fn html_to_text(html: &str) -> String {
         push_text(&mut out, rest);
     }
     tidy(&out)
-}
-
-fn attribute(tag: &str, name: &str) -> Option<String> {
-    let lower = tag.to_ascii_lowercase();
-    let mut from = 0;
-    while let Some(found) = lower[from..].find(name) {
-        let at = from + found;
-        let before_ok = at == 0 || lower.as_bytes()[at - 1].is_ascii_whitespace();
-        let after = tag[at + name.len()..].trim_start();
-        if before_ok && after.starts_with('=') {
-            let value = after[1..].trim_start();
-            let quote = value.chars().next()?;
-            if quote == '"' || quote == '\'' {
-                let inner = &value[1..];
-                return inner.find(quote).map(|end| inner[..end].to_string());
-            }
-            return Some(value.split_whitespace().next().unwrap_or("").to_string());
-        }
-        from = at + name.len();
-    }
-    None
 }
 
 /// Text for HTML or XML: the characters that would otherwise be read as
@@ -418,9 +396,17 @@ mod tests {
         let text = html_to_text(html);
         assert_eq!(
             text,
-            "Chapter One\nIt was a dark & stormy night—really.\nSecond\nline. “Quoted” &unknown; A &B.\n[image: A map of the island]\none\ntwo"
+            "Chapter One\nIt was a dark & stormy night—really.\nSecond\nline. “Quoted” &unknown; A &B.\none\ntwo"
         );
         assert!(!text.contains("Ignored") && !text.contains("alert") && !text.contains("color"));
+    }
+
+    #[test]
+    fn images_are_left_out_of_the_text() {
+        // As a converter leaves them: alt text that is no part of the book.
+        let html = r#"<p>Andrée<img src="images/1.jpg" alt="images"/>och<img alt="image"/><img alt="images"/>Strindberg</p>
+            <figure><img src="k.jpg" alt="Karta"/><figcaption>Kartan över Vitön</figcaption></figure>"#;
+        assert_eq!(html_to_text(html), "Andrée och Strindberg\nKartan över Vitön");
     }
 
     #[test]
