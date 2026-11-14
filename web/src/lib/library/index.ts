@@ -136,7 +136,7 @@ export function bookYear(book: { first_published?: number | null; published?: st
 	return book.first_published ?? publishedYear(book.published);
 }
 
-export function readStatus(book: LibraryBook): ReadStatus {
+export function readStatus(book: Pick<Book, 'read_at' | 'progress_percent'>): ReadStatus {
 	if (book.read_at) return 'finished';
 	const p = book.progress_percent;
 	if (p == null) return 'unread';
@@ -342,7 +342,8 @@ export type SeriesGroup<T extends Book = LibraryBook> = { name: string; books: T
  */
 export function groupBySeries<T extends Book = LibraryBook>(books: T[], locale: string): { series: SeriesGroup<T>[]; loose: T[] } {
 	const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
-	const byName = new Map<string, T[]>();
+	// Names that differ only in case are one series, under the first spelling.
+	const byName = new Map<string, { name: string; list: T[] }>();
 	const loose: T[] = [];
 	for (const book of books) {
 		const name = book.series?.trim();
@@ -350,11 +351,12 @@ export function groupBySeries<T extends Book = LibraryBook>(books: T[], locale: 
 			loose.push(book);
 			continue;
 		}
-		const list = byName.get(name);
-		if (list) list.push(book);
-		else byName.set(name, [book]);
+		const key = name.toLocaleLowerCase(locale);
+		const group = byName.get(key);
+		if (group) group.list.push(book);
+		else byName.set(key, { name, list: [book] });
 	}
-	const series = [...byName].map(([name, list]) => {
+	const series = [...byName.values()].map(({ name, list }) => {
 		const ordered = [...list].sort(
 			(a, b) =>
 				(a.series_index ?? Infinity) - (b.series_index ?? Infinity) || collator.compare(a.title, b.title)
@@ -362,4 +364,31 @@ export function groupBySeries<T extends Book = LibraryBook>(books: T[], locale: 
 		return { name, books: ordered, cover: ordered.find((b) => b.has_cover) ?? ordered[0] };
 	});
 	return { series, loose };
+}
+
+export type SeriesProgress<T extends Book = Book> = {
+	finished: number;
+	total: number;
+	/** The book to go on with: one being read, else the first unread. */
+	next: T | null;
+	/** Whole numbers from 1 to the highest that no book in the series has. */
+	gaps: number[];
+};
+
+/** Where a reader stands in a series, from its books in series order. */
+export function seriesProgress<T extends Book>(books: T[]): SeriesProgress<T> {
+	const statuses = books.map((b) => readStatus(b));
+	const finished = statuses.filter((s) => s === 'finished').length;
+	const reading = books.find((_, i) => statuses[i] === 'reading');
+	const next = reading ?? books.find((_, i) => statuses[i] === 'unread') ?? null;
+	const numbers = new Set(
+		books.map((b) => b.series_index).filter((i): i is number => i != null && Number.isInteger(i) && i >= 1)
+	);
+	const highest = Math.max(0, ...numbers);
+	const gaps: number[] = [];
+	// A series numbered by year (or anything that high) has no gaps worth naming.
+	if (highest <= 500) {
+		for (let i = 1; i < highest; i++) if (!numbers.has(i)) gaps.push(i);
+	}
+	return { finished, total: books.length, next, gaps };
 }

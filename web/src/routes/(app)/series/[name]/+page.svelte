@@ -1,10 +1,15 @@
 <script lang="ts">
 	import BookCover from '#lib/library/BookCover.svelte';
-	import { ArrowLeft, Layers } from '@lucide/svelte';
+	import { ArrowLeft, BookOpen, Check, Layers } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
+	import { readStatus, seriesProgress } from '#lib/library';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	const progress = $derived(seriesProgress(data.seriesBooks));
+	// Many missing numbers read as a list too long to help; name the first few.
+	const shownGaps = $derived(progress.gaps.slice(0, 8));
 
 	function indexLabel(index: number | null): string | null {
 		if (index == null) return null;
@@ -18,6 +23,32 @@
 	<h1><Layers size={20} strokeWidth={1.75} /> {data.seriesName}</h1>
 	<span class="count">{data.seriesBooks.length}</span>
 </div>
+
+{#if data.seriesBooks.length > 0}
+	<div class="overview">
+		<div class="tally">
+			<span class="bar" aria-hidden="true"><span style:width={`${Math.round((progress.finished / progress.total) * 100)}%`}></span></span>
+			<span>{t('series.finished', { finished: progress.finished, total: progress.total })}</span>
+		</div>
+		{#if progress.next}
+			{@const next = progress.next}
+			<a class="button next" href={`/books/${next.id}/read`}>
+				<BookOpen size={14} />
+				{readStatus(next) === 'reading' ? t('series.continue') : t('series.start')}
+				<span class="next-title">{indexLabel(next.series_index) ?? ''} {next.title}</span>
+			</a>
+		{:else}
+			<span class="done"><Check size={14} /> {t('series.allRead')}</span>
+		{/if}
+		{#if shownGaps.length > 0}
+			<p class="gaps">
+				{t('series.gaps', {
+					numbers: shownGaps.map((n) => `#${n}`).join(', ') + (progress.gaps.length > shownGaps.length ? ' …' : '')
+				})}
+			</p>
+		{/if}
+	</div>
+{/if}
 
 {#if data.seriesBooks.length === 0}
 	<p class="empty">{t('series.empty')}</p>
@@ -79,6 +110,59 @@
 		font-size: 1rem;
 	}
 	.empty {
+		color: var(--muted);
+	}
+	.overview {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem 1.25rem;
+		margin: -0.5rem 0 1.75rem;
+	}
+	.tally {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+	.tally .bar {
+		width: 6rem;
+		height: 5px;
+		border-radius: 999px;
+		background: var(--border);
+		overflow: hidden;
+	}
+	.tally .bar span {
+		display: block;
+		height: 100%;
+		background: var(--accent);
+	}
+	.next {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		max-width: 100%;
+	}
+	.next-title {
+		font-weight: 400;
+		opacity: 0.85;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 16rem;
+	}
+	.done {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.85rem;
+		color: var(--accent);
+	}
+	.gaps {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: 0.8rem;
 		color: var(--muted);
 	}
 	.grid {

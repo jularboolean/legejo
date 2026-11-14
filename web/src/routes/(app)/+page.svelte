@@ -81,6 +81,25 @@
 			.map(([code, count]) => ({ code, count, label: languageLabel(code, getLocale()) }))
 			.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 	});
+	// Tags most used first; a tag spelled two ways counts as one, under its first spelling.
+	const tags = $derived.by(() => {
+		const byKey = new Map<string, { name: string; count: number }>();
+		for (const book of data.books) {
+			for (const tag of book.tags) {
+				const key = tag.toLocaleLowerCase();
+				const seen = byKey.get(key);
+				if (seen) seen.count++;
+				else byKey.set(key, { name: tag, count: 1 });
+			}
+		}
+		const collator = new Intl.Collator(getLocale(), { numeric: true, sensitivity: 'base' });
+		return [...byKey.values()].sort((a, b) => b.count - a.count || collator.compare(a.name, b.name));
+	});
+	const seriesNames = $derived(
+		[...new Set(data.books.map((b) => b.series?.trim()).filter((s): s is string => !!s))].sort(
+			new Intl.Collator(getLocale(), { numeric: true }).compare
+		)
+	);
 	const unshelvedCount = $derived(data.books.filter((b) => b.shelf_ids.length === 0).length);
 	const issuesCount = $derived(data.books.filter((b) => b.health_issues > 0).length);
 	const formats = $derived(
@@ -345,7 +364,7 @@
 {#if data.books.length === 0}
 	<p class="empty">{t('home.empty')}</p>
 {:else}
-	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats}>
+	<LibraryToolbar bind:filters bind:prefs {languages} {authors} shelves={data.shelves} {unshelvedCount} {issuesCount} {formats} {tags}>
 		{#snippet authorNote()}
 			{#if data.authorFacts && filteredAuthor}<AuthorLine name={filteredAuthor} />{/if}
 		{/snippet}
@@ -376,6 +395,7 @@
 			bind:selected
 			visibleIds={visible.map((b) => b.id)}
 			shelves={data.shelves}
+			{seriesNames}
 			ondone={stopSelecting}
 		/>
 	{/if}

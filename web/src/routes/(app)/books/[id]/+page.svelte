@@ -762,6 +762,13 @@
 	a.chip.tag:hover {
 		color: var(--fg);
 	}
+	/* A tag is a label, a shelf a place: smaller and square-cornered. */
+	.chip.tag {
+		font-size: 0.72rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: 2px;
+		gap: 0.25rem;
+	}
 	.series {
 		margin: 0.3rem 0 0;
 		font-size: 0.9rem;

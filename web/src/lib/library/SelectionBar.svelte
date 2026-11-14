@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { BookMarked, Bookmark, Download, Tag, Trash2, X, Wrench } from '@lucide/svelte';
+	import { BookMarked, Bookmark, Download, Layers, Tag, Trash2, X, Wrench } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import { t } from '#lib/i18n';
 	import { rise } from '#lib/motion';
@@ -12,12 +12,15 @@
 		selected = $bindable(),
 		visibleIds,
 		shelves,
+		seriesNames = [],
 		ondone
 	}: {
 		selected: Set<number>;
 		/** The books currently shown, for "select all". */
 		visibleIds: number[];
 		shelves: Shelf[];
+		/** The series already in the library, offered when setting one. */
+		seriesNames?: string[];
 		/** Leave selection mode. */
 		ondone: () => void;
 	} = $props();
@@ -26,9 +29,16 @@
 	let message = $state('');
 	let skipped = $state<{ id: number; title: string; reason: NotFederable }[]>([]);
 	let tag = $state('');
+	let seriesName = $state('');
+	let numbered = $state(true);
 	let confirmDelete = $state(false);
 
 	const ids = $derived([...selected]);
+	// The selection in the order the library shows it, for numbering a series.
+	const shownOrder = $derived([
+		...visibleIds.filter((id) => selected.has(id)),
+		...ids.filter((id) => !visibleIds.includes(id))
+	]);
 	const allShown = $derived(visibleIds.length > 0 && visibleIds.every((id) => selected.has(id)));
 
 	function toggleAll() {
@@ -44,7 +54,7 @@
 			const res = await fetch('/api/books/bulk', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids, ...action })
+				body: JSON.stringify({ ids: shownOrder, ...action })
 			});
 			const body = await res.json().catch(() => null);
 			if (!res.ok) {
@@ -137,6 +147,52 @@
 									close();
 									run({ action: 'remove_tag', tag: value }, (n) => t('select.untagged', { count: n, tag: value }));
 								}}>{t('select.remove')}</button
+							>
+						</div>
+					</form>
+				{/snippet}
+			</Popover>
+
+			<Popover label={t('select.series')} align="right" up>
+				{#snippet button()}<Layers size={13} /> {t('select.series')}{/snippet}
+				{#snippet children(close)}
+					<form
+						class="tag-form"
+						onsubmit={(e) => {
+							e.preventDefault();
+							const value = seriesName.trim();
+							if (!value) return;
+							close();
+							run({ action: 'set_series', series: value, numbered }, (n) =>
+								t('select.seriesSet', { count: n, series: value })
+							);
+						}}
+					>
+						<input
+							bind:value={seriesName}
+							list="selection-series"
+							placeholder={t('select.seriesPlaceholder')}
+							aria-label={t('select.series')}
+						/>
+						<datalist id="selection-series">
+							{#each seriesNames as name (name)}<option value={name}></option>{/each}
+						</datalist>
+						<label class="check">
+							<input type="checkbox" bind:checked={numbered} />
+							{t('select.seriesNumbered')}
+						</label>
+						<div class="tag-buttons">
+							<button type="submit" class="mini" disabled={busy || !seriesName.trim() || selected.size === 0}>
+								{t('select.seriesApply')}
+							</button>
+							<button
+								type="button"
+								class="mini ghost"
+								disabled={busy || selected.size === 0}
+								onclick={() => {
+									close();
+									run({ action: 'set_series', series: '' }, (n) => t('select.seriesRemoved', { count: n }));
+								}}>{t('select.seriesClear')}</button
 							>
 						</div>
 					</form>
@@ -350,6 +406,13 @@
 	.tag-buttons {
 		display: flex;
 		gap: 0.35rem;
+	}
+	.check {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.8rem;
+		color: var(--muted);
 	}
 	.empty {
 		margin: 0.3rem;

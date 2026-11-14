@@ -292,6 +292,7 @@ fn router(state: AppState) -> Router {
         .route("/openlibrary/search", get(openlibrary::search))
         .route("/openlibrary/work", get(openlibrary::work))
         .route("/openlibrary/cover/{id}", get(openlibrary::cover))
+        .route("/series", get(books::series_list))
         .route("/series/{name}", get(books::series))
         .route("/authors", get(books::authors))
         .route("/books/bulk", post(books::bulk))

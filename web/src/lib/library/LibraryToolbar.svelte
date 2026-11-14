@@ -37,6 +37,7 @@
 		unshelvedCount,
 		issuesCount = 0,
 		formats = [],
+		tags = [],
 		authorNote
 	}: {
 		filters: Filters;
@@ -51,6 +52,8 @@
 		issuesCount?: number;
 		/** The file formats in the library, offered when there is more than one. */
 		formats?: { format: NonNullable<Filters['format']>; count: number }[];
+		/** The tags in the library, most used first. */
+		tags?: { name: string; count: number }[];
 		/** Shown right after the chip of an author filter: who the author was. */
 		authorNote?: Snippet;
 	} = $props();
@@ -72,6 +75,13 @@
 		const q = fold(authorQuery.trim());
 		return q ? authors.filter((a) => fold(a.name).includes(q)) : authors;
 	});
+
+	let tagQuery = $state('');
+	const shownTags = $derived.by(() => {
+		const q = fold(tagQuery.trim());
+		return q ? tags.filter((tag) => fold(tag.name).includes(q)) : tags;
+	});
+	const tagActive = (name: string) => filters.tag != null && fold(filters.tag) === fold(name);
 
 	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format' | 'tag'>(field: K, value: Filters[K]) {
 		filters = { ...filters, [field]: filters[field] === value ? null : value };
@@ -252,6 +262,38 @@
 									{t('library.file.issues')}
 									<span class="num">{issuesCount}</span>
 								</button>
+							</div>
+						</section>
+					{/if}
+
+					{#if tags.length > 0}
+						<section>
+							<h3>
+								{t('library.filter.tag')}
+								<span class="h-count">{tags.length}</span>
+							</h3>
+							{#if tags.length > 8}
+								<input
+									class="author-search"
+									type="search"
+									placeholder={t('library.filter.tagSearch')}
+									bind:value={tagQuery}
+								/>
+							{/if}
+							<div class="author-list">
+								{#each shownTags as tag (tag.name)}
+									<button
+										type="button"
+										class="author-option"
+										aria-pressed={tagActive(tag.name)}
+										onclick={() => (filters = { ...filters, tag: tagActive(tag.name) ? null : tag.name })}
+									>
+										<span class="author-name">{tag.name}</span>
+										<span class="num">{tag.count}</span>
+									</button>
+								{:else}
+									<p class="none">{t('library.filter.tagNoMatch')}</p>
+								{/each}
 							</div>
 						</section>
 					{/if}

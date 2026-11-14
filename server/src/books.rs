@@ -891,6 +891,14 @@ pub enum BulkAction {
     AddTag { tag: String },
     RemoveTag { tag: String },
     Want { want: bool },
+    /// Put the books in a series, or out of any with an empty name. With
+    /// `numbered`, they are numbered 1, 2, 3 … in the order of `ids`;
+    /// otherwise each keeps its number.
+    SetSeries {
+        series: String,
+        #[serde(default)]
+        numbered: bool,
+    },
     /// Mend the files and write the catalog's metadata and cover into them.
     Repair,
     Delete,
@@ -1021,6 +1029,38 @@ pub async fn bulk(
             done = set_want_for(&state, user.0.id, &ids, *want).await? as usize;
             action_name = if *want { "book.bulk_wanted" } else { "book.bulk_unwanted" };
             details = serde_json::json!({ "count": done });
+        }
+        BulkAction::SetSeries { series, numbered } => {
+            let series = series.trim();
+            if series.len() > 200 {
+                return Err(unprocessable("series must be at most 200 characters"));
+            }
+            let now = now_ts();
+            for (i, b) in mine.iter().enumerate() {
+                let (name, index) = if series.is_empty() {
+                    (None, None)
+                } else if *numbered {
+                    (Some(series), Some((i + 1) as f64))
+                } else {
+                    (Some(series), b.series_index)
+                };
+                // updated_at moves so that Kobo and OPDS see the change.
+                sqlx::query(
+                    "UPDATE books SET series = $1, series_index = CAST($2 AS DOUBLE PRECISION), updated_at = $3
+                     WHERE id = $4 AND owner_id = $5",
+                )
+                .bind(name)
+                .bind(float_param(index))
+                .bind(&now)
+                .bind(b.id)
+                .bind(user.0.id)
+                .execute(&state.db)
+                .await
+                .map_err(|e| internal(e.into()))?;
+                done += 1;
+            }
+            action_name = if series.is_empty() { "book.bulk_unseries" } else { "book.bulk_series" };
+            details = serde_json::json!({ "count": done, "series": series, "numbered": numbered });
         }
         BulkAction::Repair => {
             for b in &mine {
@@ -1735,6 +1775,39 @@ pub async fn authors(
     Ok(Json(authors))
 }
 
+#[derive(Serialize)]
+pub struct SeriesItem {
+    name: String,
+    count: i64,
+}
+
+/// The caller's series by name, with how many books each has. Names that
+/// differ only in case are one series.
+pub async fn series_list(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<SeriesItem>>, Response> {
+    let names: Vec<(String,)> = sqlx::query_as(
+        "SELECT series FROM books WHERE owner_id = $1 AND series IS NOT NULL ORDER BY id",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    // Folded here rather than in SQL: SQLite's LOWER() knows only ASCII.
+    let mut items: Vec<(String, SeriesItem)> = Vec::new();
+    for (name,) in names {
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let key = name.to_lowercase();
+        match items.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, item)) => item.count += 1,
+            None => items.push((key, SeriesItem { name: name.to_string(), count: 1 })),
+        }
+    }
+    items.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(Json(items.into_iter().map(|(_, item)| item).collect()))
+}
+
 /// All of the caller's books in a series, reading order first.
 pub async fn series(
     State(state): State<AppState>,
@@ -1744,17 +1817,19 @@ pub async fn series(
     let books: Vec<Book> = sqlx::query_as(&format!(
         "SELECT {BOOK_COLUMNS_B}, {percent} AS progress_percent FROM books b
          {joins}
-         WHERE b.owner_id = $1 AND b.series IS NOT NULL AND LOWER(b.series) = LOWER($2)
+         WHERE b.owner_id = $1 AND b.series IS NOT NULL
          ORDER BY CASE WHEN b.series_index IS NULL THEN 1 ELSE 0 END, b.series_index, LOWER(b.title)",
         percent = progress::progress_percent(state.backend),
         joins = progress::PROGRESS_JOINS,
     ))
     .bind(user.0.id)
-    .bind(&name)
     .fetch_all(&state.db)
     .await
     .map_err(|e| internal(e.into()))?;
-    Ok(Json(books))
+    // The name is matched case-insensitively here rather than in SQL:
+    // SQLite's LOWER() knows only ASCII, so "Å" and "å" would part.
+    let wanted = name.trim().to_lowercase();
+    Ok(Json(books.into_iter().filter(|b| b.series.as_deref().is_some_and(|s| s.trim().to_lowercase() == wanted)).collect()))
 }
 
 /// (uuid, cover_mime, title) of a book the user owns.
