@@ -38,8 +38,15 @@
 	// /?author=<key> (from the author overview or a book page) opens the
 	// library filtered on that author, and /?tag=<tag> (a book page's tags)
 	// on that tag; the address is then tidied back to /, and the filter lives
-	// on in the tab like any other.
+	// on in the tab like any other. /?view=series (the menu's Series) shows
+	// every series: the series view, unfiltered.
 	$effect(() => {
+		if (page.url.searchParams.get('view') === 'series') {
+			prefs = { ...prefs, series: true };
+			filters = emptyFilters();
+			goto('/', { replaceState: true });
+			return;
+		}
 		const author = page.url.searchParams.get('author');
 		const status = page.url.searchParams.get('status');
 		const tag = page.url.searchParams.get('tag');
