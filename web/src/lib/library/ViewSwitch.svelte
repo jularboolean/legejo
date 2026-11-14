@@ -1,15 +1,22 @@
 <script lang="ts">
-	import { LayoutGrid, List } from '@lucide/svelte';
+	import { Layers, LayoutGrid, List } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
 	import type { ViewMode } from '#lib/library';
 
-	let { view, onchange }: { view: ViewMode; onchange: (view: ViewMode) => void } = $props();
+	// With `onseries` (My library only) a third button groups the books by
+	// series; while it is on, neither of the other two is pressed.
+	let {
+		view,
+		onchange,
+		series = false,
+		onseries
+	}: { view: ViewMode; onchange: (view: ViewMode) => void; series?: boolean; onseries?: () => void } = $props();
 </script>
 
 <div class="seg" role="group" aria-label={t('library.view')}>
 	<button
 		type="button"
-		aria-pressed={view === 'grid'}
+		aria-pressed={!series && view === 'grid'}
 		title={t('library.view.grid')}
 		aria-label={t('library.view.grid')}
 		onclick={() => onchange('grid')}
@@ -18,13 +25,24 @@
 	</button>
 	<button
 		type="button"
-		aria-pressed={view === 'list'}
+		aria-pressed={!series && view === 'list'}
 		title={t('library.view.list')}
 		aria-label={t('library.view.list')}
 		onclick={() => onchange('list')}
 	>
 		<List size={14} />
 	</button>
+	{#if onseries}
+		<button
+			type="button"
+			aria-pressed={series}
+			title={t('library.view.series')}
+			aria-label={t('library.view.series')}
+			onclick={onseries}
+		>
+			<Layers size={14} />
+		</button>
+	{/if}
 </div>
 
 <style>

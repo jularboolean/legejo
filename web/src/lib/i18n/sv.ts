@@ -590,6 +590,10 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Vy',
 	'library.view.grid': 'Galleri',
 	'library.view.list': 'Lista',
+	'library.view.series': 'Per serie',
+	'library.tagChip': 'Tagg: {tag}',
+	'library.series.none': 'Utan serie',
+	'library.series.count': '{count} böcker i serien',
 	'library.removeFilter': 'Ta bort filtret {name}',
 
 	'search.heading': 'Sök',
@@ -645,6 +649,7 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Ta bort betyget',
 	'series.empty': 'Inga böcker i den här serien i ditt bibliotek.',
 	'book.tags': 'Taggar',
+	'book.tagLink': 'Böcker med taggen ”{tag}”',
 	'book.shelves': 'Hyllor',
 	'book.fileSize': 'Filstorlek',
 	'book.added': 'Tillagd',

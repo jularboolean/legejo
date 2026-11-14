@@ -87,12 +87,13 @@ pub struct ShelfRef {
     pub name: String,
 }
 
-/// A book in the library listing, with the shelves it sits on.
+/// A book in the library listing, with the shelves it sits on and its tags.
 #[derive(Serialize)]
 pub struct BookListItem {
     #[serde(flatten)]
     pub book: Book,
     pub shelf_ids: Vec<i64>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -410,11 +411,27 @@ pub async fn list(
     for (book_id, shelf_id) in pairs {
         by_book.entry(book_id).or_default().push(shelf_id);
     }
+    // Tags, the same way, for the library's tag filter.
+    let tag_pairs: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT bt.book_id, bt.tag FROM book_tags bt
+         JOIN books b ON b.id = bt.book_id
+         WHERE b.owner_id = $1
+         ORDER BY LOWER(bt.tag)",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut tags_by_book: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
+    for (book_id, tag) in tag_pairs {
+        tags_by_book.entry(book_id).or_default().push(tag);
+    }
     let items = books
         .into_iter()
         .map(|book| {
             let shelf_ids = by_book.remove(&book.id).unwrap_or_default();
-            BookListItem { book, shelf_ids }
+            let tags = tags_by_book.remove(&book.id).unwrap_or_default();
+            BookListItem { book, shelf_ids, tags }
         })
         .collect();
     Ok(Json(items))

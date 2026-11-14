@@ -73,12 +73,12 @@
 		return q ? authors.filter((a) => fold(a.name).includes(q)) : authors;
 	});
 
-	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format'>(field: K, value: Filters[K]) {
+	function toggle<K extends 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format' | 'tag'>(field: K, value: Filters[K]) {
 		filters = { ...filters, [field]: filters[field] === value ? null : value };
 	}
 
 	const active = $derived.by(() => {
-		const chips: { field: 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format'; label: string }[] = [];
+		const chips: { field: 'status' | 'language' | 'shelf' | 'author' | 'file' | 'format' | 'tag'; label: string }[] = [];
 		if (filters.file) chips.push({ field: 'file', label: t('library.file.issues') });
 		if (filters.format) chips.push({ field: 'format', label: filters.format.toUpperCase() });
 		if (filters.status) chips.push({ field: 'status', label: statusLabel(filters.status) });
@@ -96,6 +96,7 @@
 			const author = authors.find((a) => a.key === filters.author);
 			chips.push({ field: 'author', label: author?.name ?? filters.author });
 		}
+		if (filters.tag) chips.push({ field: 'tag', label: t('library.tagChip', { tag: filters.tag }) });
 		return chips;
 	});
 </script>
@@ -149,7 +150,7 @@
 		<Popover label={t('library.filter')} align="right">
 			{#snippet button()}
 				<SlidersHorizontal size={13} />
-				{t('library.filter')}
+				<span class="filter-label">{t('library.filter')}</span>
 				{#if activeCount > 0}<span class="n">{activeCount}</span>{/if}
 			{/snippet}
 			{#snippet children()}
@@ -292,7 +293,12 @@
 			{/snippet}
 		</Popover>
 
-		<ViewSwitch view={prefs.view} onchange={(view) => (prefs = { ...prefs, view })} />
+		<ViewSwitch
+			view={prefs.view}
+			onchange={(view) => (prefs = { ...prefs, view, series: false })}
+			series={prefs.series}
+			onseries={() => (prefs = { ...prefs, series: true })}
+		/>
 	</div>
 </div>
 
@@ -524,6 +530,22 @@
 			max-width: 8rem;
 			overflow: hidden;
 			text-overflow: ellipsis;
+		}
+	}
+	/* A phone: three view buttons, the sort and the filter do not fit in one
+	   row with their words. The filter keeps its icon and count (the button
+	   is still named for a screen reader) and the sort's word is shortened. */
+	@media (max-width: 30rem) {
+		.filter-label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
+		.sort-label {
+			max-width: 4rem;
 		}
 	}
 	.h-count {

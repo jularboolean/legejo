@@ -590,6 +590,10 @@ export const nb: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Visning',
 	'library.view.grid': 'Galleri',
 	'library.view.list': 'Liste',
+	'library.view.series': 'Etter serie',
+	'library.tagChip': 'Tagg: {tag}',
+	'library.series.none': 'Uten serie',
+	'library.series.count': '{count} bøker i serien',
 	'library.removeFilter': 'Fjern filteret {name}',
 
 	'search.heading': 'Søk',
@@ -645,6 +649,7 @@ export const nb: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Fjern vurdering',
 	'series.empty': 'Ingen bøker i denne serien i biblioteket ditt.',
 	'book.tags': 'Tagger',
+	'book.tagLink': 'Bøker med taggen «{tag}»',
 	'book.shelves': 'Hyller',
 	'book.fileSize': 'Filstørrelse',
 	'book.added': 'Lagt til',

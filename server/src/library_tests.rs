@@ -205,6 +205,13 @@ async fn export_metadata_and_whole_library() {
     send(&app, Method::PUT, &format!("/api/books/{first}"), Some(&cookie),
         Some(json!({ "title": "Röda rummet", "author": "Strindberg, August", "tags": ["klassiker"] }))).await;
 
+    // The library listing carries each book's tags, for the tag filter.
+    let (_, list) = send(&app, Method::GET, "/api/books", Some(&cookie), None).await;
+    let tagged = list.as_array().unwrap().iter().find(|b| b["id"] == first).unwrap();
+    assert_eq!(tagged["tags"], json!(["klassiker"]));
+    let other = list.as_array().unwrap().iter().find(|b| b["id"] != first).unwrap();
+    assert_eq!(other["tags"], json!([]));
+
     // Metadata export is synchronous.
     let req = Request::builder().uri("/api/account/metadata?format=csv").header(header::COOKIE, &cookie).body(Body::empty()).unwrap();
     let res = app.clone().oneshot(req).await.unwrap();

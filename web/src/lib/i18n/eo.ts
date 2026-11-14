@@ -592,6 +592,10 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Vido',
 	'library.view.grid': 'Galerio',
 	'library.view.list': 'Listo',
+	'library.view.series': 'Laŭ serio',
+	'library.tagChip': 'Etikedo: {tag}',
+	'library.series.none': 'Ekster serio',
+	'library.series.count': '{count} libroj en la serio',
 	'library.removeFilter': 'Forigi la filtrilon {name}',
 
 	'search.heading': 'Serĉi',
@@ -637,6 +641,7 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Forigi la takson',
 	'series.empty': 'Neniu libro de ĉi tiu serio en via biblioteko.',
 	'book.tags': 'Etikedoj',
+	'book.tagLink': 'Libroj kun la etikedo „{tag}“',
 	'book.shelves': 'Bretoj',
 	'book.fileSize': 'Dosiergrandeco',
 	'book.added': 'Aldonita',
