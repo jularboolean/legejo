@@ -10,6 +10,7 @@
 		Earth,
 		Ellipsis,
 		Feather,
+		Layers,
 		Globe,
 		HardDriveDownload,
 		Headphones,
@@ -55,7 +56,7 @@
 	});
 
 	/** The pages the tabs lead to, whose heading has the pigeon beside it on a phone. */
-	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/words', '/authors', '/audiobooks', '/public'];
+	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/words', '/authors', '/series', '/audiobooks', '/public'];
 	const branded = $derived(TAB_PAGES.includes(page.url.pathname));
 
 	function toggleSheet(which: 'shelves' | 'more') {
@@ -117,6 +118,23 @@
 	// list or words ticked as known: asked when the option is on, and again
 	// on leaving a page where words are ticked.
 	let hasWords = $state(false);
+	// The series page is in the menu once the library has more than one
+	// series: asked on start, and again on leaving a page where books change.
+	let hasSeries = $state(false);
+	function checkSeries() {
+		fetch('/api/series')
+			.then((r) => (r.ok ? r.json() : []))
+			.then((l: unknown[]) => (hasSeries = l.length > 1))
+			.catch(() => {});
+	}
+	$effect(() => {
+		if (data.user) checkSeries();
+		else hasSeries = false;
+	});
+	afterNavigate(({ from }) => {
+		const path = from?.url.pathname ?? '';
+		if (data.user && (path === '/' || path.startsWith('/books/') || path.startsWith('/series'))) checkSeries();
+	});
 	let wordsOn = false;
 	const TICK_PAGES = /^\/(words|books\/\d+\/(words|read))$/;
 	function checkWords() {
@@ -274,6 +292,12 @@
 		<Feather size={15} strokeWidth={1.75} />
 		{t('sidebar.authors')}
 	</a>
+	{#if hasSeries}
+		<a class="nav-item" href="/series">
+			<Layers size={15} strokeWidth={1.75} />
+			{t('sidebar.series')}
+		</a>
+	{/if}
 {/snippet}
 {#snippet shelves()}
 	<h2>{t('sidebar.shelves')}</h2>

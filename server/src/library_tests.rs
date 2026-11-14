@@ -114,6 +114,39 @@ async fn want_to_read_and_bulk_actions() {
     let (_, d) = send(&app, Method::GET, &format!("/api/books/{b2}"), Some(&cookie), None).await;
     assert_eq!(d["tags"].as_array().unwrap().len(), 1, "case-insensitively once");
 
+    // A series, numbered in the order given; then out of it again.
+    let (status, v) = send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b2, b1, bobs], "action": "set_series", "series": " Sagan ", "numbered": true }))).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(v["done"], 2);
+    let (_, d) = send(&app, Method::GET, &format!("/api/books/{b2}"), Some(&cookie), None).await;
+    assert_eq!((d["series"].clone(), d["series_index"].clone()), (json!("Sagan"), json!(1.0)));
+    let (_, d) = send(&app, Method::GET, &format!("/api/books/{b1}"), Some(&cookie), None).await;
+    assert_eq!(d["series_index"], json!(2.0));
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b1], "action": "set_series", "series": "Annan" }))).await;
+    let (_, d) = send(&app, Method::GET, &format!("/api/books/{b1}"), Some(&cookie), None).await;
+    assert_eq!((d["series"].clone(), d["series_index"].clone()), (json!("Annan"), json!(2.0)), "keeps its number");
+    // "Ånger" and "ånger" are one series, also on SQLite.
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b2], "action": "set_series", "series": "Ånger" }))).await;
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b1], "action": "set_series", "series": "ånger" }))).await;
+    let (_, list) = send(&app, Method::GET, "/api/series", Some(&cookie), None).await;
+    assert_eq!(list, json!([{ "name": "ånger", "count": 2 }]), "the first book's spelling");
+    let (_, books) = send(&app, Method::GET, "/api/series/%C3%85NGER", Some(&cookie), None).await;
+    assert_eq!(books.as_array().unwrap().len(), 2);
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b2], "action": "set_series", "series": "Sagan" }))).await;
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b1], "action": "set_series", "series": "Annan" }))).await;
+    let (_, list) = send(&app, Method::GET, "/api/series", Some(&cookie), None).await;
+    assert_eq!(list, json!([{ "name": "Annan", "count": 1 }, { "name": "Sagan", "count": 1 }]));
+    send(&app, Method::POST, "/api/books/bulk", Some(&cookie),
+        Some(json!({ "ids": [b1, b2], "action": "set_series", "series": "" }))).await;
+    let (_, d) = send(&app, Method::GET, &format!("/api/books/{b1}"), Some(&cookie), None).await;
+    assert!(d["series"].is_null() && d["series_index"].is_null());
+
     let (_, v) = send(&app, Method::POST, "/api/books/bulk", Some(&cookie), Some(json!({ "ids": [b1, b2], "action": "want", "want": false }))).await;
     assert_eq!(v["done"], 2);
 

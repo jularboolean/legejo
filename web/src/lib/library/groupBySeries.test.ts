@@ -32,4 +32,9 @@ describe('groupBySeries', () => {
 		expect(series).toHaveLength(1);
 		expect(series[0].books).toHaveLength(2);
 	});
+
+	it('takes names that differ only in case, also beyond ASCII, as one series', () => {
+		const { series } = groupBySeries([book(1, 'A', 'Det Stora Århundradet', 1), book(2, 'B', 'Det stora århundradet', 2)], 'sv');
+		expect(series.map((s) => [s.name, s.books.length])).toEqual([['Det Stora Århundradet', 2]]);
+	});
 });

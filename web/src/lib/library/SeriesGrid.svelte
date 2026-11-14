@@ -9,9 +9,26 @@
 
 	// My library by series: one card per series, opening the series page, and
 	// the books in no series after them as usual.
-	let { books }: { books: LibraryBook[] } = $props();
+	let {
+		books,
+		loose = true,
+		byName = false
+	}: {
+		books: LibraryBook[];
+		/** Show the books in no series after the series. */
+		loose?: boolean;
+		/** Order the series by name rather than by where their first book comes. */
+		byName?: boolean;
+	} = $props();
 
-	const grouped = $derived(groupBySeries(books, getLocale()));
+	const grouped = $derived.by(() => {
+		const g = groupBySeries(books, getLocale());
+		if (byName) {
+			const collator = new Intl.Collator(getLocale(), { numeric: true, sensitivity: 'base' });
+			g.series.sort((a, b) => collator.compare(a.name, b.name));
+		}
+		return g;
+	});
 
 	function authorsOf(list: LibraryBook[]): string | null {
 		const names = [...new Set(list.map((b) => b.author).filter((a): a is string => !!a))];
@@ -58,7 +75,7 @@
 	</div>
 {/if}
 
-{#if grouped.loose.length > 0}
+{#if loose && grouped.loose.length > 0}
 	{#if grouped.series.length > 0}
 		<h2 class="loose">{t('library.series.none')} <span class="n">{grouped.loose.length}</span></h2>
 	{/if}
