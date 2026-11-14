@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import FollowNews from '#lib/FollowNews.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -42,7 +43,8 @@
 	// every series: the series view, unfiltered.
 	$effect(() => {
 		if (page.url.searchParams.get('view') === 'series') {
-			prefs = { ...prefs, series: true };
+			// Untracked: reading prefs here would rerun this for its own write.
+			prefs = { ...untrack(() => prefs), series: true };
 			filters = emptyFilters();
 			goto('/', { replaceState: true });
 			return;
