@@ -588,6 +588,10 @@ export const en = {
 	'library.view': 'View',
 	'library.view.grid': 'Gallery',
 	'library.view.list': 'List',
+	'library.view.series': 'By series',
+	'library.tagChip': 'Tag: {tag}',
+	'library.series.none': 'Not in a series',
+	'library.series.count': '{count} books in the series',
 	'library.removeFilter': 'Remove the filter {name}',
 
 	'search.heading': 'Search',
@@ -643,6 +647,7 @@ export const en = {
 	'book.rating.clear': 'Clear rating',
 	'series.empty': 'No books in this series in your library.',
 	'book.tags': 'Tags',
+	'book.tagLink': 'Books tagged “{tag}”',
 	'book.shelves': 'Shelves',
 	'book.fileSize': 'File size',
 	'book.added': 'Added',

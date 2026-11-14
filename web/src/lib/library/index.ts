@@ -9,6 +9,8 @@ import { fold, splitAuthors } from './authors';
 export type SortKey = 'added' | 'title' | 'author' | 'year' | 'progress' | 'rating';
 export type SortDir = 'asc' | 'desc';
 export type ViewMode = 'grid' | 'list';
+/** My library's views: the shared two, or one card per series. */
+export type LibraryView = ViewMode | 'series';
 export type ReadStatus = 'unread' | 'reading' | 'finished';
 /** The status filter: a reading status, or the want-to-read list. */
 export type StatusFilter = ReadStatus | 'wanted';
@@ -26,11 +28,15 @@ export type Filters = {
 	file: 'issues' | null;
 	/** Only books in this file format. */
 	format: Book['format'] | null;
+	/** Only books with this tag, compared without regard to case. */
+	tag: string | null;
 };
 
 export const FORMATS: Book['format'][] = ['epub', 'pdf', 'cbz'];
 
-export type Prefs = { view: ViewMode; sort: SortKey; dir: SortDir };
+/** `series` is kept apart from `view` so that the pages sharing the
+ * gallery/list choice (loadView) never see a view they do not have. */
+export type Prefs = { view: ViewMode; series: boolean; sort: SortKey; dir: SortDir };
 
 export const SORT_KEYS: SortKey[] = ['added', 'title', 'author', 'year', 'progress', 'rating'];
 export const STATUSES: StatusFilter[] = ['unread', 'reading', 'finished', 'wanted'];
@@ -41,11 +47,11 @@ export function defaultDir(key: SortKey): SortDir {
 }
 
 export function emptyFilters(): Filters {
-	return { text: '', status: null, language: null, shelf: null, author: null, file: null, format: null };
+	return { text: '', status: null, language: null, shelf: null, author: null, file: null, format: null, tag: null };
 }
 
 export function activeFilterCount(f: Filters): number {
-	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0) + (f.file ? 1 : 0) + (f.format ? 1 : 0);
+	return (f.status ? 1 : 0) + (f.language ? 1 : 0) + (f.shelf !== null ? 1 : 0) + (f.author ? 1 : 0) + (f.file ? 1 : 0) + (f.format ? 1 : 0) + (f.tag ? 1 : 0);
 }
 
 // EPUBs carry their language as anything from "sv" to "sv-SE" to "swe".
@@ -157,8 +163,9 @@ export function filterBooks(books: LibraryBook[], f: Filters): LibraryBook[] {
 		if (f.author && !splitAuthors(book.author).some((p) => p.key === f.author)) return false;
 		if (f.file === 'issues' && !(book.health_issues > 0)) return false;
 		if (f.format && book.format !== f.format) return false;
+		if (f.tag && !(book.tags ?? []).some((tag) => fold(tag) === fold(f.tag!))) return false;
 		if (words.length > 0) {
-			const hay = fold(`${book.title} ${book.author ?? ''} ${book.series ?? ''}`);
+			const hay = fold(`${book.title} ${book.author ?? ''} ${book.series ?? ''} ${(book.tags ?? []).join(' ')}`);
 			if (!words.every((w) => hay.includes(w))) return false;
 		}
 		return true;
@@ -267,10 +274,11 @@ const PREFS_KEY = 'legejo.library.prefs';
 const FILTERS_KEY = 'legejo.library.filters';
 
 export function loadPrefs(): Prefs {
-	const prefs: Prefs = { view: 'grid', sort: 'added', dir: 'desc' };
+	const prefs: Prefs = { view: 'grid', series: false, sort: 'added', dir: 'desc' };
 	try {
 		const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
 		if (saved?.view === 'grid' || saved?.view === 'list') prefs.view = saved.view;
+		if (saved?.series === true) prefs.series = true;
 		if (SORT_KEYS.includes(saved?.sort)) prefs.sort = saved.sort;
 		if (saved?.dir === 'asc' || saved?.dir === 'desc') prefs.dir = saved.dir;
 	} catch {
@@ -307,6 +315,7 @@ export function loadFilters(): Filters {
 		if (typeof saved?.author === 'string') filters.author = saved.author;
 		if (saved?.file === 'issues') filters.file = saved.file;
 		if (FORMATS.includes(saved?.format)) filters.format = saved.format;
+		if (typeof saved?.tag === 'string') filters.tag = saved.tag;
 	} catch {
 		// As above.
 	}
@@ -319,4 +328,38 @@ export function saveFilters(filters: Filters) {
 	} catch {
 		// As above.
 	}
+}
+
+/** One series of the library: its books in series order and the one shown. */
+export type SeriesGroup<T extends Book = LibraryBook> = { name: string; books: T[]; cover: T };
+
+/**
+ * The books grouped by series, for My library's series view. The series
+ * come in the order of their first book in `books` (so the sort chosen
+ * orders them too); a series' books in series order, numberless ones last;
+ * its cover is the first of those that has one. Books with no series are
+ * returned apart, in the order given.
+ */
+export function groupBySeries<T extends Book = LibraryBook>(books: T[], locale: string): { series: SeriesGroup<T>[]; loose: T[] } {
+	const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+	const byName = new Map<string, T[]>();
+	const loose: T[] = [];
+	for (const book of books) {
+		const name = book.series?.trim();
+		if (!name) {
+			loose.push(book);
+			continue;
+		}
+		const list = byName.get(name);
+		if (list) list.push(book);
+		else byName.set(name, [book]);
+	}
+	const series = [...byName].map(([name, list]) => {
+		const ordered = [...list].sort(
+			(a, b) =>
+				(a.series_index ?? Infinity) - (b.series_index ?? Infinity) || collator.compare(a.title, b.title)
+		);
+		return { name, books: ordered, cover: ordered.find((b) => b.has_cover) ?? ordered[0] };
+	});
+	return { series, loose };
 }

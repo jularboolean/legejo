@@ -595,6 +595,10 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Näkymä',
 	'library.view.grid': 'Galleria',
 	'library.view.list': 'Luettelo',
+	'library.view.series': 'Sarjoittain',
+	'library.tagChip': 'Tunniste: {tag}',
+	'library.series.none': 'Ei sarjassa',
+	'library.series.count': '{count} kirjaa sarjassa',
 	'library.removeFilter': 'Poista suodatin {name}',
 
 	'search.heading': 'Haku',
@@ -650,6 +654,7 @@ export const fi: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Poista arvio',
 	'series.empty': 'Kirjastossasi ei ole tämän sarjan kirjoja.',
 	'book.tags': 'Tunnisteet',
+	'book.tagLink': 'Kirjat, joilla on tunniste ”{tag}”',
 	'book.shelves': 'Hyllyt',
 	'book.fileSize': 'Tiedoston koko',
 	'book.added': 'Lisätty',

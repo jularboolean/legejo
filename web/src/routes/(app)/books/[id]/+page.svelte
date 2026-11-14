@@ -437,10 +437,10 @@
 					</span>
 				{/if}
 				{#each book.tags as tag (tag)}
-					<span class="chip tag" title={t('book.tags')}>
+					<a class="chip tag" href={`/?tag=${encodeURIComponent(tag)}`} title={t('book.tagLink', { tag })}>
 						<Tag size={11} />
 						{tag}
-					</span>
+					</a>
 				{/each}
 				{#each book.shelves as shelf (shelf.id)}
 					<a class="chip shelf" href={`/shelves/${shelf.id}`} title={t('book.shelves')}>
@@ -754,9 +754,13 @@
 		border-color: var(--gold);
 		color: var(--gold);
 	}
-	a.chip.shelf:hover {
+	a.chip.shelf:hover,
+	a.chip.tag:hover {
 		text-decoration: none;
 		background: var(--card);
+	}
+	a.chip.tag:hover {
+		color: var(--fg);
 	}
 	.series {
 		margin: 0.3rem 0 0;

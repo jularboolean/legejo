@@ -595,6 +595,10 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Affichage',
 	'library.view.grid': 'Galerie',
 	'library.view.list': 'Liste',
+	'library.view.series': 'Par série',
+	'library.tagChip': 'Mot-clé : {tag}',
+	'library.series.none': 'Hors série',
+	'library.series.count': '{count} livres dans la série',
 	'library.removeFilter': 'Retirer le filtre {name}',
 
 	'search.heading': 'Recherche',
@@ -650,6 +654,7 @@ export const fr: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Effacer la note',
 	'series.empty': 'Aucun livre de cette série dans votre bibliothèque.',
 	'book.tags': 'Mots-clés',
+	'book.tagLink': 'Livres avec le mot-clé « {tag} »',
 	'book.shelves': 'Étagères',
 	'book.fileSize': 'Taille du fichier',
 	'book.added': 'Ajouté',

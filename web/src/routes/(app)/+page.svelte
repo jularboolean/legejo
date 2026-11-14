@@ -24,6 +24,7 @@
 	} from '#lib/library';
 	import BookGrid from '#lib/library/BookGrid.svelte';
 	import BookRows from '#lib/library/BookRows.svelte';
+	import SeriesGrid from '#lib/library/SeriesGrid.svelte';
 	import LibraryToolbar from '#lib/library/LibraryToolbar.svelte';
 	import { needsAttention } from '#lib/health';
 	import type { Book, HealthIssue } from '#lib/types';
@@ -35,16 +36,19 @@
 	let filters = $state(loadFilters());
 
 	// /?author=<key> (from the author overview or a book page) opens the
-	// library filtered on that author; the address is then tidied back to /,
-	// and the filter lives on in the tab like any other.
+	// library filtered on that author, and /?tag=<tag> (a book page's tags)
+	// on that tag; the address is then tidied back to /, and the filter lives
+	// on in the tab like any other.
 	$effect(() => {
 		const author = page.url.searchParams.get('author');
 		const status = page.url.searchParams.get('status');
-		if (author || status) {
+		const tag = page.url.searchParams.get('tag');
+		if (author || status || tag) {
 			filters = {
 				...emptyFilters(),
 				author: author || null,
-				status: STATUSES.find((s) => s === status) ?? null
+				status: STATUSES.find((s) => s === status) ?? null,
+				tag: tag || null
 			};
 			goto('/', { replaceState: true });
 		}
@@ -354,6 +358,8 @@
 				{t('library.clearFilters')}
 			</button>
 		</div>
+	{:else if prefs.series && !selecting}
+		<SeriesGrid books={visible} />
 	{:else if prefs.view === 'list'}
 		<BookRows
 			books={visible}

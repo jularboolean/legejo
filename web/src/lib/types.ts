@@ -51,7 +51,7 @@ export type Book = {
 };
 
 /** A book in the library listing: the shelves it sits on come along. */
-export type LibraryBook = Book & { shelf_ids: number[] };
+export type LibraryBook = Book & { shelf_ids: number[]; tags: string[] };
 
 /** The Kobo devices that have synced with an account, and how the last sync went. */
 export type KoboDevices = {

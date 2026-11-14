@@ -595,6 +595,10 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'library.view': 'Ansicht',
 	'library.view.grid': 'Galerie',
 	'library.view.list': 'Liste',
+	'library.view.series': 'Nach Reihe',
+	'library.tagChip': 'Schlagwort: {tag}',
+	'library.series.none': 'Ohne Reihe',
+	'library.series.count': '{count} Bücher in der Reihe',
 	'library.removeFilter': 'Filter {name} entfernen',
 
 	'search.heading': 'Suche',
@@ -650,6 +654,7 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'book.rating.clear': 'Bewertung entfernen',
 	'series.empty': 'Keine Bücher dieser Reihe in deiner Bibliothek.',
 	'book.tags': 'Schlagwörter',
+	'book.tagLink': 'Bücher mit dem Schlagwort „{tag}“',
 	'book.shelves': 'Regale',
 	'book.fileSize': 'Dateigröße',
 	'book.added': 'Hinzugefügt',
