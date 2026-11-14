@@ -9,26 +9,10 @@
 
 	// My library by series: one card per series, opening the series page, and
 	// the books in no series after them as usual.
-	let {
-		books,
-		loose = true,
-		byName = false
-	}: {
-		books: LibraryBook[];
-		/** Show the books in no series after the series. */
-		loose?: boolean;
-		/** Order the series by name rather than by where their first book comes. */
-		byName?: boolean;
-	} = $props();
+	let { books }: { books: LibraryBook[] } = $props();
 
-	const grouped = $derived.by(() => {
-		const g = groupBySeries(books, getLocale());
-		if (byName) {
-			const collator = new Intl.Collator(getLocale(), { numeric: true, sensitivity: 'base' });
-			g.series.sort((a, b) => collator.compare(a.name, b.name));
-		}
-		return g;
-	});
+	const grouped = $derived(groupBySeries(books, getLocale()));
+	const inSeries = $derived(grouped.series.reduce((n, s) => n + s.books.length, 0));
 
 	function authorsOf(list: LibraryBook[]): string | null {
 		const names = [...new Set(list.map((b) => b.author).filter((a): a is string => !!a))];
@@ -38,6 +22,9 @@
 </script>
 
 {#if grouped.series.length > 0}
+	<p class="summary">
+		{t('library.series.summary', { series: grouped.series.length })} · {t('authors.books', { count: inSeries })}
+	</p>
 	<div class="grid">
 		{#each grouped.series as group (group.name)}
 			{@const book = group.cover}
@@ -75,7 +62,7 @@
 	</div>
 {/if}
 
-{#if loose && grouped.loose.length > 0}
+{#if grouped.loose.length > 0}
 	{#if grouped.series.length > 0}
 		<h2 class="loose">{t('library.series.none')} <span class="n">{grouped.loose.length}</span></h2>
 	{/if}
@@ -180,6 +167,11 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.summary {
+		margin: 0 0 1rem;
+		color: var(--muted);
+		font-size: 0.88rem;
 	}
 	.loose {
 		margin: 2rem 0 1rem;

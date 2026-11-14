@@ -56,7 +56,7 @@
 	});
 
 	/** The pages the tabs lead to, whose heading has the pigeon beside it on a phone. */
-	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/words', '/authors', '/series', '/audiobooks', '/public'];
+	const TAB_PAGES = ['/', '/reading', '/search', '/notes', '/words', '/authors', '/audiobooks', '/public'];
 	const branded = $derived(TAB_PAGES.includes(page.url.pathname));
 
 	function toggleSheet(which: 'shelves' | 'more') {
@@ -132,7 +132,7 @@
 		else hasSeries = false;
 	});
 	afterNavigate(({ from }) => {
-		const path = from?.url.pathname ?? '';
+		const path = from?.url?.pathname ?? '';
 		if (data.user && (path === '/' || path.startsWith('/books/') || path.startsWith('/series'))) checkSeries();
 	});
 	let wordsOn = false;
@@ -293,7 +293,7 @@
 		{t('sidebar.authors')}
 	</a>
 	{#if hasSeries}
-		<a class="nav-item" href="/series">
+		<a class="nav-item" href="/?view=series">
 			<Layers size={15} strokeWidth={1.75} />
 			{t('sidebar.series')}
 		</a>
