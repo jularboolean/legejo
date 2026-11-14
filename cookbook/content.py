@@ -253,16 +253,21 @@ page.</p>"""),
  ("Keeping a Series in Order",
   "<p>You have seven books of a series and want them in order.</p>",
   """<p>On each book's edit page, give the same <strong>Series</strong> and its
-<strong>Number in series</strong>.</p>""",
-  """<p>The book page then links to the next book in the series, and the series can be opened as
-a list. On a Kobo and in OPDS apps the series travels with the book.</p>"""),
+<strong>Number in series</strong>. For many books at once, sort <strong>My library</strong> so
+they come in reading order, press <strong>Select</strong>, mark them and choose
+<strong>Series</strong>: <strong>Number them in the order shown</strong> numbers them 1, 2, 3.</p>""",
+  """<p>The book page then links to the next book in the series. <strong>By series</strong>, the
+third button beside <strong>Filter</strong>, shows one card per series, and <strong>Series</strong> in
+the menu leads there. A series' page says how many of its books you have read, opens the one to go
+on with, and names the numbers missing from your library. On a Kobo and in OPDS apps the series
+travels with the book.</p>"""),
 
  ("Tagging and Rating",
   "<p>You want your own way of grouping books, and to remember what you thought of them.</p>",
   """<p>On the edit page, write <strong>Tags</strong> separated by commas, such as
 <code>mystery, 1920s, favourites</code>. Rate a book from its page.</p>""",
   """<p>A category is the one broad kind a book is (Fiction); tags are as many as you like. Both
-can be filtered on (Recipe 4.2). Ratings feed the statistics on <strong>My reading</strong>.</p>"""),
+can be filtered on (Recipe 4.2), and a tag on a book's page shows the books that have it. Ratings feed the statistics on <strong>My reading</strong>.</p>"""),
 
  ("Telling the Work from the Edition",
   "<p>Your copy of a novel from 1879 was published in 2011, and the library sorts it among the new books.</p>",
@@ -274,7 +279,7 @@ other field.</p>"""),
  ("Changing Many Books at Once",
   "<p>You uploaded forty books and want to tag them all, or put them on a shelf.</p>",
   """<p>On <strong>My library</strong>, press <strong>Select</strong>, mark the books, and choose
-what to do with them: tag, shelve, mark as want to read, or delete.</p>""",
+what to do with them: tag, shelve, put in a series, mark as want to read, or delete.</p>""",
   "<p>Deleting removes the books and their files for good, along with their places on shelves and your place in them.</p>"),
 
  ("Repairing a File Later",

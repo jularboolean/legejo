@@ -257,16 +257,22 @@ redaktopaĝo.</p>"""),
  ("Teni serion en ordo",
   "<p>Vi havas sep librojn de serio kaj volas ilin en la ĝusta ordo.</p>",
   """<p>En la redaktopaĝo de ĉiu libro, skribu la saman nomon en <strong>Serio</strong> kaj la
-numeron de la libro en <strong>Numero en la serio</strong>.</p>""",
-  """<p>La paĝo de la libro tiam ligas al la sekva libro en la serio, kaj la serion eblas malfermi
-kiel liston. En Kobo kaj en OPDS-aplikaĵoj la serio iras kune kun la libro.</p>"""),
+numeron de la libro en <strong>Numero en la serio</strong>. Por multaj libroj samtempe, ordigu
+<strong>Mia biblioteko</strong> tiel, ke ili venu laŭ la legoordo, premu <strong>Elekti</strong>,
+marku ilin kaj elektu <strong>Serio</strong>: <strong>Numeri laŭ la montrata ordo</strong> donas al
+ili la numerojn 1, 2, 3.</p>""",
+  """<p>La paĝo de la libro tiam ligas al la sekva libro en la serio. <strong>Laŭ serio</strong>, la
+tria butono apud <strong>Filtri</strong>, montras unu karton por ĉiu serio, kaj
+<strong>Serioj</strong> en la menuo kondukas tien. La paĝo de serio diras, kiom el ĝiaj libroj vi
+legis, malfermas tiun, kun kiu daŭrigi, kaj nomas la numerojn, kiuj mankas en via biblioteko. En Kobo
+kaj en OPDS-aplikaĵoj la serio iras kune kun la libro.</p>"""),
 
  ("Etikedi kaj taksi",
   "<p>Vi volas propran manieron grupigi librojn, kaj memori, kion vi pensis pri ili.</p>",
   """<p>En la redaktopaĝo, skribu en <strong>Etikedoj</strong> etikedojn apartigitajn per komoj, ekzemple
 <code>mystery, 1920s, favourites</code>. Taksu libron en ĝia paĝo.</p>""",
   """<p>Kategorio estas la unu larĝa speco de libro (Fikcio); etikedojn vi povas havi tiom, kiom vi volas.
-Laŭ ambaŭ eblas filtri (Recepto 4.2). La taksoj aperas en la statistiko de <strong>Mia legado</strong>.</p>"""),
+Laŭ ambaŭ eblas filtri (Recepto 4.2), kaj etikedo en la paĝo de libro montras la librojn, kiuj havas ĝin. La taksoj aperas en la statistiko de <strong>Mia legado</strong>.</p>"""),
 
  ("Distingi la verkon de la eldono",
   "<p>Via ekzemplero de romano el 1879 estis eldonita en 2011, kaj la biblioteko ordigas ĝin inter la novaj libroj.</p>",
@@ -278,7 +284,7 @@ alia kampo.</p>"""),
  ("Ŝanĝi multajn librojn samtempe",
   "<p>Vi alŝutis kvardek librojn kaj volas etikedi ilin ĉiujn, aŭ meti ilin sur breton.</p>",
   """<p>En <strong>Mia biblioteko</strong>, premu <strong>Elekti</strong>, marku la librojn kaj elektu,
-kion fari kun ili: etikedi, meti sur breton, aldoni al “Volas legi”, aŭ forigi.</p>""",
+kion fari kun ili: etikedi, meti sur breton, meti en serion, aldoni al “Volas legi”, aŭ forigi.</p>""",
   "<p>Forigo forigas la librojn kaj iliajn dosierojn definitive, kune kun iliaj lokoj sur bretoj kaj via legopozicio en ili.</p>"),
 
  ("Ripari dosieron poste",

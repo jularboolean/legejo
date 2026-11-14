@@ -4,6 +4,27 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.48.0 (2026-11-14)
+
+- **My library by series.** A third button beside the grid and the list,
+  **By series**, shows one card per series, with a cover, how many books it
+  has and how many of them you have read; the books in no series follow.
+  **Series** in the menu leads there once you have more than one series.
+  Thanks to RobioEpo for the idea.
+- **A series' page tells where you are in it:** how many of its books you
+  have read, a button to the one to go on with, and which numbers are
+  missing from your library.
+- **Put many books in a series at once.** In **Select**, **Series** sets the
+  series on the marked books, and can number them 1, 2, 3 in the order the
+  library shows them, or takes them out of their series.
+- **Tags lead somewhere.** A tag on a book's page opens the library showing
+  the books that have it, and the **Filter** menu lists your tags with how
+  many books each has. A tag is now drawn smaller and square, so it is not
+  taken for a shelf.
+- Series names that differ only in case, such as "Det Stora Århundradet" and
+  "Det stora århundradet", are one series, also with letters beyond A–Z on
+  SQLite.
+
 ## 1.47.3 (2026-11-12)
 
 - **Images are left out of a book's text.** The text that search, the
