@@ -254,6 +254,23 @@
 		}
 	}
 
+	let followMailErrorMsg = $state('');
+
+	async function setFollowMail(enabled: boolean) {
+		followMailErrorMsg = '';
+		try {
+			const res = await fetch('/api/account/follow-mail', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ enabled })
+			});
+			if (res.ok) account = await res.json();
+			else followMailErrorMsg = t('edit.saveFailed');
+		} catch {
+			followMailErrorMsg = t('common.network');
+		}
+	}
+
 	async function setLibrarian(enabled: boolean) {
 		librarianErrorMsg = '';
 		try {
@@ -605,6 +622,18 @@
 	</label>
 	{#if wordsErrorMsg}<p class="error">{wordsErrorMsg}</p>{/if}
 </section>
+
+{#if account.mail_configured}
+	<section class="kobo" id="follow-mail">
+		<h3>{t('followMail.heading')}</h3>
+		<p class="intro">{account.email ? t('followMail.intro') : t('followMail.needsEmail')}</p>
+		<label class="choice">
+			<input type="checkbox" checked={account.follow_mail} disabled={!account.email} onchange={(e) => setFollowMail(e.currentTarget.checked)} />
+			{t('followMail.turnOn')}
+		</label>
+		{#if followMailErrorMsg}<p class="error">{followMailErrorMsg}</p>{/if}
+	</section>
+{/if}
 
 {#if account.librarian_available}
 	<section class="kobo">

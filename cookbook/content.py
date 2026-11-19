@@ -378,7 +378,11 @@ library clears them all at once. <strong>Stop following</strong> is on the shelf
 that shows each book as it arrives. The address is yours alone and needs no login, so keep it
 to yourself. It stops working when you stop following, or when the shelf is no longer shared
 with you. Shelves you follow from other instances (the next recipes) are not announced this
-way.</p>"""),
+way.</p>
+<p>When mail is set up on the instance and your account has an address, you are also told by mail:
+at most one a day, an hour after the first new book arrived, listing what has come onto the shelves
+you follow since you last looked. Turn it off under <strong>Account</strong>, on the
+<strong>Options</strong> tab.</p>"""),
 
  ("Giving a Shelf to Someone on Another Instance",
   "<p>A friend has a Legejo of their own, or reads in an app, and you want them to have one of your shelves. Not the whole fediverse; just them.</p>",
@@ -432,6 +436,16 @@ book's page there.</p>
 <p>To begin with, the Fediverse page suggests a couple of shelves worth following, among them five
 Esperanto classics, and the federation tab of the Admin page offers their instance beside
 <strong>Connect an instance</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> hides them.</p>"""),
+ ("Seeing What Happened on Your Shelf",
+  "<p>You shared a shelf, and you wonder whether anyone uses it.</p>",
+  """<p>Open the shelf and press the clock beside <strong>Edit</strong>. <strong>Activity</strong>
+lists, day by day: who started or stopped following it, who took a copy of one of its books, what
+was downloaded through each private link, and, for a federated shelf, who follows it from other
+instances and which books were fetched from there.</p>""",
+  """<p>Only you see the list. A download through a private link carries the name you gave the
+link, which is one more reason to make one for each person; who fetched a book through the
+federation is not known, only that it was. The same file fetched twice within an hour counts once.
+Entries older than a year are removed.</p>"""),
  ]),
 
 ("Reading in the Browser",

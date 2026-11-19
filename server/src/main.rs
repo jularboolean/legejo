@@ -73,6 +73,8 @@ mod audiobook_tests;
 #[cfg(test)]
 mod kindle_tests;
 #[cfg(test)]
+mod shelf_mail_tests;
+#[cfg(test)]
 mod format_tests;
 #[cfg(test)]
 mod librarian_tests;
@@ -107,6 +109,8 @@ mod kobostore;
 mod kobo_store_tests;
 mod welcome;
 mod shelflinks;
+mod shelfevents;
+mod followmail;
 mod authorfacts;
 mod authorfacts_tests;
 mod changelog;
@@ -261,6 +265,7 @@ fn router(state: AppState) -> Router {
         .route("/vocabulary/books", get(vocabulary::books))
         .route("/account/kindle", axum::routing::put(account::set_kindle))
         .route("/account/librarian", axum::routing::put(account::set_librarian))
+        .route("/account/follow-mail", axum::routing::put(account::set_follow_mail))
         .route("/account/words", axum::routing::put(account::set_words))
         .route("/account/fediverse", axum::routing::put(account::set_fediverse))
         .route("/account/catalogs", axum::routing::put(account::set_catalogs))
@@ -326,6 +331,7 @@ fn router(state: AppState) -> Router {
         .route("/UserStorage/{*rest}", axum::routing::any(kobo::reading_services).layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace)))
         .route("/internal/{*rest}", axum::routing::any(kobo::reading_services).layer(axum::middleware::from_fn_with_state(state.clone(), kobotrace::trace)))
         .route("/shelves/{id}/links", get(shelflinks::list).post(shelflinks::create))
+        .route("/shelves/{id}/events", get(shelfevents::list))
         .route("/shelves/{id}/links/{link}", axum::routing::delete(shelflinks::remove))
         .route("/linked-shelves", get(shelflinks::linked_list).post(shelflinks::follow))
         .route("/linked-shelves/{id}", get(shelflinks::linked_shelf).delete(shelflinks::unfollow))
@@ -599,6 +605,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(directory::announce_at_start(state.clone()));
     tokio::spawn(audit::prune_daily(state.clone()));
     tokio::spawn(export::worker(state.clone()));
+    tokio::spawn(followmail::worker(state.clone()));
     tokio::spawn(fulltext::worker(state.clone()));
     tokio::spawn(vocabulary::worker(state.clone()));
     tokio::spawn(readingtime::worker(state.clone()));

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Pencil } from '@lucide/svelte';
+	import { History, Pencil } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { renderMarkdown } from '#lib/markdown';
 	import { defaultShelfCover } from '#lib/shelfCovers';
@@ -53,6 +53,15 @@
 	<div class="hero-content">
 		<div class="headline">
 			<h1>{shelf.name}</h1>
+			<span class="tools">
+			<a
+				class="edit-btn"
+				href={`/shelves/${shelf.id}/activity`}
+				title={t('shelfLog.heading')}
+				aria-label={t('shelfLog.heading')}
+			>
+				<History size={15} />
+			</a>
 			<a
 				class="edit-btn"
 				href={`/shelves/${shelf.id}/edit`}
@@ -61,6 +70,7 @@
 			>
 				<Pencil size={15} />
 			</a>
+			</span>
 		</div>
 		<p class="meta">
 			{shelf.book_count === 1 ? t('shelf.book') : t('shelf.books', { count: shelf.book_count })}
@@ -167,6 +177,11 @@
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 		font-size: 0.8rem;
 		overflow-wrap: anywhere;
+	}
+	.tools {
+		flex-shrink: 0;
+		display: inline-flex;
+		gap: 0.15rem;
 	}
 	.edit-btn {
 		flex-shrink: 0;

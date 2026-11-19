@@ -15,6 +15,7 @@
 use crate::auth::AuthUser;
 use crate::db::now_ts;
 use crate::booktext::esc;
+use crate::shelfevents::{Event, Kind};
 use crate::shelves::visible_to;
 use crate::AppState;
 use axum::extract::{Path, State};
@@ -144,6 +145,8 @@ pub async fn follow(
         .map_err(internal)?;
         if inserted.rows_affected() > 0 {
             crate::audit::log(&state, crate::audit::by(&user.0), "shelf.followed", json!({ "shelf_id": shelf_id, "shelf": name, "owner": owner })).await;
+            let event = Event { kind: Kind::Followed, actor_id: Some(user.0.id), actor_name: Some(&user.0.username), book: None, detail: None };
+            crate::shelfevents::record(&state, shelf_id, event).await;
         }
     }
     Ok(Json(state_of(&state, &headers, user.0.id, shelf_id).await.map_err(internal)?))
@@ -160,6 +163,8 @@ pub async fn unfollow(State(state): State<AppState>, user: AuthUser, Path(shelf_
         .map_err(internal)?;
     if r.rows_affected() > 0 {
         crate::audit::log(&state, crate::audit::by(&user.0), "shelf.unfollowed", json!({ "shelf_id": shelf_id, "shelf": name })).await;
+        let event = Event { kind: Kind::Unfollowed, actor_id: Some(user.0.id), actor_name: Some(&user.0.username), book: None, detail: None };
+        crate::shelfevents::record(&state, shelf_id, event).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }

@@ -37,6 +37,8 @@ function part(route: string | null, d: Data): string | null {
 			return d.book ? `${d.book.title} · ${t('edit.heading')}` : t('edit.heading');
 		case '/(app)/shelves/[id]':
 			return d.shelf?.name ?? null;
+		case '/(app)/shelves/[id]/activity':
+			return d.shelf ? `${d.shelf.name} · ${t('shelfLog.heading')}` : t('shelfLog.heading');
 		case '/(app)/shelves/[id]/edit':
 			return d.shelf ? `${d.shelf.name} · ${t('shelfEdit.heading')}` : t('shelfEdit.heading');
 		case '/(app)/series/[name]':

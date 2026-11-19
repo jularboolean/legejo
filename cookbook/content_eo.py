@@ -383,7 +383,11 @@ biblioteko forigas ĉiujn markojn samtempe. <strong>Ĉesi sekvi</strong> troviĝ
   """<p>Por breto, kiun vi sekvas, ekzistas ankaŭ <strong>Atom-fluo</strong>: adreso por fluolegilo,
 kiu montras ĉiun libron, kiam ĝi alvenas. La adreso estas nur via kaj bezonas neniun ensaluton, do
 gardu ĝin por vi. Ĝi ĉesas funkcii, kiam vi ĉesas sekvi, aŭ kiam la breto ne plu estas kunhavigita
-kun vi. Bretoj, kiujn vi sekvas el aliaj instancoj (la sekvaj receptoj), ne estas anoncataj tiel.</p>"""),
+kun vi. Bretoj, kiujn vi sekvas el aliaj instancoj (la sekvaj receptoj), ne estas anoncataj tiel.</p>
+<p>Kiam la instanco povas sendi retpoŝton kaj via konto havas adreson, vi ankaŭ ricevas retmesaĝon:
+maksimume unu tage, horon post kiam la unua nova libro alvenis, kun tio, kio venis sur la bretojn,
+kiujn vi sekvas, de kiam vi laste rigardis. Malŝaltu ĝin sub <strong>Konto</strong>, en la langeto
+<strong>Elektoj</strong>.</p>"""),
 
  ("Doni breton al iu en alia instanco",
   "<p>Amiko havas propran Legejon, aŭ legas en aplikaĵo, kaj vi volas doni al tiu unu el viaj bretoj. Ne al la tuta Fediverso; nur al tiu persono.</p>",
@@ -437,6 +441,16 @@ libro tie.</p>
 <p>Por komenci, la paĝo Fediverso proponas kelkajn bretojn sekvindajn, inter ili kvin Esperantajn
 klasikaĵojn, kaj la langeto pri federacio en la paĝo Administrado proponas ilian instancon apud
 <strong>Konekti instancon</strong>. <code>LEGEJO_SHELF_SUGGESTIONS=off</code> kaŝas ilin.</p>"""),
+ ("Vidi, kio okazis sur via breto",
+  "<p>Vi kunhavigis breton, kaj vi scivolas, ĉu iu uzas ĝin.</p>",
+  """<p>Malfermu la breton kaj premu la horloĝon apud <strong>Redakti</strong>. <strong>Okazaĵoj</strong>
+listigas, tagon post tago: kiu komencis aŭ ĉesis sekvi ĝin, kiu prenis kopion de unu el ĝiaj libroj,
+kio estis elŝutita per ĉiu privata ligilo, kaj, por federaciita breto, kiu sekvas ĝin el aliaj
+instancoj kaj kiuj libroj estis prenitaj de tie.</p>""",
+  """<p>Nur vi vidas la liston. Elŝuto per privata ligilo portas la nomon, kiun vi donis al la ligilo,
+kio estas ankoraŭ unu kialo fari po unu por ĉiu persono; kiu prenis libron per la federacio ne estas
+konata, nur ke tio okazis. La sama dosiero prenita dufoje ene de horo kalkuliĝas unufoje. Okazaĵoj
+pli malnovaj ol unu jaro estas forigataj.</p>"""),
  ]),
 
 ("Legado en la retumilo",

@@ -173,6 +173,15 @@ async fn dispatch(state: &AppState, actor: &str, remote_actor: &remote::RemoteAc
                 "type": "Accept", "actor": shelf_actor, "object": follow });
             super::deliver::enqueue(state, &[reply_to], &shelf_actor, &reply).await.map_err(|e| e.to_string())?;
             tracing::info!("fed: {actor} follows {slug}");
+            let who = crate::shelfevents::handle(remote_actor.preferred_username.as_deref(), &remote_actor.domain, actor);
+            let event = crate::shelfevents::Event {
+                kind: crate::shelfevents::Kind::FedFollowed,
+                actor_id: None,
+                actor_name: Some(&who),
+                book: None,
+                detail: None,
+            };
+            crate::shelfevents::record(state, shelf_id, event).await;
             crate::audit::log(state, None, "fed.followed", json!({ "actor": actor, "handle": format!("@{slug}@{}", c.host) })).await;
         }
         "Undo" if object_type == "Follow" || object.is_string() => {
@@ -181,6 +190,26 @@ async fn dispatch(state: &AppState, actor: &str, remote_actor: &remote::RemoteAc
             }
             let target = object.get("object").and_then(id_of).unwrap_or_default();
             let slug = c.slug_of(&target).unwrap_or_default();
+            let left: Vec<i64> = sqlx::query_scalar(
+                "SELECT shelf_id FROM ap_followers WHERE actor_iri = $1
+                 AND ($2 = '' OR shelf_id IN (SELECT id FROM shelves WHERE lower(ap_slug) = lower($2)))",
+            )
+            .bind(actor)
+            .bind(&slug)
+            .fetch_all(&state.db)
+            .await
+            .map_err(db)?;
+            let who = crate::shelfevents::handle(remote_actor.preferred_username.as_deref(), &remote_actor.domain, actor);
+            for shelf_id in left {
+                let event = crate::shelfevents::Event {
+                    kind: crate::shelfevents::Kind::FedUnfollowed,
+                    actor_id: None,
+                    actor_name: Some(&who),
+                    book: None,
+                    detail: None,
+                };
+                crate::shelfevents::record(state, shelf_id, event).await;
+            }
             sqlx::query(
                 "DELETE FROM ap_followers WHERE actor_iri = $1
                  AND ($2 = '' OR shelf_id IN (SELECT id FROM shelves WHERE lower(ap_slug) = lower($2)))",

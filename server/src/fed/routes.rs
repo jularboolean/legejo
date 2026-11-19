@@ -342,6 +342,16 @@ async fn book_epub(State(state): State<AppState>, Path(uuid): Path<String>) -> R
     let b = fed_book(&state, &uuid).await?;
     // The original file, never the kepub.
     let data = tokio::fs::read(crate::books::book_on_disk(&state, &uuid, crate::formats::Format::Epub).await).await.map_err(|_| not_found())?;
+    // Who fetched it is not known; that it was, goes in the log of each
+    // federated shelf the book is on.
+    let event = crate::shelfevents::Event {
+        kind: crate::shelfevents::Kind::FedDownload,
+        actor_id: None,
+        actor_name: None,
+        book: Some((b.book.id, &b.book.title)),
+        detail: None,
+    };
+    crate::shelfevents::record_on_shelves_of(&state, b.book.id, "s.visibility = 'federated'", event).await;
     let safe: String = b.book.title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
     Ok((
         [

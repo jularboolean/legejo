@@ -309,6 +309,19 @@ pub async fn file(State(state): State<AppState>, Path((token, id)): Path<(String
     let (uuid, _, title) = shared_book(&state, &token, id).await?;
     let (path, format) = crate::books::book_file(&state, &uuid).await;
     let (len, body) = crate::books::file_body(&path).await.map_err(internal)?;
+    // For the owner's log of the shelf: which link it went through.
+    if let Ok(link) = shared(&state, &token).await {
+        let name: Option<String> =
+            sqlx::query_scalar("SELECT name FROM shelf_links WHERE id = $1").bind(link.link_id).fetch_optional(&state.db).await.ok().flatten();
+        let event = crate::shelfevents::Event {
+            kind: crate::shelfevents::Kind::LinkDownload,
+            actor_id: None,
+            actor_name: None,
+            book: Some((id, &title)),
+            detail: name.as_deref(),
+        };
+        crate::shelfevents::record(&state, link.shelf_id, event).await;
+    }
     Ok((
         [
             (header::CONTENT_TYPE, format.mime().to_string()),

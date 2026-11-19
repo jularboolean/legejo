@@ -391,6 +391,28 @@ pub async fn import_book(
         .flatten();
     crate::kosync::set_md5(&state, book.id, &book.uuid).await;
     crate::books::refresh_health(&state, book.id, &book.uuid, &[]).await;
+    // On each of the owner's shelves the book was taken from: those the
+    // importer may see.
+    let shelves: Vec<i64> = sqlx::query_scalar(&format!(
+        "SELECT s.id FROM shelves s JOIN shelf_books sb ON sb.shelf_id = s.id
+         WHERE sb.book_id = $1 AND s.owner_id = (SELECT owner_id FROM books WHERE id = $1) AND {visible}",
+        visible = visible_to("$2"),
+    ))
+    .bind(source.id)
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+    for shelf_id in shelves {
+        let event = crate::shelfevents::Event {
+            kind: crate::shelfevents::Kind::Imported,
+            actor_id: Some(user.0.id),
+            actor_name: Some(&user.0.username),
+            book: Some((source.id, &source.title)),
+            detail: None,
+        };
+        crate::shelfevents::record(&state, shelf_id, event).await;
+    }
     crate::audit::log(
         &state,
         crate::audit::by(&user.0),
