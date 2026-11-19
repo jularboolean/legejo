@@ -92,7 +92,8 @@
 		position: absolute;
 		z-index: 3;
 		left: 50%;
-		bottom: calc(1.4rem + env(safe-area-inset-bottom));
+		/* Clear of the status line at the foot of the page, with a little air. */
+		bottom: calc(2.3rem + 0.5rem + env(safe-area-inset-bottom));
 		transform: translateX(-50%);
 		display: flex;
 		align-items: center;

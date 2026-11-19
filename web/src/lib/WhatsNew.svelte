@@ -3,6 +3,7 @@
 	// the server: shown after an upgrade, and from the admin page.
 	import { X } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
+	import { dismissOnBackdrop } from '#lib/dismiss';
 	import { renderMarkdown } from '#lib/markdown';
 
 	type Section = { version: string; date: string; body: string };
@@ -24,8 +25,7 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<dialog bind:this={dialog} aria-label={t('whatsnew.title')} {onclose} onclick={(e) => e.target === dialog && onclose()}>
+<dialog bind:this={dialog} aria-label={t('whatsnew.title')} {onclose} use:dismissOnBackdrop={onclose}>
 	<div class="inner">
 		<header>
 			<h2>{t('whatsnew.title')}</h2>

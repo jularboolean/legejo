@@ -5,6 +5,7 @@
 	import type { Snippet } from 'svelte';
 	import { X } from '@lucide/svelte';
 	import { t } from '#lib/i18n';
+	import { dismissOnBackdrop } from '#lib/dismiss';
 
 	type Props = {
 		open: boolean;
@@ -30,18 +31,7 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<dialog
-	bind:this={dialog}
-	class="sheet {side}"
-	class:preview
-	aria-label={title}
-	{onclose}
-	onclick={(e) => {
-		// A click on the dialog element itself is a click on the backdrop.
-		if (e.target === dialog) onclose();
-	}}
->
+<dialog bind:this={dialog} class="sheet {side}" class:preview aria-label={title} {onclose} use:dismissOnBackdrop={onclose}>
 	<div class="inner">
 		<header>
 			<h2>{title}</h2>
@@ -108,17 +98,21 @@
 	.sheet.preview::backdrop {
 		background: transparent;
 	}
-	.sheet[open] {
-		animation: slide-in 0.2s ease-out;
+	/* Only for those who have not asked for less motion: without it the
+	   panel is simply there. */
+	@media (prefers-reduced-motion: no-preference) {
+		.sheet[open] {
+			animation: slide-in 0.2s ease-out;
+		}
+		.sheet.center[open] {
+			animation: pop-in 0.15s ease-out;
+		}
 	}
 	.sheet.left[open] {
 		--from: translateX(-100%);
 	}
 	.sheet.right[open] {
 		--from: translateX(100%);
-	}
-	.sheet.center[open] {
-		animation: pop-in 0.15s ease-out;
 	}
 	@keyframes slide-in {
 		from {
