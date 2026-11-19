@@ -4,6 +4,26 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.50.0 (2026-11-19)
+
+- **Highlights removed on a Kobo wait in a trash.** For 30 days they stand at
+  the foot of My notes, under Removed on the Kobo, where Restore brings one
+  back, also to the device at its next sync.
+- **Esperanto words taken apart.** Looking up a word built from a root and
+  affixes shows its parts as Reta Vortaro marks them, each explained in your
+  language: *mal·san·ul·ej·o*, the opposite, health, a person, a place, a
+  noun.
+- **Authors' life years** beside their names on the Authors page and a
+  book's page, where Wikidata has given them.
+- **More by the same author** under a book's details: your other books by
+  that author, however the name is written.
+- **Fixes in the reader.** A book opened in a background tab no longer fails
+  with "could not be opened" when its tab is shown later. The panels for
+  contents, notes and settings no longer close when a selection is dragged
+  out of them, and slide in only when the system allows motion. The
+  highlight bar and the reading-aloud bar no longer sit partly under the
+  status line, and their buttons are larger on touch screens.
+
 ## 1.49.0 (2026-11-19)
 
 - **Mail about the shelves you follow.** When books have been put on a shelf
