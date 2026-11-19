@@ -4,6 +4,19 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.49.0 (2026-11-19)
+
+- **Mail about the shelves you follow.** When books have been put on a shelf
+  you follow, you get a mail listing them: at most one a day, an hour after
+  the first new book, with only what is new since you last looked. It needs
+  mail set up on the instance and an address on your account, and is turned
+  off on the account page's Options tab.
+- **See what happened on a shelf you share.** The clock beside Edit on your
+  own shelf opens its activity: who started or stopped following it, who
+  took a copy of a book, what was downloaded through each private link, and
+  for a federated shelf, who follows it from other instances and which books
+  were fetched from there. Only you see it, and it starts with this version.
+
 ## 1.48.0 (2026-11-14)
 
 - **My library by series.** A third button beside the grid and the list,
