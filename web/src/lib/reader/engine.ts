@@ -21,6 +21,7 @@ import {
 import { reachPlace } from './placing';
 import { wordSpan } from './words';
 import { createTurnGate } from './turns';
+import { timeout } from './timeout';
 
 /**
  * Width of the text column in em of the reader's text size. Lines are never
@@ -80,21 +81,6 @@ type InternalRendition = Rendition & {
 	manager?: { container?: HTMLElement };
 };
 
-function timeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error('timeout')), ms);
-		promise.then(
-			(value) => {
-				clearTimeout(timer);
-				resolve(value);
-			},
-			(err) => {
-				clearTimeout(timer);
-				reject(err);
-			}
-		);
-	});
-}
 
 function clamp01(n: number): number {
 	return Math.min(1, Math.max(0, n));
