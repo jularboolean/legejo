@@ -366,6 +366,90 @@ pub async fn delete(State(state): State<AppState>, user: AuthUser, Path(id): Pat
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ------------------------------------------------------------------ Trash
+
+/// Days a highlight a Kobo removed stays in the trash.
+pub const TRASH_DAYS: i64 = 30;
+
+const TRASH_COLUMNS: &str = "book_id, user_id, source, cfi, text, note, color, kobo_id, location, kobo_json, place, \
+     translation, translation_language, created_at, updated_at";
+
+/// Keep the highlights a Kobo removes (by its id for them) in the trash.
+pub async fn to_trash(state: &AppState, user_id: i64, kobo_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(&format!(
+        "INSERT INTO annotation_trash ({TRASH_COLUMNS}, trashed_at)
+         SELECT {TRASH_COLUMNS}, $3 FROM annotations WHERE user_id = $1 AND kobo_id = $2"
+    ))
+    .bind(user_id)
+    .bind(kobo_id)
+    .bind(now_ts())
+    .execute(&state.db)
+    .await?;
+    Ok(())
+}
+
+/// A highlight in the trash, with its book.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Trashed {
+    pub id: i64,
+    pub book_id: i64,
+    pub text: String,
+    pub note: Option<String>,
+    pub trashed_at: String,
+    pub book_title: String,
+}
+
+/// GET /api/annotations/trash: the highlights a Kobo removed, newest first.
+pub async fn trash(State(state): State<AppState>, user: AuthUser) -> Result<Json<Vec<Trashed>>, Response> {
+    let rows: Vec<Trashed> = sqlx::query_as(
+        "SELECT t.id, t.book_id, t.text, t.note, t.trashed_at, b.title AS book_title
+         FROM annotation_trash t JOIN books b ON b.id = t.book_id
+         WHERE t.user_id = $1 AND b.owner_id = $1 ORDER BY t.trashed_at DESC, t.id DESC",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(internal)?;
+    Ok(Json(rows))
+}
+
+/// POST /api/annotations/trash/{id}/restore: the highlight back among the
+/// others, as it was. A Kobo gets it again at its next sync.
+pub async fn restore(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<Json<Annotation>, Response> {
+    let mut tx = state.db.begin().await.map_err(internal)?;
+    let restored: Option<i64> = sqlx::query_scalar(&format!(
+        "INSERT INTO annotations ({TRASH_COLUMNS})
+         SELECT {TRASH_COLUMNS} FROM annotation_trash WHERE id = $1 AND user_id = $2 RETURNING id"
+    ))
+    .bind(id)
+    .bind(user.0.id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(internal)?;
+    let Some(new_id) = restored else {
+        return Err(not_found());
+    };
+    // Dated now, so that a device takes it as the newer.
+    sqlx::query("UPDATE annotations SET updated_at = $1 WHERE id = $2").bind(now_ts()).bind(new_id).execute(&mut *tx).await.map_err(internal)?;
+    sqlx::query("DELETE FROM annotation_trash WHERE id = $1").bind(id).execute(&mut *tx).await.map_err(internal)?;
+    tx.commit().await.map_err(internal)?;
+    Ok(Json(fetch(&state, user.0.id, new_id).await?))
+}
+
+/// DELETE /api/annotations/trash/{id}: gone for good.
+pub async fn purge(State(state): State<AppState>, user: AuthUser, Path(id): Path<i64>) -> Result<StatusCode, Response> {
+    let done = sqlx::query("DELETE FROM annotation_trash WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user.0.id)
+        .execute(&state.db)
+        .await
+        .map_err(internal)?;
+    if done.rows_affected() == 0 {
+        return Err(not_found());
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// The annotations of a book as Markdown: a quote per passage, the note
 /// below it.
 pub fn markdown(title: &str, author: Option<&str>, annotations: &[Annotation]) -> String {

@@ -34,6 +34,8 @@ async fn start_dictionaries() -> (Arc<Mutex<Vec<String>>>, String) {
                     ], "trd": [] }),
                     "zzkiam" => json!({ "eo": [["zzkiam.0", "zzkiam", "", null, null]], "trd": [] }),
                     "zznenie" => json!({ "eo": [["zznenie.0", "zznenie", "", null, null]], "trd": [] }),
+                    "malsanulejo" => json!({ "eo": [["san.mal0ulejo", "malsanulejo", "sv", "sjukhus", ""]], "trd": [] }),
+                    "sano" => json!({ "eo": [["san.0o", "sano", "sv", "hälsa", ""], ["san.0o", "sano", "en", "health", ""]], "trd": [] }),
                     "diri" => json!({ "eo": [["dir.0i", "diri", "en", "say", ""], ["dir.0i", "diri", "", null, null]], "trd": [] }),
                     _ => json!({ "eo": [], "trd": [] }),
                 },
@@ -191,4 +193,27 @@ async fn without_the_readers_language_in_reta_vortaro_espdic_answers() {
     assert_eq!(v["entries"][0]["translations"], json!([{ "language": "en", "words": ["to say, tell, state"] }]));
     assert_eq!(v["entries"][0]["link"], "https://reta-vortaro.de/revo/art/dir.html#dir.0i");
     assert!(!seen.lock().unwrap().iter().any(|r| r.contains("rest_v1")), "Wiktionary not asked");
+}
+
+#[tokio::test]
+async fn an_esperanto_word_is_taken_apart() {
+    let (_, base) = start_dictionaries().await;
+    let (app, cookie) = setup(&base, true).await;
+    let (status, v) = send(&app, Method::GET, "/api/dictionary?word=malsanulejojn&language=eo", Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    assert_eq!(v["entries"][0]["translations"][0]["words"], json!(["sjukhus"]));
+    assert_eq!(
+        v["parts"],
+        json!([
+            { "text": "mal", "kind": "prefix" },
+            { "text": "san", "kind": "root", "meaning": "hälsa" },
+            { "text": "ul", "kind": "suffix" },
+            { "text": "ej", "kind": "suffix" },
+            { "text": "o", "kind": "ending" }
+        ])
+    );
+    assert!(v["entries"][0].get("mark").is_none(), "the mark is not sent on");
+    // A root with its ending is not taken apart.
+    let (_, v) = send(&app, Method::GET, "/api/dictionary?word=cxambroj&language=eo", Some(&cookie), None).await;
+    assert!(v.get("parts").is_none(), "{v}");
 }

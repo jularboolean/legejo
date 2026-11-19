@@ -325,7 +325,10 @@ beside the author's name says who the person was: when they lived, a few words a
 link to Wikipedia in your language. It appears only when Wikidata knows the person for certain,
 so a writer with a common name, or one Wikidata does not know, gets none. If the line is about
 someone else, choose <strong>Wrong person?</strong>; the line is gone for you, and
-<strong>Show again</strong> brings it back.</p>"""),
+<strong>Show again</strong> brings it back.</p>
+<p>The years found that way also stand beside each name on the <strong>Authors</strong> page and
+on a book's page. Under a book's details, <strong>More by</strong> shows your other books by the
+same author.</p>"""),
 
  ("Asking the Librarian",
   "<p>You do not know what you want to read, only what kind of thing.</p>",
@@ -563,7 +566,12 @@ built into Legejo; in other languages it comes from Wiktionary, with what it mea
 article.</p>""",
   """<p>A word is looked up as the dictionary has it: <em>ĉambrojn</em> as <em>ĉambro</em>,
 <em>legis</em> as <em>legi</em>. The server asks the dictionary for you, so the words you look up
-leave the instance, but not who you are.</p>"""),
+leave the instance, but not who you are.</p>
+<p>An Esperanto word built from a root and affixes is also taken apart, as Reta Vortaro marks it:
+<em>malsanulejo</em> is <em>mal·san·ul·ej·o</em>, the opposite of health, a person, a place, a
+noun, which is a hospital. Each prefix, suffix and ending is explained in your language and the
+root with what it means. The name Legejo is built the same way: <em>leg·ej·o</em>, the place where
+one reads. A word that is only a root with its ending is left whole.</p>"""),
 
  ("Translating a Passage",
   "<p>A whole sentence stops you, not just a word: an idiom, an old turn of phrase, a line of verse.</p>",
@@ -740,7 +748,10 @@ Admin page.</em></p>
 the device lands in Legejo, placed in the book and marked <em>Kobo</em> in the panel. What you
 highlight in the web reader, and notes you change there, reach the device at its next sync.
 Removing one removes it on the other side.</p>""",
-  """<p>Know these things before turning it on:</p>
+  """<p>A highlight removed on the device waits for 30 days at the foot of <strong>My notes</strong>,
+under <strong>Removed on the Kobo</strong>. <strong>Restore</strong> brings it back, also to the
+device at its next sync.</p>
+<p>Know these things before turning it on:</p>
 <ul>
 <li>The device then sends its highlights to Legejo instead of to Kobo, for all its books. Those
 of books bought from Kobo are not taken in. With <strong>The Kobo store beside Legejo</strong>

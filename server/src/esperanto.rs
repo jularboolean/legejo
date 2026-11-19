@@ -228,3 +228,132 @@ mod tests {
         assert_eq!(fixed.len(), FIXED.len(), "no word twice");
     }
 }
+
+// ------------------------------------------------------------------ Word parts
+
+/// Prefixes that change a word's meaning; each has its gloss in the web's
+/// texts ("eo.part.mal").
+pub const PART_PREFIXES: [&str; 10] = ["bo", "dis", "ek", "eks", "fi", "ge", "mal", "mis", "pra", "re"];
+/// Suffixes, participles included.
+pub const PART_SUFFIXES: [&str; 37] = [
+    "aĉ", "ad", "aĵ", "an", "ar", "ebl", "ec", "eg", "ej", "em", "end", "er", "estr", "et", "id", "ig", "iĝ", "il", "in", "ind", "ing",
+    "ism", "ist", "obl", "on", "op", "uj", "ul", "um", "ant", "int", "ont", "at", "it", "ot", "ĉj", "nj",
+];
+/// Grammatical endings, the longest first.
+pub const PART_ENDINGS: [&str; 9] = ["as", "is", "os", "us", "o", "a", "e", "i", "u"];
+
+/// One part of a word taken apart.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+pub struct Part {
+    pub text: String,
+    /// "prefix", "root", "suffix" or "ending".
+    pub kind: &'static str,
+}
+
+fn part(text: &str, kind: &'static str) -> Part {
+    Part { text: text.to_string(), kind }
+}
+
+/// Suffixes that make up `rest` exactly, the shortest way to read it.
+fn suffixes(rest: &str) -> Option<Vec<Part>> {
+    if rest.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut best: Option<Vec<Part>> = None;
+    for s in PART_SUFFIXES {
+        if let Some(after) = rest.strip_prefix(s) {
+            if let Some(mut tail) = suffixes(after) {
+                tail.insert(0, part(s, "suffix"));
+                if best.as_ref().is_none_or(|b| tail.len() < b.len()) {
+                    best = Some(tail);
+                }
+            }
+        }
+    }
+    best
+}
+
+/// Prefixes that make up `rest` exactly.
+fn prefixes(rest: &str) -> Option<Vec<Part>> {
+    if rest.is_empty() {
+        return Some(Vec::new());
+    }
+    for p in PART_PREFIXES {
+        if let Some(after) = rest.strip_prefix(p) {
+            if let Some(mut tail) = prefixes(after) {
+                tail.insert(0, part(p, "prefix"));
+                return Some(tail);
+            }
+        }
+    }
+    None
+}
+
+/// A word taken apart by its mark in Reta Vortaro, which names the root
+/// and where it stands in the word: "san.mal0ulejo" is mal·san·ul·ej·o.
+/// Only when every part is a known affix or ending, and there is at least
+/// one affix; a word that is a root and an ending is left whole. What
+/// stands before the root and is no prefix is a root of its own when
+/// `is_root` says so (a compound such as vapor·ŝip·o).
+pub fn parts_from_mark(mark: &str, headword: &str, is_root: impl Fn(&str) -> bool) -> Option<Vec<Part>> {
+    // Marks are written in the x-system: "sxip.0eto".
+    let mark = supersigned(mark).unwrap_or_else(|| mark.to_string());
+    let (root, pattern) = mark.split_once('.')?;
+    let (before, after) = pattern.split_once('0')?;
+    let word = headword.to_lowercase();
+    if root.is_empty() || format!("{before}{root}{after}") != word {
+        return None;
+    }
+    let mut parts = match prefixes(before) {
+        Some(p) => p,
+        None if is_root(before) => vec![part(before, "root")],
+        None => return None,
+    };
+    parts.push(part(root, "root"));
+    let ending = PART_ENDINGS.iter().find(|e| after.ends_with(*e))?;
+    let middle = &after[..after.len() - ending.len()];
+    parts.extend(suffixes(middle)?);
+    parts.push(part(ending, "ending"));
+    if !parts.iter().any(|p| p.kind == "prefix" || p.kind == "suffix") {
+        return None;
+    }
+    Some(parts)
+}
+
+#[cfg(test)]
+mod part_tests {
+    use super::*;
+
+    fn shown(parts: Option<Vec<Part>>) -> String {
+        parts.map(|p| p.iter().map(|x| x.text.as_str()).collect::<Vec<_>>().join("·")).unwrap_or_default()
+    }
+
+    #[test]
+    fn a_word_is_taken_apart_by_its_mark() {
+        let none = |_: &str| false;
+        assert_eq!(shown(parts_from_mark("san.mal0ulejo", "malsanulejo", none)), "mal·san·ul·ej·o");
+        assert_eq!(shown(parts_from_mark("lern.0ejo", "lernejo", none)), "lern·ej·o");
+        assert_eq!(shown(parts_from_mark("patr.0ino", "patrino", none)), "patr·in·o");
+        assert_eq!(shown(parts_from_mark("leg.0ejo", "Legejo", none)), "leg·ej·o");
+        assert_eq!(shown(parts_from_mark("sxip.0eto", "ŝipeto", none)), "ŝip·et·o", "marks in the x-system");
+        assert_eq!(parts_from_mark("leg.0ejo", "legejo", none).unwrap()[1].kind, "suffix");
+    }
+
+    #[test]
+    fn a_root_with_its_ending_alone_is_left_whole() {
+        let none = |_: &str| false;
+        // "bileto" is its own root, not a small "bilo".
+        assert_eq!(parts_from_mark("bilet.0o", "bileto", none), None);
+        assert_eq!(parts_from_mark("hund.0o", "hundo", none), None);
+    }
+
+    #[test]
+    fn what_is_not_known_leaves_the_word_whole() {
+        let none = |_: &str| false;
+        assert_eq!(parts_from_mark("ŝip.vapor0o", "vaporŝipo", none), None);
+        assert_eq!(shown(parts_from_mark("ŝip.vapor0eto", "vaporŝipeto", |r| r == "vapor")), "vapor·ŝip·et·o");
+        assert_eq!(parts_from_mark("san.mal0xyzo", "malsanxyzo", none), None, "xyz is no suffix");
+        assert_eq!(parts_from_mark("san", "sano", none), None);
+        assert_eq!(parts_from_mark("san.mal0ulejo", "malsanulo", none), None, "the mark is of another word");
+    }
+}

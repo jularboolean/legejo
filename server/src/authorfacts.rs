@@ -402,6 +402,33 @@ pub async fn line(State(state): State<AppState>, user: AuthUser, Query(q): Query
     ))
 }
 
+/// `GET /api/authors/years`: the life years of the authors already looked
+/// up, by author key, for lists that show many authors at once. Nothing is
+/// looked up for it, and authors the user called the wrong person are left
+/// out.
+pub async fn years(State(state): State<AppState>, user: AuthUser) -> Result<Response, Response> {
+    if !enabled(&state).await {
+        return Ok(answer(json!({}), "private, no-store"));
+    }
+    let rows: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT f.author_key, f.facts FROM author_facts f
+         WHERE f.state = 'ok' AND NOT EXISTS (
+             SELECT 1 FROM author_facts_hidden h WHERE h.user_id = $1 AND h.author_key = f.author_key)",
+    )
+    .bind(user.0.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| internal(e.into()))?;
+    let mut out = serde_json::Map::new();
+    for (key, facts) in rows {
+        let Some(facts) = facts.and_then(|f| serde_json::from_str::<Facts>(&f).ok()) else { continue };
+        if facts.born.is_some() || facts.died.is_some() {
+            out.insert(key, json!({ "born": facts.born, "died": facts.died }));
+        }
+    }
+    Ok(answer(Value::Object(out), "private, no-store"))
+}
+
 #[derive(Deserialize)]
 pub struct HideRequest {
     name: String,

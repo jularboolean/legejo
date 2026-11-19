@@ -24,6 +24,9 @@ export type Note = {
 	book_changed_at: string;
 };
 
+/** A highlight a Kobo removed, waiting in the trash. */
+export type TrashedNote = { id: number; book_id: number; text: string; note: string | null; trashed_at: string; book_title: string };
+
 export type BookNotes = { bookId: number; title: string; author: string | null; hasCover: boolean; changedAt: string; notes: Note[] };
 
 /**

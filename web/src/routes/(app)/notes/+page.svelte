@@ -4,11 +4,12 @@
 	// can be written or changed here, a highlight removed, and each opens the
 	// book at its place.
 	import { page } from '$app/state';
-	import { Download, Highlighter, NotebookPen, Pencil, Search, Share2, Trash2 } from '@lucide/svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { Download, Highlighter, NotebookPen, Pencil, RotateCcw, Search, Share2, Trash2 } from '@lucide/svelte';
 	import ConfirmDialog from '#lib/ConfirmDialog.svelte';
 	import ShareQuote from '#lib/ShareQuote.svelte';
 	import { cover } from '#lib/cover';
-	import { t } from '#lib/i18n';
+	import { getLocale, t } from '#lib/i18n';
 	import { byBook, placeLine, search, type Note } from '#lib/notes';
 	import type { PageData } from './$types';
 
@@ -16,6 +17,30 @@
 
 	// svelte-ignore state_referenced_locally
 	let notes = $state<Note[]>(data.notes);
+	$effect(() => {
+		notes = data.notes;
+	});
+
+	// Highlights a Kobo removed, for 30 days.
+	let trashBusy = $state<number | null>(null);
+	let trashError = $state('');
+	const fmtDay = $derived(new Intl.DateTimeFormat(getLocale() === 'en' ? 'en-GB' : getLocale(), { dateStyle: 'medium' }));
+
+	async function fromTrash(id: number, how: 'restore' | 'purge') {
+		trashBusy = id;
+		trashError = '';
+		try {
+			const res = await fetch(how === 'restore' ? `/api/annotations/trash/${id}/restore` : `/api/annotations/trash/${id}`, {
+				method: how === 'restore' ? 'POST' : 'DELETE'
+			});
+			if (!res.ok && res.status !== 404) throw new Error(String(res.status));
+			await invalidateAll();
+		} catch {
+			trashError = t('edit.saveFailed');
+		} finally {
+			trashBusy = null;
+		}
+	}
 	let query = $state('');
 	let withNotesOnly = $state(false);
 
@@ -150,6 +175,28 @@
 	{/each}
 {/if}
 
+{#if data.trash.length > 0}
+	<section class="trash">
+		<h2>{t('notes.trash.heading')}</h2>
+		<p class="trash-intro">{t('notes.trash.intro')}</p>
+		<ul>
+			{#each data.trash as n (n.id)}
+				<li>
+					<blockquote>{n.text}</blockquote>
+					<p class="trash-meta">
+						<a href={`/books/${n.book_id}`}>{n.book_title}</a> · {t('notes.trash.removed', { date: fmtDay.format(new Date(n.trashed_at)) })}
+					</p>
+					<div class="actions">
+						<button type="button" class="link" disabled={trashBusy === n.id} onclick={() => fromTrash(n.id, 'restore')}><RotateCcw size={13} /> {t('notes.trash.restore')}</button>
+						<button type="button" class="link quiet" disabled={trashBusy === n.id} onclick={() => fromTrash(n.id, 'purge')}><Trash2 size={13} /> {t('notes.trash.purge')}</button>
+					</div>
+				</li>
+			{/each}
+		</ul>
+		{#if trashError}<p class="error">{trashError}</p>{/if}
+	</section>
+{/if}
+
 <ShareQuote
 	open={sharing !== null}
 	quote={sharing?.text ?? ''}
@@ -173,6 +220,36 @@
 />
 
 <style>
+	.trash {
+		margin-top: 2.5rem;
+		max-width: 44rem;
+	}
+	.trash h2 {
+		font-size: 1.05rem;
+		margin: 0 0 0.3rem;
+	}
+	.trash-intro {
+		margin: 0 0 0.9rem;
+		color: var(--muted);
+		font-size: 0.88rem;
+	}
+	.trash ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.trash li {
+		padding: 0.7rem 0;
+		border-top: 1px solid var(--border);
+	}
+	.trash blockquote {
+		color: var(--muted);
+	}
+	.trash-meta {
+		margin: 0.3rem 0;
+		font-size: 0.8rem;
+		color: var(--muted);
+	}
 	.heading {
 		display: flex;
 		align-items: center;

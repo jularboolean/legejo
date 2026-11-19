@@ -224,3 +224,37 @@ async fn the_library_gets_a_line_only_for_an_author_found_for_certain() {
     let (status, _) = send(&app, Method::GET, "/api/authors/facts?name=...", Some(&a), None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[tokio::test]
+async fn lists_get_the_life_years_already_found() {
+    let (app, db, _) = test_app().await;
+    let (_, a) = add_user(&db, "alice").await;
+    let (_, b) = add_user(&db, "bob").await;
+    let (_, v) = send(&app, Method::GET, "/api/authors/years", Some(&a), None).await;
+    assert_eq!(v, serde_json::json!({}), "off: nothing");
+    sqlx::query("INSERT INTO settings (key, value) VALUES ('author_facts_enabled', 'true')").execute(&db).await.unwrap();
+    let person = |qid: &str, born: Option<i32>, died: Option<i32>| Facts {
+        qid: qid.into(),
+        born,
+        died,
+        labels: Default::default(),
+        descriptions: Default::default(),
+        wiki: Default::default(),
+    };
+    keep(&db, "selma lagerlof", "ok", Some(&person("Q44519", Some(1858), Some(1940))), &crate::db::now_ts()).await;
+    keep(&db, "kerstin ekman", "ok", Some(&person("Q1", Some(1933), None)), &crate::db::now_ts()).await;
+    keep(&db, "nobody known", "ok", Some(&person("Q2", None, None)), &crate::db::now_ts()).await;
+    keep(&db, "not found", "none", None, &crate::db::now_ts()).await;
+    sqlx::query("INSERT INTO author_facts_hidden (user_id, author_key) SELECT id, 'kerstin ekman' FROM users WHERE username = 'bob'")
+        .execute(&db)
+        .await
+        .unwrap();
+    let (status, v) = send(&app, Method::GET, "/api/authors/years", Some(&a), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        v,
+        serde_json::json!({ "selma lagerlof": { "born": 1858, "died": 1940 }, "kerstin ekman": { "born": 1933, "died": null } })
+    );
+    let (_, v) = send(&app, Method::GET, "/api/authors/years", Some(&b), None).await;
+    assert!(v.get("kerstin ekman").is_none(), "the wrong person to bob: {v}");
+}

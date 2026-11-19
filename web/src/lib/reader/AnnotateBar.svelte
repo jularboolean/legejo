@@ -5,7 +5,7 @@
 	// when the passage is low on the page, so that it never covers it.
 	import { tick } from 'svelte';
 	import { BookA, Highlighter, Languages, MessageSquarePlus, Share2, TextSelect, Trash2, X } from '@lucide/svelte';
-	import { getLocale, t } from '#lib/i18n';
+	import { getLocale, t, type MessageKey } from '#lib/i18n';
 	import { languageLabel } from '#lib/library';
 	import { loadWordInBook, setKnown, type WordInBook } from '#lib/library/vocab';
 	import WordForms from './WordForms.svelte';
@@ -77,7 +77,22 @@
 	}: Props = $props();
 
 	type Entry = { headword: string; definitions: string[]; translations: { language: string; words: string[] }[]; link: string };
-	type Looked = { word: string; source: 'revo' | 'espdic' | 'wiktionary' | null; entries: Entry[] };
+	type WordPart = { text: string; kind: 'prefix' | 'root' | 'suffix' | 'ending'; meaning?: string };
+	type Looked = { word: string; source: 'revo' | 'espdic' | 'wiktionary' | null; entries: Entry[]; parts?: WordPart[] };
+
+	/** A part as a dictionary writes it: mal-, -ej-, -o; a root bare. */
+	function partLabel(p: WordPart): string {
+		if (p.kind === 'prefix') return `${p.text}-`;
+		if (p.kind === 'suffix') return `-${p.text}-`;
+		if (p.kind === 'ending') return `-${p.text}`;
+		return p.text;
+	}
+	function partGloss(p: WordPart): string {
+		if (p.kind === 'root') return p.meaning ?? '';
+		const key = `eo.part.${p.text}` as MessageKey;
+		const gloss = t(key);
+		return gloss === key ? '' : gloss;
+	}
 
 	/** One word, as a selection of one word comes: a dictionary can take it. */
 	const word = $derived.by(() => {
@@ -229,6 +244,16 @@
 						{/if}
 					</div>
 				{/each}
+				{#if looked.parts?.length}
+					<div class="parts">
+						<p class="split" lang="eo">{looked.parts.map((p) => p.text).join('·')}</p>
+						<ul>
+							{#each looked.parts as p, i (i)}
+								<li class:root={p.kind === 'root'}><span class="part" lang="eo">{partLabel(p)}</span> {partGloss(p)}</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 				<p class="source">{looked.source === 'revo' ? t('reader.lookup.revo') : looked.source === 'espdic' ? t('reader.lookup.espdic') : t('reader.lookup.wiktionary')}</p>
 			{/if}
 		</div>
@@ -428,6 +453,28 @@
 		color: var(--r-muted);
 		font-size: 0.8rem;
 		margin-right: 0.3rem;
+	}
+	.parts {
+		padding-top: 0.4rem;
+		border-top: 1px solid var(--r-border);
+	}
+	.split {
+		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
+	.parts ul {
+		list-style: none;
+		margin: 0.15rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.1rem 0.9rem;
+		font-size: 0.85rem;
+		color: var(--r-muted);
+	}
+	.parts .part {
+		color: var(--r-fg);
+		font-weight: 600;
 	}
 	.entry ol {
 		margin: 0.2rem 0 0;

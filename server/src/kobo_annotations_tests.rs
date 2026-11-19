@@ -240,6 +240,33 @@ async fn what_the_device_sends_for_a_book_lands_among_the_owners_annotations_and
     let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
     assert_eq!(list.as_array().unwrap().len(), 1);
     assert_eq!(list[0]["text"], "Smooth");
+    // It waits in the trash, and can be brought back: the device gets it again.
+    let (_, trash) = send(&app, Method::GET, "/api/annotations/trash", Some(&a), None).await;
+    assert_eq!(trash.as_array().unwrap().len(), 1, "{trash}");
+    assert_eq!(trash[0]["book_title"], "Röda rummet");
+    let trashed = trash[0]["id"].as_i64().unwrap();
+    let (status, back) = send(&app, Method::POST, &format!("/api/annotations/trash/{trashed}/restore"), Some(&a), None).await;
+    assert_eq!(status, StatusCode::OK, "{back}");
+    assert_eq!(back["source"], "kobo");
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    let (_, v) = from_device(&app, Method::GET, &format!("{uri}?limit=100"), DEVICE, None).await;
+    assert!(v["annotations"].as_array().unwrap().iter().any(|x| x["id"] == highlight()["id"]), "{v}");
+    let (_, trash) = send(&app, Method::GET, "/api/annotations/trash", Some(&a), None).await;
+    assert_eq!(trash.as_array().unwrap().len(), 0);
+    // Removed again, and emptied for good; nobody else's trash is touched.
+    from_device(&app, Method::PATCH, &uri, DEVICE, Some(patch(json!([]), json!([highlight()["id"].as_str().unwrap()])))).await;
+    let (_, trash) = send(&app, Method::GET, "/api/annotations/trash", Some(&a), None).await;
+    let trashed = trash[0]["id"].as_i64().unwrap();
+    let bob_cookie = format!("{}=session-bob", crate::auth::SESSION_COOKIE);
+    let (status, _) = send(&app, Method::DELETE, &format!("/api/annotations/trash/{trashed}"), Some(&bob_cookie), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = send(&app, Method::DELETE, &format!("/api/annotations/trash/{trashed}"), Some(&a), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, trash) = send(&app, Method::GET, "/api/annotations/trash", Some(&a), None).await;
+    assert_eq!(trash.as_array().unwrap().len(), 0);
+    let (_, list) = send(&app, Method::GET, &format!("/api/books/{book}/annotations"), Some(&a), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
     let (status, _) = send(&app, Method::DELETE, &format!("/api/annotations/{placed}"), Some(&a), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (_, changed) = from_device(&app, Method::POST, "/api/v3/content/checkforchanges", DEVICE, Some(asks.clone())).await;

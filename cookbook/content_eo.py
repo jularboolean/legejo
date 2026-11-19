@@ -331,7 +331,10 @@ apud la nomo de la aŭtoro diras, kiu la persono estis: la vivjarojn, kelkajn vo
 ligilon al Wikipedia en via lingvo. Ĝi aperas nur kiam Wikidata certe konas la personon,
 do verkisto kun ofta nomo, aŭ tiu, kiun Wikidata ne konas, ricevas neniun. Se la linio temas pri
 iu alia, elektu <strong>Malĝusta persono?</strong>; la linio malaperas por vi, kaj
-<strong>Montri denove</strong> revenigas ĝin.</p>"""),
+<strong>Montri denove</strong> revenigas ĝin.</p>
+<p>La tiel trovitaj vivjaroj staras ankaŭ apud ĉiu nomo en la paĝo <strong>Aŭtoroj</strong> kaj en
+la paĝo de libro. Sub la detaloj de libro, <strong>Pli de</strong> montras viajn aliajn librojn de
+la sama aŭtoro.</p>"""),
 
  ("Demandi la bibliotekiston",
   "<p>Vi ne scias, kion vi volas legi, nur kian specon.</p>",
@@ -569,7 +572,11 @@ enkonstruita en Legejo; en aliaj lingvoj ĝi venas el Vikivortaro, kun tio, kion
 tuta artikolo.</p>""",
   """<p>Vorto estas serĉata tiel, kiel la vortaro havas ĝin: <em>ĉambrojn</em> kiel <em>ĉambro</em>,
 <em>legis</em> kiel <em>legi</em>. La servilo demandas la vortaron anstataŭ vi, do la vortoj, kiujn vi
-serĉas, forlasas la instancon, sed ne kiu vi estas.</p>"""),
+serĉas, forlasas la instancon, sed ne kiu vi estas.</p>
+<p>Vorto farita el radiko kaj afiksoj estas ankaŭ disigita, kiel Reta Vortaro markas ĝin:
+<em>malsanulejo</em> estas <em>mal·san·ul·ej·o</em>. Ĉiu prefikso, sufikso kaj finaĵo estas klarigita
+en via lingvo, kaj la radiko kun sia signifo. La nomo Legejo estas farita same: <em>leg·ej·o</em>, la
+loko, kie oni legas. Vorto, kiu estas nur radiko kun sia finaĵo, restas tuta.</p>"""),
 
  ("Traduki eron",
   "<p>Tuta frazo haltigas vin, ne nur vorto: idiotismo, malnova esprimo, verso.</p>",
@@ -748,7 +755,10 @@ paĝo Administrado.</em></p>
 alvenas en Legejo, metita en la libron kaj markita <em>Kobo</em> en la panelo. Kion vi markas en
 la retlegilo, kaj notoj, kiujn vi ŝanĝas tie, atingas la aparaton ĉe ĝia sekva sinkronigo.
 Forigo ĉe unu flanko forigas ankaŭ ĉe la alia.</p>""",
-  """<p>Sciu ĉi tion antaŭ ol ŝalti ĝin:</p>
+  """<p>Marko forigita ĉe la aparato atendas dum 30 tagoj ĉe la fino de <strong>Miaj notoj</strong>,
+sub <strong>Forigitaj ĉe la Kobo</strong>. <strong>Restarigi</strong> revenigas ĝin, ankaŭ al la
+aparato ĉe ĝia sekva sinkronigo.</p>
+<p>Sciu ĉi tion antaŭ ol ŝalti ĝin:</p>
 <ul>
 <li>La aparato tiam sendas siajn markojn al Legejo anstataŭ al Kobo, por ĉiuj siaj libroj. Tiuj
 de libroj aĉetitaj ĉe Kobo ne estas akceptataj. Se ankaŭ <strong>La Kobo-vendejo apud Legejo</strong>

@@ -46,6 +46,10 @@ pub struct Entry {
     pub translations: Vec<Translation>,
     /// The whole article.
     pub link: String,
+    /// Reta Vortaro's mark for the word ("san.mal0ulejo"), which names its
+    /// root; for taking the word apart.
+    #[serde(skip)]
+    pub mark: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -60,6 +64,18 @@ pub struct Answer {
     /// "revo", "espdic" or "wiktionary"; absent when nothing was found.
     pub source: Option<&'static str>,
     pub entries: Vec<Entry>,
+    /// An Esperanto word taken apart into prefixes, root, suffixes and ending.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<WordPart>>,
+}
+
+/// A part of a word taken apart; a root with what it means.
+#[derive(Serialize, Clone)]
+pub struct WordPart {
+    pub text: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meaning: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -96,7 +112,10 @@ pub async fn lookup(State(state): State<AppState>, user: crate::auth::AuthUser, 
         }
     }
     match look_up(&state, &word, &language, &reader).await {
-        Ok(answer) => {
+        Ok(mut answer) => {
+            if language == "eo" {
+                answer.parts = word_parts(&state, &answer, &reader).await;
+            }
             let mut kept = cache().lock().unwrap();
             if kept.len() >= KEEP_AT_MOST {
                 kept.retain(|_, (at, _)| at.elapsed() < KEEP);
@@ -112,6 +131,40 @@ pub async fn lookup(State(state): State<AppState>, user: crate::auth::AuthUser, 
             (StatusCode::BAD_GATEWAY, Json(json!({ "error": "the dictionary could not be reached" }))).into_response()
         }
     }
+}
+
+/// The Esperanto word taken apart by Reta Vortaro's mark for it, its roots
+/// with what they mean: in the reader's language from Reta Vortaro when it
+/// has it, else in English from ESPDIC.
+async fn word_parts(state: &AppState, answer: &Answer, reader: &str) -> Option<Vec<WordPart>> {
+    let is_root = |r: &str| ["o", "a", "i", "e"].iter().any(|e| crate::espdic::lookup(&format!("{r}{e}")).is_some_and(|f| !f.derived));
+    let parts = answer
+        .entries
+        .iter()
+        .find_map(|e| crate::esperanto::parts_from_mark(e.mark.as_deref()?, &e.headword, is_root))?;
+    let mut out = Vec::with_capacity(parts.len());
+    for p in parts {
+        let meaning = if p.kind == "root" { root_meaning(state, &p.text, reader).await } else { None };
+        out.push(WordPart { text: p.text, kind: p.kind, meaning });
+    }
+    Some(out)
+}
+
+/// What a root means, as its plainest word says it.
+async fn root_meaning(state: &AppState, root: &str, reader: &str) -> Option<String> {
+    for ending in ["o", "a", "i", "e"] {
+        let word = format!("{root}{ending}");
+        if let Ok(entries) = revo(state, &word, reader).await {
+            let words = entries.iter().find_map(|e| e.translations.iter().find(|t| t.language == reader)).map(|t| t.words.clone());
+            if let Some(words) = words.filter(|w| !w.is_empty()) {
+                return Some(words.into_iter().take(2).collect::<Vec<_>>().join(", "));
+            }
+        }
+    }
+    ["o", "a", "i", "e"].iter().find_map(|e| {
+        let found = crate::espdic::lookup(&format!("{root}{e}")).filter(|f| !f.derived)?;
+        Some(found.english.split([',', ';']).next().unwrap_or("").trim().to_string()).filter(|m| !m.is_empty())
+    })
 }
 
 /// "en-GB" → "en".
@@ -143,7 +196,7 @@ async fn look_up(state: &AppState, word: &str, language: &str, reader: &str) -> 
         let mut bare = Vec::new();
         match revo {
             Ok(entries) if entries.iter().any(|e| e.translations.iter().any(|t| t.language == reader)) => {
-                return Ok(Answer { word, source: Some("revo"), entries });
+                return Ok(Answer { word, source: Some("revo"), entries, parts: None });
             }
             Ok(entries) => bare = entries,
             Err(e) => tracing::warn!("dictionary: Reta Vortaro did not answer for \"{word}\": {e:#}; ESPDIC instead"),
@@ -158,29 +211,30 @@ async fn look_up(state: &AppState, word: &str, language: &str, reader: &str) -> 
                 definitions: Vec::new(),
                 translations: vec![Translation { language: "en".into(), words: vec![found.english] }],
                 link,
+                mark: bare.first().and_then(|e| e.mark.clone()),
             };
-            return Ok(Answer { word, source: Some("espdic"), entries: vec![entry] });
+            return Ok(Answer { word, source: Some("espdic"), entries: vec![entry], parts: None });
         }
         // An article with translations only under phrases (a correlative
         // like "kiam") is kept for its link while Wiktionary is asked.
         if bare.iter().any(|e| !e.translations.is_empty() || !e.definitions.is_empty()) {
-            return Ok(Answer { word, source: Some("revo"), entries: bare });
+            return Ok(Answer { word, source: Some("revo"), entries: bare, parts: None });
         }
         for candidate in esperanto_forms(&word) {
             let entries = wiktionary(state, &candidate, "eo").await?;
             if !entries.is_empty() {
-                return Ok(Answer { word, source: Some("wiktionary"), entries });
+                return Ok(Answer { word, source: Some("wiktionary"), entries, parts: None });
             }
         }
         let source = (!bare.is_empty()).then_some("revo");
-        return Ok(Answer { word, source, entries: bare });
+        return Ok(Answer { word, source, entries: bare, parts: None });
     }
     let mut entries = wiktionary(state, word, language).await?;
     if entries.is_empty() && word.chars().any(char::is_uppercase) {
         entries = wiktionary(state, &word.to_lowercase(), language).await?;
     }
     let source = (!entries.is_empty()).then_some("wiktionary");
-    Ok(Answer { word: word.to_string(), source, entries })
+    Ok(Answer { word: word.to_string(), source, entries, parts: None })
 }
 
 /// An Esperanto word as it stands, then as a dictionary has it: without the
@@ -265,6 +319,7 @@ async fn revo(state: &AppState, word: &str, reader: &str) -> anyhow::Result<Vec<
                         definitions: Vec::new(),
                         translations: Vec::new(),
                         link: format!("https://reta-vortaro.de/revo/art/{article}.html#{mark}"),
+                        mark: Some(mark.clone()),
                     },
                 ));
                 entries.len() - 1
@@ -327,6 +382,7 @@ async fn wiktionary(state: &AppState, word: &str, language: &str) -> anyhow::Res
             headword: if part.is_empty() { word.to_string() } else { format!("{word} ({})", part.to_lowercase()) },
             definitions,
             translations: Vec::new(),
+            mark: None,
             link: format!("https://en.wiktionary.org/wiki/{title}#{}", language_name.replace(' ', "_")),
         });
     }

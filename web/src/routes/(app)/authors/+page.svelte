@@ -2,11 +2,16 @@
 	import { Search } from '@lucide/svelte';
 	import { getLocale, t } from '#lib/i18n';
 	import { collectAuthors, fold, initial, type AuthorEntry } from '#lib/library/authors';
+	import { authorYears, yearsText, type Years } from '#lib/library/authorYears';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	let query = $state('');
+	let years = $state<Record<string, Years>>({});
+	$effect(() => {
+		authorYears().then((y) => (years = y));
+	});
 
 	const all = $derived(collectAuthors(data.books, getLocale()));
 	const shown = $derived.by(() => {
@@ -65,7 +70,7 @@
 					<li>
 						<a class="row" href={`/?author=${encodeURIComponent(a.key)}`}>
 							<span class="who">
-								<span class="name">{a.name}</span>
+								<span class="name">{a.name}{#if yearsText(years[a.key])}<span class="years">&nbsp;({yearsText(years[a.key])})</span>{/if}</span>
 								<span class="meta">
 									{t('authors.books', { count: a.books.length })}{#if a.finished > 0}
 										· {t('authors.finished', { count: a.finished })}{/if}
@@ -87,6 +92,11 @@
 {/if}
 
 <style>
+	.years {
+		color: var(--muted);
+		font-weight: normal;
+		font-size: 0.85em;
+	}
 	header {
 		margin-bottom: 1rem;
 	}

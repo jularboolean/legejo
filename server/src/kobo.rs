@@ -539,6 +539,9 @@ async fn take_in(state: &AppState, user_id: i64, book_id: i64, patch: DevicePatc
     }
     let mut gone = 0;
     for id in patch.deleted_annotation_ids {
+        // Into the trash first, so that a highlight removed by mistake on
+        // the device can be brought back (annotations::restore).
+        crate::annotations::to_trash(state, user_id, &id).await?;
         let done = sqlx::query("DELETE FROM annotations WHERE user_id = $1 AND kobo_id = $2")
             .bind(user_id)
             .bind(&id)

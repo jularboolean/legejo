@@ -67,6 +67,7 @@ pub(crate) async fn prune(state: &AppState) {
     let steps = [
         ("log entries", "DELETE FROM activity_log WHERE at < $1", year_ago.clone()),
         ("shelf events", "DELETE FROM shelf_events WHERE at < $1", year_ago.clone()),
+        ("highlights in the trash", "DELETE FROM annotation_trash WHERE trashed_at < $1", crate::db::ts_in_days(-crate::annotations::TRASH_DAYS)),
         ("deleted books noted for Kobo", "DELETE FROM kobo_deleted_books WHERE deleted_at < $1", year_ago),
         ("sessions", "DELETE FROM sessions WHERE expires_at < $1", now.clone()),
         ("unconfirmed registrations", "DELETE FROM users WHERE verify_token IS NOT NULL AND verify_expires < $1", now),

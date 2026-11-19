@@ -9,6 +9,8 @@
 	import { getLocale, t } from '#lib/i18n';
 	import { onOpenLibrary } from '#lib/library';
 	import { splitAuthors } from '#lib/library/authors';
+	import { authorYears, yearsText, type Years } from '#lib/library/authorYears';
+	import MoreByAuthor from '#lib/library/MoreByAuthor.svelte';
 	import { fedHost } from '#lib/fed';
 	import { licenseName, licenseUrl } from '#lib/license';
 	import { renderMarkdown } from '#lib/markdown';
@@ -19,6 +21,11 @@
 	import { minutesFor, roughly } from '#lib/readingTime';
 	import { availability, fileVersion, removeBook, saveBook, savedVersion } from '#lib/offline/store';
 	import type { PageData } from './$types';
+
+	let authorYearsByKey = $state<Record<string, Years>>({});
+	$effect(() => {
+		authorYears().then((y) => (authorYearsByKey = y));
+	});
 
 	let { data }: { data: PageData } = $props();
 
@@ -348,7 +355,7 @@
 						{:else}
 							{#each people as person, i (person.key)}
 								{#if i > 0}<span class="sep">, </span>{/if}
-								<a href={`/?author=${encodeURIComponent(person.key)}`} title={t('authors.showBooks', { name: person.name })}>{person.name}</a>
+								<a href={`/?author=${encodeURIComponent(person.key)}`} title={t('authors.showBooks', { name: person.name })}>{person.name}</a>{#if yearsText(authorYearsByKey[person.key])}<span class="years">&nbsp;({yearsText(authorYearsByKey[person.key])})</span>{/if}
 							{/each}
 						{/if}
 					</p>
@@ -540,10 +547,16 @@
 				</ul>
 			</details>
 		{/if}
+
+		{#if !data.offline}<MoreByAuthor bookId={book.id} author={book.author} />{/if}
 	</div>
 </div>
 
 <style>
+	.years {
+		color: var(--muted);
+		font-size: 0.9em;
+	}
 	.topline {
 		display: flex;
 		align-items: center;
