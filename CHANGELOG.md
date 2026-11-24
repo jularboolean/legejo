@@ -4,6 +4,15 @@ What changed in each release of Legejo, newest first. Versions follow
 [semantic versioning](https://semver.org); every release is published as a
 container image with the same tag.
 
+## 1.50.1 (2026-11-24)
+
+- **Search engines are asked to leave the instance out.** Every page, the
+  sign-in page too, now says `noindex`, and `robots.txt` keeps crawlers out
+  of the API and the feeds. An instance that was already in a search
+  engine drops out once the engine has looked again. To let the public
+  pages of federated shelves be found, an admin turns on **Let search
+  engines find the federated shelves**; everything else stays out.
+
 ## 1.50.0 (2026-11-19)
 
 - **Highlights removed on a Kobo wait in a trash.** For 30 days they stand at
