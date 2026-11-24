@@ -97,7 +97,10 @@ in. <strong>Test from outside</strong> has instances.legejo.se try the address f
 The address is not kept; an instance that answers is counted once a month, by a random id.</p>
 <p>To be found by others, turn on <strong>Show my instance publicly</strong> on the Admin page. The
 list at instances.legejo.se then shows the address, the version, whether federation is on and
-whether anyone can sign up, and nothing else.</p>""",
+whether anyone can sign up, and nothing else.</p>
+<p>Search engines are asked to leave the instance out: every page says <code>noindex</code>, the
+sign-in page too. To let the public pages of federated shelves turn up in search results, turn on
+<strong>Let search engines find the federated shelves</strong>; everything else stays out.</p>""",
   """<p>Kobo sync, links in emails, federation and installing Legejo as an app all depend on
 that address being right. With an <code>https</code> public address, session cookies are marked
 <code>Secure</code>, from the moment it is saved; set <code>LEGEJO_SECURE_COOKIES=false</code> only if you truly serve plain

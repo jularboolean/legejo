@@ -1300,6 +1300,8 @@ export const nb: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsHint': "Lar brukere legge til OPDS-kataloger fra andre biblioteker (f.eks. Prosjekt Gutenberg), blad gjennom dem her og hente bøker.",
 	'admin.directoryToggle': "Vis instansen min offentlig",
 	'admin.directoryHint': "Legger denne instansen til den offentlige listen på instances.legejo.se, slik at andre kan finne den.",
+	'admin.searchEnginesToggle': "La søkemotorer finne de fødererte hyllene",
+	'admin.searchEnginesHint': "Som standard ber Legejo søkemotorer om ikke å ta med noe fra instansen: verken innloggingssiden eller noen annen side. Slå på dette for at de offentlige sidene for fødererte hyller (/f/…) kan vises i søkeresultater. Alt annet holdes utenfor.",
 	'admin.directoryNeedsAddress': "Angi en offentlig https-adresse først.",
 	'catalogs.accountIntro': "Legg til OPDS-kataloger fra andre biblioteker, blad gjennom dem her og hent bøker til ditt bibliotek. Funksjonen er avslått til du slår den på.",
 	'catalogs.turnOn': "Vis kataloger i menyen min",

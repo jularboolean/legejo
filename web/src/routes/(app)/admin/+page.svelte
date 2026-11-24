@@ -30,6 +30,7 @@
 	let audiobooksEnabled = $state(data.settings.audiobooks_enabled ?? false);
 	let catalogsEnabled = $state(data.settings.catalogs_enabled ?? false);
 	let directoryListed = $state(data.settings.directory_listed ?? false);
+	let searchEnginesEnabled = $state(data.settings.search_engines_enabled ?? false);
 	let koboAnnotationsEnabled = $state(data.settings.kobo_annotations_enabled ?? false);
 	let koboStoreEnabled = $state(data.settings.kobo_store_enabled ?? false);
 	let dictionaryEnabled = $state(data.settings.dictionary_enabled ?? false);
@@ -82,6 +83,7 @@
 					shelf_links_enabled: shelfLinksEnabled,
 					author_facts_enabled: authorFactsEnabled,
 					directory_listed: directoryListed,
+					search_engines_enabled: searchEnginesEnabled,
 					fulltext_enabled: data.settings.fulltext_env ? undefined : fulltextEnabled,
 					registration_enabled: registrationEnabled
 				})
@@ -103,6 +105,7 @@
 				shelf_links_enabled?: boolean;
 				author_facts_enabled?: boolean;
 				directory_listed?: boolean;
+				search_engines_enabled?: boolean;
 				fulltext_enabled?: boolean;
 				registration_enabled: boolean;
 			} = await res.json();
@@ -114,6 +117,7 @@
 			shelfLinksEnabled = settings.shelf_links_enabled ?? false;
 			authorFactsEnabled = settings.author_facts_enabled ?? false;
 			directoryListed = settings.directory_listed ?? false;
+			searchEnginesEnabled = settings.search_engines_enabled ?? false;
 			fulltextEnabled = settings.fulltext_enabled ?? false;
 			librisEnabled = settings.libris_enabled;
 			openLibraryEnabled = settings.openlibrary_enabled;
@@ -156,6 +160,12 @@
 		const previous = directoryListed;
 		directoryListed = enabled;
 		if (!(await saveSettings())) directoryListed = previous;
+	}
+
+	async function toggleSearchEngines(enabled: boolean) {
+		const previous = searchEnginesEnabled;
+		searchEnginesEnabled = enabled;
+		if (!(await saveSettings())) searchEnginesEnabled = previous;
 	}
 
 	async function toggleKoboAnnotations(enabled: boolean) {
@@ -335,6 +345,16 @@
 	</label>
 	<p class="hint">{t('admin.directoryHint')}</p>
 	{#if directoryError}<p class="error">{directoryError}</p>{/if}
+	<label class="toggle">
+		<input
+			type="checkbox"
+			checked={searchEnginesEnabled}
+			disabled={saving}
+			onchange={(e) => toggleSearchEngines(e.currentTarget.checked)}
+		/>
+		{t('admin.searchEnginesToggle')}
+	</label>
+	<p class="hint">{t('admin.searchEnginesHint')}</p>
 	<label class="toggle">
 		<input
 			type="checkbox"

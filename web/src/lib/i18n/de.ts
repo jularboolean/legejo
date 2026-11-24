@@ -1305,6 +1305,8 @@ export const de: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsHint': "Lässt Benutzer OPDS-Kataloge anderer Bibliotheken hinzufügen, zum Beispiel Project Gutenberg, hier darin stöbern und Bücher daraus holen. Der Server holt dann von Adressen, die Benutzer angeben; Adressen in deinem eigenen Netz werden abgewiesen. Jeder Benutzer schaltet es für sich selbst ein.",
 	'admin.directoryToggle': "Meine Instanz öffentlich zeigen",
 	'admin.directoryHint': "Nimmt diese Instanz in die öffentliche Liste auf instances.legejo.se auf, damit andere sie finden können. Die Liste zeigt nur die Adresse, die Version und ob Föderation eingeschaltet ist und jeder sich registrieren kann. Schaltest du es aus, verschwindet die Instanz innerhalb eines Tages von der Liste.",
+	'admin.searchEnginesToggle': "Suchmaschinen die föderierten Regale finden lassen",
+	'admin.searchEnginesHint': "Standardmäßig bittet Legejo Suchmaschinen, nichts von der Instanz aufzunehmen: weder die Anmeldeseite noch eine andere Seite. Schalte dies ein, damit die öffentlichen Seiten föderierter Regale (/f/…) in Suchergebnissen erscheinen dürfen. Alles andere bleibt draußen.",
 	'admin.directoryNeedsAddress': "Lege zuerst eine öffentliche https-Adresse fest.",
 	'catalogs.accountIntro': "Füge OPDS-Kataloge anderer Bibliotheken hinzu, zum Beispiel Project Gutenberg, stöbere hier darin und hole Bücher in deine Bibliothek. Es ist aus, bis du es einschaltest. Ausschalten blendet nur die Seite aus: Deine Kataloge bleiben erhalten, ebenso die geholten Bücher.",
 	'catalogs.turnOn': "Kataloge in meinem Menü zeigen",

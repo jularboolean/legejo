@@ -1300,6 +1300,8 @@ export const sv: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsHint': "Låter användare lägga till OPDS-kataloger från andra bibliotek, till exempel Project Gutenberg, bläddra i dem här och hämta böcker ur dem. Servern hämtar då från adresser som användarna anger; adresser inne i ditt eget nätverk nekas. Varje användare slår på det för sig själv.",
 	'admin.directoryToggle': "Visa min instans offentligt",
 	'admin.directoryHint': "Lägger till instansen i den offentliga förteckningen på instances.legejo.se, så att andra kan hitta den. Där visas bara adressen, versionen om federering är påslagen och om vem som helst kan skaffa konto. Slår du av det försvinner instansen från förteckningen inom ett dygn.",
+	'admin.searchEnginesToggle': "Låt sökmotorer hitta de federerade hyllorna",
+	'admin.searchEnginesHint': "Som standard ber Legejo sökmotorer att inte ta med något från instansen: inte inloggningssidan och inte någon annan sida. Slå på det här om de offentliga sidorna för federerade hyllor (/f/…) får synas i sökresultat. Allt annat förblir dolt.",
 	'admin.directoryNeedsAddress': "Ange först en publik adress med https.",
 	'catalogs.accountIntro': "Lägg till OPDS-kataloger från andra bibliotek, till exempel Project Gutenberg, bläddra i dem här och hämta böcker till ditt bibliotek. Det är av tills du slår på det. Att slå av det gömmer bara sidan: dina kataloger finns kvar, och böckerna du har hämtat likaså.",
 	'catalogs.turnOn': "Visa Kataloger i min meny",

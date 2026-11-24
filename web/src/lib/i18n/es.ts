@@ -1305,6 +1305,8 @@ export const es: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsHint': "Permite a los usuarios añadir catálogos OPDS de otras bibliotecas, por ejemplo el Proyecto Gutenberg, recorrerlos aquí y traer libros de ellos. El servidor trae entonces de direcciones que dan los usuarios; las direcciones de tu propia red se rechazan. Cada usuario lo activa para sí mismo.",
 	'admin.directoryToggle': "Mostrar mi instancia públicamente",
 	'admin.directoryHint': "Añade esta instancia a la lista pública de instances.legejo.se, para que otros puedan encontrarla. La lista muestra solo su dirección, su versión si la federación está activada y si cualquiera puede registrarse. Si lo desactivas, la instancia sale de la lista en un día.",
+	'admin.searchEnginesToggle': "Permitir que los buscadores encuentren las estanterías federadas",
+	'admin.searchEnginesHint': "Por defecto, Legejo pide a los buscadores que no incluyan nada de la instancia: ni la página de inicio de sesión ni ninguna otra. Actívalo para que las páginas públicas de las estanterías federadas (/f/…) aparezcan en los resultados. Todo lo demás queda fuera.",
 	'admin.directoryNeedsAddress': "Indica primero una dirección pública con https.",
 	'catalogs.accountIntro': "Añade catálogos OPDS de otras bibliotecas, por ejemplo el Proyecto Gutenberg, recórrelos aquí y trae libros a tu biblioteca. Está desactivado hasta que lo actives. Desactivarlo solo oculta la página: tus catálogos se conservan, y también los libros que has traído.",
 	'catalogs.turnOn': "Mostrar los catálogos en mi menú",

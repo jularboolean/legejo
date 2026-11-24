@@ -45,6 +45,8 @@ pub struct Live {
     /// Search inside the books, as switched on the admin page (fulltext.rs;
     /// LEGEJO_FULLTEXT, when set, wins over it).
     fulltext: std::sync::atomic::AtomicBool,
+    /// Search engines may index the public shelf pages (robots.rs).
+    search_engines: std::sync::atomic::AtomicBool,
 }
 
 impl Live {
@@ -52,7 +54,7 @@ impl Live {
     /// instance that has not read the database yet).
     pub fn fixed(mail: Option<MailConfig>, ai: Option<Ai>, public_url: Option<String>) -> Live {
         let env = FromEnv { mail: mail.is_some(), ai: ai.is_some(), public_url: public_url.is_some() };
-        Live { values: RwLock::new(Values { mail, ai, public_url }), env, fulltext: false.into() }
+        Live { values: RwLock::new(Values { mail, ai, public_url }), env, fulltext: false.into(), search_engines: false.into() }
     }
 
     /// The environment first, then what an admin saved.
@@ -61,10 +63,13 @@ impl Live {
         let ai = crate::settings::ai_from_env()?;
         let public_url = crate::settings::var("LEGEJO_PUBLIC_URL")?.map(|u| public_url_from_env(&u)).transpose()?;
         let env = FromEnv { mail: mail.is_some(), ai: ai.is_some(), public_url: public_url.is_some() };
-        let live = Live { values: RwLock::new(Values { mail, ai, public_url }), env, fulltext: false.into() };
+        let live = Live { values: RwLock::new(Values { mail, ai, public_url }), env, fulltext: false.into(), search_engines: false.into() };
         live.reload(db).await?;
         let fulltext: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'fulltext_enabled'").fetch_optional(db).await?;
         live.set_fulltext(fulltext.as_deref() == Some("true"));
+        let search: Option<String> =
+            sqlx::query_scalar("SELECT value FROM settings WHERE key = 'search_engines_enabled'").fetch_optional(db).await?;
+        live.set_search_engines(search.as_deref() == Some("true"));
         Ok(live)
     }
 
@@ -90,6 +95,14 @@ impl Live {
 
     pub fn set_fulltext(&self, on: bool) {
         self.fulltext.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn search_engines(&self) -> bool {
+        self.search_engines.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn set_search_engines(&self, on: bool) {
+        self.search_engines.store(on, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn mail(&self) -> Option<MailConfig> {

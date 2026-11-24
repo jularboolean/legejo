@@ -99,7 +99,10 @@ La adreso ne estas konservata; instanco, kiu respondas, estas kalkulata unufoje 
 identigilo.</p>
 <p>Por esti trovebla de aliaj, ŝaltu <strong>Montri mian instancon publike</strong> en la paĝo
 Administrado. La listo ĉe instances.legejo.se tiam montras la adreson, la version, ĉu federacio estas
-ŝaltita kaj ĉu ĉiu povas registriĝi, kaj nenion alian.</p>""",
+ŝaltita kaj ĉu ĉiu povas registriĝi, kaj nenion alian.</p>
+<p>Serĉiloj estas petataj lasi la instancon ekstere: ĉiu paĝo diras <code>noindex</code>, ankaŭ la
+ensaluta paĝo. Por lasi la publikajn paĝojn de federaciitaj bretoj aperi en serĉrezultoj, ŝaltu
+<strong>Lasi serĉilojn trovi la federaciitajn bretojn</strong>; ĉio alia restas ekstere.</p>""",
   """<p>Kobo-sinkronigo, ligiloj en retleteroj, federacio kaj instalado de Legejo kiel aplikaĵo ĉiuj dependas
 de tio, ke tiu adreso estas ĝusta. Kun publika <code>https</code>-adreso, seancaj kuketoj estas markitaj
 <code>Secure</code>, ekde kiam ĝi estas konservita; agordu <code>LEGEJO_SECURE_COOKIES=false</code> nur, se vi vere servas per simpla

@@ -110,6 +110,7 @@ mod kobo_store_tests;
 mod welcome;
 mod shelflinks;
 mod shelfevents;
+mod robots;
 mod followmail;
 mod authorfacts;
 mod authorfacts_tests;
@@ -447,7 +448,9 @@ fn router(state: AppState) -> Router {
         .nest("/api/kobo/{token}", kobo)
         .nest("/api/kosync", kosync::router())
         .route("/metrics", get(metrics::metrics))
+        .route("/robots.txt", get(robots::robots_txt))
         .merge(fed::routes::router())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), robots::tag))
         .layer(TraceLayer::new_for_http());
     // Tests with a bucket forget the disk after every request (storage.rs).
     #[cfg(test)]
@@ -620,7 +623,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(importdir::worker(state.clone()));
     tokio::spawn(audioimport::worker(state.clone()));
 
-    let mut app = router(state);
+    let mut app = router(state.clone());
 
     // Production: serve the built SvelteKit SPA (adapter-static) from the same
     // port as the API. Unknown paths get index.html so client-side routes
@@ -632,6 +635,8 @@ async fn main() -> anyhow::Result<()> {
     if let Some(web_dir) = settings::var("LEGEJO_WEB_DIR")?.map(PathBuf::from) {
         tracing::info!("serving web frontend from {}", web_dir.display());
         app = serve_web(app, &web_dir);
+        // The web's pages, too, say what search engines may have.
+        app = app.layer(axum::middleware::from_fn_with_state(state, robots::tag));
     }
 
     let addr: SocketAddr = settings::var("LEGEJO_ADDR")?

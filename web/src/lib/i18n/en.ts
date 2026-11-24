@@ -1298,6 +1298,8 @@ export const en = {
 	'admin.catalogsHint': "Lets users add OPDS catalogs of other libraries, such as Project Gutenberg, look through them here and fetch books from them. The server then fetches from addresses that users give it; addresses inside your own network are refused. Each user turns it on for themselves.",
 	'admin.directoryToggle': "Show my instance publicly",
 	'admin.directoryHint': "Adds this instance to the public list at instances.legejo.se, so that others can find it. The list shows only its address, its version, whether federation is on, and whether anyone can sign up. Turn it off, and the instance leaves the list within a day.",
+	'admin.searchEnginesToggle': "Let search engines find the federated shelves",
+	'admin.searchEnginesHint': "By default Legejo asks search engines to leave out everything on the instance: the sign-in page and every other page. Turn this on to let the public pages of federated shelves (/f/…) appear in search results. Everything else stays out.",
 	'admin.directoryNeedsAddress': "Set an https public address first.",
 	'catalogs.accountIntro': "Add OPDS catalogs of other libraries, such as Project Gutenberg, look through them here and fetch books into your library. It is off until you turn it on. Turning it off only hides the page: your catalogs are kept, and so are the books you have fetched.",
 	'catalogs.turnOn': "Show catalogs in my menu",

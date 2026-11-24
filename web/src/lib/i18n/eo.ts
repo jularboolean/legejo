@@ -1292,6 +1292,8 @@ export const eo: Partial<Record<keyof typeof en, string>> = {
 	'admin.catalogsHint': "Ebligas al uzantoj aldoni OPDS-katalogojn de aliaj bibliotekoj, ekzemple Project Gutenberg, foliumi ilin ĉi tie kaj elŝuti librojn el ili. La servilo tiam elŝutas de adresoj, kiujn uzantoj donas; adresoj ene de via propra reto estas rifuzataj. Ĉiu uzanto ŝaltas ĝin por si mem.",
 	'admin.directoryToggle': "Montri mian instancon publike",
 	'admin.directoryHint': "Aldonas ĉi tiun instancon al la publika listo ĉe instances.legejo.se, por ke aliaj povu trovi ĝin. La listo montras nur ĝian adreson, ĝian version, ĉu federado estas ŝaltita, kaj ĉu ĉiu povas registriĝi. Se vi malŝaltas ĝin, la instanco forlasas la liston ene de unu tago.",
+	'admin.searchEnginesToggle': "Lasi serĉilojn trovi la federaciitajn bretojn",
+	'admin.searchEnginesHint': "Defaŭlte Legejo petas serĉilojn ne enmeti ion ajn de la instanco: nek la ensalutan paĝon nek alian paĝon. Ŝaltu ĉi tion por lasi la publikajn paĝojn de federaciitaj bretoj (/f/…) aperi en serĉrezultoj. Ĉio alia restas ekstere.",
 	'admin.directoryNeedsAddress': "Unue agordu publikan adreson kun https.",
 	'catalogs.accountIntro': "Aldonu OPDS-katalogojn de aliaj bibliotekoj, ekzemple Project Gutenberg, foliumu ilin ĉi tie kaj elŝutu librojn al via biblioteko. Ĝi estas malŝaltita ĝis vi ŝaltas ĝin. Malŝalti ĝin nur kaŝas la paĝon: viaj katalogoj restas, kaj ankaŭ la elŝutitaj libroj.",
 	'catalogs.turnOn': "Montri katalogojn en mia menuo",

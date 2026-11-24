@@ -27,6 +27,7 @@ export const load: PageLoad = async ({ fetch }) => {
 		shelf_links_enabled?: boolean;
 		author_facts_enabled?: boolean;
 		directory_listed?: boolean;
+		search_engines_enabled?: boolean;
 		fulltext?: { books: number; pending: number; texts: number; bytes: number };
 		fulltext_enabled?: boolean;
 		fulltext_env?: boolean;

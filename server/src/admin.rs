@@ -53,6 +53,8 @@ pub struct Settings {
     author_facts_enabled: bool,
     /// On the public list of instances.
     directory_listed: bool,
+    /// Search engines may index the public shelf pages (robots.rs).
+    search_engines_enabled: bool,
     registration_enabled: bool,
     /// Whether the operator configured SMTP (LEGEJO_SMTP_*); read-only info.
     mail_configured: bool,
@@ -82,6 +84,7 @@ async fn current_settings(state: &AppState) -> Result<Json<Settings>, Response> 
         shelf_links_enabled: crate::shelflinks::enabled(state).await,
         author_facts_enabled: crate::authorfacts::enabled(state).await,
         directory_listed: crate::directory::listed(state).await,
+        search_engines_enabled: crate::robots::enabled(state).await,
         registration_enabled: crate::register::registration_enabled(state)
             .await
             .map_err(|e| internal(e.into()))?,
@@ -124,6 +127,9 @@ pub struct UpdateSettings {
     shelf_links_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     author_facts_enabled: Option<bool>,
+    /// Absent from older clients: unchanged.
+    #[serde(default)]
+    search_engines_enabled: Option<bool>,
     /// Absent from older clients: unchanged.
     directory_listed: Option<bool>,
     /// Absent from older clients: unchanged. Ignored when LEGEJO_FULLTEXT is set.
@@ -183,6 +189,12 @@ pub async fn update_settings(
             .await
             .map_err(|e| internal(e.into()))?;
     }
+    if let Some(on) = req.search_engines_enabled {
+        set_setting(&state, "search_engines_enabled", if on { "true" } else { "false" })
+            .await
+            .map_err(|e| internal(e.into()))?;
+        state.live.set_search_engines(on);
+    }
     if let Some(on) = req.directory_listed {
         set_setting(&state, "directory_listed", if on { "true" } else { "false" })
             .await
@@ -220,6 +232,7 @@ pub async fn update_settings(
             "fulltext_enabled": req.fulltext_enabled,
             "author_facts_enabled": req.author_facts_enabled,
             "directory_listed": req.directory_listed,
+            "search_engines_enabled": req.search_engines_enabled,
             "registration_enabled": req.registration_enabled,
         }),
     )
